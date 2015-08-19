@@ -11,26 +11,29 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | This is the implementation pack __version 0.2__, #O(1) `QueueOf Lit`
+-- | This is the implementation pack __version 0.4 #FixedVector + List-based Vector__ 
 --
--- * __Vec__ :: @IORef [a]@ -- data type that contains a mutable list of elements
+-- * __FixedVec a__ @:: MV.IOVector a@ -- data type that contains a mutable list of elements
 --
--- * __VerOrder__ :: @IORef [Var]@
+-- * __Vec a__  @:: IORef [a]@ -- data type that contains a mutable list of elements
 --
--- * __QueuoOf Lit__ :: @UV.IOVector Int@
+-- * __VerOrder__ @:: IORef [Var]@
 --
-module SAT.Solver.Mios.Implementation.V02 where
+-- * __QueueOf Lit__ @:: UV.IOVector Int@
+--
+module SAT.Solver.Mios.Implementation.V04 where
 
 import Control.Monad
 import Data.IORef
 import Data.List
+import qualified Data.Vector.Mutable as MV
 import qualified Data.Vector.Unboxed.Mutable as UV
 import System.Mem.StableName
 import SAT.Solver.Mios.Types
 
--- | sets to the version name : @"mios v0.2 #O(1) `QueueOf Lit`"@
+-- | sets to the version name : @"mios v0.4 #FixedVector + List-based Vector"@
 idString :: String
-idString = "mios v0.2 #O(1) `QueueOf Lit`"
+idString = "mios v0.4 #FixedVector + List-based Vector"
 
 -- | __version 0.1__
 --
@@ -112,6 +115,95 @@ checkImplementation = do
 -- | sort elements in /big-to-small/ order
 sortByFst :: VecOf (Double, Int) -> IO ()
 sortByFst VecOf{..} = writeIORef ptr . reverse . sortOn fst =<< readIORef ptr
+
+-- | __version 0.4__
+--
+-- Costs of all operations are /O/(/1/)
+data FixedVectorOf a = FixedVectorOf
+                          {
+                            fVec :: MV.IOVector a
+                          }
+
+-- | provides 'clear' and 'size'
+instance ContainerLike (FixedVectorOf a) where
+  clear FixedVectorOf{..} = error "FixedVector.clear"
+  size FixedVectorOf{..} = return $ MV.length fVec
+
+-- | constructors, resize, stack, vector, and duplication operations
+instance VectorLike (FixedVectorOf a) a where
+  -- * Constructors
+  emptyVec = FixedVectorOf <$> MV.new 0
+  newVec = FixedVectorOf <$> MV.new 0
+  newVecSized n = FixedVectorOf <$> MV.new n
+  newVecSizedWith n x = FixedVectorOf <$> MV.replicate n x
+  -- * Size operations
+  shrink n FixedVectorOf{..} = error "FixedVectorOf.shrink"
+  growTo _ _ = error "FixedVectorOf.growTo"
+  growToWith _ _ = error "FixedVectorOf.growToWith"
+  -- * Stack operations
+  pop FixedVectorOf{..} = error "FixedVectorOf.pop"
+  push FixedVectorOf{..} x = error "FixedVectorOf.push"
+  lastE FixedVectorOf{..} = error "FixedVectorOf.lastE"
+  removeElem x FixedVectorOf{..} = error "FixedVectorOf.removeElem"
+  -- * Vector operations
+  {-# SPECIALIZE INLINE (.!) :: FixedVectorOf a -> Int -> IO a #-}
+  (.!) FixedVectorOf{..} n = MV.read fVec n
+  {-# SPECIALIZE INLINE setAt :: FixedVectorOf a -> Int -> a -> IO () #-}
+  setAt FixedVectorOf{..} n x = MV.write fVec n x
+  -- * Duplication
+  copyTo v1 v2 = error "FixedVectorOf.copyTo"
+  moveTo v1 v2 = error "FixedVectorOf.moveTo"
+  -- * Conversion
+  newFromList (l) = error "FixedVectorOf.newFromList"
+  asList FixedVectorOf{..} = forM [0 .. MV.length fVec - 1] $ MV.read fVec
+  checkConsistency str FixedVectorOf{..} func = error "FixedVectorOf.checkConsistency"
+  dump str FixedVectorOf{..} = return $ str ++ "FixedVectorOf"
+
+-- | __version 0.3__
+--
+-- Costs of all operations are /O/(/1/)
+data FixedLitVector = FixedLitVector
+                          {
+                            litVec :: UV.IOVector Int
+                          }
+
+-- | provides 'clear' and 'size'
+instance ContainerLike FixedLitVector where
+  clear FixedLitVector{..} = error "FixedLitVector.clear"
+  size FixedLitVector{..} = return $ UV.length litVec
+
+-- | constructors, resize, stack, vector, and duplication operations
+instance VectorLike FixedLitVector Lit where
+  -- * Constructors
+  emptyVec = FixedLitVector <$> UV.new 0
+  newVec = FixedLitVector <$> UV.new 0
+  newVecSized n = FixedLitVector <$> UV.new 0
+  newVecSizedWith n x = FixedLitVector <$> UV.new 0
+  -- * Size operations
+  shrink n FixedLitVector{..} = error "FixedLitVector.shrink"
+  growTo _ _ = error "FixedLitVector.growTo"
+  growToWith _ _ = error "FixedLitVector.growToWith"
+  -- * Stack operations
+  pop FixedLitVector{..} = error "FixedLitVector.pop"
+  push FixedLitVector{..} x = error "FixedLitVector.push"
+  lastE FixedLitVector{..} = error "FixedLitVector.lastE"
+  removeElem x FixedLitVector{..} = error "FixedLitVector.removeElem"
+  -- * Vector operations
+  {-# SPECIALIZE INLINE (.!) :: FixedLitVector -> Int -> IO Lit #-}
+  (.!) FixedLitVector{..} n = UV.unsafeRead litVec n
+  {-# SPECIALIZE INLINE setAt :: FixedLitVector -> Int -> Lit -> IO () #-}
+  setAt FixedLitVector{..} n x = UV.unsafeWrite litVec n x
+  -- * Duplication
+  copyTo v1 v2 = error "FixedLitVector.copyTo"
+  moveTo v1 v2 = error "FixedLitVector.moveTo"
+  -- * Conversion
+  newFromList (nub -> l) = do
+    v <- UV.new $ length l
+    forM_ (zip [0 .. length l - 1] l) $ \(i, j) -> UV.unsafeWrite v i j
+    return $ FixedLitVector v
+  asList FixedLitVector{..} = forM [0 .. UV.length litVec - 1] $ UV.unsafeRead litVec
+  checkConsistency str FixedLitVector{..} func = error "FixedLitVector.checkConsistency"
+  dump str FixedLitVector{..} = return $ str ++ "FixedLitVector"
 
 -- | __version 0.2__
 --

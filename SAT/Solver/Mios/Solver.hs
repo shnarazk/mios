@@ -63,7 +63,7 @@ import Control.Monad
 import Data.List (intercalate, nub, sort)
 import Data.IORef
 import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Implementation.V01
+import SAT.Solver.Mios.Internal
 
 -- | __Fig. 2.(p.9)__ Internal State of the solver
 data Solver = Solver
@@ -81,7 +81,7 @@ data Solver = Solver
               , varDecay   :: IORef Double -- ^ Decay factor for variable activity.
               , order      :: VarOrderStatic -- ^ Keeps track of the dynamic variable order.
                 -- Propagation
-              , watches    :: VecOf (VecOf Clause) -- ^ For each literal 'p', a list of constraint wathing 'p'.
+              , watches    :: FixedVectorOf (VecOf Clause) -- ^ For each literal 'p', a list of constraint wathing 'p'.
                              -- A constraint will be inspected when 'p' becomes true.
               , undos      :: VecOf (VecOf Clause) -- ^ For each variable 'x', a list of constraints that need
                              -- to update when 'x' becomes unbound by backtracking.
@@ -114,6 +114,8 @@ class SolverState s where
  valueLit      :: s -> Lit -> IO Int
  -- | returns decisionLevel
  decisionLevel :: s -> IO Int
+ -- | returns an everything-is-initialized solver from the argument
+ setInternalState :: s -> IO s
 
 instance SolverState Solver where
  nVars = size . assigns
@@ -124,6 +126,11 @@ instance SolverState Solver where
  valueLit s p@(signum -> (-1)) = negate <$> (assigns s .! (var p - 1))
  valueLit s p@(signum -> 1)    = assigns s .! (var p - 1)
  decisionLevel = size . trailLim
+ setInternalState s = do
+   nv <- size $ assigns s
+   w <- newVecSized $ nv * 2
+   forM_ [0 .. nv * 2 - 1] $ \i -> setAt w i =<< newVec
+   return $ s { watches = w }
 
 -- | constructor
 newSolver :: IO Solver
@@ -625,7 +632,7 @@ class BoolConstraint c where
   -- defaults to return false
   simplify _ _ = return False
 
-  -- | __Undo.__ During backtracking, this method is called if the cons taint added itself
+  -- | __Undo.__ During backtracking, this method is called if the constaint added itself
   -- to the undo list of /var(p)/ in 'propagateLit'.The current variable assignments are
   -- guaranteed to be identical to that of the moment before 'propagateLit' was called.
   undoConstraint :: c -> Solver -> Lit -> IO ()
@@ -651,7 +658,7 @@ data Clause = Clause
               {
                 learnt   :: Bool         -- ^ whether this is a learnt clause
               , activity :: IORef Double -- ^ activity of this clause
-              , lits     :: VecOf Lit       -- ^ which this clause consists of
+              , lits     :: FixedLitVector       -- ^ which this clause consists of
               }
 
 -- | for debug
@@ -702,6 +709,7 @@ instance BoolConstraint Clause where
     loop 0 0
   -- | returns @True@ if no conflict occured
   -- this is invoked by 'propagate'
+  {-# SPECIALIZE INLINE propagateLit :: Clause -> Solver -> Lit -> IO Bool #-}
   propagateLit c@Clause{..} s@Solver{..} p = do
     -- Make sure the false literal is lits[1]:
     l <- lits .! 0
@@ -787,7 +795,8 @@ clauseNew s@Solver{..} ps learnt = do
      -- allocate clause:
      ptr <- newIORef 0
      writeIORef ptr 0
-     let c = Clause learnt ptr ps
+     ps' <- newFromList =<< asList ps
+     let c = Clause learnt ptr ps'
      when learnt $ do
        -- Pick a second literal to watch:
        let
@@ -805,8 +814,8 @@ clauseNew s@Solver{..} ps learnt = do
        setAt (lits c) 1 =<< ps .! max_i
        setAt (lits c) max_i tmp   -- OLD: setAt (lits c) max_i =<< ps .! 1
        -- check literals occurences
-       x <- asList (lits c)
-       unless (length x == length (nub x)) $ error "new clause contains a element doubly"
+       -- x <- asList (lits c)
+       -- unless (length x == length (nub x)) $ error "new clause contains a element doubly"
        -- Bumping:
        claBumpActivity s c -- newly learnt clauses should be considered active
        n <- subtract 1 <$> size ps
@@ -916,14 +925,15 @@ instance VarOrder Solver where
   -- Creates a new SAT variable in the solver.
   newVar s@Solver{..} = do
     index <- nVars s
-    push watches =<< newVec      -- push'
-    push watches =<< newVec      -- push'
+    -- Version 0.4:: push watches =<< newVec      -- push'
+    -- Version 0.4:: push watches =<< newVec      -- push'
     push undos =<< newVec        -- push'
     push reason nullClause       -- push'
     push assigns lBottom
     push level (-1)
     push activities (0.0 :: Double)
     newVar order
+    growQueueSized (index + 1) propQ
     return index
   updateAll Solver{..} = updateAll order
 

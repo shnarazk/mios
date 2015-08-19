@@ -82,6 +82,7 @@ class ContainerLike v => VectorLike v t | v -> t where
   growTo :: v -> Int -> IO ()   -- (v `growTo`) n  :: OOPL style
   growTo = error "growTo undefined"
   -- | resizes to /n/ sized vector and store the 3rd value into the new places
+  -- __Not in use__
   growToWith :: v -> Int -> IO ()
   growToWith = error "growToWith undefined"
   -- * Stack operations
@@ -109,6 +110,7 @@ class ContainerLike v => VectorLike v t | v -> t where
   setAt = error "setAt undefined"
   -- * Duplication
   -- | copies the vector itself of the 1st arg to one of the 2nd arg
+  -- __Not in use__
   copyTo :: v -> v -> IO ()
   copyTo = error "copyTo undefined"
   -- | meves the vector itself of the 1st arg to one of the 2nd arg
@@ -121,13 +123,16 @@ class ContainerLike v => VectorLike v t | v -> t where
   -- | returns a representative string (@:: String@) in a monadic context
   dump :: Show t => String -> v -> IO String
   dump msg _ = error $ msg ++ ": no defalut method for dump"
-  {-# MINIMAL newVec, pop, push, lastE, removeElem, (.!), setAt, copyTo #-}
+  {-# MINIMAL newVec, newVecSized, newVecSizedWith, growTo, shrink, pop, push, lastE, removeElem, (.!), setAt, moveTo #-}
 
 -- | Public interface as "Queue"
 class ContainerLike q => QueueLike q t | q -> t where
   -- | returns an empty queue
   newQueue :: IO q
   newQueue = error "newQueue undefined"
+  -- | returns an empty queue
+  growQueueSized :: Int -> q -> IO ()
+  growQueueSized = error "newQueueSizd undefined"
   -- | inserts the 2nd arg into the trail
   insert :: q -> t -> IO ()
   insert = error "insert undefined"
@@ -183,7 +188,7 @@ index :: Lit -> Int
 index l@((< 0) -> True) = -2 * l - 1
 index l = 2 * (l - 1)
 
--- | Lifted Boolean domain (p.7) that extends 'Bool' with "bottom" means /undefined/
+-- | Lifted Boolean domain (p.7) that extends 'Bool' with "⊥" means /undefined/
 type LBool = Int
 
 -- | converts 'Bool' into 'LBool'

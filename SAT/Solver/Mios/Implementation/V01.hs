@@ -27,7 +27,7 @@ import SAT.Solver.Mios.Types
 
 -- | sets to the version name: @"mios v0.1 #check-consistency"@
 idString :: String
-idString = "mios v0.1 #check-consistency"
+idString = "mios v0.1.1 #check-consistency"
 
 -- | __version 0.1__
 --
@@ -136,49 +136,6 @@ data QueueOf a = QueueOf
 instance ContainerLike (QueueOf a) where
   clear QueueOf{..} = writeIORef qPtr []
   size QueueOf{..} = length <$> readIORef qPtr
-
--- | constructors, resize, stack, vector, and duplication operations
-instance VectorLike (QueueOf a) a where
-  -- * Constructors
-  emptyVec = QueueOf <$> newIORef []
-  newVec = QueueOf <$> newIORef []
-  newVecSized n = QueueOf <$> newIORef (replicate n undefined)
-  newVecSizedWith n x = QueueOf <$> newIORef (replicate n x)
-  -- * Size operations
-  shrink n QueueOf{..} = do
-    writeIORef qPtr . take n =<< readIORef qPtr
-  growTo _ _ = return ()
-  growToWith _ _ = return ()
-  -- * Stack operations
-  pop QueueOf{..} = do
-    l <- readIORef qPtr
-    unless (null l) $ writeIORef qPtr $ init l
-  push QueueOf{..} x = do
-    l <- readIORef qPtr
-    writeIORef qPtr $ l ++ [x]
-  lastE QueueOf{..} = do
-    l <- readIORef qPtr
-    return $ last l
-  removeElem x QueueOf{..} = do
-    l <- readIORef qPtr
-    writeIORef qPtr =<< deleteWOEq x l
-  -- * Vector operations
-  (.!) QueueOf{..} n = (!! n) <$> readIORef qPtr
-  setAt QueueOf{..} n x = do
-    l <- readIORef qPtr
-    writeIORef qPtr $ take (n -1) l ++ (x : drop n l)
-  -- * Duplication
-  copyTo v1 v2 = do
-    l1 <- readIORef (qPtr v1)
-    writeIORef (qPtr v2) l1
-  moveTo v1 v2 = do
-    l1 <- readIORef (qPtr v1)
-    writeIORef (qPtr v2) l1
-    writeIORef (qPtr v1) []
-  -- * Conversion
-  newFromList l = QueueOf <$> newIORef l
-  asList QueueOf{..} = readIORef qPtr
-  dump str QueueOf{..} = (str ++) . show <$> readIORef qPtr
 
 -- | 'Lit' Container
 -- this is a derived type, thus no need to instanciation for 'ContainerLike'

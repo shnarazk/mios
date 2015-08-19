@@ -13,25 +13,35 @@ import System.IO (hFlush, stdout)
 
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Solver
-import SAT.Solver.Mios.Implementation.V01
+import SAT.Solver.Mios.Internal
 import SAT.Solver.SIH.Data.Types (RawClause, CNFDescription (..))
 import SAT.Solver.SIH.Data.DIMACSReader
+import SAT.Solver.Mios.OptionParser
 
 -- | main
 main :: IO ()
 main = do
-  putStrLn idString
-  -- checkImplementation
-  args <- getArgs
-  unless (null args) $ do
-    sat <- cnfFromFile . Just $ head args
-    case sat of
-     Nothing -> putStrLn "couldn't load"
-     Just (desc, vecs) -> do
-       -- putStrLn $ "loaded : #v = " ++ show (numberOfVariables desc) ++ " #c = " ++ show (numberOfClauses desc)
-       s <- newSolver
-       mapM_ (const (newVar s)) [0 .. numberOfVariables desc - 1]
-       mapM_ ((s `addClause`) . V.toList) vecs
+  opts <- miosParseOptionsFromArgs idString
+  case () of
+    _ | _displayVersion opts -> putStrLn idString
+    _ | _displayHelp opts    -> putStrLn $ miosUsage $ idString ++ "\nUsage: mios [OPTIONS] target.cnf"
+    _ | otherwise            -> execute opts $ _targetFile opts
+
+execute :: MiosConfigurationOption -> Maybe String -> IO ()
+execute _ Nothing = return ()
+execute opts targetfile = do
+  when (_confVerbose opts) $ putStrLn idString -- >> checkImplementation
+  sat <- cnfFromFile targetfile
+  case sat of
+   Nothing -> error $ "couldn't load " ++ show targetfile
+   Just (desc, vecs) -> do
+     when (_confVerbose opts) $ do
+       putStrLn $ "loaded : #v = " ++ show (numberOfVariables desc) ++ " #c = " ++ show (numberOfClauses desc)
+     s <- newSolver
+     mapM_ (const (newVar s)) [0 .. numberOfVariables desc - 1]
+     s <- setInternalState s
+     mapM_ ((s `addClause`) . V.toList) vecs
+     when (_confVerbose opts) $ do
        nv <- nVars s
        nc <- nConstraints s
        nl <- nLearnts s
@@ -40,11 +50,10 @@ main = do
        putStrLn . intercalate ", " =<< mapM dumpClause =<< asList =<< watches s .! 0
        putStrLn "literal -1 watched by: "
        putStrLn . intercalate ", " =<< mapM dumpClause =<< asList =<< watches s .! 1
-       putStrLn . ("`simplifyDB`: " ++) . show =<< simplifyDB s
-       result <- solve s =<< emptyVec
+     res <- simplifyDB s
+     when (_confVerbose opts) $ putStrLn $ "`simplifyDB`: " ++ show res
+     result <- solve s =<< emptyVec
+     unless (_confNoAnswer opts) $ do
        if result
-         then do
-             asg <- asList (model s)
-             print asg
-             print $ zipWith (\n s -> if s then n else negate n) [1 .. ] asg
+         then print . zipWith (\n s -> if s then n else negate n) [1 .. ] =<< asList (model s)
          else putStrLn "[]"

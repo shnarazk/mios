@@ -1,5 +1,5 @@
 -- | yet another Minisat Implementation On SIH4
-module SAT.Solver.Misih
+module SAT.Solver.Mios
        (
          newVar
        , addClause
@@ -10,10 +10,5 @@ module SAT.Solver.Misih
        )
        where
 
-newVar     = undefined
-addClause  = undefined
-add        = undefined
-simplifyDB = undefined
-solve      = undefined
-model      = undefined
+import SAT.Solver.Mios.Solver
 
