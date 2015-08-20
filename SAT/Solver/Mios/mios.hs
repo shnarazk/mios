@@ -12,6 +12,7 @@ import System.Environment (getArgs)
 import System.IO (hFlush, stdout)
 
 import SAT.Solver.Mios.Types
+import SAT.Solver.Mios.SolverRelation
 import SAT.Solver.Mios.Solver
 import SAT.Solver.Mios.Internal
 import SAT.Solver.SIH.Data.Types (RawClause, CNFDescription (..))
@@ -39,17 +40,17 @@ execute opts targetfile = do
        putStrLn $ "loaded : #v = " ++ show (numberOfVariables desc) ++ " #c = " ++ show (numberOfClauses desc)
      s <- newSolver
      mapM_ (const (newVar s)) [0 .. numberOfVariables desc - 1]
-     s <- setInternalState s
+     s <- setInternalState s $ numberOfVariables desc
      mapM_ ((s `addClause`) . V.toList) vecs
      when (_confVerbose opts) $ do
        nv <- nVars s
        nc <- nConstraints s
        nl <- nLearnts s
        putStrLn $ "(nv, nc, nl) = " ++ show (nv, nc, nl)
-       putStrLn "literal  1 watched by: "
-       putStrLn . intercalate ", " =<< mapM dumpClause =<< asList =<< watches s .! 0
-       putStrLn "literal -1 watched by: "
-       putStrLn . intercalate ", " =<< mapM dumpClause =<< asList =<< watches s .! 1
+       -- putStrLn "literal  1 watched by: "
+       -- putStrLn . intercalate ", " =<< mapM dumpClause =<< asList =<< watches s .! 0
+       -- putStrLn "literal -1 watched by: "
+       -- putStrLn . intercalate ", " =<< mapM dumpClause =<< asList =<< watches s .! 1
      res <- simplifyDB s
      when (_confVerbose opts) $ putStrLn $ "`simplifyDB`: " ++ show res
      result <- solve s =<< emptyVec

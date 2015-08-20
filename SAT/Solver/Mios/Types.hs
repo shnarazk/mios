@@ -27,6 +27,7 @@ module SAT.Solver.Mios.Types
        , newLit
        , var
        , index
+       , index2lit
        , LBool
        , lbool
        , lFalse
@@ -36,24 +37,33 @@ module SAT.Solver.Mios.Types
        )
        where
 
+import GHC.Prim
 import qualified Data.Vector.Mutable as MV
 import qualified Data.Vector.Unboxed.Mutable as UV
 import System.Mem.StableName
 
 -- | Public interface as /Container/
-class ContainerLike s where
+class ContainerLike s t | s -> t where
+  -- * Size operations
   -- | erases all elements in it
   clear :: s -> IO ()
   clear = error "no default method for clear"
   -- | returns the numeber of its elements in a monadic context
   size :: s -> IO Int
   size = error "no default method for size"
-  {-# MINIMAL size #-}
+  -- * Debug
+  -- | dump the contents
+  dump :: Show t => String -> s -> IO String
+  dump msg _ = error $ msg ++ ": no defalut method for dump"
+  -- | converts into a list
+  asList :: s -> IO [t]
+  asList = error "asList undefined"
+  {-# MINIMAL size, dump #-}
 
 -- | The vector data type can push a default constructed element by the 'push` method
 -- with no argument. The 'moveTo' method will move the contents of a vector to another
 -- vector in constant time, crearing the source vector.
-class ContainerLike v => VectorLike v t | v -> t where
+class ContainerLike v t => VectorLike v t | v -> t where
   -- * Constructors
   -- | returns a new empty vector; no need to pickup an value
   emptyVec :: IO v
@@ -72,10 +82,6 @@ class ContainerLike v => VectorLike v t | v -> t where
   newFromList :: [t] -> IO v
   newFromList = error "newFromList undefined"
   -- | converts to a list (@:: [t]@) in a monadic context
-  asList :: v -> IO [t]
-  asList = error "asList undefined"
-  -- * Size operations
-  -- | deletes the last /n/ elements
   shrink :: Int -> v -> IO ()
   shrink = error "shrink undefined"
   -- | resizes to /n/ sized vector
@@ -121,18 +127,16 @@ class ContainerLike v => VectorLike v t | v -> t where
   checkConsistency :: String -> v -> (t -> IO Bool) -> IO ()
   checkConsistency _ _ _ = return ()
   -- | returns a representative string (@:: String@) in a monadic context
-  dump :: Show t => String -> v -> IO String
-  dump msg _ = error $ msg ++ ": no defalut method for dump"
   {-# MINIMAL newVec, newVecSized, newVecSizedWith, growTo, shrink, pop, push, lastE, removeElem, (.!), setAt, moveTo #-}
 
 -- | Public interface as "Queue"
-class ContainerLike q => QueueLike q t | q -> t where
+class ContainerLike q t => QueueLike q t | q -> t where
   -- | returns an empty queue
   newQueue :: IO q
   newQueue = error "newQueue undefined"
   -- | returns an empty queue
-  growQueueSized :: Int -> q -> IO ()
-  growQueueSized = error "newQueueSizd undefined"
+  newQueueSized :: Int -> IO q
+  newQueueSized = error "newQueueSized undefined"
   -- | inserts the 2nd arg into the trail
   insert :: q -> t -> IO ()
   insert = error "insert undefined"
@@ -152,7 +156,8 @@ class ContainerLike q => QueueLike q t | q -> t where
 -- [True, False, True, True]
 --
 (<==>) :: a -> a -> IO Bool
-(<==>) !a !b = (==) <$> makeStableName a <*> makeStableName b
+-- (<==>) !a !b = (==) <$> makeStableName a <*> makeStableName b
+(<==>) !x !y = return $! x `seq` y `seq` tagToEnum# (reallyUnsafePtrEquality# x y)
 
 -- | represents "Var"
 type Var = Int
@@ -187,6 +192,10 @@ var = abs
 index :: Lit -> Int
 index l@((< 0) -> True) = -2 * l - 1
 index l = 2 * (l - 1)
+
+-- | revese convert to 'Lit' from index
+index2lit :: Int -> Int
+index2lit n = (div n 2 + 1) * if odd n then -1 else 1
 
 -- | Lifted Boolean domain (p.7) that extends 'Bool' with "⊥" means /undefined/
 type LBool = Int

@@ -12,14 +12,8 @@ module SAT.Solver.Mios.OptionParser
        )
        where
 import Control.Monad
-import Data.List (nub)
-import Data.Maybe (fromJust)
-import qualified Data.Vector.Unboxed as U
-import Numeric (showFFloat)
 import System.Console.GetOpt
-import System.CPUTime
 import System.Environment (getArgs)
-import System.IO (hFlush, stdout)
 
 -- | configuration
 data MiosConfiguration = MiosConfiguration
