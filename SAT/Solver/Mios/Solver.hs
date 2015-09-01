@@ -80,8 +80,10 @@ instance SolverState Solver where
  nConstraints = size . constrs
  nLearnts = size . learnts
  valueVar s x = assigns s .! (x - 1)
- valueLit s p@(signum -> (-1)) = negate <$> (assigns s .! (var p - 1))
- valueLit s p@(signum -> 1)    = assigns s .! (var p - 1)
+ {-# SPECIALIZE INLINE valueLit :: Solver -> Lit -> IO Int #-}
+ valueLit s p
+   | p < 0 = negate <$> (assigns s .! (var p - 1))
+   | otherwise = assigns s .! (var p - 1)
  decisionLevel = size . trailLim
  setInternalState s nv = do
    ac <- newVecSizedWith nv 0.0
@@ -119,7 +121,7 @@ newSolver = do
   _claInt     <- newIORef 0
   _claDecay   <- newIORef 0
   _activities <- newVec
-  _varInc     <- newIORef 0
+  _varInc     <- newIORef 1
   _varDecay   <- newIORef 0
   let _order  = undefined
   _watches    <- newVec
@@ -156,6 +158,7 @@ newSolver = do
 -- | public interface of 'Solver' (p.2)
 --
 -- returns @False@ if a conflict has occured.
+-- This function is called only before the solving phase to register the given clauses.
 addClause :: Solver -> [Lit] -> IO Bool
 addClause s@Solver{..} literals = do
   vecLits <- newFromList literals
@@ -325,7 +328,8 @@ record :: Solver -> VecOf Lit -> IO ()
 record s@Solver{..} clause = do
   c <- snd <$> clauseNew s clause True -- will be set to created clause, or NULL if @clause[]@ is unit
   l <- clause .! 0
-  unless (c == NullClause) $ enqueue s l c >> push learnts c
+  enqueue s l c
+  unless (c == NullClause) $ push learnts c
 
 -- | __Fig. 12. (p.17)__
 -- unbinds the last variable on the trail.
@@ -386,11 +390,8 @@ cancelUntil s lvl = do
 --
 -- __Pre-condition:__
 -- @root_level == decisionLevel@
-search :: Solver -> Int -> Int -> (Double, Double) -> IO LBool
-search s@Solver{..} nOfConflicts nOfLearnts (a, b) = do
-  let
-    varDecay = 1 / a
-    claDecay = 1 / b
+search :: Solver -> Int -> Int -> IO LBool
+search s@Solver{..} nOfConflicts nOfLearnts = do
   clear model
   let
     loop conflictC = do
@@ -431,6 +432,7 @@ search s@Solver{..} nOfConflicts nOfLearnts (a, b) = do
                    (model `growTo`) k3
                    nv <- nVars s
                    forM_ [0 .. nv - 1] $ \i -> setAt model i =<< (lTrue ==) <$> assigns .! i
+                   -- putStrLn =<< dump "activities:" activities
                    return lTrue
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
@@ -504,9 +506,12 @@ reduceDB :: Solver -> IO ()
 reduceDB s@Solver{..} = do
   n <- size learnts
   ci <- readIORef claInc
+  -- staticVarOrder s
+  lim <- setClauseActivities s
+  sortVecOn ((negate <$>) . readIORef . activity) learnts -- sortOnActivity(learnts)
   let
     n' = fromIntegral n
-    lim = ci / n'
+    -- lim = ci / n'
     n2 = div n 2
   let
     for i@((< n2) -> False) j = return (i, j)
@@ -522,10 +527,10 @@ reduceDB s@Solver{..} = do
     for' i j = do
       !c <- learnts .! i
       lk <- locked c s
-      a <- readIORef $ activity c -- FIXME activity keeps zero forever
+      a <- readIORef $ activity c
       if not lk && a < lim
-        then remove c s >> for (i + 1) j -- O(n) operation
-        else setAt learnts j c >> for (i + 1) (j + 1)
+        then remove c s >> for' (i + 1) j -- O(n) operation
+        else setAt learnts j c >> for' (i + 1) (j + 1)
   (_, j') <- for' i j
   shrink (n - j') learnts
   return ()
@@ -573,8 +578,9 @@ simplifyDB s@Solver{..} = do
 -- non-usable internal state) cannot be distinguished from a conflict under assumptions.
 solve :: Solver -> VecOf Lit -> IO Bool
 solve s@Solver{..} assumps = do
-  writeIORef varDecay 0.95
-  writeIORef claDecay 0.999
+  writeIORef varDecay (1 / 0.95)
+  writeIORef claDecay (1 / 0.999)
+  writeIORef varInc 1
   nc <- fromIntegral <$> nConstraints s
   -- PUSH INCREMENTAL ASSUMPTIONS:
   k <- size assumps
@@ -601,7 +607,7 @@ solve s@Solver{..} assumps = do
             cancelUntil s 0
             return $ status == lTrue
           while status nOfConflicts nOfLearnts = do
-            status <- search s (fromEnum . fromRational $ nOfConflicts) (fromEnum . fromRational $ nOfLearnts) (0.95, 0.999)
+            status <- search s (fromEnum . fromRational $ nOfConflicts) (fromEnum . fromRational $ nOfLearnts)
             while status (1.5 * nOfConflicts) (1.1 * nOfLearnts)
         while lBottom 100 (nc / 3)
 
@@ -661,16 +667,14 @@ instance BoolConstraint Solver Clause where
     l <- c .! 0
     when (l == negate p) $ do
       -- swap lits[0] and lits[1]
-      l' <- c .! 1
-      setAt c 0 l'
+      setAt c 0 =<< c .! 1
       setAt c 1 (negate p)
       -- then swap watcher[0] and watcher[1], of course!
       c' <- readIORef nextWatch1
       writeIORef nextWatch1 =<< readIORef nextWatch2
       writeIORef nextWatch2 c'
     -- If 0th watch is True, then clause is already satisfied.
-    l0 <- c .! 0
-    val <- valueLit s l0
+    val <- valueLit s =<< c .! 0
     if val == lTrue
       then do
           pushWatcher w p c -- re-insert clause into watcher list
@@ -683,7 +687,7 @@ instance BoolConstraint Solver Clause where
               -- Clause is unit under assignment:
               pushWatcher w p c
               l <- c .! 0
-              when (c == NullClause) $ error "propagateLit undef"
+              -- when (c == NullClause) $ error "propagateLit undef"
               enqueue s l c
             loop i = do
               l <- c .! i
@@ -704,11 +708,11 @@ instance BoolConstraint Solver Clause where
   -- in which case the reason for the clause being conflicting should be
   -- returned through the vector: @outReason@.
   --
-  -- __invaliand__ @c /= NullClause@
+  -- __invaliant__ @c /= NullClause@
   calcReason c s@Solver{..} p outReason = do
     -- putStrLn =<< dump "c in calcReason" c
     -- invariant: (p == bottomLit) || (p == lits[0])
-    when (c == NullClause) $ error $ "calcReason can't handle NullClause; p = " ++ show p
+    -- when (c == NullClause) $ error $ "calcReason can't handle NullClause; p = " ++ show p
     n <- size c
     -- putStrLn $ "calcReason :: n = " ++ show n
     let
@@ -732,25 +736,30 @@ instance BoolConstraint Solver Clause where
 -- clauseNew :: Solver -> VecOf Lit -> Bool -> Clause -> IO Bool
 clauseNew :: Solver -> VecOf Lit -> Bool -> IO (Bool, Clause)
 clauseNew s@Solver{..} ps learnt = do
-  unless learnt $ do
-    ls' <- asList ps
-    let ls = nub ls'
-    cond1 <- or <$> mapM (\l -> (lTrue ==) <$> valueLit s l) ls -- any literal in ps is true
-    let cond2 = any (flip elem ls) (map negate ls) -- both p and negate p occurs in ps
-    when (cond1 || cond2) $ error "cond* holds!!"  -- return (True, NullClause)
-    -- remove all duplicatates from ps
-    -- remove all false literals from ps
-    l' <- filterM (\l -> (lFalse /=) <$> valueLit s l) ls
-    clear ps
-    forM_ l' $ push ps
-  psWithLen <- newFromList . (\l -> (length l : l)) . nub =<< asList ps
-  k <- subtract 1 <$> size psWithLen -- length ps /= length (nub ps)
+  (exit, k, psWithLen) <- do
+    ls <- nub <$> asList ps        -- remove all duplicatates from ps
+    if not learnt
+      then do
+      cond1 <- or <$> mapM (\l -> (lTrue ==) <$> valueLit s l) ls -- any literal in ps is true
+      let cond2 = any (flip elem ls) (map negate ls) -- both p and negate p occurs in ps
+      if cond1 || cond2
+        then return (True, 0, undefined)
+        else do
+        -- remove all false literals from ps
+        l' <- filterM (\l -> (lFalse /=) <$> valueLit s l) ls
+        clear ps
+        forM_ l' $ push ps
+        let ln = length l'
+        (False, ln, ) <$> newFromList (ln : l')
+      else do
+      ls <- asList ps
+      let ln = length ls
+      (False, ln, ) <$> newFromList (ln : ls)
   case k of
-   0 -> return (False, NullClause)
+   0 -> return (exit, NullClause)
    1 -> do
      l <- ps .! 0
-     -- putStrLn $ "unit clause generated:" ++ show l
-     (\x -> (x, NullClause)) <$> enqueue s l NullClause
+     (, NullClause) <$> enqueue s l NullClause
    otherwise -> do
      -- allocate clause:
      act <- newIORef 0
@@ -803,9 +812,10 @@ doWhile cond body = do { res <- body; whileCond <- cond; if whileCond then doWhi
 -- | __Fig. 17. (p.23)__
 -- The static variable ordering of "SATZOO". The code is defined only for clauses, not for
 -- arbitrary constraints. It must be adapted before it can be used in MINISAT.
+-- The main purpose of this function is to update each activity field in learnt clauses.
 staticVarOrder :: Solver -> IO ()
 staticVarOrder s@Solver{..} = do
-  let clauses = constrs
+  let clauses = learnts
   -- CLEAR ACTIVITY:
   nv <- nVars s
   forM_ [0 .. nv - 1] $ \i -> setAt activities i 0
@@ -816,7 +826,7 @@ staticVarOrder s@Solver{..} = do
     m <- size c
     let a = 2 ** fromIntegral (negate m)
     forM_ [0 .. m - 1] $ \j -> do
-      k <- var <$> c .! j
+      k <- subtract 1 . var <$> c .! j
       setAt activities k . (a +) =<< activities .! k
   -- CALCULATE THE INITIAL "HEAD" OF ALL CLAUSES:
   (occurs :: FixedVecOf (VecOf Lit)) <- newVecSizedWith (2 * nv) =<< emptyVec
@@ -854,7 +864,7 @@ staticVarOrder s@Solver{..} = do
   -- SET ACTIVITIES ACCORDING TO HOT CLAUSES:
   -- @sort(heat)@
   sortByFst heat
-  forM_ [0 .. nv] $ \i -> setAt activities i 0
+  forM_ [0 .. nv - 1] $ \i -> setAt activities i 0
   hs <- size heat
   let
     for i@((< hs) -> False) _ = return ()
@@ -865,16 +875,16 @@ staticVarOrder s@Solver{..} = do
       let
         for2 j@((< cs) -> False) extra = return extra
         for2 j extra = do
-          v <- var <$> c .! j
-          a <- activities .! v
+          v' <- subtract 1 . var <$> c .! j
+          a <- activities .! v'
           if a == 0
-            then setAt activities v extra >> for2 (j + 1) (extra * 0.995)
+            then setAt activities v' extra >> for2 (j + 1) (extra * 0.995)
             else for2 (j + 1) extra
       extra <- for2 0 extra
       for (i + 1) extra
   for 0 1e200
-  updateAll order
-  writeIORef varInc 1
+  -- updateAll order
+  -- writeIORef varInc 1
 
 -- | Another basic implementation
 -- all method but select is nop code.
@@ -926,13 +936,17 @@ instance VarOrder VarOrderStatic where
     -- then, search and return a bottom-ed var
     nv <- nVars solver
     let
-      loop ((< nv) -> False) = error "no unassigned variable left"
-      loop i = do
+      loop ((< nv) -> False) j _ = return $ j + 1
+      loop i j best = do
         x <- assigns solver .! i
+        a <- activities solver .! i
         if x == lBottom
-          then return $ i + 1   -- NOTE: i is not 1-based 'Var' but 0-based var-index
-          else loop $ i + 1
-    loop 0
+          then
+              if best < a
+                 then loop (i + 1) i a
+                 else loop (i + 1) j best
+          else loop (i + 1) j best
+    loop 0 0 (-1)   -- NOTE: i is not 1-based 'Var' but 0-based var-index
 
 numVec :: VectorLike v Int => Int -> v -> IO [Int]
 numVec base v = zipWith (*) [base ..] <$> asList v
@@ -968,11 +982,13 @@ watcherList :: Solver -> Lit -> IO [[Lit]]
 watcherList Solver{..} lit = do
   (b, e) <- watches .! index lit
   x <- map sort <$> (flip traverseWatcher lit =<< watches .! index lit)
+{-
   unless (null x) $ do
     cs <- sort <$> (asList =<< readIORef b)
     ce <- sort <$> (asList =<< readIORef e)
     unless (head x == cs) $ error $ "inconsistent head watcherList" ++ show (x, cs)
     unless (last x == ce) $ error $ "inconsistent tail watcherList" ++ show (x, ce)
+-}
   return x
 
 checkWatchers :: Solver -> Clause -> IO ()
@@ -1011,3 +1027,21 @@ checkIt mes s@Solver{..} (Just c) = do
       then putStrLn " -- " -- w2
       else putStrLn "not found -- " --  >> error "not found"
 -}           
+
+-- | returns an average value of activity
+setClauseActivities :: Solver -> IO Double
+setClauseActivities s@Solver{..} = do
+  -- update activity of learnt clauses
+  nl <- size learnts
+  let
+    for ((< nl) -> False) m = return m
+    for i m = do
+      c <- learnts .! i
+      nc <- size c
+      x <- (/ fromIntegral nc) . sum <$> mapM ((activities .!) . subtract 1 . var <=< (c .!)) [0 .. nc - 1]
+      writeIORef (activity c) x
+      -- bad result: writeIORef (activity c) (x / fromIntegral nc)
+      for (i + 1) (max m x)
+  m <- for 0 0
+  return $ m / 2.0
+

@@ -70,6 +70,10 @@ instance VectorLike Clause Lit where
 
 -- | returns /the pointer/ to the next clause watching /the lit/
 selectWatcher :: Lit -> Clause -> IO (IORef Clause)
+selectWatcher l !c = do
+  l0 <- c .! 0
+  return $ if l0 == negate l then nextWatch1 c else nextWatch2 c
+{-
 selectWatcher l NullClause = error "selectWatcher called with NullClause"
 selectWatcher l !c = do
   l0 <- c .! 0
@@ -83,3 +87,4 @@ selectWatcher l !c = do
    _            -> do
      lc <- asList c
      error $ "no watcher" ++ show (l, (l0, l1), lc)
+-}
