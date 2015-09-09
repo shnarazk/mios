@@ -19,7 +19,6 @@ module SAT.Solver.Mios.Types
        , VectorLike (..)
        , QueueLike (..)
          -- * misc function
-       , (<==>)
        , Var
        , bottomVar
        , Lit
@@ -36,11 +35,6 @@ module SAT.Solver.Mios.Types
        , VarOrder (..)
        )
        where
-
-import GHC.Prim
-import qualified Data.Vector.Mutable as MV
-import qualified Data.Vector.Unboxed.Mutable as UV
-import System.Mem.StableName
 
 -- | Public interface as /Container/
 class ContainerLike s t | s -> t where
@@ -155,9 +149,9 @@ class ContainerLike q t => QueueLike q t | q -> t where
 -- >>> let z' = z in print =<< sequence [x <==> x, x <==> y, x <==> z, x <==> z']
 -- [True, False, True, True]
 --
-(<==>) :: a -> a -> IO Bool
+-- (<==>) :: a -> a -> IO Bool
 -- (<==>) !a !b = (==) <$> makeStableName a <*> makeStableName b
-(<==>) !x !y = return $! x `seq` y `seq` tagToEnum# (reallyUnsafePtrEquality# x y)
+-- (<==>) !x !y = return $! x `seq` y `seq` tagToEnum# (reallyUnsafePtrEquality# x y)
 
 -- | represents "Var"
 type Var = Int

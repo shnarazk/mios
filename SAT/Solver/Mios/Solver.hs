@@ -21,24 +21,24 @@ module SAT.Solver.Mios.Solver
        , simplifyDB
        , solve
          -- * methods of 'Solver'
-       , propagate
-       , enqueue
-       , analyze
-       , record
-       , undoOne
-       , assume
-       , cancel
-       , cancelUntil
-       , clauseNew
+--       , propagate
+--       , enqueue
+--       , analyze
+--       , record
+--       , undoOne
+--       , assume
+--       , cancel
+--       , cancelUntil
+--       , clauseNew
        )
         where
 
-import GHC.Prim
-import Control.Monad
+import Control.Arrow ((&&&))
+import Control.Monad ((<=<), filterM, forM, forM_, unless, when)
 import Data.List (nub, sort)
 import Data.IORef
 import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Internal
+import SAT.Solver.Mios.Internal (sortByFst, FixedQueueOf, FixedVecDouble, FixedVecInt, FixedVecOf, StackOfLit, VecOf(..))
 import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.WatchList
 import SAT.Solver.Mios.SolverRelation
@@ -47,31 +47,31 @@ import SAT.Solver.Mios.SolverRelation
 data Solver = Solver
               {
                 -- for public interface
-                model      :: VecOf Bool   -- ^ If found, this vector has the model
+                model      :: VecOf Bool        -- ^ If found, this vector has the model
                 -- Contraint databale
-              , constrs    :: VecOf Clause -- ^ List of problem constraints.
-              , learnts    :: VecOf Clause -- ^ List of learnt clauses.
-              , claInc     :: IORef Double -- ^ Clause activity increment amount to bump with.
-              , claDecay   :: IORef Double -- ^ Decay factor for clause activity.
+              , constrs    :: VecOfClause       -- ^ List of problem constraints.
+              , learnts    :: VecOfClause       -- ^ List of learnt clauses.
+              , claInc     :: IORef Double      -- ^ Clause activity increment amount to bump with.
+              , claDecay   :: IORef Double      -- ^ Decay factor for clause activity.
                 -- Variable order
-              , activities :: FixedVecOf Double -- ^ Heuristic measurement of the activity of a variable.
-              , varInc     :: IORef Double -- ^ Variable activity increment amount to bump with.
-              , varDecay   :: IORef Double -- ^ Decay factor for variable activity.
-              , order      :: VarOrderStatic -- ^ Keeps track of the dynamic variable order.
+              , activities :: FixedVecDouble    -- ^ Heuristic measurement of the activity of a variable.
+              , varInc     :: IORef Double      -- ^ Variable activity increment amount to bump with.
+              , varDecay   :: IORef Double      -- ^ Decay factor for variable activity.
+              , order      :: VarOrderStatic    -- ^ Keeps track of the dynamic variable order.
                 -- Propagation
               , watches    :: FixedVecOf WatchLink -- ^ For each literal 'p', a list of constraint wathing 'p'.
                              -- A constraint will be inspected when 'p' becomes true.
-              , undos      :: FixedVecOf (VecOf Clause) -- ^ For each variable 'x', a list of constraints that need
+              , undos      :: FixedVecOf VecOfClause -- ^ For each variable 'x', a list of constraints that need
                              -- to update when 'x' becomes unbound by backtracking.
               , propQ      :: FixedQueueOf Lit  -- ^ Propagation queue.
                 -- Assignments
-              , assigns    :: FixedVecOf LBool  -- ^ The current assignments indexed on variables.
+              , assigns    :: FixedVecInt       -- ^ The current assignments indexed on variables.
                               -- __Note:__ the index for 'assigns' is __0__-based, while lit and var start from __1__.
-              , trail      :: StackOfLit    -- ^ List of assignments in chronological order.
-              , trailLim   :: VecOf Int    -- ^ Separator indices for different decision levels in 'trail'.
+              , trail      :: StackOfLit        -- ^ List of assignments in chronological order.
+              , trailLim   :: VecOf Int         -- ^ Separator indices for different decision levels in 'trail'.
               , reason     :: FixedVecOf Clause -- ^ For each variable, the constraint that implied its value.
-              , level      :: FixedVecOf Int    -- ^ For each variable, the decision level it was assigned.
-              , rootLevel  :: IORef Int    -- ^ Separates incremental and search assumptions.
+              , level      :: FixedVecInt       -- ^ For each variable, the decision level it was assigned.
+              , rootLevel  :: IORef Int         -- ^ Separates incremental and search assumptions.
               }
 
 instance SolverState Solver where
@@ -79,11 +79,16 @@ instance SolverState Solver where
  nAssigns = size . trail
  nConstraints = size . constrs
  nLearnts = size . learnts
+ {-# SPECIALIZE INLINE valueVar :: Solver -> Var -> IO Int #-}
  valueVar s x = assigns s .! (x - 1)
  {-# SPECIALIZE INLINE valueLit :: Solver -> Lit -> IO Int #-}
- valueLit s p
-   | p < 0 = negate <$> (assigns s .! (var p - 1))
-   | otherwise = assigns s .! (var p - 1)
+ valueLit !Solver{..} !p
+   | p < 0 = do
+       !v <- assigns .! (var p - 1)
+       return $! negate v
+   | otherwise = do
+       !v <- assigns .! (var p - 1)
+       return v
  decisionLevel = size . trailLim
  setInternalState s nv = do
    ac <- newVecSizedWith nv 0.0
@@ -392,7 +397,7 @@ cancelUntil s lvl = do
 -- @root_level == decisionLevel@
 search :: Solver -> Int -> Int -> IO LBool
 search s@Solver{..} nOfConflicts nOfLearnts = do
-  clear model
+  -- clear model
   let
     loop conflictC = do
       -- checkIt "search.loop starts" s Nothing
@@ -429,9 +434,10 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
             case () of
              _ | k2 == k3 -> do
                    -- Model found:
-                   (model `growTo`) k3
-                   nv <- nVars s
-                   forM_ [0 .. nv - 1] $ \i -> setAt model i =<< (lTrue ==) <$> assigns .! i
+                   -- (model `growTo`) k3
+                   -- nv <- nVars s
+                   -- forM_ [0 .. nv - 1] $ \i -> setAt model i =<< (lTrue ==) <$> assigns .! i
+                   writeIORef (ptr model) . map (lTrue ==) =<< asList assigns
                    -- putStrLn =<< dump "activities:" activities
                    return lTrue
              _ | conflictC >= nOfConflicts -> do
@@ -506,33 +512,15 @@ reduceDB :: Solver -> IO ()
 reduceDB s@Solver{..} = do
   n <- size learnts
   ci <- readIORef claInc
+  cd <- readIORef claDecay
   -- staticVarOrder s
-  lim <- setClauseActivities s
-  sortVecOn ((negate <$>) . readIORef . activity) learnts -- sortOnActivity(learnts)
-  let
-    n' = fromIntegral n
-    -- lim = ci / n'
-    n2 = div n 2
-  let
-    for i@((< n2) -> False) j = return (i, j)
-    for i j = do
-      !c <- learnts .! i
-      lk <- locked c s
-      if not lk
-        then remove c s >> for (i + 1) j -- O(n) operation
-        else setAt learnts j c >> for (i + 1) (j + 1)
-  (i, j) <- for 0 0
-  let
-    for' i@((< n) -> False) j = return (i, j)
-    for' i j = do
-      !c <- learnts .! i
-      lk <- locked c s
-      a <- readIORef $ activity c
-      if not lk && a < lim
-        then remove c s >> for' (i + 1) j -- O(n) operation
-        else setAt learnts j c >> for' (i + 1) (j + 1)
-  (_, j') <- for' i j
-  shrink (n - j') learnts
+  lim <- (cd *) <$> setClauseActivities s
+  -- new engine 0.7
+  let getProp c = (,) <$> locked c s <*> (negate <$> readIORef (activity c))
+  lst <- mapM (uncurry ((<$>) . (,)) . (id &&& getProp)) =<< readIORef (clauses learnts)
+  let isRequired (_, (lck, act)) = lck || lim <= act
+  mapM_ (flip remove s . fst) $ filter (not . isRequired) lst
+  writeIORef (clauses learnts) . map fst $ filter isRequired lst
   return ()
 
 -- | __Fig. 15. (p.20)__
@@ -553,20 +541,14 @@ simplifyDB s@Solver{..} = do
         let
           for t@((< 2) -> False) = return True
           for t = do
-            let cs = if t == 0 then learnts else constrs
-            k <- size cs
+            let ptr = clauses $ if t == 0 then learnts else constrs
             let
-              for2 i@((< k) -> False) j = return j
-              for2 i j = do
-                !c <- cs .! i
-                x <- simplify c s
-                if x
-                  then remove c s >> for2 (i + 1) j
-                  else setAt cs j c >> for2 (i + 1) (j + 1)
-            j <- for2 0 0
-            k <- size cs
-            shrink (k - j) cs
-            for (t + 1)
+              checkM c = do
+                y <- simplify c s
+                when y $ remove c s
+                return $ not y
+            writeIORef ptr =<< filterM checkM =<< readIORef ptr
+            for $ t + 1
         for 0
         return True
 
@@ -581,6 +563,7 @@ solve s@Solver{..} assumps = do
   writeIORef varDecay (1 / 0.95)
   writeIORef claDecay (1 / 0.999)
   writeIORef varInc 1
+  nv <- fromIntegral <$> nVars s
   nc <- fromIntegral <$> nConstraints s
   -- PUSH INCREMENTAL ASSUMPTIONS:
   k <- size assumps
@@ -609,10 +592,11 @@ solve s@Solver{..} assumps = do
           while status nOfConflicts nOfLearnts = do
             status <- search s (fromEnum . fromRational $ nOfConflicts) (fromEnum . fromRational $ nOfLearnts)
             while status (1.5 * nOfConflicts) (1.1 * nOfLearnts)
-        while lBottom 100 (nc / 3)
+        while lBottom (min 100 (1 + (10000 + nc)/ nv)) (nc / 3)
 
 instance BoolConstraint Solver Clause where
   -- | constraint interface
+  {-# SPECIALIZE INLINE remove :: Clause -> Solver -> IO () #-}
   remove !c@Clause{..} s@Solver{..} = do
     -- checkWatches s
     -- version 0.5 -- removeElem c =<< (watches .!) . index . negate =<< lits .! 0
@@ -626,6 +610,7 @@ instance BoolConstraint Solver Clause where
     -- c should be deleted here
     return ()
   -- | only called at top level with prop. queue
+  {-# SPECIALIZE INLINE simplify :: Clause -> Solver -> IO Bool #-}
   simplify c@Clause{..} s@Solver{..} = do
     n <- size c
     l1 <- negate <$> c .! 0
@@ -662,46 +647,47 @@ instance BoolConstraint Solver Clause where
   {-# SPECIALIZE INLINE propagateLit :: Clause -> Solver -> Lit -> IO Bool #-}
   propagateLit c@Clause{..} s@Solver{..} p = do
     -- checkIt ("propagateLit start on it! (" ++ show p ++ ")") s $ Just c
-    w <- watches .! index p
+    !w <- watches .! index p
     -- Make sure the false literal is lits[1]:
-    l <- c .! 0
-    when (l == negate p) $ do
+    !l <- c .! 0
+    let !np = negate p
+    when (l == np) $ do
       -- swap lits[0] and lits[1]
       setAt c 0 =<< c .! 1
-      setAt c 1 (negate p)
+      setAt c 1 np
       -- then swap watcher[0] and watcher[1], of course!
-      c' <- readIORef nextWatch1
+      !c' <- readIORef nextWatch1
       writeIORef nextWatch1 =<< readIORef nextWatch2
       writeIORef nextWatch2 c'
     -- If 0th watch is True, then clause is already satisfied.
-    val <- valueLit s =<< c .! 0
+    !val <- valueLit s =<< c .! 0
     if val == lTrue
       then do
           pushWatcher w p c -- re-insert clause into watcher list
           return True
       else do
           -- Look for a new literal to watch:
-          n <- size c
+          !n <- size c
           let
             loop ((< n) -> False) = do
               -- Clause is unit under assignment:
               pushWatcher w p c
-              l <- c .! 0
+              !l <- c .! 0
               -- when (c == NullClause) $ error "propagateLit undef"
               enqueue s l c
             loop i = do
-              l <- c .! i
-              val <- valueLit s l
+              !l <- c .! i
+              !val <- valueLit s l
               if val /= lFalse
                 then do
-                    setAt c 1 l
-                    setAt c i (negate p)
-                    w <- watches .! index (negate l)
-                    -- checkIt ("propagateLit.pushWatcher call " ++ show (negate l)) s $ Just c
-                    pushWatcher w (negate l) c -- insert clause into watcher list
-                    -- checkIt "propagateLit.pushWatcher done:" s $ Just c
-                    --  putStrLn $ "propagateLit(" ++ show p ++ "): move " ++ str ++ " to " ++ show (negate l)
-                    return True
+                     setAt c 1 l
+                     setAt c i np
+                     w <- watches .! index (negate l)
+                     -- checkIt ("propagateLit.pushWatcher call " ++ show (negate l)) s $ Just c
+                     pushWatcher w (negate l) c -- insert clause into watcher list
+                     -- checkIt "propagateLit.pushWatcher done:" s $ Just c
+                     --  putStrLn $ "propagateLit(" ++ show p ++ "): move " ++ str ++ " to " ++ show (negate l)
+                     return True
                 else loop $ i + 1
           loop 2
   -- The literal /p/ is also allowed to be the special constant 'bottomLit'
@@ -709,6 +695,7 @@ instance BoolConstraint Solver Clause where
   -- returned through the vector: @outReason@.
   --
   -- __invaliant__ @c /= NullClause@
+  {-# SPECIALIZE INLINE calcReason :: Clause -> Solver -> Lit -> VecOf Lit -> IO () #-}
   calcReason c s@Solver{..} p outReason = do
     -- putStrLn =<< dump "c in calcReason" c
     -- invariant: (p == bottomLit) || (p == lits[0])
@@ -1004,8 +991,7 @@ checkWatchers s c = do
   unless (elem l b2) $ error $ s ++ " = " ++ show l ++ " is not registered the 2nd wathers list:" ++ show l2
 
 checkIt :: String -> Solver -> Maybe Clause -> IO ()
-checkIt _ _ _ = return ()
-{-
+-- checkIt _ _ _ = return ()
 checkIt mes s@Solver{..} Nothing = mapM_ (checkIt mes s . Just) =<< asList learnts
 checkIt mes s@Solver{..} (Just c) = do
   let lits = [-87,-75,-28,-7,-3,-2,-1,5,26,46,73]
@@ -1026,7 +1012,6 @@ checkIt mes s@Solver{..} (Just c) = do
     if elem lits w2
       then putStrLn " -- " -- w2
       else putStrLn "not found -- " --  >> error "not found"
--}           
 
 -- | returns an average value of activity
 setClauseActivities :: Solver -> IO Double

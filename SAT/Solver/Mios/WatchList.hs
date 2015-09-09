@@ -14,19 +14,16 @@ module SAT.Solver.Mios.WatchList
        (
          WatchList (..)
        , WatchLink
-       , traverseWatcher
        )
        where
 
-import GHC.Prim
-import Control.Monad
+import Control.Monad (when)
 import Data.IORef
-import Data.List
-import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Internal
-import SAT.Solver.Mios.Clause
+import Data.List (sort)
+import SAT.Solver.Mios.Types (ContainerLike(..), Lit)
+import SAT.Solver.Mios.Clause (Clause(..), selectWatcher)
 
--- | __Version 0.5__
+-- | __Version 0.7__
 --
 -- Abstract watcher list structure based on /pointer/
 class WatchList w where
@@ -42,9 +39,11 @@ class WatchList w where
   -- | __O(n) search and delete operation__
   -- Don't use it in critial path.
   removeWatcher :: w -> Lit -> Clause -> IO ()
+  traverseWatcher :: w -> Lit -> IO [[Lit]]
+  asListWatchers :: w -> Lit -> IO [[Lit]]
 
 -- | __Version 0.5__
--- the element of 'watcher'
+-- the definition of 'watcher'
 type WatchLink = (IORef Clause, IORef Clause)
 
 instance WatchList WatchLink where
@@ -73,15 +72,11 @@ instance WatchList WatchLink where
           then unlinkWatcher w l pre >> return ()
           else if c' == NullClause then return () else loop c'
     loop NullClause
-
-traverseWatcher :: WatchLink -> Lit -> IO [[Lit]]
-traverseWatcher (b, e) lit = do
-  let
-    loop l NullClause = return $ reverse l
-    loop l c = do
-      l' <- asList c
-      loop (l' : l) =<< readIORef =<< selectWatcher lit c
-  loop [] =<< readIORef b
-
-asListWatchers :: WatchLink -> Lit -> IO [[Lit]]
-asListWatchers w lit = map sort <$> traverseWatcher w lit
+  traverseWatcher (b, e) lit = do
+    let
+      loop l NullClause = return $ reverse l
+      loop l c = do
+        l' <- asList c
+        loop (l' : l) =<< readIORef =<< selectWatcher lit c
+    loop [] =<< readIORef b
+  asListWatchers w lit = map sort <$> traverseWatcher w lit

@@ -11,8 +11,8 @@ module SAT.Solver.Mios.OptionParser
        , miosParseOptionsFromArgs
        )
        where
-import Control.Monad
-import System.Console.GetOpt
+
+import System.Console.GetOpt (ArgDescr(..), ArgOrder(..), getOpt, OptDescr(..), usageInfo)
 import System.Environment (getArgs)
 
 -- | configuration

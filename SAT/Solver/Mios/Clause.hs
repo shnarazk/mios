@@ -4,6 +4,8 @@
   , MagicHash
   , MultiParamTypeClasses
   , RecordWildCards
+  , TupleSections
+  , UnboxedTuples
   , UndecidableInstances
   , ViewPatterns
   #-}
@@ -14,14 +16,17 @@ module SAT.Solver.Mios.Clause
        (
          Clause (..)
        , selectWatcher
+       , VecOfClause (..)
        )
        where
 
-import GHC.Prim
+import GHC.Prim (tagToEnum#, reallyUnsafePtrEquality#)
+import Control.Arrow ((&&&))
+import Control.Monad (unless)
 import Data.IORef
-import Data.List
-import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Internal
+import Data.List (intercalate, sortOn)
+import SAT.Solver.Mios.Types (ContainerLike(..), VectorLike(..), Lit)
+import SAT.Solver.Mios.Internal (FixedVecInt)
 
 -- | __Fig. 7.(p.11)__
 -- Clause
@@ -31,7 +36,7 @@ data Clause = Clause
               , activity :: IORef Double   -- ^ activity of this clause
               , nextWatch1 :: IORef Clause -- ^ the next clause that watches lits[0]
               , nextWatch2 :: IORef Clause -- ^ the next clause that watches lits[1]
-              , lits     :: FixedLitVec    -- ^ which this clause consists of
+              , lits     :: FixedVecInt    -- ^ which this clause consists of
               }
             | NullClause
 
@@ -60,31 +65,66 @@ instance ContainerLike Clause Lit where
 
 -- | supports a restricted set of 'VectorLike' methods
 instance VectorLike Clause Lit where
-  NullClause .! _ = error "(.!) on NullClause"
+  {-# SPECIALIZE INLINE (.!) :: Clause -> Int -> IO Lit #-}
+  -- NullClause .! _ = error "(.!) on NullClause"
   Clause{..} .! i = lits .! (1 + i)
-  setAt NullClause _ _ = error "setAt on NullClause"
+  {-# SPECIALIZE INLINE setAt :: Clause -> Int -> Lit -> IO () #-}
+  -- setAt NullClause _ _ = error "setAt on NullClause"
   setAt Clause{..} i x = setAt lits (1 + i) x
-  shrink n Clause{..} = do
-    m <- lits .! 0
-    setAt lits 0 (m - n)
+  shrink n Clause{..} = setAt lits 0 . subtract n =<< lits .! 0
 
 -- | returns /the pointer/ to the next clause watching /the lit/
 selectWatcher :: Lit -> Clause -> IO (IORef Clause)
 selectWatcher l !c = do
   l0 <- c .! 0
   return $ if l0 == negate l then nextWatch1 c else nextWatch2 c
-{-
-selectWatcher l NullClause = error "selectWatcher called with NullClause"
-selectWatcher l !c = do
-  l0 <- c .! 0
-  l1 <- c .! 1
-  let l' = negate l
-  case () of
-   _ | l0 == l' -> return $ nextWatch1 c
-   _ | l1 == l' -> return $ nextWatch2 c
-   _ | l0 == l -> error "l0 == l"
-   _ | l1 == l -> error "l1 == l"
-   _            -> do
-     lc <- asList c
-     error $ "no watcher" ++ show (l, (l0, l1), lc)
--}
+
+newtype VecOfClause = VecOfClause
+              {
+                clauses :: IORef [Clause] -- ^ reference pointer to the data
+              }
+
+-- | provides 'clear' and 'size'
+instance ContainerLike VecOfClause Clause where
+  clear VecOfClause{..} = writeIORef clauses []
+  size VecOfClause{..} = length <$> readIORef clauses
+  asList VecOfClause{..} = readIORef clauses
+  dump str VecOfClause{..} = (str ++) . show <$> readIORef clauses
+
+-- | constructors, resize, stack, vector, and duplication operations
+instance VectorLike VecOfClause Clause where
+  -- * Constructors
+  emptyVec = VecOfClause <$> newIORef []
+  newVec = VecOfClause <$> newIORef []
+  newVecSized n = VecOfClause <$> newIORef (replicate n undefined)
+  newVecSizedWith n x = VecOfClause <$> newIORef (replicate n x)
+  -- * Size operations
+  shrink n VecOfClause{..} = modifyIORef' clauses (\x -> take (length x - n) x)
+  growTo _ _ = return ()
+  growToWith _ _ = return ()
+  -- * Stack operations
+  pop VecOfClause{..} = modifyIORef' clauses tail
+  push VecOfClause{..} x = modifyIORef' clauses (x:)
+  lastE _ = error "VecOfClause.lastE"
+  removeElem _ _ = error "VecOfClause.removeElem"
+  -- * Vector operations
+  (.!) VecOfClause{..} n = (!! n) <$> readIORef clauses
+  setAt VecOfClause{..} n x = do
+    l <- readIORef clauses
+    writeIORef clauses $ take n l ++ (x : drop (n + 1) l)
+  -- * Duplication
+  copyTo v1 v2 = do
+    l1 <- readIORef (clauses v1)
+    writeIORef (clauses v2) l1
+  moveTo v1 v2 = do
+    l1 <- readIORef (clauses v1)
+    writeIORef (clauses v2) l1
+    writeIORef (clauses v1) []
+  -- * Conversion
+  newFromList l = VecOfClause <$> newIORef l
+  checkConsistency str VecOfClause{..} func = do
+    res <- and <$> (mapM func =<< readIORef clauses)
+    unless res $ error str
+
+sortVecClause :: (Ord b) => (Clause -> IO b) -> VecOfClause -> IO ()
+sortVecClause f VecOfClause{..} = writeIORef clauses . map fst . sortOn snd =<< mapM (uncurry ((<$>) . (,)) . (id &&& f)) =<< readIORef clauses

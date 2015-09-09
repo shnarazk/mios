@@ -36,10 +36,9 @@ module SAT.Solver.Mios.SolverRelation
        , BoolConstraint (..)
        )
        where
-import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Internal
-import SAT.Solver.Mios.Clause
-import SAT.Solver.Mios.WatchList
+
+import SAT.Solver.Mios.Types (Lit, Var)
+import SAT.Solver.Mios.Internal (VecOf)
 
 -- | __Fig. 3.(p.9)__
 -- Small helper methods of 'Solver'. for instance, `nLearnts` returns the number
