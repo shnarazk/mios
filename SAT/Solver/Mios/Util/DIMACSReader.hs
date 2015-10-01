@@ -21,7 +21,7 @@ module SAT.Solver.Mios.Util.DIMACSReader
          -- * Interface
          MaybeCNF
        , cnfFromFile
-       , RawClause
+       , SizedVectorInt
        , CNFDescription (..)
        )
        where
@@ -31,7 +31,6 @@ import Data.Either ( lefts, rights )
 import Data.List ( nub )
 import qualified Data.Vector.Unboxed as U
 import Data.ByteString.Lazy( ByteString )
-import qualified Data.Vector.Unboxed as V
 import System.IO (hClose, hPutStrLn)
 import System.IO.Temp (withSystemTempFile)
 import Text.Parsec( ParseError, SourceName )
@@ -41,8 +40,8 @@ import Text.Parsec.Combinator
 import Text.Parsec.Prim( many, try, unexpected, runParser )
 import qualified Text.Parsec.Token as T
 
--- | RawClause is a vector holding literal :: Int
-type RawClause = V.Vector Int
+-- | SizedVectorInt is a vector holding literal :: Int
+type SizedVectorInt = U.Vector Int
 
 -- | holder for DIMACS CNF format
 data CNFDescription = CNFDescription
@@ -54,7 +53,7 @@ data CNFDescription = CNFDescription
   deriving (Eq, Ord, Show)
 
 -- | return value of CNF reader
-type MaybeCNF = Maybe (CNFDescription, [RawClause])
+type MaybeCNF = Maybe (CNFDescription, [SizedVectorInt])
 
 -- | top-level function to read a CNF file
 cnfFromFile :: Maybe FilePath -> IO MaybeCNF
@@ -70,7 +69,7 @@ data CNF = CNF
     -- ^ The number of variables in the problem as reported by the cnf header.
     , numClauses :: !Int
     -- ^ The number of clauses in the problem as reported by the cnf header.
-    , clauses    :: ![RawClause] } deriving Show
+    , clauses    :: ![SizedVectorInt] } deriving Show
 
 -- | Parse a file containing DIMACS CNF data.
 parseFile :: Maybe FilePath -> IO (Either ParseError CNF)
@@ -103,9 +102,9 @@ cnfHeader = do
     symbol "cnf"
     (,) `fmap` natural `ap` natural
 
-clause :: Parser RawClause
+clause :: Parser SizedVectorInt
 clause = do ints <- lexeme int `manyTill` try (symbol "0")
-            return $ U.fromList ints
+            return . U.fromList $ length ints : ints
 
 -- token parser
 tp = T.makeTokenParser $ T.LanguageDef 

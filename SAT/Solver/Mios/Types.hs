@@ -6,6 +6,7 @@
   , MagicHash
   , MultiParamTypeClasses
   , TypeFamilies
+  , UnboxedTuples
   , UndecidableInstances
   , ViewPatterns
   #-}
@@ -17,7 +18,6 @@ module SAT.Solver.Mios.Types
          -- Abstract interfaces
          ContainerLike (..)
        , VectorLike (..)
-       , QueueLike (..)
          -- * misc function
        , Var
        , bottomVar
@@ -36,6 +36,9 @@ module SAT.Solver.Mios.Types
        )
        where
 
+import GHC.Exts (Int(..))
+import GHC.Prim
+
 -- | Public interface as /Container/
 class ContainerLike s t | s -> t where
   -- * Size operations
@@ -43,8 +46,8 @@ class ContainerLike s t | s -> t where
   clear :: s -> IO ()
   clear = error "no default method for clear"
   -- | returns the numeber of its elements in a monadic context
-  size :: s -> IO Int
-  size = error "no default method for size"
+--  size :: s -> IO Int
+--  size = error "no default method for size"
   -- * Debug
   -- | dump the contents
   dump :: Show t => String -> s -> IO String
@@ -52,55 +55,23 @@ class ContainerLike s t | s -> t where
   -- | converts into a list
   asList :: s -> IO [t]
   asList = error "asList undefined"
-  {-# MINIMAL size, dump #-}
+  {-# MINIMAL dump #-}
 
 -- | The vector data type can push a default constructed element by the 'push` method
 -- with no argument. The 'moveTo' method will move the contents of a vector to another
 -- vector in constant time, crearing the source vector.
 class ContainerLike v t => VectorLike v t | v -> t where
   -- * Constructors
-  -- | returns a new empty vector; no need to pickup an value
-  emptyVec :: IO v
-  emptyVec = error "emptyVec undefined"
-  -- | returns a new (emply) vector
-  newVec :: IO v
-  newVec = error "newVec undefined"
   -- | returns a /n/ length uninitialized new vector
-  newVecSized :: Int -> IO v
-  newVecSized = error "newVecSized undefined"
+  newVec :: Int -> IO v
+  newVec = error "newVecSized undefined"
   -- | returns a /n/ length nev vector whose elements are set to the 2nd arg
-  newVecSizedWith :: Int -> t -> IO v
-  newVecSizedWith = error "newVecSizedWith undefined"
+  newVecWith :: Int -> t -> IO v
+  newVecWith = error "newVecWith undefined"
   -- * Conversion
   -- | converts from @list :: [t]@ in a monadic context
   newFromList :: [t] -> IO v
   newFromList = error "newFromList undefined"
-  -- | converts to a list (@:: [t]@) in a monadic context
-  shrink :: Int -> v -> IO ()
-  shrink = error "shrink undefined"
-  -- | resizes to /n/ sized vector
-  growTo :: v -> Int -> IO ()   -- (v `growTo`) n  :: OOPL style
-  growTo = error "growTo undefined"
-  -- | resizes to /n/ sized vector and store the 3rd value into the new places
-  -- __Not in use__
-  growToWith :: v -> Int -> IO ()
-  growToWith = error "growToWith undefined"
-  -- * Stack operations
-  -- | deletes the last 'push'ed element and returns none.
-  pop :: v -> IO ()
-  pop = error "pop undefined"
-  -- | add a default value into the tail.
-  push' :: v -> IO ()
-  push' = error "push' undefined"
-  -- | add a given value into the tail.
-  push :: v -> t -> IO ()
-  push = error "push undefined"
-  -- | returns the last 'push'ed element (not the first)
-  lastE :: v -> IO t
-  lastE = error "lastE undefined"
-  -- | searchs an element and deletes its all occurrences.
-  removeElem :: t -> v -> IO ()
-  removeElem _ _ = error "no def removeElem"
   -- * Vector interface
   -- | accesss /n/th element from the 0-based vector
   (.!) :: v -> Int -> IO t
@@ -108,36 +79,7 @@ class ContainerLike v t => VectorLike v t | v -> t where
   -- | set an value to the /n/-th field of the vector
   setAt :: v -> Int -> t -> IO ()
   setAt = error "setAt undefined"
-  -- * Duplication
-  -- | copies the vector itself of the 1st arg to one of the 2nd arg
-  -- __Not in use__
-  copyTo :: v -> v -> IO ()
-  copyTo = error "copyTo undefined"
-  -- | meves the vector itself of the 1st arg to one of the 2nd arg
-  moveTo :: v -> v -> IO ()     -- Note: it should be O(1) !!
-  moveTo = error "moveTo undefined"
-  -- * Debug
-  -- | check values of elements
-  checkConsistency :: String -> v -> (t -> IO Bool) -> IO ()
-  checkConsistency _ _ _ = return ()
-  -- | returns a representative string (@:: String@) in a monadic context
-  {-# MINIMAL newVec, newVecSized, newVecSizedWith, growTo, shrink, pop, push, lastE, removeElem, (.!), setAt, moveTo #-}
-
--- | Public interface as "Queue"
-class ContainerLike q t => QueueLike q t | q -> t where
-  -- | returns an empty queue
-  newQueue :: IO q
-  newQueue = error "newQueue undefined"
-  -- | returns an empty queue
-  newQueueSized :: Int -> IO q
-  newQueueSized = error "newQueueSized undefined"
-  -- | inserts the 2nd arg into the trail
-  insert :: q -> t -> IO ()
-  insert = error "insert undefined"
-  -- | returns the top element of this queue and delete it from this queue
-  dequeue :: q -> IO t
-  dequeue = error "dequeue undefined"
-  {-# MINIMAL newQueue, insert, dequeue #-}
+  {-# MINIMAL newVec #-}
 
 -- | Pointer-based implementation of "equality"
 --
@@ -158,7 +100,7 @@ type Var = Int
 
 -- | Special constant in 'Var' (p.7)
 bottomVar :: Var
-bottomVar = 0
+bottomVar = I# 0#
 
 -- | The literal data has an 'index' method which converts the literal to
 -- a "small" integer suitable for array indexing. The 'var'  method returns
@@ -168,7 +110,7 @@ type Lit = Int
 
 -- | Special constant in 'Lit' (p.7)
 bottomLit :: Lit
-bottomLit = 0
+bottomLit = I# 0#
 
 -- | converts "Var" into 'Lit'
 newLit :: Var -> Lit
@@ -177,39 +119,46 @@ newLit = error "newLit undefined"
 -- sign :: l -> Bool
 
 -- | converts 'Lit' into 'Var'
+{-# INLINE var #-}
 var :: Lit -> Var
-var = abs
+var (I# n#) = if tagToEnum# (0# <# n#) then (I# n#) else (I# (negateInt# n#))
 
 -- | converts 'Lit' into valid 'Int'
 -- folding @Lit = [ -N, -N + 1  .. -1] ++ [1 .. N]@,
 -- to @[0 .. 2N - 1]
+{-# INLINE index #-}
 index :: Lit -> Int
-index l@((< 0) -> True) = -2 * l - 1
-index l = 2 * (l - 1)
+index (I# l#) = if tagToEnum# (0# <# l#) then I# (2# *# (l# -# 1#)) else I# (-2# *# l# -# 1#)
 
 -- | revese convert to 'Lit' from index
+{-# INLINE index2lit #-}
 index2lit :: Int -> Int
-index2lit n = (div n 2 + 1) * if odd n then -1 else 1
+index2lit (I# n#) =
+  case quotRemInt# n# 2# of
+   (# q#, 0# #) -> I# (q# +# 1#)
+   (# q#, _ #) -> I# (negateInt# (q# +# 1#))
+
+-- index2lit (I# n#) = (div n 2 + 1) * if odd n then -1 else 1
 
 -- | Lifted Boolean domain (p.7) that extends 'Bool' with "⊥" means /undefined/
 type LBool = Int
 
 -- | converts 'Bool' into 'LBool'
 lbool :: Bool -> LBool
-lbool True = lTrue
-lbool False = lFalse
+lbool !True = lTrue
+lbool !False = lFalse
 
 -- | A contant representing False
 lFalse:: LBool
-lFalse = -1
+lFalse = I# -1#
 
 -- | A constant representing True
 lTrue :: LBool
-lTrue = 1
+lTrue = I# 1#
 
 -- | A constant for "undefined"
 lBottom :: LBool
-lBottom = 0
+lBottom = I# 0#
 
 -- | Assisting ADT for the dynamic variable ordering of the solver.
 -- The constructor takes references to the assignment vector and the activity

@@ -15,8 +15,16 @@
 module SAT.Solver.Mios.Clause
        (
          Clause (..)
+       , getNthLiteral
+       , setNthLiteral
+       , shrinkClause
+       , newClauseFromVec
        , selectWatcher
+       , sizeOfClause
        , VecOfClause (..)
+       , sizeOfClauses
+       , getNthClause
+       , setNthClause
        )
        where
 
@@ -25,18 +33,20 @@ import Control.Arrow ((&&&))
 import Control.Monad (unless)
 import Data.IORef
 import Data.List (intercalate, sortOn)
+import qualified Data.Vector.Mutable as MV
 import SAT.Solver.Mios.Types (ContainerLike(..), VectorLike(..), Lit)
-import SAT.Solver.Mios.Internal (FixedVecInt)
+import SAT.Solver.Mios.Internal (FixedVecInt, FixedVecOf(..), getNthInt, setNthInt)
 
 -- | __Fig. 7.(p.11)__
 -- Clause
 data Clause = Clause
               {
-                learnt   :: Bool           -- ^ whether this is a learnt clause
-              , activity :: IORef Double   -- ^ activity of this clause
+                learnt     :: Bool           -- ^ whether this is a learnt clause
+              , activity   :: IORef Double   -- ^ activity of this clause
               , nextWatch1 :: IORef Clause -- ^ the next clause that watches lits[0]
               , nextWatch2 :: IORef Clause -- ^ the next clause that watches lits[1]
-              , lits     :: FixedVecInt    -- ^ which this clause consists of
+              , nextOf     :: IORef Clause -- ^ the next generated clause
+              , lits       :: FixedVecInt    -- ^ which this clause consists of
               }
             | NullClause
 
@@ -52,31 +62,43 @@ instance Show Clause where
 
 -- | supports a restricted set of 'ContainerLike' methods
 instance ContainerLike Clause Lit where
-  size Clause{..} = lits .! 0
+--  {-# SPECIALIZE INLINE size :: Clause -> IO Int #-}
+--  size Clause{..} = getNthInt 0 lits
   dump mes NullClause = return $ "NullClause" ++ if mes == "" then "" else "(" ++ mes ++ ")"
   dump mes c@Clause{..} = do
     a <- show <$> readIORef activity
     (len:ls) <- asList lits
     return $ mes ++ "C" ++ show len ++ "{" ++ intercalate "," [show learnt, a, show (take len ls)] ++ "}"
+  {-# SPECIALIZE INLINE asList :: Clause -> IO [Int] #-}
   asList NullClause = return []
   asList Clause{..} = do
     (n : ls)  <- asList lits
     return $ take n ls
 
--- | supports a restricted set of 'VectorLike' methods
-instance VectorLike Clause Lit where
-  {-# SPECIALIZE INLINE (.!) :: Clause -> Int -> IO Lit #-}
-  -- NullClause .! _ = error "(.!) on NullClause"
-  Clause{..} .! i = lits .! (1 + i)
-  {-# SPECIALIZE INLINE setAt :: Clause -> Int -> Lit -> IO () #-}
-  -- setAt NullClause _ _ = error "setAt on NullClause"
-  setAt Clause{..} i x = setAt lits (1 + i) x
-  shrink n Clause{..} = setAt lits 0 . subtract n =<< lits .! 0
+{-# INLINE getNthLiteral #-}
+getNthLiteral :: Int -> Clause -> IO Int
+getNthLiteral !i Clause{..} = getNthInt (1 + i) lits
+
+{-# INLINE setNthLiteral #-}
+setNthLiteral :: Int -> Clause -> Int -> IO ()
+setNthLiteral !i Clause{..} x = setNthInt (1 + i) lits x
+
+shrinkClause :: Int -> Clause -> IO ()
+shrinkClause !n Clause{..} = setNthInt 0 lits . subtract n =<< getNthInt 0 lits
+
+newClauseFromVec :: Bool -> FixedVecInt -> IO Clause
+newClauseFromVec l vec = do
+  act <- newIORef 0
+  n1 <- newIORef NullClause
+  n2 <- newIORef NullClause
+  n <- newIORef NullClause
+  return $ Clause l act n1 n2 n vec
 
 -- | returns /the pointer/ to the next clause watching /the lit/
+{-# INLINE selectWatcher #-}
 selectWatcher :: Lit -> Clause -> IO (IORef Clause)
-selectWatcher l !c = do
-  l0 <- c .! 0
+selectWatcher !l !c = do
+  l0 <- getNthInt 1 (lits c)
   return $ if l0 == negate l then nextWatch1 c else nextWatch2 c
 
 newtype VecOfClause = VecOfClause
@@ -87,44 +109,39 @@ newtype VecOfClause = VecOfClause
 -- | provides 'clear' and 'size'
 instance ContainerLike VecOfClause Clause where
   clear VecOfClause{..} = writeIORef clauses []
-  size VecOfClause{..} = length <$> readIORef clauses
   asList VecOfClause{..} = readIORef clauses
   dump str VecOfClause{..} = (str ++) . show <$> readIORef clauses
+
+{-# INLINE sizeOfClauses #-}
+sizeOfClauses :: VecOfClause -> IO Int
+sizeOfClauses VecOfClause{..} = length <$> readIORef clauses
 
 -- | constructors, resize, stack, vector, and duplication operations
 instance VectorLike VecOfClause Clause where
   -- * Constructors
-  emptyVec = VecOfClause <$> newIORef []
-  newVec = VecOfClause <$> newIORef []
-  newVecSized n = VecOfClause <$> newIORef (replicate n undefined)
-  newVecSizedWith n x = VecOfClause <$> newIORef (replicate n x)
-  -- * Size operations
-  shrink n VecOfClause{..} = modifyIORef' clauses (\x -> take (length x - n) x)
-  growTo _ _ = return ()
-  growToWith _ _ = return ()
-  -- * Stack operations
-  pop VecOfClause{..} = modifyIORef' clauses tail
-  push VecOfClause{..} x = modifyIORef' clauses (x:)
-  lastE _ = error "VecOfClause.lastE"
-  removeElem _ _ = error "VecOfClause.removeElem"
+  newVec n = VecOfClause <$> newIORef (replicate n undefined)
+  newVecWith n x = VecOfClause <$> newIORef (replicate n x)
   -- * Vector operations
-  (.!) VecOfClause{..} n = (!! n) <$> readIORef clauses
-  setAt VecOfClause{..} n x = do
+  {-# SPECIALIZE INLINE (.!) :: VecOfClause -> Int -> IO Clause #-}
+  (.!) VecOfClause{..} !n = (!! n) <$> readIORef clauses
+  {-# SPECIALIZE INLINE setAt :: VecOfClause -> Int -> Clause -> IO () #-}
+  setAt VecOfClause{..} !n x = do
     l <- readIORef clauses
     writeIORef clauses $ take n l ++ (x : drop (n + 1) l)
-  -- * Duplication
-  copyTo v1 v2 = do
-    l1 <- readIORef (clauses v1)
-    writeIORef (clauses v2) l1
-  moveTo v1 v2 = do
-    l1 <- readIORef (clauses v1)
-    writeIORef (clauses v2) l1
-    writeIORef (clauses v1) []
   -- * Conversion
   newFromList l = VecOfClause <$> newIORef l
-  checkConsistency str VecOfClause{..} func = do
-    res <- and <$> (mapM func =<< readIORef clauses)
-    unless res $ error str
 
 sortVecClause :: (Ord b) => (Clause -> IO b) -> VecOfClause -> IO ()
 sortVecClause f VecOfClause{..} = writeIORef clauses . map fst . sortOn snd =<< mapM (uncurry ((<$>) . (,)) . (id &&& f)) =<< readIORef clauses
+
+{-# INLINE sizeOfClause #-}
+sizeOfClause :: Clause -> IO Int
+sizeOfClause !c = getNthInt 0 (lits c)
+
+{-# INLINE getNthClause #-}
+getNthClause :: Int -> FixedVecOf Clause -> IO Clause
+getNthClause !i !(FixedVecOf fv) = MV.unsafeRead fv i
+
+{-# INLINE setNthClause #-}
+setNthClause :: Int -> FixedVecOf Clause -> Clause -> IO ()
+setNthClause !i !(FixedVecOf fv) !c = MV.unsafeWrite fv i c

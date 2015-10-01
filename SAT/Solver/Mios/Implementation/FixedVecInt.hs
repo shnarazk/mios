@@ -19,12 +19,19 @@
 module SAT.Solver.Mios.Implementation.FixedVecInt
        (
          FixedVecInt
-       , swapVecInt
+       , sizeOfVecInt
+       , getNthInt
+       , setNthInt
+       , swapIntsBetween
+       , modifyNthInt
+       , newSizedVecIntFromList
+       , newSizedVecIntFromUVector
        )
        where
 
 import Control.Monad (forM, forM_)
 import Data.List hiding (insert)
+import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as UV
 import SAT.Solver.Mios.Types (ContainerLike(..), VectorLike(..))
 
@@ -36,47 +43,61 @@ newtype FixedVecInt = FixedVecInt
                         litVec :: UV.IOVector Int
                       }
 
+{-# INLINE sizeOfVecInt #-}
+sizeOfVecInt :: FixedVecInt -> IO Int
+sizeOfVecInt FixedVecInt{..} = return $ UV.length litVec
+
 -- | provides 'clear' and 'size'
 instance ContainerLike FixedVecInt Int where
   clear FixedVecInt{..} = error "FixedVecInt.clear"
-  size FixedVecInt{..} = return $ UV.length litVec
+  {-# SPECIALIZE INLINE asList :: FixedVecInt -> IO [Int] #-}
   asList FixedVecInt{..} = forM [0 .. UV.length litVec - 1] $ UV.unsafeRead litVec
   dump str v = (str ++) . show <$> asList v
 
 -- | constructors, resize, stack, vector, and duplication operations
 instance VectorLike FixedVecInt Int where
   -- * Constructors
-  emptyVec = FixedVecInt <$> UV.new 0
-  newVec = FixedVecInt <$> UV.new 0
-  newVecSized n = FixedVecInt <$> UV.new n
-  newVecSizedWith n 0 = FixedVecInt <$> UV.new n
-  newVecSizedWith n x = do
+  newVec n = FixedVecInt <$> UV.new n
+  newVecWith n x = do
     v <- UV.new n
-    forM_ [0 .. n -1] $ \i -> UV.write v i x
+    UV.set v x
     return $ FixedVecInt v
-  -- * Size operations
-  shrink n FixedVecInt{..} = error "FixedVecInt.shrink"
-  growTo _ _ = error "FixedVecInt.growTo"
-  growToWith _ _ = error "FixedVecInt.growToWith"
-  -- * Stack operations
-  pop FixedVecInt{..} = error "FixedVecInt.pop"
-  push FixedVecInt{..} x = error "FixedVecInt.push"
-  lastE FixedVecInt{..} = error "FixedVecInt.lastE"
-  removeElem x FixedVecInt{..} = error "FixedVecInt.removeElem"
   -- * Vector operations
   {-# SPECIALIZE INLINE (.!) :: FixedVecInt -> Int -> IO Int #-}
   (.!) FixedVecInt{..} !n = UV.unsafeRead litVec n
   {-# SPECIALIZE INLINE setAt :: FixedVecInt -> Int -> Int -> IO () #-}
   setAt FixedVecInt{..} !n !x = UV.unsafeWrite litVec n x
-  -- * Duplication
-  copyTo v1 v2 = error "FixedVecInt.copyTo"
-  moveTo v1 v2 = error "FixedVecInt.moveTo"
   -- * Conversion
   newFromList l = do
     v <- UV.new $ length l
-    forM_ (zip [0 .. length l - 1] l) $ \(i, j) -> UV.write v i j
+    forM_ (zip [0 .. length l - 1] l) $ \(i, j) -> UV.unsafeWrite v i j
     return $ FixedVecInt v
-  checkConsistency str FixedVecInt{..} func = error "FixedVecInt.checkConsistency"
 
-swapVecInt :: FixedVecInt -> Int -> Int -> IO ()
-swapVecInt FixedVecInt{..} i j = UV.unsafeSwap litVec i j
+{-# INLINE getNthInt #-}
+getNthInt :: Int -> FixedVecInt -> IO Int
+getNthInt !n !(FixedVecInt litVec) = UV.unsafeRead litVec n
+
+{-# INLINE setNthInt #-}
+setNthInt :: Int -> FixedVecInt -> Int -> IO ()
+setNthInt !n !(FixedVecInt litVec) !x = UV.unsafeWrite litVec n x
+
+{-# INLINE modifyNthInt #-}
+modifyNthInt :: Int -> FixedVecInt -> (Int -> Int) -> IO ()
+modifyNthInt !n !(FixedVecInt litVec) !f = UV.unsafeModify litVec f n
+
+{-# INLINE swapIntsBetween #-}
+swapIntsBetween:: FixedVecInt -> Int -> Int -> IO ()
+swapIntsBetween !(FixedVecInt litVec) !i !j = UV.unsafeSwap litVec i j
+
+{-# INLINE newSizedVecIntFromList #-}
+newSizedVecIntFromList :: [Int] -> IO FixedVecInt
+newSizedVecIntFromList !l = do
+  let n = length l
+  v <- UV.new $ n + 1
+  UV.unsafeWrite v 0 n
+  forM_ (zip [1 .. n] l) $ \(i, j) -> UV.unsafeWrite v i j
+  return $ FixedVecInt v
+
+{-# INLINE newSizedVecIntFromUVector #-}
+newSizedVecIntFromUVector :: U.Vector Int -> IO FixedVecInt
+newSizedVecIntFromUVector vec = FixedVecInt <$> U.unsafeThaw vec

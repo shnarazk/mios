@@ -16,41 +16,41 @@ module SAT.Solver.Mios.Solver
          -- * Solver
          Solver (..)
        , newSolver
+       , setInternalState
          -- * public interface of 'Solver' (p.2)
        , addClause
        , simplifyDB
        , solve
-         -- * methods of 'Solver'
---       , propagate
---       , enqueue
---       , analyze
---       , record
---       , undoOne
---       , assume
---       , cancel
---       , cancelUntil
---       , clauseNew
+         -- * misc accessors for Solver
+       , nVars
+       , nConstraints
+       , nLearnts
        )
         where
 
-import Control.Arrow ((&&&))
 import Control.Monad ((<=<), filterM, forM, forM_, unless, when)
-import Data.List (nub, sort)
+import Data.List (nub)
 import Data.IORef
+import qualified Data.Vector.Unboxed.Mutable as UV
 import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Internal (sortByFst, FixedQueueOf, FixedVecDouble, FixedVecInt, FixedVecOf, StackOfLit, VecOf(..))
+import SAT.Solver.Mios.Implementation.FixedVecInt (FixedVecInt, getNthInt, modifyNthInt, newSizedVecIntFromList, setNthInt, sizeOfVecInt, swapIntsBetween)
+import SAT.Solver.Mios.Implementation.FixedVecDouble (FixedVecDouble, getNthDouble, modifyNthDouble, newVecDouble, setNthDouble)
+import SAT.Solver.Mios.Implementation.FixedVecOf (FixedVecOf)
+import SAT.Solver.Mios.Implementation.ListOf (ListOf(..), newList, pushToList)
+import SAT.Solver.Mios.Implementation.ListOfInt (ListOfInt, lastOfListOfInt, newListOfInt, popFromListOfInt, pushToListOfInt, sizeOfListOfInt)
+import SAT.Solver.Mios.Implementation.QueueOfBoundedInt (QueueOfBoundedInt, clearQueue, dequeue, insertQueue, newQueue, sizeOfQueue)
 import SAT.Solver.Mios.Clause
+import SAT.Solver.Mios.ClauseList
 import SAT.Solver.Mios.WatchList
-import SAT.Solver.Mios.SolverRelation
 
 -- | __Fig. 2.(p.9)__ Internal State of the solver
 data Solver = Solver
               {
                 -- for public interface
-                model      :: VecOf Bool        -- ^ If found, this vector has the model
+                model      :: ListOf Bool       -- ^ If found, this vector has the model
                 -- Contraint databale
-              , constrs    :: VecOfClause       -- ^ List of problem constraints.
-              , learnts    :: VecOfClause       -- ^ List of learnt clauses.
+              , constrs    :: ClauseLink        -- ^ List of problem constraints.
+              , learnts    :: ClauseLink        -- ^ List of learnt clauses.
               , claInc     :: IORef Double      -- ^ Clause activity increment amount to bump with.
               , claDecay   :: IORef Double      -- ^ Decay factor for clause activity.
                 -- Variable order
@@ -59,86 +59,108 @@ data Solver = Solver
               , varDecay   :: IORef Double      -- ^ Decay factor for variable activity.
               , order      :: VarOrderStatic    -- ^ Keeps track of the dynamic variable order.
                 -- Propagation
-              , watches    :: FixedVecOf WatchLink -- ^ For each literal 'p', a list of constraint wathing 'p'.
+              , watches    :: WatcherList       -- ^ For each literal 'p', a list of constraint wathing 'p'.
                              -- A constraint will be inspected when 'p' becomes true.
               , undos      :: FixedVecOf VecOfClause -- ^ For each variable 'x', a list of constraints that need
                              -- to update when 'x' becomes unbound by backtracking.
-              , propQ      :: FixedQueueOf Lit  -- ^ Propagation queue.
+              , propQ      :: QueueOfBoundedInt -- ^ Propagation queue.
                 -- Assignments
               , assigns    :: FixedVecInt       -- ^ The current assignments indexed on variables.
                               -- __Note:__ the index for 'assigns' is __0__-based, while lit and var start from __1__.
-              , trail      :: StackOfLit        -- ^ List of assignments in chronological order.
-              , trailLim   :: VecOf Int         -- ^ Separator indices for different decision levels in 'trail'.
+              , trail      :: ListOfInt 	-- ^ List of assignments in chronological order.
+              , trailLim   :: ListOfInt         -- ^ Separator indices for different decision levels in 'trail'.
+              , decisionLevel :: IORef Int
               , reason     :: FixedVecOf Clause -- ^ For each variable, the constraint that implied its value.
               , level      :: FixedVecInt       -- ^ For each variable, the decision level it was assigned.
               , rootLevel  :: IORef Int         -- ^ Separates incremental and search assumptions.
+              , seen       :: UV.IOVector Int   -- ^ scratch vector for 'analyze'
+              , currentWatch :: WatchLink       -- ^ used in 'propagate` repeatedely
+--              , currentReason :: ListOfInt    -- ^ used in 'analyze' and 'calcReason'
               }
 
-instance SolverState Solver where
- nVars = size . assigns
- nAssigns = size . trail
- nConstraints = size . constrs
- nLearnts = size . learnts
- {-# SPECIALIZE INLINE valueVar :: Solver -> Var -> IO Int #-}
- valueVar s x = assigns s .! (x - 1)
- {-# SPECIALIZE INLINE valueLit :: Solver -> Lit -> IO Int #-}
- valueLit !Solver{..} !p
-   | p < 0 = do
-       !v <- assigns .! (var p - 1)
-       return $! negate v
-   | otherwise = do
-       !v <- assigns .! (var p - 1)
-       return v
- decisionLevel = size . trailLim
- setInternalState s nv = do
-   ac <- newVecSizedWith nv 0.0
-   w <- newVecSized $ nv * 2
-   u <- newVecSized nv
-   forM_ [0 .. nv - 1] $ \i -> setAt u i =<< newVec
-   forM_ [0 .. nv * 2 - 1] $ \i -> do
-     a <- newIORef NullClause
-     b <- newIORef NullClause
-     setAt w i (a, b)
-   a <- newVecSizedWith nv lBottom
-   t <- newVecSized (2 * nv)
-   r <- newVecSizedWith nv NullClause
-   l <- newVecSizedWith nv (-1)
-   q <- newQueueSized (2 * nv)
-   let s' = s
-            { activities = ac
-            , watches = w
-            , undos = u
-            , assigns = a
-            , trail = t
-            , reason = r
-            , level = l
-            , order = VarOrderStatic s'
-            , propQ = q
-            }
-   return s'
+-- | returns the number of 'Var'
+nVars :: Solver -> IO Int
+nVars = sizeOfVecInt . assigns
+
+-- | returns the number of current assigments
+nAssigns :: Solver -> IO Int
+nAssigns = sizeOfListOfInt . trail
+
+-- | returns the number of constraints (clauses)
+nConstraints  :: Solver -> IO Int
+nConstraints = numberOfClauses . constrs
+
+-- | returns the number of learnt clauses
+nLearnts :: Solver -> IO Int
+nLearnts = numberOfClauses . learnts
+
+-- | returns the assignment (:: 'LBool' = @[-1, 0, -1]@) from 'Var'
+{-# INLINE valueVar #-}
+valueVar :: Solver -> Var -> IO Int
+valueVar !s !x = getNthInt (x - 1) (assigns s)
+
+-- | returns the assignment (:: 'LBool' = @[-1, 0, -1]@) from 'Lit'
+{-# INLINE valueLit #-}
+valueLit !Solver{..} !p
+  | p < 0 = negate <$> getNthInt (var p - 1) assigns
+  | otherwise = getNthInt (var p - 1) assigns
+
+-- | returns an everything-is-initialized solver from the argument
+setInternalState :: Solver -> Int -> IO Solver
+setInternalState s nv = do
+  ac <- newVecDouble nv 0.0
+  w <- newWatcherList $ nv * 2
+  u <- newVec 0 -- nv
+  -- forM_ [0 .. nv - 1] $ \i -> setVecAt u i =<< newVec 0
+  a <- newVecWith nv lBottom
+  t <- newListOfInt (2 * nv)
+  t' <- newListOfInt nv
+  r <- newVecWith nv NullClause
+  l <- newVecWith nv (-1)
+  q <- newQueue (2 * nv)
+  n <- UV.new nv
+--  cr <- newListOfInt nv
+  let s' = s
+           { activities = ac
+           , watches = w
+           , undos = u
+           , assigns = a
+           , trail = t
+           , trailLim = t'
+           , reason = r
+           , level = l
+           , order = VarOrderStatic s'
+           , propQ = q
+           , seen = n
+--           , currentReason = cr
+           }
+  return s'
 
 -- | constructor
 newSolver :: IO Solver
 newSolver = do
-  _model      <- newVec
-  _constrs    <- newVec
-  _learnts    <- newVec
+  _model      <- newList
+  _constrs    <- newClauseLink
+  _learnts    <- newClauseLink
   _claInt     <- newIORef 0
   _claDecay   <- newIORef 0
-  _activities <- newVec
+  _activities <- newVecDouble 0 0
   _varInc     <- newIORef 1
   _varDecay   <- newIORef 0
   let _order  = undefined
-  _watches    <- newVec
-  _undos      <- newVec
-  _propQ      <- newQueue
-  _assigns    <- newVec
-  _trail      <- newVec
-  _trailLim   <- newVec
-  _reason     <- newVec
-  _level      <- newVec
+  _watches    <- newWatcherList 0
+  _undos      <- newVec 0
+  _propQ      <- newQueue 0
+  _assigns    <- newVec 0
+  _trail      <- newListOfInt 0
+  _trailLim   <- newListOfInt 0
+  _decLevel   <- newIORef 0
+  _reason     <- newVec 0
+  _level      <- newVec 0
   _rootLevel  <- newIORef 0
-  act <- newIORef (-1)
+  _seen       <- UV.new 0
+  _currentWatch <- newWatchLink
+--   _currentReason <- newListOfInt 0
   let s = Solver
               _model
               _constrs
@@ -155,23 +177,26 @@ newSolver = do
              _assigns
              _trail
              _trailLim
+             _decLevel
              _reason
              _level
              _rootLevel
+             _seen
+             _currentWatch
+--             _currentReason
   return $ s { order = VarOrderStatic s }
 
 -- | public interface of 'Solver' (p.2)
 --
 -- returns @False@ if a conflict has occured.
 -- This function is called only before the solving phase to register the given clauses.
-addClause :: Solver -> [Lit] -> IO Bool
-addClause s@Solver{..} literals = do
-  vecLits <- newFromList literals
+addClause :: Solver -> FixedVecInt -> IO Bool
+addClause s@Solver{..} vecLits = do
   result <- clauseNew s vecLits False
   case result of
    (False, _) -> return False   -- Conflict occured
    (True, c)  -> do
-     unless (c == NullClause) $ push constrs c
+     unless (c == NullClause) $ pushClause constrs c
      return True                -- No conflict
 
 -- function on "Solver"
@@ -185,45 +210,39 @@ propagate :: Solver -> IO Clause
 propagate s@Solver{..} = do
   let
     loop = do
-      k <- size propQ
+      k <- sizeOfQueue propQ
       -- checkIt ("propagate.loop starts (" ++ show k ++ ")") s Nothing
       if k == 0
         then return NullClause        -- No conflict
         else do
             -- checkWatches s
             p <- dequeue propQ
-            w@(fw, sw) <- watches .! index p
-            b <- newIORef =<< readIORef fw
-            e <- newIORef =<< readIORef sw
-            let tmp = (b, e)
+            let !w@(fw, sw) = getNthWatchLink (index p) watches
             -- moveTo w tmp
+            writeIORef (fst currentWatch) =<< readIORef fw
+            writeIORef (snd currentWatch) =<< readIORef sw
             writeIORef fw NullClause
             writeIORef sw NullClause
             let
               for :: Clause -> IO Clause
               for !c = do
-                !next <- c `seq` nextWatcher tmp p c
-                x <- c `seq` propagateLit c s p
+                !next <- nextWatcher currentWatch p c
+                x <- propagateLit c s p
                 if not x
                   then do
                       -- checkIt ("propagate.propagateLit conflict on " ++ show p) s Nothing
                       -- putStrLn =<< dump "conflicted: " c
                       -- Constraint is conflicting; copy remaining watches to 'watches[p]'
                       -- and return constraint:
-                      let
-                        revert NullClause = clear propQ >> return c
-                        revert !c' = do
-                          next <- c' `seq` nextWatcher tmp p c'
-                          pushWatcher w p c'
-                          -- checkIt "progress.revert.pushWatcher pre" s $ Just next
-                          revert next
-                      revert next
+                      writeIORef (fst currentWatch) next
+                      mergeWatcher w p currentWatch
+                      clearQueue propQ
+                      return c
                   else do
-                      -- checkIt ("propagate.pro...it no conf on " ++ show (p, next == NullClause)) s Nothing
                       if next == NullClause
                         then loop
                         else for next
-            c <- readIORef b
+            c <- readIORef (fst currentWatch)
             -- checkIt "propagate.loop.for starts" s Nothing
             if c == NullClause
               then loop
@@ -236,7 +255,7 @@ propagate s@Solver{..} = do
 -- cleared. The parameter 'from' contains a reference to the constraint from which 'p' was
 -- propagated (defaults to @Nothing@ if omitted).
 enqueue :: Solver -> Lit -> Clause -> IO Bool
-enqueue s@Solver{..} p from = do
+enqueue s@Solver{..} !p from = do
   let v = var p
   val <- valueVar s v
   if val /= lBottom
@@ -244,12 +263,12 @@ enqueue s@Solver{..} p from = do
         return $ signum val == signum p
     else do
         -- New fact, store it
-        setAt assigns (v - 1) (signum p)
-        d <- decisionLevel s
-        setAt level (v - 1) (d :: Int)
-        setAt reason (v - 1) from     -- NOTE: @from@ might be NULL!
-        push trail p
-        insert propQ p
+        setNthInt (v - 1) assigns (signum p)
+        d <- readIORef decisionLevel
+        setNthInt (v - 1) level d
+        setNthClause (v - 1) reason from     -- NOTE: @from@ might be NULL!
+        pushToListOfInt trail p
+        insertQueue propQ p
         -- putStr $ "### " ++ (if from == NullClause then "dec." else "imp.") ++ show p ++ " \t"
         -- dumpStatus s
         return True
@@ -270,58 +289,51 @@ enqueue s@Solver{..} p from = do
 -- initialize /p/ to 'bottomLit', which will make 'calcReason' return the reason for the conflict.
 --
 -- `analyze` is invoked from `search`
-analyze :: Solver -> Clause -> VecOf Lit -> IO Int
+analyze :: Solver -> Clause -> ListOf Lit -> IO Int
 analyze s@Solver{..} confl learnt = do
---  putStrLn =<< dump "analyze arg: " confl
-  n <- nVars s
-  (seen :: FixedVecOf Bool) <- newVecSizedWith n False
-  pReason <- newVec
-  learnt `push` 0               -- leave room for the asserting literal
+  UV.set seen 0
+  d <- readIORef decisionLevel
+  -- learnt `push` 0               -- leave room for the asserting literal
   let
-    loop p confl counter btLevel = do
+    loop !p confl !counter !btLevel = do
       -- invariant here: @confl /= NullClause@
       -- Because any decision var should be a member of reason of an implication vars.
       -- So it becomes /seen/ in an early stage before the traversing loop
-      clear pReason
-      calcReason confl s p pReason
+      -- clear pReason
+      !pReason <- calcReason confl s p -- pReason holds a negated reason now.
       -- TRACE REASON FOR P:
       let
-        for :: Int -> Int -> Int -> IO (Int, Int)
-        for j counter btLevel = do
-          k <- size pReason
-          if j >= k
-            then return (counter, btLevel)
-            else do
-                q <- pReason .! j
-                let v = var q
-                sv <- seen .! (v - 1)
-                if not sv
-                  then do
-                      setAt seen (v - 1) True
-                      d <- decisionLevel s
-                      l <- level .! (v - 1)
-                      case () of
-                       _ | l == d -> for (j + 1) (counter + 1) btLevel
-                       _ | 0 <  l -> do -- exclude variables from decision level 0
-                             push learnt $ negate q
-                             for (j + 1) counter $ max btLevel l
-                       _ -> for (j + 1) counter btLevel
-                  else for (j + 1) counter btLevel
-      (counter, btLevel) <- for 0 counter btLevel
+        for :: [Int] -> Int -> Int -> IO (Int, Int)
+        for ![] !counter !btLevel = return (counter, btLevel)
+        for !(q:rest) !counter !btLevel = do
+          let v = var q - 1
+          sv <- UV.unsafeRead seen v
+          if sv == 0
+            then do
+                UV.unsafeWrite seen v 1
+                l <- getNthInt v level
+                case () of
+                 _ | l == d -> for rest (counter + 1) btLevel
+                 _ | 0 <  l -> do -- exclude variables from decision level 0
+                       pushToList learnt q
+                       for rest counter $ max btLevel l
+                 _ -> for rest counter btLevel
+            else for rest counter btLevel
+      -- pl <- asList pReason
+      !(counter, btLevel) <- for pReason counter btLevel
       -- SELECT NEXT LITERAL TO LOOK AT:
       let
-        doWhile p confl = do
-          p <- lastE trail
-          confl <- reason .! (var p - 1)
+        doWhile = do
+          p <- lastOfListOfInt trail
+          let !i = var p - 1
+          confl <- getNthClause i reason -- should call it before 'undoOne'
           undoOne s
-          notSeen <- not <$> seen .! (var p - 1)
-          if notSeen
-            then doWhile p confl
-            else return (p, confl)
-      (p, confl) <- doWhile p confl
+          sn <- UV.unsafeRead seen i
+          if sn == 0 then doWhile else return (p, confl)
+      !(p, confl) <- doWhile
       if 1 < counter
         then loop p confl (counter - 1) btLevel
-        else setAt learnt 0 (negate p) >> return btLevel
+        else {- setAt learnt 0 (negate p) -} pushToList learnt (negate p) >> return btLevel
   loop bottomLit confl 0 0
 
 -- | __Fig. 11. (p.15)__
@@ -329,34 +341,36 @@ analyze s@Solver{..} confl learnt = do
 --
 -- __Pre-Condition:__ "clause[0]" must contain
 -- the asserting literal. In particular, 'clause[]' must not be empty.
-record :: Solver -> VecOf Lit -> IO ()
-record s@Solver{..} clause = do
-  c <- snd <$> clauseNew s clause True -- will be set to created clause, or NULL if @clause[]@ is unit
-  l <- clause .! 0
+record :: Solver -> FixedVecInt -> IO ()
+record s@Solver{..} v = do
+  c <- snd <$> clauseNew s v True -- will be set to created clause, or NULL if @clause[]@ is unit
+  l <- getNthInt 1 v
   enqueue s l c
-  unless (c == NullClause) $ push learnts c
+  unless (c == NullClause) $ pushClause learnts c
 
 -- | __Fig. 12. (p.17)__
 -- unbinds the last variable on the trail.
 undoOne :: Solver -> IO ()
 undoOne s@Solver{..} = do
-  !p <- lastE trail
-  let x = var p - 1
-  setAt assigns x lBottom
-  setAt reason  x NullClause
-  setAt level   x (-1)
+  !p <- lastOfListOfInt trail
+  let !x = var p - 1
+  setNthInt x assigns lBottom
+  setNthClause x reason NullClause
+  setNthInt x level (-1)
   undo order (var p)
-  pop trail
+  popFromListOfInt trail
+{-
   let
     loop = do
-      k <- size =<< undos .! x
+      k <- sizeOfClauses =<< undos .! x
       when (0 < k) $ do
         a <- undos .! x
-        b <- lastE a
+        b <- lastE' a
         undoConstraint b s p
-        pop a
+        pop' a
         loop
   loop
+-}
 
 -- | __Fig. 12 (p.17)__
 -- returns @False@ if immediate conflict.
@@ -364,7 +378,8 @@ undoOne s@Solver{..} = do
 -- __Pre-condition:__ propagation queue is empty
 assume :: Solver -> Lit -> IO Bool
 assume s@Solver{..} p = do
-  push trailLim =<< size trail
+  pushToListOfInt trailLim =<< sizeOfListOfInt trail
+  modifyIORef' decisionLevel (+ 1)
   enqueue s p NullClause
 
 -- | __Fig. 12 (p.17)__
@@ -375,19 +390,20 @@ cancel :: Solver -> IO ()
 cancel s@Solver{..} = do
   let
     for c = when (c /= 0) $ undoOne s >> for (c - 1)
-  st <- size trail
-  tl <- lastE trailLim
+  st <- sizeOfListOfInt trail
+  tl <- lastOfListOfInt trailLim
   when (0 < st - tl) $ for $ st - tl
-  pop trailLim
+  popFromListOfInt trailLim
+  modifyIORef' decisionLevel (subtract 1)
 
 -- | __Fig. 12 (p.17)__
 -- cancels several levels of assumptions.
 cancelUntil :: Solver -> Int -> IO ()
 cancelUntil s lvl = do
-  d <- decisionLevel s
-  when (lvl < d) $ do
-    cancel s
-    (s `cancelUntil`) lvl
+  let
+    loop ((lvl <) -> False) = return ()
+    loop d = cancel s >> loop (d - 1)
+  loop =<< readIORef (decisionLevel s)
 
 -- | __Fig. 13. (p.18)__
 -- Assumes and propagates until a conflict is found, from which a conflict clause
@@ -405,29 +421,28 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
       -- checkIt "search.propagate done" s Nothing
       -- putStrLn $ "propagate done: " ++ show (confl /= NullClause)
       -- checkWatches s
+      d <- readIORef decisionLevel
       if confl /= NullClause
         then do
             -- CONFLICT
             -- putStrLn . ("conf: " ++) =<< dump "" confl
             -- checkIt "search is conflict after propagate" s Nothing
-            d <- decisionLevel s
             r <- readIORef rootLevel
             if d == r
               then return lFalse
               else do
-                  learntClause <- newVec
+                  learntClause <- newList
                   backtrackLevel <- analyze s confl learntClause
                   (s `cancelUntil`) . max backtrackLevel =<< readIORef rootLevel
                   -- putStrLn =<< dump "BACKTRACK after search.analyze :: trail: " trail
-                  (s `record`) learntClause
+                  (s `record`) =<< newSizedVecIntFromList =<< asList learntClause
                   decayActivities s
                   -- checkIt "search done backtrack" s Nothing
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
-            d <- decisionLevel s
             -- Simplify the set of problem clauses:
             when (d == 0) $ simplifyDB s >> return () -- our simplifier cannot return @False@ here
-            k1 <- size learnts
+            k1 <- numberOfClauses learnts
             k2 <- nAssigns s
             when (k1 - k2 >= nOfLearnts) $ reduceDB s -- Reduce the set of learnt clauses
             k3 <- nVars s
@@ -455,11 +470,11 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
 
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 varBumpActivity :: Solver -> Var -> IO ()
-varBumpActivity s@Solver{..} x = do
-  a <- (+) <$> activities .! (x - 1) <*> readIORef varInc
+varBumpActivity s@Solver{..} !x = do
+  a <- (+) <$> getNthDouble (x - 1) activities <*> readIORef varInc
   if 1e100 < a
     then varRescaleActivity s
-    else setAt activities (x - 1) a
+    else setNthDouble (x - 1) activities a
   update order x
 
 -- | __Fig. 14 (p.19)__
@@ -472,7 +487,7 @@ varDecayActivity s@Solver{..} = do
 varRescaleActivity :: Solver -> IO ()
 varRescaleActivity s@Solver{..} = do
   nv <- subtract 1 <$> nVars s
-  forM_ [0 .. nv] $ \i -> setAt activities i =<< (1e-100 *) <$>  activities .! i
+  forM_ [0 .. nv] $ \i -> modifyNthDouble i activities (* 1e-100)
   modifyIORef' varInc (* 1e-100)
 
 -- | __Fig. 14 (p.19)__
@@ -492,10 +507,12 @@ claDecayActivity s@Solver{..} = do
 -- | __Fig. 14 (p.19)__
 claRescaleActivity :: Solver -> IO ()
 claRescaleActivity s@Solver{..} = do
-  nc <- subtract 1 <$> nLearnts s
-  forM_ [0 .. nc] $ \i -> do
-    a <- activity <$> learnts .! i
-    writeIORef a . (1e-100 *) =<< readIORef a
+  let
+    loop NullClause = return ()
+    loop c@Clause{..} = do
+      modifyIORef' activity (* 1e-100)
+      loop =<< nextClause learnts c
+  loop =<< nextClause learnts NullClause
   modifyIORef' claInc (* 1e-100)
 
 -- | __Fig. 14 (p.19)__
@@ -510,18 +527,23 @@ decayActivities s = do
 -- lower bound activity are also be removed.
 reduceDB :: Solver -> IO ()
 reduceDB s@Solver{..} = do
-  n <- size learnts
   ci <- readIORef claInc
   cd <- readIORef claDecay
   -- staticVarOrder s
   lim <- (cd *) <$> setClauseActivities s
-  -- new engine 0.7
-  let getProp c = (,) <$> locked c s <*> (negate <$> readIORef (activity c))
-  lst <- mapM (uncurry ((<$>) . (,)) . (id &&& getProp)) =<< readIORef (clauses learnts)
-  let isRequired (_, (lck, act)) = lck || lim <= act
-  mapM_ (flip remove s . fst) $ filter (not . isRequired) lst
-  writeIORef (clauses learnts) . map fst $ filter isRequired lst
-  return ()
+  -- new engine 0.8
+  let isRequired c = (||) <$> locked c s <*> ((lim <=). negate <$> readIORef (activity c))
+  let
+    loop c = do
+      c' <- nextClause learnts c
+      if c' == NullClause
+        then return ()
+        else do
+            r <- isRequired c'
+            if r
+              then loop c'
+              else remove c' s >> unlinkClause learnts c >> loop c
+  loop NullClause
 
 -- | __Fig. 15. (p.20)__
 -- Top-level simplify of constraint database. Will remove any satisfied constraint
@@ -539,18 +561,23 @@ simplifyDB s@Solver{..} = do
     then return False
     else do
         let
-          for t@((< 2) -> False) = return True
+          for :: Int -> IO Bool
+          for ((< 2) -> False) = return True
           for t = do
-            let ptr = clauses $ if t == 0 then learnts else constrs
             let
-              checkM c = do
-                y <- simplify c s
-                when y $ remove c s
-                return $ not y
-            writeIORef ptr =<< filterM checkM =<< readIORef ptr
-            for $ t + 1
+              ptr = if t == 0 then learnts else constrs
+              loop :: Clause -> IO Bool
+              loop c = do
+                c' <- nextClause ptr c
+                if c' == NullClause
+                  then return True
+                  else do
+                      r <- simplify c' s
+                      if r
+                        then remove c' s >> unlinkClause ptr c >> loop c
+                        else loop c'
+            loop NullClause
         for 0
-        return True
 
 -- | __Fig. 16. (p.20)__
 -- Main solve method.
@@ -558,7 +585,7 @@ simplifyDB s@Solver{..} = do
 -- __Pre-condition:__ If assumptions are used, 'simplifyDB' must be
 -- called right before using this method. If not, a top-level conflict (resulting in a
 -- non-usable internal state) cannot be distinguished from a conflict under assumptions.
-solve :: Solver -> VecOf Lit -> IO Bool
+solve :: Solver -> ListOf Lit -> IO Bool
 solve s@Solver{..} assumps = do
   writeIORef varDecay (1 / 0.95)
   writeIORef claDecay (1 / 0.999)
@@ -566,24 +593,22 @@ solve s@Solver{..} assumps = do
   nv <- fromIntegral <$> nVars s
   nc <- fromIntegral <$> nConstraints s
   -- PUSH INCREMENTAL ASSUMPTIONS:
-  k <- size assumps
   let
-    for i@((< k) -> False) = return True
-    for i = do
-      a <- assumps .! i
-      b <- assume s a
+    for [] = return True
+    for (a : rest) = do
+      !b <- assume s a
       if not b
         then cancelUntil s 0 >> return False
         else do
             c <- propagate s
             if c /= NullClause
               then cancelUntil s 0 >> return False
-              else for $ i + 1
-  x <- for 0
+              else for rest
+  !x <- for =<< asList assumps
   if not x
     then return False
     else do
-        writeIORef rootLevel =<< decisionLevel s
+        writeIORef rootLevel =<< readIORef decisionLevel
         -- SOLVE:
         let
           while status@((lBottom ==) -> False) _ _ = do
@@ -594,121 +619,156 @@ solve s@Solver{..} assumps = do
             while status (1.5 * nOfConflicts) (1.1 * nOfLearnts)
         while lBottom (min 100 (1 + (10000 + nc)/ nv)) (nc / 3)
 
-instance BoolConstraint Solver Clause where
-  -- | constraint interface
-  {-# SPECIALIZE INLINE remove :: Clause -> Solver -> IO () #-}
-  remove !c@Clause{..} s@Solver{..} = do
-    -- checkWatches s
-    -- version 0.5 -- removeElem c =<< (watches .!) . index . negate =<< lits .! 0
-    l1 <- negate <$> c .! 0
-    w1 <- watches .! index l1
-    removeWatcher w1 l1 c
-    -- version 0.5 -- removeElem c =<< (watches .!) . index . negate =<< lits .! 1
-    l2 <- negate <$> c .! 1
-    w2 <- watches .! index l2
-    removeWatcher w2 l2 c
-    -- c should be deleted here
-    return ()
-  -- | only called at top level with prop. queue
-  {-# SPECIALIZE INLINE simplify :: Clause -> Solver -> IO Bool #-}
-  simplify c@Clause{..} s@Solver{..} = do
-    n <- size c
-    l1 <- negate <$> c .! 0
-    l2 <- negate <$> c .! 1
-    let
-      loop ((< n) -> False) j = do
-        when (0 < n - j) $ do
-          shrink (n - j) c
-          l1' <- negate <$> c .! 0
-          when (l1 /= l1') $ do
-            w <- watches .! index l1'
-            pushWatcher w l1' c
-          l2' <- negate <$> c .! 1
-          when (l2 /= l2') $ do
-            w <- watches .! index l2'
-            pushWatcher w l2' c
-        return False
-      loop i j = do
-        l <- c .! i
-        v <- valueLit s l
-        case () of
-         _ | v == lTrue   -> return True
-         _ | v == lBottom -> do
-               when (i /= j && j < 2) $ do
-                 w <- watches .! index (negate l)
-                 removeWatcher w (negate l) c
-               when (i /= j) $ do
-                 setAt c j l	-- false literals are not copied (only occur for i >= 2)
-               loop (i+1) (j+1)
-         _ | otherwise -> loop (i+1) j
-    loop 0 0
-  -- | returns @True@ if no conflict occured
-  -- this is invoked by 'propagate'
-  {-# SPECIALIZE INLINE propagateLit :: Clause -> Solver -> Lit -> IO Bool #-}
-  propagateLit c@Clause{..} s@Solver{..} p = do
-    -- checkIt ("propagateLit start on it! (" ++ show p ++ ")") s $ Just c
-    !w <- watches .! index p
-    -- Make sure the false literal is lits[1]:
-    !l <- c .! 0
-    let !np = negate p
-    when (l == np) $ do
-      -- swap lits[0] and lits[1]
-      setAt c 0 =<< c .! 1
-      setAt c 1 np
-      -- then swap watcher[0] and watcher[1], of course!
-      !c' <- readIORef nextWatch1
-      writeIORef nextWatch1 =<< readIORef nextWatch2
-      writeIORef nextWatch2 c'
-    -- If 0th watch is True, then clause is already satisfied.
-    !val <- valueLit s =<< c .! 0
-    if val == lTrue
-      then do
-          pushWatcher w p c -- re-insert clause into watcher list
-          return True
-      else do
-          -- Look for a new literal to watch:
-          !n <- size c
-          let
-            loop ((< n) -> False) = do
-              -- Clause is unit under assignment:
-              pushWatcher w p c
-              !l <- c .! 0
-              -- when (c == NullClause) $ error "propagateLit undef"
-              enqueue s l c
-            loop i = do
-              !l <- c .! i
-              !val <- valueLit s l
-              if val /= lFalse
-                then do
-                     setAt c 1 l
-                     setAt c i np
-                     w <- watches .! index (negate l)
-                     -- checkIt ("propagateLit.pushWatcher call " ++ show (negate l)) s $ Just c
-                     pushWatcher w (negate l) c -- insert clause into watcher list
-                     -- checkIt "propagateLit.pushWatcher done:" s $ Just c
-                     --  putStrLn $ "propagateLit(" ++ show p ++ "): move " ++ str ++ " to " ++ show (negate l)
-                     return True
-                else loop $ i + 1
-          loop 2
-  -- The literal /p/ is also allowed to be the special constant 'bottomLit'
-  -- in which case the reason for the clause being conflicting should be
-  -- returned through the vector: @outReason@.
-  --
-  -- __invaliant__ @c /= NullClause@
-  {-# SPECIALIZE INLINE calcReason :: Clause -> Solver -> Lit -> VecOf Lit -> IO () #-}
-  calcReason c s@Solver{..} p outReason = do
-    -- putStrLn =<< dump "c in calcReason" c
-    -- invariant: (p == bottomLit) || (p == lits[0])
-    -- when (c == NullClause) $ error $ "calcReason can't handle NullClause; p = " ++ show p
-    n <- size c
-    -- putStrLn $ "calcReason :: n = " ++ show n
-    let
-      loop ((< n) -> False) = return ()
-      loop i = do
-        push outReason . negate =<< c .! i -- invariant: S.value(lits[i]) == lFalse
-        loop $ i + 1
-    loop $ if p == bottomLit then 0 else 1
-    when (learnt c) $ claBumpActivity s c
+
+---- constraint interface
+
+-- | __Remove.__ The 'remove' method supplants the destructor by receiving
+-- the solver state as a parameter. It should dispose the constraint and
+-- remove it from the watcher lists.
+{-# INLINABLE remove #-}
+remove :: Clause -> Solver -> IO ()
+remove !c@Clause{..} s@Solver{..} = do
+  -- checkWatches s
+  -- version 0.5 -- removeElem c =<< (watches .!) . index . negate =<< lits .! 0
+  l1 <- negate <$> getNthLiteral 0 c
+  removeWatcher (getNthWatchLink (index l1) watches) l1 c
+  -- version 0.5 -- removeElem c =<< (watches .!) . index . negate =<< lits .! 1
+  l2 <- negate <$> getNthLiteral 1 c
+  removeWatcher (getNthWatchLink (index l2) watches) l2 c
+  -- c should be deleted here
+  return ()
+
+-- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
+-- simplify its representation (returns @False@) or state that the constraint is
+-- satisfied under the current assignment and can be removed (returns @True@).
+-- A constraint must /not/ be simplifiable to produce unit information or to be
+-- conflicting; in that case the propagation has not been correctly defined.
+{-# INLINABLE simplify #-}
+simplify :: Clause -> Solver -> IO Bool
+simplify c@Clause{..} s@Solver{..} = do
+  n <- sizeOfClause c
+  l1 <- negate <$> getNthLiteral 0 c
+  l2 <- negate <$> getNthLiteral 1 c
+  let
+    loop ((< n) -> False) j = do
+      when (0 < n - j) $ do
+        shrinkClause (n - j) c
+        l1' <- negate <$> getNthLiteral 0 c
+        when (l1 /= l1') $ do
+          pushWatcher (getNthWatchLink (index l1') watches) l1' c
+        l2' <- negate <$> getNthLiteral 1 c
+        when (l2 /= l2') $ do
+          pushWatcher (getNthWatchLink (index l2') watches) l2' c
+      return False
+    loop i j = do
+      l <- getNthLiteral i c
+      v <- valueLit s l
+      case () of
+       _ | v == lTrue   -> return True
+       _ | v == lBottom -> do
+             when (i /= j && j < 2) $ do
+               removeWatcher (getNthWatchLink (index (negate l)) watches) (negate l) c
+             when (i /= j) $ do
+               setNthLiteral j c l	-- false literals are not copied (only occur for i >= 2)
+             loop (i+1) (j+1)
+       _ | otherwise -> loop (i+1) j
+  loop 0 0
+
+-- | __Propagate.__ The 'propagateLit' method is called if the constraint is found
+-- in a watcher list during propagation of unit information /p/. The constraint
+-- is removed from the list and is required to insert itself into a new or
+-- the same watcher list. Any unit information derivable as a consequence of /p/
+-- should enqueued. If successful, @True@ is returned; if a conflict is detected,
+-- @False@ is returned. The constraint may add itself to the undo list of @var(p)@
+-- if it needs to be updated when /p/ becomes unbound.
+--
+-- | returns @True@ if no conflict occured
+-- this is invoked by 'propagate'
+{-# INLINABLE propagateLit #-}
+propagateLit :: Clause -> Solver -> Lit -> IO Bool
+propagateLit !c@Clause{..} !s@Solver{..} !p = do
+  let !w = getNthWatchLink (index p) watches
+  -- Make sure the false literal is lits[1]:
+  !l <- getNthInt 1 lits
+  let !np = negate p
+  when (l == np) $ do
+    -- swap lits[0] and lits[1]
+    setNthInt 1 lits =<< getNthInt 2 lits
+    setNthInt 2 lits np
+    -- then swap watcher[0] and watcher[1], of course!
+    !c' <- readIORef nextWatch1
+    writeIORef nextWatch1 =<< readIORef nextWatch2
+    writeIORef nextWatch2 c'
+  -- If 0th watch is True, then clause is already satisfied.
+  !val <- valueLit s =<< getNthInt 1 lits
+  if val == lTrue
+    then do
+        pushWatcher w p c -- re-insert clause into watcher list
+        return True
+    else do
+        -- Look for a new literal to watch:
+        !n <- sizeOfClause c
+        let
+          loop ((< n) -> False) = do
+            -- Clause is unit under assignment:
+            pushWatcher w p c
+            !l <- getNthInt 1 lits
+            -- when (c == NullClause) $ error "propagateLit undef"
+            enqueue s l c
+          loop i = do
+            !l <- getNthInt (i + 1) lits
+            !val <- valueLit s l
+            if val /= lFalse
+              then do
+                   setNthInt 2 lits l 
+                   setNthInt (i + 1) lits np
+                   pushWatcher (getNthWatchLink (index (negate l)) watches) (negate l) c -- insert clause into watcher list
+                   -- checkIt "propagateLit.pushWatcher done:" s $ Just c
+                   --  putStrLn $ "propagateLit(" ++ show p ++ "): move " ++ str ++ " to " ++ show (negate l)
+                   return True
+              else loop $ i + 1
+        loop 2
+
+-- | __Undo.__ During backtracking, this method is called if the constaint added itself
+-- to the undo list of /var(p)/ in 'propagateLit'.The current variable assignments are
+-- guaranteed to be identical to that of the moment before 'propagateLit' was called.
+undoConstraint :: Clause -> Solver -> Lit -> IO ()
+undoConstraint _ _ _ = return () -- defaults to do nothing
+
+-- | __Calculate Reason.__ Thi method is given a literal /p/ and an empty vector.
+-- The constraint is the /reason/ for /p/ being true, that is, during
+-- propagation, the current constraint enqueued /p/. The received vector is
+-- extended to include a set of assignments (represented as literals)
+-- implying /p/ The current variable assignments are guaranteed to be
+-- identical to that of the moment before the constraint propagated /p/.
+-- The literal /p/ is also allowed to be the special constant 'bottomLit'
+-- in which case the reason for the clause being conflicting should be
+-- returned through the vector.
+--
+-- 'calcReason` is invoked from 'analyze'
+--
+-- The literal /p/ is also allowed to be the special constant 'bottomLit'
+-- in which case the reason for the clause being conflicting should be
+-- returned through the vector: @outReason@.
+--
+-- __invaliant__ @c /= NullClause@
+--
+-- WARNING: this version returns not a reason but a negated reason! So this is 'calcAntiReason'
+{-# INLINABLE calcReason #-}
+calcReason :: Clause -> Solver -> Lit -> IO [Lit]
+calcReason c s@Solver{..} p {- outReason -} = do
+  -- putStrLn =<< dump "c in calcReason" c
+  -- invariant: (p == bottomLit) || (p == lits[0])
+  -- when (c == NullClause) $ error $ "calcReason can't handle NullClause; p = " ++ show p
+  n <- sizeOfClause c
+  -- putStrLn $ "calcReason :: n = " ++ show n
+  when (learnt c) $ claBumpActivity s c
+  let
+    loop ((< n) -> False) l = return l
+    loop i l = do loop (i + 1) . (: l) =<< getNthLiteral i c
+--      push' outReason =<< getNthLiteral i c -- invariant: S.value(lits[i]) == lFalse
+--      loop $ i + 1
+  loop (if p == bottomLit then 0 else 1) []
 
 -- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists
 -- Constructor function for clauses. Returns @False@ if top-level conflict is determined.
@@ -720,82 +780,99 @@ instance BoolConstraint Solver Clause where
 -- For the propagation to work, the second watch must be put on the literal which will
 -- first be unbound by backtracking. (Note that none of the learnt-clause specific things
 -- needs to done for a user defined contraint type.)
--- clauseNew :: Solver -> VecOf Lit -> Bool -> Clause -> IO Bool
-clauseNew :: Solver -> VecOf Lit -> Bool -> IO (Bool, Clause)
+clauseNew :: Solver -> FixedVecInt -> Bool -> IO (Bool, Clause)
 clauseNew s@Solver{..} ps learnt = do
-  (exit, k, psWithLen) <- do
-    ls <- nub <$> asList ps        -- remove all duplicatates from ps
-    if not learnt
-      then do
-      cond1 <- or <$> mapM (\l -> (lTrue ==) <$> valueLit s l) ls -- any literal in ps is true
-      let cond2 = any (flip elem ls) (map negate ls) -- both p and negate p occurs in ps
-      if cond1 || cond2
-        then return (True, 0, undefined)
-        else do
-        -- remove all false literals from ps
-        l' <- filterM (\l -> (lFalse /=) <$> valueLit s l) ls
-        clear ps
-        forM_ l' $ push ps
-        let ln = length l'
-        (False, ln, ) <$> newFromList (ln : l')
-      else do
-      ls <- asList ps
-      let ln = length ls
-      (False, ln, ) <$> newFromList (ln : ls)
+  -- now ps[0] is the number of living literals
+  exit <- do
+    let
+      handle j l n      -- removes duplicates, but returns @True@ if this clause is satisfied
+        | j > n = return False
+        | otherwise = do
+            y <- getNthInt j ps
+            case () of
+             _ | y == l -> do             -- finds a duplicate
+                   swapIntsBetween ps j n
+                   modifyNthInt 0 ps (subtract 1)
+                   handle j l (n - 1)
+             _ | - y == l -> setNthInt 0 ps 0 >> return True -- p and negate p occurs in ps
+             _ -> handle (j + 1) l n
+
+      loopForLearnt i = do
+        n <- getNthInt 0 ps
+        if n < i
+          then return False
+          else do
+              l <- getNthInt i ps
+              sat <- handle (i + 1) l n
+              if sat
+                then return True
+                else loopForLearnt $ i + 1
+
+      loop i = do
+        n <- getNthInt 0 ps
+        if n < i
+          then return False
+          else do
+              l <- getNthInt i ps     -- check the i-th literal's satisfiability
+              sat <- valueLit s l                                      -- any literal in ps is true
+              case () of
+               _ | sat == lTrue -> setNthInt 0 ps 0 >> return True
+               _ | sat == lFalse -> do
+                 swapIntsBetween ps i n
+                 modifyNthInt 0 ps (subtract 1)
+                 loop i
+               _ -> do
+                 sat <- handle (i + 1) l n
+                 if sat
+                   then return True
+                   else loop $ i + 1
+    if learnt then loopForLearnt 1 else loop 1
+  k <- getNthInt 0 ps
   case k of
    0 -> return (exit, NullClause)
    1 -> do
-     l <- ps .! 0
+     l <- getNthInt 1 ps
      (, NullClause) <$> enqueue s l NullClause
    otherwise -> do
      -- allocate clause:
-     act <- newIORef 0
-     n1 <- newIORef NullClause
-     n2 <- newIORef NullClause
-     let !c = Clause learnt act n1 n2 psWithLen
+     c <- newClauseFromVec learnt ps
      when learnt $ do
        -- Pick a second literal to watch:
        let
          findMax i@((< k) -> False) j val = return j
          findMax i j val = do
-           l' <- var <$> c .! i
-           a <- assigns .! (l' - 1)
-           b <- level .! (l' - 1)
+           l' <- var <$> getNthLiteral i c
+           a <- getNthInt (l' - 1) assigns
+           b <- getNthInt (l' - 1) level
            if (a /= lBottom) && (val < b)
              then findMax (i + 1) i b
              else findMax (i + 1) j val
        -- Let @max_i@ be the index of the literal with highest decision level
        max_i <- findMax 0 0 0
-       tmp <- c .! 1
-       setAt c 1 =<< c .! max_i
-       setAt c max_i tmp   -- OLD: setAt (lits c) max_i =<< c .! 1
+       tmp <- getNthLiteral 1 c
+       setNthLiteral 1 c =<< getNthLiteral max_i c
+       setNthLiteral max_i c tmp   -- OLD: setAt (lits c) max_i =<< c .! 1
        -- check literals occurences
        -- x <- asList c
        -- unless (length x == length (nub x)) $ error "new clause contains a element doubly"
        -- Bumping:
        claBumpActivity s c -- newly learnt clauses should be considered active
-       n <- subtract 1 <$> size c
-       forM_ [0 .. n] $ varBumpActivity s . var <=< (c .!) -- variables in conflict clauses are bumped
+       n <- subtract 1 <$> sizeOfClause c
+       forM_ [0 .. n] $ varBumpActivity s . var <=< flip getNthLiteral c -- variables in conflict clauses are bumped
      -- Add clause to watcher lists:
-     l0 <- negate <$> c .! 0
-     w0 <- watches .! index l0
-     pushWatcher w0 l0 c
-     l1 <- negate <$> c .! 1
-     w1 <- watches .! index l1
-     pushWatcher w1 l1 c
-     -- putStrLn =<< dump ("add new clause to " ++ show (l0, l1) ++ ": ") c
+     l0 <- negate <$> getNthLiteral 0 c
+     pushWatcher (getNthWatchLink (index l0) watches) l0 c
+     l1 <- negate <$> getNthLiteral 1 c
+     pushWatcher (getNthWatchLink (index l1) watches) l1 c
      return (True, c)
 
 -- | __Fig. 7. (p.11)__
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__
+{-# INLINE locked #-}
 locked :: Clause -> Solver -> IO Bool
-locked c Solver{..} =  (c ==) <$> ((reason .!) . subtract 1 . var =<< c .! 0)
+locked !c !Solver{..} =  (c ==) <$> ((flip getNthClause reason) . subtract 1 . var =<< getNthLiteral 0 c)
 
----- C-ish statement
--- | a monadic iteration trying its condition after the body
-doWhile :: IO Bool -> IO a -> IO a
-doWhile cond body = do { res <- body; whileCond <- cond; if whileCond then doWhile cond body else return res }
-
+{-
 -- | __Fig. 17. (p.23)__
 -- The static variable ordering of "SATZOO". The code is defined only for clauses, not for
 -- arbitrary constraints. It must be adapted before it can be used in MINISAT.
@@ -807,20 +884,20 @@ staticVarOrder s@Solver{..} = do
   nv <- nVars s
   forM_ [0 .. nv - 1] $ \i -> setAt activities i 0
   -- DO SIMPLE VARIABLE ACTIVITY HEURISTICS:
-  nc <- size clauses
+  nc <- numberOfClauses learnts
   forM_ [0 .. nc - 1] $ \i -> do
     c <- clauses .! i
-    m <- size c
+    m <- sizeOfClause c
     let a = 2 ** fromIntegral (negate m)
     forM_ [0 .. m - 1] $ \j -> do
       k <- subtract 1 . var <$> c .! j
       setAt activities k . (a +) =<< activities .! k
   -- CALCULATE THE INITIAL "HEAD" OF ALL CLAUSES:
-  (occurs :: FixedVecOf (VecOf Lit)) <- newVecSizedWith (2 * nv) =<< emptyVec
-  (heat :: FixedVecOf (Double, Int)) <- newVecSizedWith nc (0.0 :: Double,0 :: Int)
+  (occurs :: FixedVecOf (VecOf Lit)) <- newVecWith (2 * nv) =<< newVec 0
+  (heat :: FixedVecOf (Double, Int)) <- newVecWith nc (0.0 :: Double,0 :: Int)
   forM_ [0 .. nc - 1] $ \i -> do
     c <- clauses .! i
-    cs <- subtract 1 <$> size c
+    cs <- subtract 1 <$> sizeOfClause c
     x <- sum <$> forM [0 .. cs] (\j -> do
                                     l <- c .! j
                                     (`push` i) =<< occurs .! index l
@@ -832,7 +909,7 @@ staticVarOrder s@Solver{..} = do
   iterSize <- (1 +) . sum <$>
               forM [0 .. nc - 1] (\i -> do
                                      c <- clauses .! i
-                                     n <- subtract 1 <$> size c
+                                     n <- subtract 1 <$> sizeOfClause c
                                      sum <$> forM [0 .. n] (((size =<<) . (occurs .!) . index) <=< (c .!))
                                  )
   let literals = 2 * nv
@@ -842,7 +919,7 @@ staticVarOrder s@Solver{..} = do
   forM_ [0 .. iterations - 1] $ \_ ->
     forM_ [0 .. nc - 1] $ \i -> do
       c <- clauses .! i
-      nl <- subtract 1 <$> size c
+      nl <- subtract 1 <$> sizeOfClause c
       forM_ [0 ..nl] $ \j -> do
         os <- (occurs .!) =<< index <$> c .! j
         (iv, ii) <- heat .! i
@@ -858,7 +935,7 @@ staticVarOrder s@Solver{..} = do
     for i extra = do
       h <- heat .! i
       c <- clauses .! snd h
-      cs <- size c
+      cs <- sizeOfClause c
       let
         for2 j@((< cs) -> False) extra = return extra
         for2 j extra = do
@@ -872,6 +949,7 @@ staticVarOrder s@Solver{..} = do
   for 0 1e200
   -- updateAll order
   -- writeIORef varInc 1
+-}
 
 -- | Another basic implementation
 -- all method but select is nop code.
@@ -905,6 +983,26 @@ instance VarOrder Solver where
           else loop $ i + 1
     loop 0 -}
 
+-- | returns an average value of activity
+setClauseActivities :: Solver -> IO Double
+setClauseActivities s@Solver{..} = do
+  -- update activity of learnt clauses
+  let
+    loop m NullClause = return m
+    loop m c = do
+      nc <- sizeOfClause c
+      let
+         loop' ((< nc) -> False) !v = return v
+         loop' !i !v = do
+             x <- getNthLiteral i c
+             v' <- getNthDouble (var x - 1) activities
+             loop' (i + 1) (v + v')
+      !x <- (/ fromIntegral nc) <$> loop' 0 0
+      writeIORef (activity c) x
+      -- bad result: writeIORef (activity c) (x / fromIntegral nc)
+      loop  (max m x) =<< nextClause learnts c
+  (/ 2.0) <$> (loop 0 =<< nextClause learnts NullClause)
+
 -- | delegation-based implementation to use 'staticVarOrder'
 data VarOrderStatic = VarOrderStatic
                       {
@@ -925,26 +1023,24 @@ instance VarOrder VarOrderStatic where
     let
       loop ((< nv) -> False) j _ = return $ j + 1
       loop i j best = do
-        x <- assigns solver .! i
-        a <- activities solver .! i
+        x <- getNthInt i $ assigns solver
         if x == lBottom
-          then
+          then do
+              a <- getNthDouble i $ activities solver
               if best < a
                  then loop (i + 1) i a
                  else loop (i + 1) j best
           else loop (i + 1) j best
     loop 0 0 (-1)   -- NOTE: i is not 1-based 'Var' but 0-based var-index
 
-numVec :: VectorLike v Int => Int -> v -> IO [Int]
-numVec base v = zipWith (*) [base ..] <$> asList v
-
 dumpStatus :: Solver -> IO ()
 dumpStatus Solver{..} = do
-  -- putStrLn . ("level: " ++) . show . filter ((0 <=) . snd) . zip [1..] =<< asList level
-  putStrLn =<< dump "trail: " trail
-  putStrLn =<< dump "trailLim: " trailLim
+  putStrLn . ("level: " ++) . show . filter ((0 <=) . snd) . zip [1..] =<< asList level
+--  putStrLn =<< dump "trail: " trail
+--  putStrLn =<< dump "trailLim: " trailLim
   -- putStrLn =<< makeGraph <$> asList trail <*> fromReason reason
 
+{-
 fromReason :: VecOf Clause -> IO [(Int, [Int])]
 fromReason vec = do
   l <- zip [1..] <$> asList vec
@@ -953,13 +1049,15 @@ fromReason vec = do
 
 -- | dump the current status of 'watches'
 checkWatches :: Solver -> IO ()
-checkWatches Solver{..} = do
-  n <- size watches
-  forM_ [0 .. n -1] $ \i -> do
-    w <- watches .! i
+checkWatches s@Solver{..} = do
+  n <- nVars s
+  forM_ [0 .. 2 * n -1] $ \i -> do
+    let w = getNthWatchLink i watches
     let l = index2lit i
     putStrLn . ((show l ++ " : ") ++) . show =<< traverseWatcher w l
+-}
 
+{-
 numRegisteredClauses :: Solver -> IO Int
 numRegisteredClauses Solver{..} = do
   n <- size watches
@@ -1012,21 +1110,4 @@ checkIt mes s@Solver{..} (Just c) = do
     if elem lits w2
       then putStrLn " -- " -- w2
       else putStrLn "not found -- " --  >> error "not found"
-
--- | returns an average value of activity
-setClauseActivities :: Solver -> IO Double
-setClauseActivities s@Solver{..} = do
-  -- update activity of learnt clauses
-  nl <- size learnts
-  let
-    for ((< nl) -> False) m = return m
-    for i m = do
-      c <- learnts .! i
-      nc <- size c
-      x <- (/ fromIntegral nc) . sum <$> mapM ((activities .!) . subtract 1 . var <=< (c .!)) [0 .. nc - 1]
-      writeIORef (activity c) x
-      -- bad result: writeIORef (activity c) (x / fromIntegral nc)
-      for (i + 1) (max m x)
-  m <- for 0 0
-  return $ m / 2.0
-
+-}
