@@ -32,6 +32,7 @@ import Control.Monad ((<=<), filterM, forM, forM_, unless, when)
 import Data.List (nub)
 import Data.IORef
 import qualified Data.Vector.Unboxed.Mutable as UV
+import System.Random (mkStdGen, randomIO, setStdGen)
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Implementation.FixedVecInt (FixedVecInt, getNthInt, modifyNthInt, newSizedVecIntFromList, setNthInt, sizeOfVecInt, swapIntsBetween)
 import SAT.Solver.Mios.Implementation.FixedVecDouble (FixedVecDouble, getNthDouble, modifyNthDouble, newVecDouble, setNthDouble)
@@ -57,7 +58,7 @@ data Solver = Solver
               , activities :: FixedVecDouble    -- ^ Heuristic measurement of the activity of a variable.
               , varInc     :: IORef Double      -- ^ Variable activity increment amount to bump with.
               , varDecay   :: IORef Double      -- ^ Decay factor for variable activity.
-              , order      :: VarOrderStatic    -- ^ Keeps track of the dynamic variable order.
+              , order      :: VarHeap           -- ^ Keeps track of the dynamic variable order.
                 -- Propagation
               , watches    :: WatcherList       -- ^ For each literal 'p', a list of constraint wathing 'p'.
                              -- A constraint will be inspected when 'p' becomes true.
@@ -108,6 +109,7 @@ valueLit !Solver{..} !p
 -- | returns an everything-is-initialized solver from the argument
 setInternalState :: Solver -> Int -> IO Solver
 setInternalState s nv = do
+  setStdGen $ mkStdGen 91648253
   ac <- newVecDouble nv 0.0
   w <- newWatcherList $ nv * 2
   u <- newVec 0 -- nv
@@ -117,6 +119,7 @@ setInternalState s nv = do
   t' <- newListOfInt nv
   r <- newVecWith nv NullClause
   l <- newVecWith nv (-1)
+  o <- newVarHeap nv
   q <- newQueue (2 * nv)
   n <- UV.new nv
 --  cr <- newListOfInt nv
@@ -129,7 +132,7 @@ setInternalState s nv = do
            , trailLim = t'
            , reason = r
            , level = l
-           , order = VarOrderStatic s'
+           , order = o
            , propQ = q
            , seen = n
 --           , currentReason = cr
@@ -147,7 +150,7 @@ newSolver = do
   _activities <- newVecDouble 0 0
   _varInc     <- newIORef 1
   _varDecay   <- newIORef 0
-  let _order  = undefined
+  _order      <- newVarHeap 0
   _watches    <- newWatcherList 0
   _undos      <- newVec 0
   _propQ      <- newQueue 0
@@ -161,7 +164,7 @@ newSolver = do
   _seen       <- UV.new 0
   _currentWatch <- newWatchLink
 --   _currentReason <- newListOfInt 0
-  let s = Solver
+  return $ Solver
               _model
               _constrs
              _learnts
@@ -184,7 +187,6 @@ newSolver = do
              _seen
              _currentWatch
 --             _currentReason
-  return $ s { order = VarOrderStatic s }
 
 -- | public interface of 'Solver' (p.2)
 --
@@ -357,7 +359,7 @@ undoOne s@Solver{..} = do
   setNthInt x assigns lBottom
   setNthClause x reason NullClause
   setNthInt x level (-1)
-  undo order (var p)
+  undo s (var p)
   popFromListOfInt trail
 {-
   let
@@ -444,7 +446,18 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
             when (d == 0) $ simplifyDB s >> return () -- our simplifier cannot return @False@ here
             k1 <- numberOfClauses learnts
             k2 <- nAssigns s
-            when (k1 - k2 >= nOfLearnts) $ reduceDB s -- Reduce the set of learnt clauses
+            when (k1 - k2 >= nOfLearnts) $ do
+--              n1 <- nLearnts s
+              reduceDB s -- Reduce the set of learnt clauses
+              {-
+              n2 <- nLearnts s
+              n3 <- sizeOfListOfInt trail
+              dl <- readIORef decisionLevel
+              case () of
+                _ | n2 <= n3 -dl -> putStrLn "purge all"
+                _ | n1 /= 0 && n1 == n2 -> return ()
+                _ -> print (n1, n2, n3, fromIntegral n2 / fromIntegral n1)
+              -}
             k3 <- nVars s
             case () of
              _ | k2 == k3 -> do
@@ -462,7 +475,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                    return lBottom
              _ -> do
                -- New variable decision:
-               p <- select order -- many have heuristic for polarity here
+               p <- select s -- many have heuristic for polarity here
                -- putStrLn $ "search determines next decision var: " ++ show p
                assume s p        -- cannot return @False@
                loop conflictC
@@ -475,7 +488,7 @@ varBumpActivity s@Solver{..} !x = do
   if 1e100 < a
     then varRescaleActivity s
     else setNthDouble (x - 1) activities a
-  update order x
+  update s x
 
 -- | __Fig. 14 (p.19)__
 varDecayActivity :: Solver -> IO ()
@@ -528,22 +541,56 @@ decayActivities s = do
 reduceDB :: Solver -> IO ()
 reduceDB s@Solver{..} = do
   ci <- readIORef claInc
-  cd <- readIORef claDecay
-  -- staticVarOrder s
-  lim <- (cd *) <$> setClauseActivities s
+  nL <- nLearnts s
+  let lim = ci / fromIntegral nL
   -- new engine 0.8
-  let isRequired c = (||) <$> locked c s <*> ((lim <=). negate <$> readIORef (activity c))
+  let isRequired c = do
+        l <- sizeOfClause c
+        if l == 2
+          then return True
+          else do
+              l <- locked c s
+              if l
+                then return True
+                else (lim <=) <$> readIORef (activity c)
+  let isRequired' c = do
+        l <- sizeOfClause c
+        if l == 2 then return True else locked c s
+{-
+  let isRequired c = do
+        l <- sizeOfClause c
+        if l == 2
+          then putStr "B" >> return True
+          else do
+              l <- locked c s
+              if l
+                then putStr "L" >> return True
+                else do
+                    r <- (lim <=) <$> readIORef (activity c)
+                    putStr $ if r then "U" else "_"
+                    return r
+  let isRequired' c = do
+        l <- sizeOfClause c
+        if l == 2
+          then putStr "B" >> return True
+          else do
+              l <- locked c s
+              if l
+                then putStr "L" >> return True
+                else putStr "_" >> return False
+-}
   let
-    loop c = do
+    half = div nL 2
+    loop k c = do
       c' <- nextClause learnts c
       if c' == NullClause
         then return ()
         else do
-            r <- isRequired c'
+            r <- if k < half then isRequired c' else isRequired' c'
             if r
-              then loop c'
-              else remove c' s >> unlinkClause learnts c >> loop c
-  loop NullClause
+              then loop (k + 1) c'
+              else remove c' s >> unlinkClause learnts c >> loop (k + 1) c
+  loop 0 NullClause
 
 -- | __Fig. 15. (p.20)__
 -- Top-level simplify of constraint database. Will remove any satisfied constraint
@@ -617,8 +664,7 @@ solve s@Solver{..} assumps = do
           while status nOfConflicts nOfLearnts = do
             status <- search s (fromEnum . fromRational $ nOfConflicts) (fromEnum . fromRational $ nOfLearnts)
             while status (1.5 * nOfConflicts) (1.1 * nOfLearnts)
-        while lBottom (min 100 (1 + (10000 + nc)/ nv)) (nc / 3)
-
+        while lBottom 100 (nc / 3)
 
 ---- constraint interface
 
@@ -720,7 +766,7 @@ propagateLit !c@Clause{..} !s@Solver{..} !p = do
             !val <- valueLit s l
             if val /= lFalse
               then do
-                   setNthInt 2 lits l 
+                   setNthInt 2 lits l
                    setNthInt (i + 1) lits np
                    pushWatcher (getNthWatchLink (index (negate l)) watches) (negate l) c -- insert clause into watcher list
                    -- checkIt "propagateLit.pushWatcher done:" s $ Just c
@@ -951,13 +997,19 @@ staticVarOrder s@Solver{..} = do
   -- writeIORef varInc 1
 -}
 
+useHeap :: Int
+useHeap = 1000
+useRand :: Int
+useRand = 1000
+
 -- | Another basic implementation
 -- all method but select is nop code.
+-- Note: this implementation depends on @order :: VarHeap@
 instance VarOrder Solver where
   -- | __Fig. 6. (p.10)__
   -- Creates a new SAT variable in the solver.
-  newVar s@Solver{..} = do
-    index <- nVars s
+  newVar _ = return 0
+    -- index <- nVars s
     -- Version 0.4:: push watches =<< newVec      -- push'
     -- Version 0.4:: push watches =<< newVec      -- push'
     -- push undos =<< newVec        -- push'
@@ -965,82 +1017,155 @@ instance VarOrder Solver where
     -- push assigns lBottom
     -- push level (-1)
     -- push activities (0.0 :: Double)
-    newVar order
+    -- newVar order
     -- growQueueSized (index + 1) propQ
-    return index
-  updateAll Solver{..} = updateAll order
-  select solver = error "?" {- do
-    -- firstly run 'staticVarOrder' on solver
-    -- staticVarOrder solver
-    -- then, search and return a bottom-ed var
-    nv <- nVars solver
+    -- return index
+  update s v = do
+    nv <- nVars s
+    when (useHeap < nv) $ increase s v
+  -- updateAll Solver{..} = error "not yet implemented updateAll for Solver"
+  undo s v = do
+    nv <- nVars s
+    when (useHeap < nv) $ inHeap s v >>= (`unless` insert s v)
+  select s = do
+    nv <- nVars s
     let
-      loop ((< nv) -> False) = error "no unassigned variable left"
-      loop i = do
-        x <- assigns solver .! i
-        if x == lBottom
-          then return $ i + 1   -- NOTE: i is not 1-based 'Var' but 0-based var-index
-          else loop $ i + 1
-    loop 0 -}
-
--- | returns an average value of activity
-setClauseActivities :: Solver -> IO Double
-setClauseActivities s@Solver{..} = do
-  -- update activity of learnt clauses
-  let
-    loop m NullClause = return m
-    loop m c = do
-      nc <- sizeOfClause c
-      let
-         loop' ((< nc) -> False) !v = return v
-         loop' !i !v = do
-             x <- getNthLiteral i c
-             v' <- getNthDouble (var x - 1) activities
-             loop' (i + 1) (v + v')
-      !x <- (/ fromIntegral nc) <$> loop' 0 0
-      writeIORef (activity c) x
-      -- bad result: writeIORef (activity c) (x / fromIntegral nc)
-      loop  (max m x) =<< nextClause learnts c
-  (/ 2.0) <$> (loop 0 =<< nextClause learnts NullClause)
-
--- | delegation-based implementation to use 'staticVarOrder'
-data VarOrderStatic = VarOrderStatic
-                      {
-                        solver :: Solver
-                      }
-
--- | using list for 'VarOrder'
-instance VarOrder VarOrderStatic where
-  newVar x = return bottomVar
-  update o v = return ()
-  updateAll o = return ()
-  undo o v = return ()
-  select VarOrderStatic{..} = do
-    -- firstly run 'staticVarOrder' on solver
-    -- staticVarOrder solver
-    -- then, search and return a bottom-ed var
-    nv <- nVars solver
-    let
-      loop ((< nv) -> False) j _ = return $ j + 1
-      loop i j best = do
-        x <- getNthInt i $ assigns solver
+      asg = assigns s
+      loop = do
+        n <- numElementsInHeap s
+        if n == 0
+          then return 0
+          else do
+              v <- getHeapRoot s
+              val<- getNthInt (v - 1) asg
+              if val == lBottom then return v else loop
+      -- loop2 0 0 (-1)
+      loop2 ((< nv) -> False) j _ = return $ j + 1
+      loop2 i j best = do
+        x <- getNthInt i asg
         if x == lBottom
           then do
-              a <- getNthDouble i $ activities solver
-              if best < a
-                 then loop (i + 1) i a
-                 else loop (i + 1) j best
-          else loop (i + 1) j best
-    loop 0 0 (-1)   -- NOTE: i is not 1-based 'Var' but 0-based var-index
+              actv <- getNthDouble i $ activities s
+              if best < actv
+                then loop2 (i + 1) i actv
+                else loop2 (i + 1) j best
+          else loop2 (i + 1) j best
+    if useRand < nv
+      then do
+          r <- flip mod 1001 <$> randomIO :: IO Int
+          if r < 2             -- the threshold used in MiniSat 1.14 is 0.02, namely 2/100
+            then do
+                i <- flip mod nv <$> randomIO
+                x <- getNthInt i asg
+                if x == lBottom then return (i + 1) else if useHeap < nv then loop else loop2 0 0 (-1)
+            else if useHeap < nv then loop else loop2 0 0 (-1)
+      else if useHeap < nv then loop else loop2 0 0 (-1)
 
+-------------------------------------------------------------------------------- VarHeap
+
+-- | 'VarHeap' is a heap tree by two 'FixedVecInt'
+-- This implementation is identical wtih that in Minisat 1.14
+-- Note: the zero-th element of 'heap' is used for holding the number of elements
+-- Note: VarHeap itself is not a 'VarOrder', because it requires a pointer to solver
+data VarHeap = VarHeap
+                {
+                  heap     :: FixedVecInt -- index to var
+                , idxs     :: FixedVecInt -- var's index
+                }
+
+newVarHeap :: Int -> IO VarHeap
+newVarHeap n = VarHeap <$> newSizedVecIntFromList lst <*> newSizedVecIntFromList lst
+  where
+    lst = [1 .. n]
+
+{-# INLINE numElementsInHeap #-}
+numElementsInHeap :: Solver -> IO Int
+numElementsInHeap (order -> heap -> h) = getNthInt 0 h
+
+{-# INLINE inHeap #-}
+inHeap :: Solver -> Int -> IO Bool
+inHeap (order -> idxs -> at) n = (/= 0) <$> getNthInt n at
+
+{-# INLINE increase #-}
+increase :: Solver -> Int -> IO ()
+increase s@(order -> idxs -> at) n = inHeap s n >>= (`when` (percolateUp s =<< getNthInt n at))
+
+percolateUp :: Solver -> Int -> IO ()
+percolateUp Solver{..} start = do
+  let VarHeap to at = order
+  x <- getNthInt start to
+  let
+    loop i ac = do
+      let iP = div i 2          -- parent
+      if iP == 0
+        then setNthInt i to x >> setNthInt x at i >> return () -- end
+        else do
+            p <- getNthInt iP to
+            acP <- getNthDouble (p - 1) activities
+            if ac > acP
+              then setNthInt i to p >> setNthInt p at i >> loop iP ac -- loop
+              else setNthInt i to x >> setNthInt x at i >> return () -- end
+  v <- getNthInt start to
+  ac <- getNthDouble (v - 1) activities
+  loop start ac
+
+percolateDown :: Solver -> Int -> IO ()
+percolateDown Solver{..} start = do
+  let (VarHeap to at) = order
+  n <- getNthInt 0 to
+  x <- getNthInt start to
+  let
+    loop i ac = do
+      let iL = 2 * i            -- left
+      if iL <= n
+        then do
+            let iR = iL + 1     -- right
+            l <- getNthInt iL to
+            r <- getNthInt iR to
+            acL <- getNthDouble (l - 1) activities
+            acR <- getNthDouble (r - 1) activities
+            let (ci, child, ac') = if iR <= n then (if acL < acR then (iR, r, acR) else (iL, l, acL)) else (iL, l, acL)
+            if ac' > ac
+              then setNthInt i to child >> setNthInt child at i >> loop ci ac
+              else setNthInt i to x >> setNthInt x at i >> return () -- end
+        else setNthInt i to x >> setNthInt x at i >> return ()       -- end
+  v <- getNthInt start to
+  ac <- getNthDouble (v - 1) activities
+  loop start ac
+
+{-# INLINE insert #-}
+insert :: Solver -> Var -> IO ()
+insert s@(order -> VarHeap to at) v = do
+  n <- (1 +) <$> getNthInt 0 to
+  setNthInt v at n
+  setNthInt n to v
+  setNthInt 0 to n
+  percolateUp s n
+
+-- | renamed from 'getmin'
+{-# INLINE getHeapRoot #-}
+getHeapRoot :: Solver -> IO Int
+getHeapRoot s@(order -> VarHeap to at) = do
+  r <- getNthInt 1 to
+  l <- flip getNthInt to =<< getNthInt 0 to -- the last element's value
+  setNthInt 1 to l
+  setNthInt l at 1
+  setNthInt r at 0
+  modifyNthInt 0 to $ subtract 1 -- pop
+  n <- getNthInt 0 to
+  when (1 < n) $ percolateDown s 1
+  return r
+
+-------------------------------------------------------------------------------- debug code
+
+{-
 dumpStatus :: Solver -> IO ()
 dumpStatus Solver{..} = do
   putStrLn . ("level: " ++) . show . filter ((0 <=) . snd) . zip [1..] =<< asList level
---  putStrLn =<< dump "trail: " trail
---  putStrLn =<< dump "trailLim: " trailLim
-  -- putStrLn =<< makeGraph <$> asList trail <*> fromReason reason
+  putStrLn =<< dump "trail: " trail
+  putStrLn =<< dump "trailLim: " trailLim
+  putStrLn =<< makeGraph <$> asList trail <*> fromReason reason
 
-{-
 fromReason :: VecOf Clause -> IO [(Int, [Int])]
 fromReason vec = do
   l <- zip [1..] <$> asList vec
@@ -1055,13 +1180,6 @@ checkWatches s@Solver{..} = do
     let w = getNthWatchLink i watches
     let l = index2lit i
     putStrLn . ((show l ++ " : ") ++) . show =<< traverseWatcher w l
--}
-
-{-
-numRegisteredClauses :: Solver -> IO Int
-numRegisteredClauses Solver{..} = do
-  n <- size watches
-  sum . map length <$> forM [0 .. n -1] (\i -> flip traverseWatcher (index2lit i) =<< watches .! i)
 
 watcherList :: Solver -> Lit -> IO [[Lit]]
 watcherList Solver{..} lit = do
@@ -1089,7 +1207,6 @@ checkWatchers s c = do
   unless (elem l b2) $ error $ s ++ " = " ++ show l ++ " is not registered the 2nd wathers list:" ++ show l2
 
 checkIt :: String -> Solver -> Maybe Clause -> IO ()
--- checkIt _ _ _ = return ()
 checkIt mes s@Solver{..} Nothing = mapM_ (checkIt mes s . Just) =<< asList learnts
 checkIt mes s@Solver{..} (Just c) = do
   let lits = [-87,-75,-28,-7,-3,-2,-1,5,26,46,73]

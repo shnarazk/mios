@@ -14,6 +14,6 @@ import SAT.Solver.Mios.Implementation.FixedVecOf
 import SAT.Solver.Mios.Implementation.ListOf
 import SAT.Solver.Mios.Implementation.QueueOfBoundedInt
 
--- | sets to the version name : @"mios v0.8 #diveIntoCore"@
+-- | sets to the version name : @"mios v0.9 #validVarOrder"@
 idString :: String
-idString = "mios v0.8 #diveIntoCore"
+idString = "mios v0.9 #validVarOrder"

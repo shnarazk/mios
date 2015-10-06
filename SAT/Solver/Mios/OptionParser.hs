@@ -56,14 +56,14 @@ miosOptions =
   [
     Option ['d'] ["variable-decay-rate"]
     (ReqArg (\v c -> c { _confVariableDecayRate = read v }) (show (_confVariableDecayRate miosDefaultOption)))
-    "[Option] variable decay rate"
+    "[Option] variable activity decay rate"
   , Option ['c'] ["clause-decay-rate"]
     (ReqArg (\v c -> c { _confClauseDecayRate = read v }) (show (_confClauseDecayRate miosDefaultOption)))
-    "[Option] variable decay rate"
+    "[Option] clause activity decay rate"
   , Option ['v'] ["verbose"]
     (NoArg (\c -> c { _confVerbose = True }))
     "[Info] display misc information"
-  , Option ['X'] ["hide-answer"]
+  , Option ['X'] ["hide-solution"]
     (NoArg (\c -> c { _confNoAnswer = True }))
     "[Info] hide the solution"
   , Option ['h'] ["help"]
