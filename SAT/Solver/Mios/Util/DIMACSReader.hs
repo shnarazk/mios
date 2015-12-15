@@ -10,7 +10,8 @@
 -}
 
 {-# LANGUAGE
-    MagicHash
+    BangPatterns
+  , MagicHash
   , UnboxedTuples
  #-}
 {-# LANGUAGE Trustworthy #-}
@@ -27,14 +28,12 @@ module SAT.Solver.Mios.Util.DIMACSReader
        where
 
 import Control.Monad
-import Data.Either ( lefts, rights )
-import Data.List ( nub )
 import qualified Data.Vector.Unboxed as U
-import Data.ByteString.Lazy( ByteString )
+import Data.ByteString.Char8 (ByteString)
 import System.IO (hClose, hPutStrLn)
 import System.IO.Temp (withSystemTempFile)
 import Text.Parsec( ParseError, SourceName )
-import Text.Parsec.ByteString.Lazy
+import Text.Parsec.ByteString
 import Text.Parsec.Char
 import Text.Parsec.Combinator
 import Text.Parsec.Prim( many, try, unexpected, runParser )
@@ -46,8 +45,8 @@ type SizedVectorInt = U.Vector Int
 -- | holder for DIMACS CNF format
 data CNFDescription = CNFDescription
   {
-    numberOfVariables :: Int		-- ^ number of variables
-  , numberOfClauses :: Int      	-- ^ number of clauses
+    numberOfVariables :: !Int		-- ^ number of variables
+  , numberOfClauses :: !Int      	-- ^ number of clauses
   , pathname :: Maybe String           	-- ^ given filename
   }
   deriving (Eq, Ord, Show)
@@ -104,7 +103,8 @@ cnfHeader = do
 
 clause :: Parser SizedVectorInt
 clause = do ints <- lexeme int `manyTill` try (symbol "0")
-            return . U.fromList $ length ints : ints
+            let !l = U.fromList $! length ints : ints
+            return $! l
 
 -- token parser
 tp = T.makeTokenParser $ T.LanguageDef 

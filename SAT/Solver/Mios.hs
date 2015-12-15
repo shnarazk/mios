@@ -40,10 +40,9 @@ runSolverWithOption opts targetfile = do
      s <- setInternalState s $ numberOfVariables desc
      mapM_ ((s `addClause`) <=< newSizedVecIntFromUVector) vecs
      when (_confVerbose opts) $ do
-       nv <- nVars s
        nc <- nConstraints s
        nl <- nLearnts s
-       putStrLn $ "(nv, nc, nl) = " ++ show (nv, nc, nl)
+       putStrLn $ "(nv, nc, nl) = " ++ show (nVars s, nc, nl)
      res <- simplifyDB s
      when (_confVerbose opts) $ putStrLn $ "`simplifyDB`: " ++ show res
      result <- solve s =<< newList

@@ -45,9 +45,6 @@ class ContainerLike s t | s -> t where
   -- | erases all elements in it
   clear :: s -> IO ()
   clear = error "no default method for clear"
-  -- | returns the numeber of its elements in a monadic context
---  size :: s -> IO Int
---  size = error "no default method for size"
   -- * Debug
   -- | dump the contents
   dump :: Show t => String -> s -> IO String

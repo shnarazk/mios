@@ -2,14 +2,11 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:           mios
-version:        0.9
-synopsis:       MINISAT-based Implementation Study
+version:        1.0
+synopsis:       MINISAT-based Implementation and Optimization Study
 description:
 
-  A fast SAT solver in Haskell, based on Minisat in C++. A part of my Study on SAT Algorithms and Implementations In Haskell (SSAIH)
-  .
-  .
-  __History__
+  A fast SAT solver in Haskell, based on Minisat in C++. This is a part of my Study on SAT Algorithms in Haskell (SSAH)
   .
   .
 
@@ -31,11 +28,11 @@ Flag llvm
   Default:	False
 
 Flag profile
-  Description:	Build executable for profiling
+  Description:	Build executable for profiling (use with '--enable-executable-profiling')
   Default:	False
 
 library
-  if flag(lib)
+  if flag(lib) && !flag(profile)
     buildable:	      True
   else
     buildable:	      False
@@ -50,14 +47,15 @@ library
                                          SAT.Solver.Mios.Clause
                                          SAT.Solver.Mios.ClauseList
                                          SAT.Solver.Mios.WatchList
-                                         SAT.Solver.Mios.Solver
-                                         SAT.Solver.Mios.Internal
                                          SAT.Solver.Mios.Implementation.FixedVecDouble
                                          SAT.Solver.Mios.Implementation.FixedVecInt
                                          SAT.Solver.Mios.Implementation.FixedVecOf
                                          SAT.Solver.Mios.Implementation.ListOf
                                          SAT.Solver.Mios.Implementation.QueueOfBoundedInt
+                                         SAT.Solver.Mios.Implementation.IntSingleton
+                                         SAT.Solver.Mios.Internal
                                          SAT.Solver.Mios.OptionParser
+                                         SAT.Solver.Mios.Solver
                                          SAT.Solver.Mios.Util.DIMACSReader
     -- Modules included in this library but not exported.
   other-modules:
@@ -66,37 +64,68 @@ library
                                          SAT.Solver.Mios.Implementation.VecOf
                                          SAT.Solver.Mios.Util.Graph
     -- Other library packages from which modules are imported.
-  if impl(ghc == 7.10.*)
-    build-depends:       base ==4.8.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.4.*, bytestring ==0.10.*, mtl ==2.2.*,
-                        primitive ==0.6.*, parsec == 3.*, process ==1.2.*, transformers ==0.4.*, time == 1.5.*, unix == 2.*,
-                        temporary-rc == 1.*, random ==1.*
+  build-depends:       base ==4.8.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.4.*, bytestring ==0.10.*, mtl ==2.2.*,
+               primitive ==0.6.*, parsec == 3.*, process ==1.2.*, transformers ==0.4.*, time == 1.5.*, unix == 2.*,
+               temporary-rc == 1.*, random ==1.*
 
-executable mios-0.9
-  main-is:            SAT/Solver/Mios/mios.hs
-  buildable:	       True
-  -- other-modules:
+executable mios-1.0
+  main-is:            app/mios.hs
+  if flag(profile)
+    buildable:	       False
+  else
+    buildable:	       True
   default-language:	Haskell2010
   if flag(llvm)
-    ghc-options:	-fno-state-hack -funbox-strict-fields -O2 -ignore-asserts -fllvm -optlo-O3 -fno-warn-tabs -funfolding-use-threshold=200
+    ghc-options:	-fstrictness -fno-state-hack -funbox-strict-fields -O2 -ignore-asserts -fllvm -optlo-O3 -fno-warn-tabs -funfolding-use-threshold=200 -fno-full-laziness
   else
-    ghc-options:	-fno-state-hack -funbox-strict-fields -O2 -fignore-asserts -fno-warn-tabs -funfolding-use-threshold=200
-  build-depends:       base ==4.8.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.4.*, bytestring ==0.10.*, mtl ==2.2.*,
-                       primitive ==0.6.*, parsec == 3.*, process ==1.2.*, transformers ==0.4.*, time == 1.5.*, unix == 2.*,
-                       temporary-rc == 1.*, random ==1.*
+    ghc-options:	-fstrictness -fno-state-hack -funbox-strict-fields -O2 -fignore-asserts -fno-warn-tabs -funfolding-use-threshold=200 -fno-full-laziness
+  build-depends:       base ==4.8.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.4.*, bytestring ==0.10.*,
+                          primitive ==0.6.*, parsec == 3.*, temporary-rc == 1.*, random ==1.*
+  other-modules:
+    SAT.Solver.Mios
+    SAT.Solver.Mios.Clause
+    SAT.Solver.Mios.ClauseList
+    SAT.Solver.Mios.Implementation.FixedVecDouble
+    SAT.Solver.Mios.Implementation.FixedVecInt
+    SAT.Solver.Mios.Implementation.FixedVecOf
+    SAT.Solver.Mios.Implementation.IntSingleton
+    SAT.Solver.Mios.Implementation.ListOf
+    SAT.Solver.Mios.Implementation.ListOfInt
+    SAT.Solver.Mios.Implementation.QueueOfBoundedInt
+    SAT.Solver.Mios.Internal
+    SAT.Solver.Mios.OptionParser
+    SAT.Solver.Mios.Solver
+    SAT.Solver.Mios.Types
+    SAT.Solver.Mios.Util.DIMACSReader
+    SAT.Solver.Mios.WatchList
 
-executable mios-prof
-  main-is:            SAT/Solver/Mios/mios.hs
+executable mios-1.0-prof
+  main-is:            app/mios.hs
   if flag(profile)
     buildable:	       True
   else
     buildable:	       False
--- other-modules:
   default-language:	Haskell2010
-  ghc-options:	-prof -fprof-auto-top -ignore-inline -O1 -rtsopts -fno-warn-tabs
-  if impl(ghc == 7.10.*)
-     build-depends:       base ==4.8.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.4.*, bytestring ==0.10.*, mtl ==2.2.*,
-                          primitive ==0.6.*, parsec == 3.*, process ==1.2.*, transformers ==0.4.*, time == 1.5.*, unix == 2.*,
-                          temporary-rc == 1.*, random ==1.*
+  ghc-options:	-fstrictness -fprof-auto-top -ignore-inline -O1 -rtsopts -fno-warn-tabs
+  build-depends:       base ==4.8.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.4.*, bytestring ==0.10.*,
+                          primitive ==0.6.*, parsec == 3.*, temporary-rc == 1.*, random ==1.*
+  other-modules:
+    SAT.Solver.Mios
+    SAT.Solver.Mios.Clause
+    SAT.Solver.Mios.ClauseList
+    SAT.Solver.Mios.Implementation.FixedVecDouble
+    SAT.Solver.Mios.Implementation.FixedVecInt
+    SAT.Solver.Mios.Implementation.FixedVecOf
+    SAT.Solver.Mios.Implementation.IntSingleton
+    SAT.Solver.Mios.Implementation.ListOf
+    SAT.Solver.Mios.Implementation.ListOfInt
+    SAT.Solver.Mios.Implementation.QueueOfBoundedInt
+    SAT.Solver.Mios.Internal
+    SAT.Solver.Mios.OptionParser
+    SAT.Solver.Mios.Solver
+    SAT.Solver.Mios.Types
+    SAT.Solver.Mios.Util.DIMACSReader
+    SAT.Solver.Mios.WatchList
 
 Test-Suite doctest
   type:                 exitcode-stdio-1.0
@@ -106,23 +135,40 @@ Test-Suite doctest
   main-Is:              doctest.hs
   build-depends:        base, doctest >= 0.9.3
 
-Benchmark mios-criterion
+Benchmark mios-1.0-benchmark
   type:    exitcode-stdio-1.0
   main-is: test/mios-criterion.hs
   default-language:	Haskell2010
-  ghc-options:	-fno-state-hack -funbox-strict-fields -O2 -fignore-asserts -fno-warn-tabs -funfolding-use-threshold=200
-  build-depends:       base ==4.8.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.4.*, bytestring ==0.10.*, mtl ==2.2.*,
-               primitive ==0.6.*, parsec == 3.*, process ==1.2.*, transformers ==0.4.*, time == 1.5.*, unix == 2.*,
-               temporary-rc == 1.*, random ==1.*, criterion == 1.*
+  ghc-options:	-fstrictness -fno-state-hack -funbox-strict-fields -O2 -fignore-asserts -fno-warn-tabs -funfolding-use-threshold=200
+  build-depends:       base ==4.8.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.4.*, bytestring ==0.10.*,
+                          primitive ==0.6.*, parsec == 3.*, temporary-rc == 1.*, random ==1.*, 
+                          criterion == 1.*
 
-executable mios-cr
+executable mios-1.0-cr
   main-is: test/mios-criterion.hs
   default-language:	Haskell2010
   if flag(profile)
     buildable: True
   else
     buildable: False
-  ghc-options:	-O2 -rtsopts -fignore-asserts -fcase-merge -fstatic-argument-transformation -fno-warn-tabs
-  build-depends:       base ==4.8.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.4.*, bytestring ==0.10.*, mtl ==2.2.*,
-               primitive ==0.6.*, parsec == 3.*, process ==1.2.*, transformers ==0.4.*, time == 1.5.*, unix == 2.*,
-               temporary-rc == 1.*, random ==1.*, criterion == 1.*
+  ghc-options:	-fstrictness -O2 -rtsopts -fignore-asserts -fcase-merge -fstatic-argument-transformation -fno-warn-tabs
+  build-depends:       base ==4.8.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.4.*, bytestring ==0.10.*,
+                          primitive ==0.6.*, parsec == 3.*, temporary-rc == 1.*, random ==1.*,
+                          criterion == 1.*
+  other-modules:
+    SAT.Solver.Mios
+    SAT.Solver.Mios.Clause
+    SAT.Solver.Mios.ClauseList
+    SAT.Solver.Mios.Implementation.FixedVecDouble
+    SAT.Solver.Mios.Implementation.FixedVecInt
+    SAT.Solver.Mios.Implementation.FixedVecOf
+    SAT.Solver.Mios.Implementation.IntSingleton
+    SAT.Solver.Mios.Implementation.ListOf
+    SAT.Solver.Mios.Implementation.ListOfInt
+    SAT.Solver.Mios.Implementation.QueueOfBoundedInt
+    SAT.Solver.Mios.Internal
+    SAT.Solver.Mios.OptionParser
+    SAT.Solver.Mios.Solver
+    SAT.Solver.Mios.Types
+    SAT.Solver.Mios.Util.DIMACSReader
+    SAT.Solver.Mios.WatchList

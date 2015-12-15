@@ -56,25 +56,25 @@ miosOptions =
   [
     Option ['d'] ["variable-decay-rate"]
     (ReqArg (\v c -> c { _confVariableDecayRate = read v }) (show (_confVariableDecayRate miosDefaultOption)))
-    "[Option] variable activity decay rate"
+    "[option] variable activity decay rate"
   , Option ['c'] ["clause-decay-rate"]
     (ReqArg (\v c -> c { _confClauseDecayRate = read v }) (show (_confClauseDecayRate miosDefaultOption)))
-    "[Option] clause activity decay rate"
+    "[option] clause activity decay rate"
+  , Option [] ["stdin"]
+    (NoArg (\c -> c { _targetFile = Nothing }))
+    "[option] read a CNF from STDIN instead of a file"
   , Option ['v'] ["verbose"]
     (NoArg (\c -> c { _confVerbose = True }))
-    "[Info] display misc information"
+    "[info] display misc information"
   , Option ['X'] ["hide-solution"]
     (NoArg (\c -> c { _confNoAnswer = True }))
-    "[Info] hide the solution"
+    "[info] hide the solution"
   , Option ['h'] ["help"]
     (NoArg (\c -> c { _displayHelp = True }))
     "[misc] display this help message"
   , Option [] ["version"]
     (NoArg (\c -> c { _displayVersion = True }))
     "[misc] display program ID"
-  , Option [] ["stdin"]
-    (NoArg (\c -> c { _targetFile = Nothing }))
-    "[Option] read from STDIN instead of a file"
   ]
 
 -- | generates help message

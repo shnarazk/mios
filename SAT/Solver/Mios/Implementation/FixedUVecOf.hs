@@ -41,7 +41,6 @@ newtype FixedUVecOf a = FixedUVecOf
 -- | provides 'clear' and 'size'
 instance UV.Unbox a => ContainerLike (FixedUVecOf a) a where
   clear FixedUVecOf{..} = error "FixedVec.clear"
---  size FixedUVecOf{..} = return $ UV.length uVec
   asList FixedUVecOf{..} = forM [0 .. UV.length uVec - 1] $ UV.unsafeRead uVec
   dump str v = (str ++) . show <$> asList v
 

@@ -45,7 +45,7 @@ newtype FixedVecInt = FixedVecInt
 
 {-# INLINE sizeOfVecInt #-}
 sizeOfVecInt :: FixedVecInt -> IO Int
-sizeOfVecInt FixedVecInt{..} = return $ UV.length litVec
+sizeOfVecInt FixedVecInt{..} = return $! UV.length litVec
 
 -- | provides 'clear' and 'size'
 instance ContainerLike FixedVecInt Int where

@@ -27,6 +27,7 @@ module SAT.Solver.Mios.Implementation.QueueOfBoundedInt
        )
        where
 
+import Control.Monad (when)
 import qualified Data.Vector.Unboxed.Mutable as UV
 import SAT.Solver.Mios.Types (index)
 
@@ -63,48 +64,44 @@ newtype QueueOfBoundedInt = QueueOfBoundedInt
 sizeOfQueue :: QueueOfBoundedInt -> IO Int
 sizeOfQueue QueueOfBoundedInt{..} = UV.unsafeRead ring 0
 
+{-# INLINE clearQueue #-}
 clearQueue :: QueueOfBoundedInt -> IO ()
 clearQueue QueueOfBoundedInt{..} = UV.set ring 0
 
 {-# INLINE insertQueue #-}
 insertQueue :: QueueOfBoundedInt -> Int -> IO ()
-insertQueue q@QueueOfBoundedInt{..} !x = do
-  n <- UV.unsafeRead ring 0
-  check <- (0 /=) <$> UV.unsafeRead ring (index x + 3)
-  case () of
-   _ | check -> return ()
-   _ | 0 == n -> do
-         UV.unsafeWrite ring 1 x
-         UV.unsafeWrite ring 2 x
-         UV.unsafeWrite ring (index x + 3) 0
-         UV.unsafeWrite ring 0 1
-   _ | 1 <= n -> do
-         i <- (3 +) .index <$> UV.unsafeRead ring 2 -- the slot for the current last element
-         UV.unsafeWrite ring i x                    -- points 'x` now
-         UV.unsafeWrite ring 2 x                    -- and the pointer points 'x'
-         UV.unsafeWrite ring (index x + 3) 0
-         UV.unsafeWrite ring 0 $ n + 1
+insertQueue QueueOfBoundedInt{..} !x = do
+  let !k = index x + 3
+  !exists <- UV.unsafeRead ring k
+  when (0 == exists) $ do
+    !n <- UV.unsafeRead ring 0
+    if 0 == n
+      then do
+          UV.unsafeWrite ring 1 x
+      else do
+          !i <- (3 +) .index <$> UV.unsafeRead ring 2 -- the slot for the current last element
+          UV.unsafeWrite ring i x                    -- points 'x` now
+    UV.unsafeWrite ring 2 x                    -- and the pointer points 'x'
+    UV.unsafeWrite ring k 0
+    UV.unsafeWrite ring 0 $! n + 1
 
 {-# INLINE dequeue #-}
 dequeue :: QueueOfBoundedInt -> IO Int
-dequeue q@QueueOfBoundedInt{..} = do
+dequeue QueueOfBoundedInt{..} = do
   n <- UV.unsafeRead ring 0
-  case () of
-   _ | 0 == n -> error "tried to dequeue from zero length queue"
-   _ | 1 == n -> do
-         x <- UV.unsafeRead ring 1
-         UV.unsafeWrite ring (index x + 3) 0
-         UV.unsafeWrite ring 0 0
-         UV.unsafeWrite ring 1 0
-         UV.unsafeWrite ring 2 0
-         return x
-   _ | otherwise -> do
-         x <- UV.unsafeRead ring 1
-         i <- UV.unsafeRead ring $ index x + 3
-         UV.unsafeWrite ring (index x + 3) 0    -- clear the dequeued field
-         UV.unsafeWrite ring 1 i                -- and the pointer points the element
-         UV.unsafeWrite ring 0 $ n - 1
-         return x
+  x <- UV.unsafeRead ring 1
+  let !x' = index x + 3
+  if 1 == n
+    then do
+        UV.unsafeWrite ring x' 0
+        UV.unsafeWrite ring 1 0
+        UV.unsafeWrite ring 2 0
+    else do
+        i <- UV.unsafeRead ring x'
+        UV.unsafeWrite ring x' 0    -- clear the dequeued field
+        UV.unsafeWrite ring 1 i     -- and the pointer points the element
+  UV.unsafeWrite ring 0 $! n - 1
+  return x
 
 newQueue :: Int -> IO QueueOfBoundedInt
 newQueue n = do

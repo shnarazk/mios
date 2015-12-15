@@ -36,33 +36,33 @@ import Data.List (sort)
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
 import SAT.Solver.Mios.Types (ContainerLike(..), Lit)
-import SAT.Solver.Mios.Clause (Clause(..), selectWatcher)
+import SAT.Solver.Mios.Clause (Clause(..), ClausePointer, derefClausePointer, newClausePointer, setClausePointer, selectWatcher)
 
 
 -- | __Version 0.5__
 -- the definition of 'watcher'
-type WatchLink = (IORef Clause, IORef Clause)
+type WatchLink = (ClausePointer, ClausePointer)
 
 newWatchLink :: IO WatchLink
-newWatchLink = (,) <$> newIORef NullClause <*> newIORef NullClause
+newWatchLink = (,) <$> newClausePointer NullClause <*> newClausePointer NullClause
 
 -- | returns a watcher next to /the given clause/, or returns NullClause if no more watcher.
 -- If the given clause is NullClasue, this returns the first clause of the watcher list.
 {-# INLINE nextWatcher #-}
 nextWatcher :: WatchLink -> Lit -> Clause -> IO Clause
-nextWatcher !(b, _) _ NullClause = readIORef b
-nextWatcher _ l c               = readIORef =<< selectWatcher l c
+nextWatcher !(b, _) _ NullClause = derefClausePointer b
+nextWatcher _ l c               = derefClausePointer =<< selectWatcher l c
 
 -- | adds a clause to the end of a watcher list
 {-# INLINE pushWatcher #-}
 pushWatcher :: WatchLink -> Lit -> Clause -> IO ()
 pushWatcher !(b, e) !l !c = do
-  !c' <- readIORef e
+  !c' <- derefClausePointer e
   n <- if c' == NullClause then return b else selectWatcher l c'
-  writeIORef n c
-  writeIORef e c
+  setClausePointer n c
+  setClausePointer e c
   n' <- selectWatcher l c
-  writeIORef n' NullClause
+  setClausePointer n' NullClause
 
 -- | unlinks a clause from the previous clasue and returns the new next clause.
 -- If the given clause is @NullClause@, then the watcher list for /lit/ is updated.
@@ -71,10 +71,10 @@ pushWatcher !(b, e) !l !c = do
 unlinkWatcher :: WatchLink -> Lit -> Clause -> IO Clause
 unlinkWatcher !(b, e) !l !c = do
   n <- if c == NullClause then return b else selectWatcher l c
-  c' <- readIORef n
-  c'' <- readIORef =<< selectWatcher l c'
-  writeIORef n c''
-  when (c'' == NullClause) $ writeIORef e c
+  c' <- derefClausePointer n
+  c'' <- derefClausePointer =<< selectWatcher l c'
+  setClausePointer n c''
+  when (c'' == NullClause) $ setClausePointer e c
   return c'
 
 -- | __O(n) search and delete operation__
@@ -85,7 +85,7 @@ removeWatcher !w@(b, e) !l !c = do
   let
     -- invaliant: c should be included in the watcher list
     loop !pre = do
-      !c' <- if pre == NullClause then readIORef b else nextWatcher w l pre
+      !c' <- if pre == NullClause then derefClausePointer b else nextWatcher w l pre
       if c == c'
         then unlinkWatcher w l pre >> return ()
         else if c' == NullClause then return () else loop c'
@@ -97,22 +97,22 @@ traverseWatcher (b, e) lit = do
     loop l NullClause = return $ reverse l
     loop l c = do
       l' <- asList c
-      loop (l' : l) =<< readIORef =<< selectWatcher lit c
-  loop [] =<< readIORef b
+      loop (l' : l) =<< derefClausePointer =<< selectWatcher lit c
+  loop [] =<< derefClausePointer b
 
 {-# INLINE mergeWatcher #-}
 mergeWatcher :: WatchLink -> Lit -> WatchLink -> IO ()
 mergeWatcher !(b, e) !l !(b', e') = do
-  c <- readIORef b
+  c <- derefClausePointer b
   if c == NullClause
     then do
-        writeIORef b =<< readIORef b'
-        writeIORef e =<< readIORef e'
+        setClausePointer b =<< derefClausePointer b'
+        setClausePointer e =<< derefClausePointer e'
     else do
         -- append 'from' to 'to'
-        n <- selectWatcher l =<< readIORef e
-        writeIORef n =<< readIORef b'
-        writeIORef e =<< readIORef e'
+        n <- selectWatcher l =<< derefClausePointer e
+        setClausePointer n =<< derefClausePointer b'
+        setClausePointer e =<< derefClausePointer e'
 
 asListWatchers :: WatchLink -> Lit -> IO [[Lit]]
 asListWatchers w lit = map sort <$> traverseWatcher w lit
@@ -128,7 +128,6 @@ newWatcherList n = do
 --  forM_ [0 .. n - 1]  $ \i -> MV.unsafeWrite v i =<< newWatchLink
   WatcherList . V.fromList <$> mapM (\_ -> newWatchLink) [0 .. n -1]
 
-{-- # INLINE getNthWatchLink #-}
+{-# INLINE getNthWatchLink #-}
 getNthWatchLink :: Int -> WatcherList -> WatchLink
 getNthWatchLink !i !(WatcherList v) = V.unsafeIndex v i
-

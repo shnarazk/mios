@@ -55,7 +55,7 @@ newListOfInt n = do
 {-# INLINE pushToListOfInt #-}
 pushToListOfInt :: ListOfInt -> Int -> IO ()
 pushToListOfInt !(ListOfInt ivec) !x = do
-  i <- (+ 1) <$> UV.unsafeRead ivec 0
+  !i <- (+ 1) <$> UV.unsafeRead ivec 0
   UV.unsafeWrite ivec i x
   UV.unsafeWrite ivec 0 i
 
