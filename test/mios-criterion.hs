@@ -10,9 +10,10 @@ import SAT.Solver.Mios
 
 targets =
   [
-    "test/data/uf200-012.cnf"
+--    "test/data/uf200-012.cnf"
 --  , "test/data/uf225-025.cnf"
---  , "test/data/uf250-050.cnf"
+    "test/data/uf250-050.cnf"
+  , "test/data/38bits_10.dimacs.cnf"
   ]
 
 main = do

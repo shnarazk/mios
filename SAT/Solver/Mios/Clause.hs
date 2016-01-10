@@ -166,11 +166,9 @@ instance VectorLike VecOfClause Clause where
   -- * Constructors
   newVec n = VecOfClause <$> newIORef (replicate n undefined)
   newVecWith n x = VecOfClause <$> newIORef (replicate n x)
-  -- * Vector operations
-  {-# SPECIALIZE INLINE (.!) :: VecOfClause -> Int -> IO Clause #-}
-  (.!) VecOfClause{..} !n = (!! n) <$> readIORef clauses
-  {-# SPECIALIZE INLINE setAt :: VecOfClause -> Int -> Clause -> IO () #-}
-  setAt VecOfClause{..} !n x = do
+  -- * Vector interface
+  {-# SPECIALIZE INLINE setAt :: Int -> VecOfClause -> Clause -> IO () #-}
+  setAt !n VecOfClause{..} x = do
     l <- readIORef clauses
     writeIORef clauses $! take n l ++ (x : drop (n + 1) l)
   -- * Conversion

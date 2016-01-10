@@ -28,7 +28,11 @@ Flag llvm
   Default:	False
 
 Flag profile
-  Description:	Build executable for profiling (use with '--enable-executable-profiling')
+  Description:	Build an executable for profiling (use with '--enable-executable-profiling')
+  Default:	False
+
+Flag criterion
+  Description:	Build an executable for exhaustive benchmarks
   Default:	False
 
 library
@@ -105,8 +109,8 @@ executable mios-1.0-prof
     buildable:	       True
   else
     buildable:	       False
-  default-language:	Haskell2010
-  ghc-options:	-fstrictness -fprof-auto-top -ignore-inline -O1 -rtsopts -fno-warn-tabs
+  default-language:    Haskell2010
+  ghc-options:	       -prof -fprof-auto-top -ignore-inline -O2 -rtsopts -fno-warn-tabs
   build-depends:       base ==4.8.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.4.*, bytestring ==0.10.*,
                           primitive ==0.6.*, parsec == 3.*, temporary-rc == 1.*, random ==1.*
   other-modules:
@@ -147,7 +151,7 @@ Benchmark mios-1.0-benchmark
 executable mios-1.0-cr
   main-is: test/mios-criterion.hs
   default-language:	Haskell2010
-  if flag(profile)
+  if flag(criterion)
     buildable: True
   else
     buildable: False

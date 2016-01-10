@@ -15,6 +15,10 @@ module SAT.Solver.Mios.Implementation.IntSingleton
 
 import Data.IORef
 
+----------------------------------------
+-- Implementation 1. :: IORef
+----------------------------------------
+
 type IntSingleton = IORef Int
 
 newInt :: IO IntSingleton
@@ -33,6 +37,9 @@ modifyInt :: IntSingleton -> (Int -> Int) -> IO ()
 modifyInt = modifyIORef'
 
 {-
+----------------------------------------
+-- Implementation 2. :: Data.Mutable.IOURef
+----------------------------------------
 import qualified Data.Mutable as M
 
 newtype IntSingleton = IntSingleton
@@ -55,7 +62,12 @@ setInt !(IntSingleton val) !x = M.writeRef val x
 modifyInt :: IntSingleton -> (Int -> Int) -> IO ()
 modifyInt !(IntSingleton val) !f = M.modifyRef' val f
 -}
+
 {-
+----------------------------------------
+-- Implementation 3. :: Data.Vector.Unboxed.Mutable
+----------------------------------------
+
 import qualified Data.Vector.Unboxed.Mutable as UV
 
 newtype IntSingleton = IntSingleton

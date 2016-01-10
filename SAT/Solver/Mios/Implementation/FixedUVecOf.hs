@@ -22,11 +22,18 @@
 --
 module SAT.Solver.Mios.Implementation.FixedUVecOf
        (
-         FixedUVecOf
+         FixedUVecOf (..)
+       , FixedVecInt
+       , newSizedVecIntFromList
+       , newSizedVecIntFromUVector
+       , swapIntsBetween
+       , FixedVecDouble
+       , newVecDouble
        )
        where
 
-import Control.Monad (forM)
+import Control.Monad (forM, forM_)
+import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as UV
 import SAT.Solver.Mios.Types (ContainerLike(..), VectorLike(..))
 
@@ -48,13 +55,46 @@ instance UV.Unbox a => ContainerLike (FixedUVecOf a) a where
 instance UV.Unbox a => VectorLike (FixedUVecOf a) a where
   -- * Constructors
   newVec n = FixedUVecOf <$> UV.new n
-  newVecWith n x = FixedUVecOf <$> UV.replicate n x
+  newVecWith n x = do
+    v <- UV.new n
+    UV.set v x
+    return $ FixedUVecOf v
   -- * Vector operations
-  {-# SPECIALIZE INLINE (.!) :: FixedUVecOf Int -> Int -> IO Int #-}
-  {-# SPECIALIZE INLINE (.!) :: FixedUVecOf Double -> Int -> IO Double #-}
-  (.!) FixedUVecOf{..} !n = UV.unsafeRead uVec n
-  {-# SPECIALIZE INLINE setAt :: FixedUVecOf Int -> Int -> Int -> IO () #-}
-  {-# SPECIALIZE INLINE setAt :: FixedUVecOf Double -> Int -> Double -> IO () #-}
-  setAt FixedUVecOf{..} !n !x = UV.unsafeWrite uVec n x
+  {-# SPECIALIZE INLINE getAt :: Int -> FixedUVecOf Int -> IO Int #-}
+  {-# SPECIALIZE INLINE getAt :: Int -> FixedUVecOf Double -> IO Double #-}
+  getAt !n (FixedUVecOf uVec) = UV.unsafeRead uVec n
+  {-# SPECIALIZE INLINE setAt :: Int -> FixedUVecOf Int -> Int -> IO () #-}
+  {-# SPECIALIZE INLINE setAt :: Int -> FixedUVecOf Double -> Double -> IO () #-}
+  setAt !n (FixedUVecOf uVec) !x = UV.unsafeWrite uVec n x
+  {-# SPECIALIZE INLINE modifyAt :: Int -> FixedUVecOf Int -> (Int -> Int) -> IO () #-}
+  {-# SPECIALIZE INLINE modifyAt :: Int -> FixedUVecOf Double -> (Double -> Double) -> IO () #-}
+  modifyAt !n (FixedUVecOf uVec) f = UV.unsafeModify uVec f n
   -- * Conversion
-  newFromList (l) = error "FixedUVecOf.newFromList"
+  newFromList _ = error "FixedUVecOf.newFromList"
+
+type FixedVecInt = FixedUVecOf Int
+
+newSizedVecIntFromList :: [Int] -> IO FixedVecInt
+newSizedVecIntFromList !l = do
+  let n = length l
+  v <- UV.new $ n + 1
+  UV.unsafeWrite v 0 n
+  forM_ (zip [1 .. n] l) $ \(i, j) -> UV.unsafeWrite v i j
+  return $ FixedUVecOf v
+
+{-# INLINE newSizedVecIntFromUVector #-}
+newSizedVecIntFromUVector :: U.Vector Int -> IO FixedVecInt
+newSizedVecIntFromUVector vec = FixedUVecOf <$> U.unsafeThaw vec
+
+{-# INLINE swapIntsBetween #-}
+swapIntsBetween :: FixedVecInt -> Int -> Int -> IO ()
+swapIntsBetween (FixedUVecOf uVec) !i !j = UV.unsafeSwap uVec i j
+
+--------------------------------------------------------------------------------
+type FixedVecDouble = FixedUVecOf Double
+
+newVecDouble :: Int -> Double -> IO FixedVecDouble
+newVecDouble n x = do
+  v <- UV.new n
+  UV.set v x
+  return $ FixedUVecOf v

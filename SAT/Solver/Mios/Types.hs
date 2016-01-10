@@ -70,12 +70,15 @@ class ContainerLike v t => VectorLike v t | v -> t where
   newFromList :: [t] -> IO v
   newFromList = error "newFromList undefined"
   -- * Vector interface
-  -- | accesss /n/th element from the 0-based vector
-  (.!) :: v -> Int -> IO t
-  (.!) = error "(.!) undefined"
+  -- | get the value at /n/-th field of the vector
+  getAt :: Int -> v -> IO t
+  getAt _ _ = error "getAt undefined"
   -- | set an value to the /n/-th field of the vector
-  setAt :: v -> Int -> t -> IO ()
-  setAt = error "setAt undefined"
+  setAt :: Int -> v -> t -> IO ()
+  setAt _ _ _ = error "setAt undefined"
+  -- | update the /n/-th field of the vector
+  modifyAt :: Int -> v -> (t -> t) -> IO ()
+  modifyAt _ _ _ = error "modifyAt undefined"
   {-# MINIMAL newVec #-}
 
 -- | Pointer-based implementation of "equality"

@@ -23,8 +23,6 @@
 module SAT.Solver.Mios.Implementation.FixedVecOf
        (
          FixedVecOf(..)
-       , setVecAt
-       , sortByFst
        )
        where
 
@@ -53,14 +51,11 @@ instance VectorLike (FixedVecOf a) a where
   newVec n = FixedVecOf <$> MV.new n
   newVecWith n x = FixedVecOf <$> MV.replicate n x
   -- * Vector operations
-  {-# SPECIALIZE INLINE (.!) :: FixedVecOf Int -> Int -> IO Int #-}
-  {-# SPECIALIZE INLINE (.!) :: FixedVecOf Double -> Int -> IO Double #-}
-  (.!) FixedVecOf{..} n = MV.unsafeRead fVec n
-  {-# SPECIALIZE INLINE setAt :: FixedVecOf Int -> Int -> Int -> IO () #-}
-  {-# SPECIALIZE INLINE setAt :: FixedVecOf Double -> Int -> Double -> IO () #-}
-  setAt FixedVecOf{..} n x = MV.unsafeWrite fVec n x
+  {-# SPECIALIZE INLINE setAt :: Int -> FixedVecOf Int -> Int -> IO () #-}
+  {-# SPECIALIZE INLINE setAt :: Int -> FixedVecOf Double -> Double -> IO () #-}
+  setAt n FixedVecOf{..} x = MV.unsafeWrite fVec n x
   -- * Conversion
-  newFromList (l) = error "FixedVecOf.newFromList"
+  newFromList _ = error "FixedVecOf.newFromList"
 
 setVecAt :: FixedVecOf a -> Int -> a -> IO ()
 setVecAt FixedVecOf{..} n x = MV.unsafeWrite fVec n x

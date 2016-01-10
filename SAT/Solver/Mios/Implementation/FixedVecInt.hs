@@ -63,10 +63,10 @@ instance VectorLike FixedVecInt Int where
     UV.set v x
     return $ FixedVecInt v
   -- * Vector operations
-  {-# SPECIALIZE INLINE (.!) :: FixedVecInt -> Int -> IO Int #-}
-  (.!) FixedVecInt{..} !n = UV.unsafeRead litVec n
-  {-# SPECIALIZE INLINE setAt :: FixedVecInt -> Int -> Int -> IO () #-}
-  setAt FixedVecInt{..} !n !x = UV.unsafeWrite litVec n x
+  {-# SPECIALIZE INLINE getAt :: Int -> FixedVecInt -> IO Int #-}
+  getAt !n FixedVecInt{..} = UV.unsafeRead litVec n
+  {-# SPECIALIZE INLINE setAt :: Int -> FixedVecInt -> Int -> IO () #-}
+  setAt !n FixedVecInt{..} !x = UV.unsafeWrite litVec n x
   -- * Conversion
   newFromList l = do
     v <- UV.new $ length l

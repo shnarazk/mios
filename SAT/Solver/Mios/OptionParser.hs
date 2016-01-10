@@ -23,7 +23,7 @@ data MiosConfiguration = MiosConfiguration
                          }
 
 -- | dafault configuration
-defaultConfiguration = MiosConfiguration 0.95 0.99
+defaultConfiguration = MiosConfiguration 0.95 0.999
 
 -- | configuration swithces
 data MiosConfigurationOption = MiosConfigurationOption

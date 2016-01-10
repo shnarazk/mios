@@ -33,13 +33,7 @@ import Data.IORef
 import qualified Data.Vector.Unboxed.Mutable as UV
 import System.Random (mkStdGen, randomIO, setStdGen)
 import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Implementation.FixedVecInt (FixedVecInt, getNthInt, modifyNthInt, newSizedVecIntFromList, setNthInt, sizeOfVecInt, swapIntsBetween)
-import SAT.Solver.Mios.Implementation.FixedVecDouble (FixedVecDouble, getNthDouble, modifyNthDouble, newVecDouble, setNthDouble)
-import SAT.Solver.Mios.Implementation.FixedVecOf (FixedVecOf)
-import SAT.Solver.Mios.Implementation.ListOf (ListOf(..), newList, pushToList)
-import SAT.Solver.Mios.Implementation.ListOfInt (ListOfInt, lastOfListOfInt, newListOfInt, popFromListOfInt, pushToListOfInt, sizeOfListOfInt)
-import SAT.Solver.Mios.Implementation.QueueOfBoundedInt (QueueOfBoundedInt, clearQueue, dequeue, insertQueue, newQueue, sizeOfQueue)
-import SAT.Solver.Mios.Implementation.IntSingleton
+import SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.ClauseList
 import SAT.Solver.Mios.WatchList
@@ -147,10 +141,10 @@ newSolver = do
   _constrs    <- newClauseLink
   _learnts    <- newClauseLink
   _claInt     <- newIORef 0
-  _claDecay   <- newIORef 0
+  _claDecay   <- newIORef (-1)
   _activities <- newVecDouble 0 0
   _varInc     <- newIORef 1
-  _varDecay   <- newIORef 0
+  _varDecay   <- newIORef (-1)
   _order      <- newVarHeap 0
   _watches    <- newWatcherList 0
   _undos      <- newVec 0
@@ -651,8 +645,12 @@ simplifyDB s@Solver{..} = do
 -- non-usable internal state) cannot be distinguished from a conflict under assumptions.
 solve :: Solver -> ListOf Lit -> IO Bool
 solve s@Solver{..} assumps = do
-  writeIORef varDecay $! 1 / 0.95
-  writeIORef claDecay $! 1 / 0.999
+  -- set the default value to varDecay if needed
+  vd <- readIORef varDecay
+  when (vd == -1) $ writeIORef varDecay $! 1 / 0.95
+  -- ditto
+  cd <- readIORef claDecay
+  when (cd == -1) $ writeIORef claDecay $! 1 / 0.999
   writeIORef varInc 1
   nc <- fromIntegral <$> nConstraints s
   -- PUSH INCREMENTAL ASSUMPTIONS:
