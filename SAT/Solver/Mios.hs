@@ -34,10 +34,8 @@ runSolverWithOption opts targetfile = do
    Just (desc, vecs) -> do
      when (_confVerbose opts) $
        putStrLn $ "loaded : #v = " ++ show (numberOfVariables desc) ++ " #c = " ++ show (numberOfClauses desc)
-     s <- flip setInternalState (numberOfVariables desc) =<< newSolver
+     s <- flip setInternalState (numberOfVariables desc) =<< newSolver (toMiosConf opts)
      -- mapM_ (const (newVar s)) [0 .. numberOfVariables desc - 1]
-     writeIORef (claDecay s) $ 1 / _confClauseDecayRate opts
-     writeIORef (varDecay s) $ 1 / _confVariableDecayRate opts
      mapM_ ((s `addClause`) <=< newSizedVecIntFromUVector) vecs
      when (_confVerbose opts) $ do
        nc <- nConstraints s
@@ -62,10 +60,8 @@ solveSAT = solveSATWithOption miosDefaultOption
 
 solveSATWithOption :: MiosConfigurationOption -> (CNFDescription, [SizedVectorInt]) -> IO [Int]
 solveSATWithOption opts (desc, vecs) = do
-  s <- flip setInternalState (numberOfVariables desc) =<< newSolver
+  s <- flip setInternalState (numberOfVariables desc) =<< newSolver (toMiosConf opts)
   -- mapM_ (const (newVar s)) [0 .. numberOfVariables desc - 1]
-  writeIORef (claDecay s) $ 1 / _confClauseDecayRate opts
-  writeIORef (varDecay s) $ 1 / _confVariableDecayRate opts
   mapM_ ((s `addClause`) <=< newSizedVecIntFromUVector) vecs
   simplifyDB s
   result <- solve s =<< newList

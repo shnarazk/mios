@@ -47,11 +47,9 @@ data Solver = Solver
               , constrs    :: ClauseLink        -- ^ List of problem constraints.
               , learnts    :: ClauseLink        -- ^ List of learnt clauses.
               , claInc     :: IORef Double      -- ^ Clause activity increment amount to bump with.
-              , claDecay   :: IORef Double      -- ^ Decay factor for clause activity.
                 -- Variable order
               , activities :: FixedVecDouble    -- ^ Heuristic measurement of the activity of a variable.
               , varInc     :: IORef Double      -- ^ Variable activity increment amount to bump with.
-              , varDecay   :: IORef Double      -- ^ Decay factor for variable activity.
               , order      :: VarHeap           -- ^ Keeps track of the dynamic variable order.
                 -- Propagation
               , watches    :: WatcherList       -- ^ For each literal 'p', a list of constraint wathing 'p'.
@@ -70,8 +68,9 @@ data Solver = Solver
               , rootLevel  :: IORef Int         -- ^ Separates incremental and search assumptions.
               , seen       :: UV.IOVector Int   -- ^ scratch vector for 'analyze'
               , currentWatch :: WatchLink       -- ^ used in 'propagate` repeatedely
---              , currentReason :: ListOfInt    -- ^ used in 'analyze' and 'calcReason'
               , nVars      :: Int 		-- ^ number of variables
+                -- * configuration
+              , config    :: MiosConfiguration  -- ^ search paramerters
               }
 
 -- | returns the number of current assigments
@@ -116,9 +115,9 @@ setInternalState s nv = do
   o <- newVarHeap nv
   q <- newQueue (2 * nv)
   n <- UV.new nv
---  cr <- newListOfInt nv
   let s' = s
-           { activities = ac
+           {
+             activities = ac
            , watches = w
            , undos = u
            , assigns = a
@@ -129,60 +128,34 @@ setInternalState s nv = do
            , order = o
            , propQ = q
            , seen = n
---           , currentReason = cr
            , nVars  = nv
            }
   return s'
 
 -- | constructor
-newSolver :: IO Solver
-newSolver = do
-  _model      <- newList
-  _constrs    <- newClauseLink
-  _learnts    <- newClauseLink
-  _claInt     <- newIORef 0
-  _claDecay   <- newIORef (-1)
-  _activities <- newVecDouble 0 0
-  _varInc     <- newIORef 1
-  _varDecay   <- newIORef (-1)
-  _order      <- newVarHeap 0
-  _watches    <- newWatcherList 0
-  _undos      <- newVec 0
-  _propQ      <- newQueue 0
-  _assigns    <- newVec 0
-  _trail      <- newListOfInt 0
-  _trailLim   <- newListOfInt 0
-  _decLevel   <- newInt
-  _reason     <- newVec 0
-  _level      <- newVec 0
-  _rootLevel  <- newIORef 0
-  _seen       <- UV.new 0
-  _currentWatch <- newWatchLink
---   _currentReason <- newListOfInt 0
-  return $ Solver
-              _model
-              _constrs
-             _learnts
-             _claInt
-             _claDecay
-             _activities
-             _varInc
-             _varDecay
-             _order
-             _watches
-             _undos
-             _propQ
-             _assigns
-             _trail
-             _trailLim
-             _decLevel
-             _reason
-             _level
-             _rootLevel
-             _seen
-             _currentWatch
---             _currentReason
-             0
+newSolver :: MiosConfiguration -> IO Solver
+newSolver conf = Solver
+            <$> newList          -- model
+            <*> newClauseLink    -- constrs
+            <*> newClauseLink    -- learnts
+            <*> newIORef 1.0     -- claInc
+            <*> newVecDouble 0 0 -- activities
+            <*> newIORef 1.0     -- varInc
+            <*> newVarHeap 0     -- order
+            <*> newWatcherList 0 -- watches
+            <*> newVec 0         -- undos
+            <*> newQueue 0       -- porqQ
+            <*> newVec 0         -- assigns
+            <*> newListOfInt 0   -- trail
+            <*> newListOfInt 0   -- trailLim
+            <*> newInt           -- decisionLevel
+            <*> newVec 0         -- reason
+            <*> newVec 0         -- level
+            <*> newIORef 0       -- rootLevel
+            <*> UV.new 0         -- seen
+            <*> newWatchLink     -- currentWatch
+            <*> return 0         -- nVars
+            <*> return conf      -- config
 
 -- | public interface of 'Solver' (p.2)
 --
@@ -499,9 +472,7 @@ varBumpActivity s@Solver{..} !x = do
 -- | __Fig. 14 (p.19)__
 {-# INLINE varDecayActivity #-}
 varDecayActivity :: Solver -> IO ()
-varDecayActivity Solver{..} = do
-  !d <- readIORef varDecay
-  modifyIORef' varInc (* d)
+varDecayActivity Solver{..} = modifyIORef' varInc (/ variableDecayRate config)
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE varRescaleActivity #-}
@@ -514,7 +485,7 @@ varRescaleActivity s@Solver{..} = do
 {-# INLINE claBumpActivity #-}
 claBumpActivity :: Solver -> Clause -> IO ()
 claBumpActivity s@Solver{..} c@Clause{..} = do
-  !a <- (+) <$> readIORef activity <*> readIORef claInc
+  a <- (+) <$> readIORef activity <*> readIORef claInc
   if 1e100 < a
     then claRescaleActivity s
     else writeIORef activity $! a
@@ -522,9 +493,7 @@ claBumpActivity s@Solver{..} c@Clause{..} = do
 -- | __Fig. 14 (p.19)__
 {-# INLINE claDecayActivity #-}
 claDecayActivity :: Solver -> IO ()
-claDecayActivity Solver{..} = do
-  !d <- readIORef claDecay
-  modifyIORef' claInc (* d)
+claDecayActivity Solver{..} = modifyIORef' claInc (/ clauseDecayRate config)
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE claRescaleActivity #-}
@@ -645,13 +614,6 @@ simplifyDB s@Solver{..} = do
 -- non-usable internal state) cannot be distinguished from a conflict under assumptions.
 solve :: Solver -> ListOf Lit -> IO Bool
 solve s@Solver{..} assumps = do
-  -- set the default value to varDecay if needed
-  vd <- readIORef varDecay
-  when (vd == -1) $ writeIORef varDecay $! 1 / 0.95
-  -- ditto
-  cd <- readIORef claDecay
-  when (cd == -1) $ writeIORef claDecay $! 1 / 0.999
-  writeIORef varInc 1
   nc <- fromIntegral <$> nConstraints s
   -- PUSH INCREMENTAL ASSUMPTIONS:
   let
@@ -933,93 +895,14 @@ clauseNew s@Solver{..} ps learnt = do
 locked :: Clause -> Solver -> IO Bool
 locked !c !Solver{..} =  (c ==) <$> ((flip getNthClause reason) . subtract 1 . var =<< getNthLiteral 0 c)
 
-{-
--- | __Fig. 17. (p.23)__
--- The static variable ordering of "SATZOO". The code is defined only for clauses, not for
--- arbitrary constraints. It must be adapted before it can be used in MINISAT.
--- The main purpose of this function is to update each activity field in learnt clauses.
-staticVarOrder :: Solver -> IO ()
-staticVarOrder s@Solver{..} = do
-  let clauses = learnts
-  -- CLEAR ACTIVITY:
-  nv <- nVars s
-  forM_ [0 .. nv - 1] $ \i -> setAt activities i 0
-  -- DO SIMPLE VARIABLE ACTIVITY HEURISTICS:
-  nc <- numberOfClauses learnts
-  forM_ [0 .. nc - 1] $ \i -> do
-    c <- clauses .! i
-    m <- sizeOfClause c
-    let a = 2 ** fromIntegral (negate m)
-    forM_ [0 .. m - 1] $ \j -> do
-      k <- subtract 1 . var <$> c .! j
-      setAt activities k . (a +) =<< activities .! k
-  -- CALCULATE THE INITIAL "HEAD" OF ALL CLAUSES:
-  (occurs :: FixedVecOf (VecOf Lit)) <- newVecWith (2 * nv) =<< newVec 0
-  (heat :: FixedVecOf (Double, Int)) <- newVecWith nc (0.0 :: Double,0 :: Int)
-  forM_ [0 .. nc - 1] $ \i -> do
-    c <- clauses .! i
-    cs <- subtract 1 <$> sizeOfClause c
-    x <- sum <$> forM [0 .. cs] (\j -> do
-                                    l <- c .! j
-                                    (`push` i) =<< occurs .! index l
-                                    -- return (0::Double)
-                                    activities .! (var l - 1)
-                                )
-    setAt heat i (x, i)
-  -- BUMP HEAT FOR CLAUSES WHOSE VARIABLES OCCUR IN OTHER HOT CLAUSES:
-  iterSize <- (1 +) . sum <$>
-              forM [0 .. nc - 1] (\i -> do
-                                     c <- clauses .! i
-                                     n <- subtract 1 <$> sizeOfClause c
-                                     sum <$> forM [0 .. n] (((size =<<) . (occurs .!) . index) <=< (c .!))
-                                 )
-  let literals = 2 * nv
-  -- putStrLn $ "iterations = " ++ show (fromIntegral literals, fromIntegral iterSize)
-  let iterations = min (10 :: Int) . fromEnum $ fromRational (100.0 * fromIntegral literals / fromIntegral iterSize)
-  let disapation = (1.0 :: Double) / fromIntegral iterations
-  forM_ [0 .. iterations - 1] $ \_ ->
-    forM_ [0 .. nc - 1] $ \i -> do
-      c <- clauses .! i
-      nl <- subtract 1 <$> sizeOfClause c
-      forM_ [0 ..nl] $ \j -> do
-        os <- (occurs .!) =<< index <$> c .! j
-        (iv, ii) <- heat .! i
-        iv' <- sum . map fst <$> (mapM (heat .!) =<< asList os)
-        setAt heat i (iv + iv' * disapation, ii)
-  -- SET ACTIVITIES ACCORDING TO HOT CLAUSES:
-  -- @sort(heat)@
-  sortByFst heat
-  forM_ [0 .. nv - 1] $ \i -> setAt activities i 0
-  hs <- size heat
-  let
-    for i@((< hs) -> False) _ = return ()
-    for i extra = do
-      h <- heat .! i
-      c <- clauses .! snd h
-      cs <- sizeOfClause c
-      let
-        for2 j@((< cs) -> False) extra = return extra
-        for2 j extra = do
-          v' <- subtract 1 . var <$> c .! j
-          a <- activities .! v'
-          if a == 0
-            then setAt activities v' extra >> for2 (j + 1) (extra * 0.995)
-            else for2 (j + 1) extra
-      extra <- for2 0 extra
-      for (i + 1) extra
-  for 0 1e200
-  -- updateAll order
-  -- writeIORef varInc 1
--}
-
+-- | For small-sized problems, heap may not be a good choice.
 useHeap :: Int
 useHeap = 1000
+-- | For small-sized problems, randomess may lead to worse results.
 useRand :: Int
 useRand = 1000
 
--- | Another basic implementation
--- all method but select is nop code.
--- Note: this implementation depends on @order :: VarHeap@
+-- | Interfate to select a decision var based on variable activity.
 instance VarOrder Solver where
   -- | __Fig. 6. (p.10)__
   -- Creates a new SAT variable in the solver.
@@ -1043,10 +926,12 @@ instance VarOrder Solver where
   undo s v = do
     let nv = nVars s
     when (useHeap < nv) $ inHeap s v >>= (`unless` insert s v)
+  {-# SPECIALIZE INLINE select :: Solver -> IO Var #-}
   select s = do
-    let nv = nVars s
     let
+      nv = nVars s
       asg = assigns s
+      -- | returns the most active var (heap-based implementation)
       loop = do
         n <- numElementsInHeap s
         if n == 0
@@ -1055,7 +940,7 @@ instance VarOrder Solver where
               v <- getHeapRoot s
               val <- getNthInt (v - 1) asg
               if val == lBottom then return v else loop
-      -- loop2 0 0 (-1)
+      -- | O(n) implementation on vector: loop2 0 0 (-1)
       loop2 ((< nv) -> False) j _ = return $! j + 1
       loop2 i j best = do
         x <- getNthInt i asg
@@ -1069,7 +954,7 @@ instance VarOrder Solver where
     if useRand < nv
       then do
           !r <- flip mod 1001 <$> randomIO :: IO Int
-          if r < 2             -- the threshold used in MiniSat 1.14 is 0.02, namely 2/100
+          if r < randomDecisionRate (config s) -- the threshold used in MiniSat 1.14 is 0.02, namely 20/1000
             then do
                 !i <- flip mod nv <$> randomIO
                 x <- getNthInt i asg
@@ -1079,14 +964,14 @@ instance VarOrder Solver where
 
 -------------------------------------------------------------------------------- VarHeap
 
--- | 'VarHeap' is a heap tree by two 'FixedVecInt'
--- This implementation is identical wtih that in Minisat 1.14
+-- | 'VarHeap' is a heap tree built from two 'FixedVecInt'
+-- This implementation is identical wtih that in Minisat-1.14
 -- Note: the zero-th element of 'heap' is used for holding the number of elements
 -- Note: VarHeap itself is not a 'VarOrder', because it requires a pointer to solver
 data VarHeap = VarHeap
                 {
-                  heap     :: FixedVecInt -- index to var
-                , idxs     :: FixedVecInt -- var's index
+                  heap :: FixedVecInt -- order to var
+                , idxs :: FixedVecInt -- var to order (index)
                 }
 
 newVarHeap :: Int -> IO VarHeap

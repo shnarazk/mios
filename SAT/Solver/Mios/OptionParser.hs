@@ -9,28 +9,21 @@ module SAT.Solver.Mios.OptionParser
        , miosUsage
        , miosParseOptions
        , miosParseOptionsFromArgs
+       , toMiosConf
        )
        where
 
 import System.Console.GetOpt (ArgDescr(..), ArgOrder(..), getOpt, OptDescr(..), usageInfo)
 import System.Environment (getArgs)
-
--- | configuration
-data MiosConfiguration = MiosConfiguration
-                         {
-                           variableDecayRate :: Double
-                         , clauseDecayRate :: Double
-                         }
-
--- | dafault configuration
-defaultConfiguration = MiosConfiguration 0.95 0.999
+import SAT.Solver.Mios.Internal (MiosConfiguration (..), defaultConfiguration)
 
 -- | configuration swithces
 data MiosConfigurationOption = MiosConfigurationOption
                      {
-                      _targetFile :: Maybe String
+                       _targetFile :: Maybe String
                      , _confVariableDecayRate :: Double
                      , _confClauseDecayRate :: Double
+                     , _confRandomDecisionRate :: Int
                      , _confVerbose :: Bool
                      , _confNoAnswer :: Bool
                      , _displayHelp :: Bool
@@ -44,6 +37,7 @@ miosDefaultOption = MiosConfigurationOption
     _targetFile = Just ""
   , _confVariableDecayRate = variableDecayRate defaultConfiguration
   , _confClauseDecayRate = clauseDecayRate defaultConfiguration
+  , _confRandomDecisionRate = randomDecisionRate defaultConfiguration
   , _confVerbose = False
   , _confNoAnswer = False
   , _displayHelp = False
@@ -56,19 +50,22 @@ miosOptions =
   [
     Option ['d'] ["variable-decay-rate"]
     (ReqArg (\v c -> c { _confVariableDecayRate = read v }) (show (_confVariableDecayRate miosDefaultOption)))
-    "[option] variable activity decay rate"
+    "[configuration] variable activity decay rate"
   , Option ['c'] ["clause-decay-rate"]
     (ReqArg (\v c -> c { _confClauseDecayRate = read v }) (show (_confClauseDecayRate miosDefaultOption)))
-    "[option] clause activity decay rate"
+    "[configuration] clause activity decay rate"
+  , Option ['r'] ["random-decision-rate"]
+    (ReqArg (\v c -> c { _confRandomDecisionRate = read v }) (show (_confRandomDecisionRate miosDefaultOption)))
+    "[configuration] rate for selecting a decsion variable randomly"
   , Option [] ["stdin"]
     (NoArg (\c -> c { _targetFile = Nothing }))
     "[option] read a CNF from STDIN instead of a file"
   , Option ['v'] ["verbose"]
     (NoArg (\c -> c { _confVerbose = True }))
-    "[info] display misc information"
+    "[option] display misc information"
   , Option ['X'] ["hide-solution"]
     (NoArg (\c -> c { _confNoAnswer = True }))
-    "[info] hide the solution"
+    "[option] hide the solution"
   , Option ['h'] ["help"]
     (NoArg (\c -> c { _displayHelp = True }))
     "[misc] display this help message"
@@ -102,4 +99,5 @@ toMiosConf opts = MiosConfiguration
                  {
                    variableDecayRate = _confVariableDecayRate opts
                  , clauseDecayRate = _confClauseDecayRate opts
+                 , randomDecisionRate = _confRandomDecisionRate opts
                  }
