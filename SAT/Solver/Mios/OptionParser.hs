@@ -50,13 +50,13 @@ miosOptions =
   [
     Option ['d'] ["variable-decay-rate"]
     (ReqArg (\v c -> c { _confVariableDecayRate = read v }) (show (_confVariableDecayRate miosDefaultOption)))
-    "[configuration] variable activity decay rate"
+    "[configuration] variable activity decay rate (0.0 - 1.0)"
   , Option ['c'] ["clause-decay-rate"]
     (ReqArg (\v c -> c { _confClauseDecayRate = read v }) (show (_confClauseDecayRate miosDefaultOption)))
-    "[configuration] clause activity decay rate"
+    "[configuration] clause activity decay rate (0.0 - 1.0)"
   , Option ['r'] ["random-decision-rate"]
     (ReqArg (\v c -> c { _confRandomDecisionRate = read v }) (show (_confRandomDecisionRate miosDefaultOption)))
-    "[configuration] rate for selecting a decsion variable randomly"
+    "[configuration] rate of selecting a decsion variable randomly (0 - 1000)"
   , Option [] ["stdin"]
     (NoArg (\c -> c { _targetFile = Nothing }))
     "[option] read a CNF from STDIN instead of a file"

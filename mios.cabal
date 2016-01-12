@@ -2,20 +2,20 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:           mios
-version:        1.0
-synopsis:       MINISAT-based Implementation and Optimization Study
+version:        1.0.0
+synopsis:       Minisat-based Implementation and Optimization Study on SAT solver
 description:
 
-  A fast SAT solver in Haskell, based on Minisat in C++. This is a part of my Study on SAT Algorithms in Haskell (SSAH)
-  .
+  A modern and fast SAT solver in Haskell, based on Minisat. It uses CDCL, watch literals, VSIDS, restart, and so on.
+  This is a part of 'Study on SAT Solver Algorithms in Haskell'.
   .
 
 license:        GPL-3
 license-file:   LICENSE
 author:         Shuji Narazaki <narazaki@nagasaki-u.ac.jp>
-maintainer:     Shuji Narazaki  <narazaki@nagasaki-u.ac.jp>
+maintainer:     Shuji Narazaki <narazaki@nagasaki-u.ac.jp>
 -- copyright:
-category:       Artificial Intelligence, Contraint Solving
+category:       Artificial Intelligence, Contraint Solver
 build-type:     Simple
 cabal-version:  >=1.16
 

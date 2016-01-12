@@ -1,7 +1,9 @@
 -- | Minisat Implementation Optimization Study
 module SAT.Solver.Mios
        (
-         idString
+         versionId
+       , CNFDescription (..)
+       , cnfFromFile
        , solveSAT
        , solveSATWithOption
        , runSolver
@@ -12,7 +14,6 @@ module SAT.Solver.Mios
        , simplifyDB
        , solve
        , model
-       , cnfFromFile
        )
        where
 
@@ -21,13 +22,13 @@ import Data.IORef
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Solver
 import SAT.Solver.Mios.Util.DIMACSReader
-import SAT.Solver.Mios.Internal (idString, FixedVecInt, ListOf, newList, newSizedVecIntFromUVector)
+import SAT.Solver.Mios.Internal (versionId, FixedVecInt, ListOf, newList, newSizedVecIntFromUVector)
 import SAT.Solver.Mios.OptionParser
 
 runSolverWithOption :: MiosConfigurationOption -> Maybe String -> IO ()
 runSolverWithOption _ Nothing = return ()
 runSolverWithOption opts targetfile = do
-  when (_confVerbose opts) $ putStrLn idString
+  when (_confVerbose opts) $ putStrLn versionId
   sat <- cnfFromFile targetfile
   case sat of
    Nothing -> error $ "couldn't load " ++ show targetfile
@@ -63,8 +64,11 @@ solveSATWithOption opts (desc, vecs) = do
   s <- flip setInternalState (numberOfVariables desc) =<< newSolver (toMiosConf opts)
   -- mapM_ (const (newVar s)) [0 .. numberOfVariables desc - 1]
   mapM_ ((s `addClause`) <=< newSizedVecIntFromUVector) vecs
-  simplifyDB s
-  result <- solve s =<< newList
-  if result
-    then zipWith (\n b -> if b then n else negate n) [1 .. ] <$> asList (model s)
+  noConf <- simplifyDB s
+  if noConf
+    then do
+        result <- solve s =<< newList
+        if result
+            then zipWith (\n b -> if b then n else negate n) [1 .. ] <$> asList (model s)
+            else return []
     else return []

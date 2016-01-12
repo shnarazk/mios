@@ -54,10 +54,10 @@ instance VectorLike (VecOf a) a where
   newVec n = VecOf <$> newIORef (replicate n undefined)
   newVecWith n x = VecOf <$> newIORef (replicate n x)
   -- * Vector operations
-  {--- # SPECIALIZE INLINE (.!) :: VecOf a -> Int -> IO a #-}
-  (.!) VecOf{..} n = (!! n) <$> readIORef ptr
-  {--- # SPECIALIZE INLINE setAt :: VecOf a -> Int -> a -> IO () #-}
-  setAt VecOf{..} n x = do
+  {--- # SPECIALIZE INLINE getAt :: Int -> VecOf a -> IO a #-}
+  getAt n VecOf{..} = (!! n) <$> readIORef ptr
+  {--- # SPECIALIZE INLINE setAt :: Int -> VecOf a -> a -> IO () #-}
+  setAt n VecOf{..} x = do
     l <- readIORef ptr
     writeIORef ptr $ take n l ++ (x : drop (n + 1) l)
   -- * Conversion

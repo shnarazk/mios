@@ -1,6 +1,6 @@
 module SAT.Solver.Mios.Internal
        (
-         idString
+         versionId
 -- <<<<
        , module SAT.Solver.Mios.Implementation.FixedVecDouble
        , module SAT.Solver.Mios.Implementation.FixedVecInt
@@ -28,9 +28,9 @@ import SAT.Solver.Mios.Implementation.ListOfInt
 import SAT.Solver.Mios.Implementation.QueueOfBoundedInt
 import SAT.Solver.Mios.Implementation.IntSingleton
 
--- | sets to the version name
-idString :: String
-idString = "mios v1.0 #hofo" -- #heapOfFoolishOptimizations > #rigorousEmulatonOfMinisat-1.14
+-- | version name
+versionId :: String
+versionId = "mios version 1.0.0, #hofo" -- #heapOfFoolishOptimizations > #rigorousEmulatonOfMinisat-1.14
 
 -- | solver configuration
 data MiosConfiguration = MiosConfiguration
@@ -43,4 +43,4 @@ data MiosConfiguration = MiosConfiguration
 -- | dafault configuration
 -- Minisat-1.14 uses the identical values: (0.95, 0.999, 0.2 = 20 / 1000)
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 0.99 20
+defaultConfiguration = MiosConfiguration 0.95 0.999 20

@@ -20,10 +20,10 @@
 module SAT.Solver.Mios.Util.DIMACSReader
        (
          -- * Interface
-         MaybeCNF
+         CNFDescription (..)
+       , MaybeCNF
        , cnfFromFile
        , SizedVectorInt
-       , CNFDescription (..)
        )
        where
 
@@ -45,9 +45,9 @@ type SizedVectorInt = U.Vector Int
 -- | holder for DIMACS CNF format
 data CNFDescription = CNFDescription
   {
-    numberOfVariables :: !Int		-- ^ number of variables
-  , numberOfClauses :: !Int      	-- ^ number of clauses
-  , pathname :: Maybe String           	-- ^ given filename
+    numberOfVariables :: !Int           -- ^ number of variables
+  , numberOfClauses :: !Int             -- ^ number of clauses
+  , pathname :: Maybe String            -- ^ given filename
   }
   deriving (Eq, Ord, Show)
 
