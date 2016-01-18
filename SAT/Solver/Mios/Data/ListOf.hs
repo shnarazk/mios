@@ -16,7 +16,7 @@
 --
 -- * __ListOf a__  @:: IORef [a]@ -- data type that contains a mutable list of elements
 --
-module SAT.Solver.Mios.Implementation.ListOf
+module SAT.Solver.Mios.Data.ListOf
        (
          ListOf (..)
        , newList

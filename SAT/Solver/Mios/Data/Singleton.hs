@@ -3,13 +3,20 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
-module SAT.Solver.Mios.Implementation.IntSingleton
+module SAT.Solver.Mios.Data.Singleton
        (
+         -- * Int
          IntSingleton
        , newInt
        , getInt
        , setInt
        , modifyInt
+         -- * Double
+       , DoubleSingleton
+       , newDouble
+       , getDouble
+       , setDouble
+       , modifyDouble
        )
        where
 
@@ -21,8 +28,8 @@ import Data.IORef
 
 type IntSingleton = IORef Int
 
-newInt :: IO IntSingleton
-newInt = newIORef 0
+newInt :: Int -> IO IntSingleton
+newInt n = newIORef n
 
 {-# INLINE getInt #-}
 getInt :: IntSingleton -> IO Int
@@ -35,6 +42,23 @@ setInt = writeIORef
 {-# INLINE modifyInt #-}
 modifyInt :: IntSingleton -> (Int -> Int) -> IO ()
 modifyInt = modifyIORef'
+
+type DoubleSingleton = IORef Double
+
+newDouble :: Double -> IO DoubleSingleton
+newDouble d = newIORef d
+
+{-# INLINE getDouble #-}
+getDouble :: DoubleSingleton -> IO Double
+getDouble = readIORef
+
+{-# INLINE setDouble #-}
+setDouble :: DoubleSingleton -> Double -> IO ()
+setDouble = writeIORef
+
+{-# INLINE modifyDouble #-}
+modifyDouble :: DoubleSingleton -> (Double -> Double) -> IO ()
+modifyDouble = modifyIORef'
 
 {-
 ----------------------------------------

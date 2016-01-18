@@ -10,7 +10,7 @@ import Control.Monad
 import Data.IORef
 import Data.List (sortBy)
 import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Implementation.FixedVecInt
+import SAT.Solver.Mios.Data.FixedVecInt
 
 -- | Heap is an alias to 'FixedVecInt'
 -- This implementation is identical wtih that in Minisat 1.14

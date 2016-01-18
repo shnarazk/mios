@@ -16,7 +16,7 @@
 --
 -- * __StackOfLit__@:: UV.IOVector Int@
 --
-module SAT.Solver.Mios.Implementation.StackOfBoundedInt
+module SAT.Solver.Mios.Data.StackOfBoundedInt
        (
          StackOfBoundedInt
        , sizeOfStack

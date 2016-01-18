@@ -16,7 +16,7 @@
 --
 -- * __FixedQueueOf Lit__ @:: UV.IOVector Int@
 --
-module SAT.Solver.Mios.Implementation.QueueOfBoundedInt
+module SAT.Solver.Mios.Data.QueueOfBoundedInt
        (
          QueueOfBoundedInt
        , newQueue

@@ -16,7 +16,7 @@
 --
 -- * __ListOfInt__  @:: Data.Vector.Unboxed.IOVector INT@ -- vector for a bounded number of Ints
 --
-module SAT.Solver.Mios.Implementation.ListOfInt
+module SAT.Solver.Mios.Data.ListOfInt
        (
          ListOfInt (..)
        , newListOfInt

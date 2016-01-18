@@ -2,35 +2,35 @@ module SAT.Solver.Mios.Internal
        (
          versionId
 -- <<<<
-       , module SAT.Solver.Mios.Implementation.FixedVecDouble
-       , module SAT.Solver.Mios.Implementation.FixedVecInt
+       , module SAT.Solver.Mios.Data.FixedVecDouble
+       , module SAT.Solver.Mios.Data.FixedVecInt
 -- ----
---       , module SAT.Solver.Mios.Implementation.FixedUVecOf
+--       , module SAT.Solver.Mios.Data.FixedUVecOf
 -- >>>>
-       , module SAT.Solver.Mios.Implementation.FixedVecOf
-       , module SAT.Solver.Mios.Implementation.ListOf
-       , module SAT.Solver.Mios.Implementation.ListOfInt
-       , module SAT.Solver.Mios.Implementation.QueueOfBoundedInt
-       , module SAT.Solver.Mios.Implementation.IntSingleton
+       , module SAT.Solver.Mios.Data.FixedVecOf
+       , module SAT.Solver.Mios.Data.ListOf
+       , module SAT.Solver.Mios.Data.ListOfInt
+       , module SAT.Solver.Mios.Data.QueueOfBoundedInt
+       , module SAT.Solver.Mios.Data.Singleton
        , MiosConfiguration (..)
        , defaultConfiguration
        )
        where
 -- <<<<
-import SAT.Solver.Mios.Implementation.FixedVecDouble
-import SAT.Solver.Mios.Implementation.FixedVecInt
+import SAT.Solver.Mios.Data.FixedVecDouble
+import SAT.Solver.Mios.Data.FixedVecInt
 -- ----
--- import SAT.Solver.Mios.Implementation.FixedUVecOf
+-- import SAT.Solver.Mios.Data.FixedUVecOf
 -- >>>>
-import SAT.Solver.Mios.Implementation.FixedVecOf
-import SAT.Solver.Mios.Implementation.ListOf
-import SAT.Solver.Mios.Implementation.ListOfInt
-import SAT.Solver.Mios.Implementation.QueueOfBoundedInt
-import SAT.Solver.Mios.Implementation.IntSingleton
+import SAT.Solver.Mios.Data.FixedVecOf
+import SAT.Solver.Mios.Data.ListOf
+import SAT.Solver.Mios.Data.ListOfInt
+import SAT.Solver.Mios.Data.QueueOfBoundedInt
+import SAT.Solver.Mios.Data.Singleton
 
 -- | version name
 versionId :: String
-versionId = "mios version 1.0.0, #hofo" -- #heapOfFoolishOptimizations > #rigorousEmulatonOfMinisat-1.14
+versionId = "mios 1.0.1; #vc2m114" -- #VeryCloseToMinisat-1.14
 
 -- | solver configuration
 data MiosConfiguration = MiosConfiguration

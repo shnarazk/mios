@@ -1,43 +1,78 @@
--- | Minisat Implementation Optimization Study
+{-# LANGUAGE ViewPatterns #-}
+-- | Minisat-based Implementation and Optimization Study
+
 module SAT.Solver.Mios
        (
+         -- * SAT solver interface
          versionId
        , CNFDescription (..)
-       , cnfFromFile
-       , solveSAT
-       , solveSATWithOption
-       , runSolver
-       , runSolverWithOption
        , module SAT.Solver.Mios.OptionParser
+       , solveSAT
+       , solveSATWithConfiguration
+--       , cnfFromFile
        , newVar
        , addClause
        , simplifyDB
        , solve
        , model
+         -- * Assignment Validator
+       , validateAssignment
+       , validate
+         -- * For standalone programs
+       , runSolverOn
+       , runSolver
+       , runValidatorOn
+       , runValidator
        )
        where
 
-import Control.Monad ((<=<), mapM_, unless, when)
-import Data.IORef
+import Control.Monad ((<=<), unless, when)
+import qualified Data.ByteString.Char8 as B
+import qualified Data.Vector.Unboxed as U
+import qualified Data.Vector.Unboxed.Mutable as UM
+import System.Exit
+
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Solver
-import SAT.Solver.Mios.Util.DIMACSReader
-import SAT.Solver.Mios.Internal (versionId, FixedVecInt, ListOf, newList, newSizedVecIntFromUVector)
+import SAT.Solver.Mios.Internal (FixedVecInt (..), setNthInt, sizeOfVecInt, versionId, FixedVecInt, ListOf, newList, newListFromList, newSizedVecIntFromList)
 import SAT.Solver.Mios.OptionParser
+import SAT.Solver.Mios.Validator
 
-runSolverWithOption :: MiosConfigurationOption -> Maybe String -> IO ()
-runSolverWithOption _ Nothing = return ()
-runSolverWithOption opts targetfile = do
-  when (_confVerbose opts) $ putStrLn versionId
-  sat <- cnfFromFile targetfile
-  case sat of
-   Nothing -> error $ "couldn't load " ++ show targetfile
-   Just (desc, vecs) -> do
+-- | misc information on CNF
+data CNFDescription = CNFDescription
+  {
+    numberOfVariables :: !Int           -- ^ number of variables
+  , numberOfClauses :: !Int             -- ^ number of clauses
+  , pathname :: Maybe FilePath          -- ^ given filename
+  }
+  deriving (Eq, Ord, Show)
+
+-- | SizedVectorInt is an Int vector with the number of 'active' elements
+-- namely,
+-- * v[0]            == the number of using elements
+-- * v[1] .. v[v[0]] == using elements
+-- v[v[0] + 1] ..    == allocated but not-in-use elements
+type SizedVectorInt = U.Vector Int
+
+-- | runs a solver on the given CNF file 
+-- This is the simplest entry to standalone programs; not for Haskell programs
+runSolverOn :: FilePath -> IO ()
+runSolverOn path = runSolver (miosDefaultOption { _targetFile = Just path })
+
+-- | runs a solver on the given 'arg :: MiosConfiguration'
+-- | This is another entry point for standalone programs.
+runSolver :: MiosConfigurationOption -> IO ()
+runSolver opts@(_targetFile -> target@(Just cnfFile)) = do
+  str <- B.readFile cnfFile
+  let ((n, m), clauses) = buildDescription str
+  let desc = CNFDescription n m target
+  case (n, m) of
+   (0, 0) -> error $ "couldn't load " ++ show cnfFile
+   _ -> do
      when (_confVerbose opts) $
        putStrLn $ "loaded : #v = " ++ show (numberOfVariables desc) ++ " #c = " ++ show (numberOfClauses desc)
      s <- flip setInternalState (numberOfVariables desc) =<< newSolver (toMiosConf opts)
-     -- mapM_ (const (newVar s)) [0 .. numberOfVariables desc - 1]
-     mapM_ ((s `addClause`) <=< newSizedVecIntFromUVector) vecs
+     injectClauses s n m clauses
      when (_confVerbose opts) $ do
        nc <- nConstraints s
        nl <- nLearnts s
@@ -50,20 +85,57 @@ runSolverWithOption opts targetfile = do
          then print . zipWith (\n b -> if b then n else negate n) [1 .. ] =<< asList (model s)
          else putStrLn "[]"
 
-runSolver :: Maybe String -> IO ()
-runSolver = runSolverWithOption miosDefaultOption
+runSolver _ = return ()
 
--- | the easiest interface
--- returns the result @::[[Int]]@ for a given @(CNFDescription, [SizedVectorInt])@
+{-# INLINE injectClauses #-}
+injectClauses :: Solver -> Int -> Int -> B.ByteString -> IO ()
+injectClauses solver n m str = do
+  let
+    initialSize = 3
+    -- | read an Int and store it to /j/-th literal of /i/-th clause
+    loop :: Int -> Int -> B.ByteString -> FixedVecInt -> IO ()
+    loop i j str vec = do
+      case B.readInt $ B.dropWhile (`elem` " \t\n") str of
+        Just (0, str') -> do
+          setAt 0 vec (j - 1)
+          solver `addClause` vec
+          let i' = i + 1
+          if m == i' then return () else loop i' 1 str' =<< newVec initialSize
+        Just (l, str') -> do
+          len <- sizeOfVecInt vec
+          if len <= j
+            then do
+                vec <- FixedVecInt <$> UM.unsafeGrow (litVec vec) len
+                setNthInt j vec l >> loop i (j + 1) str' vec
+            else setNthInt j vec l >> loop i (j + 1) str' vec
+        Nothing -> return ()
+  loop 0 1 str =<< newVec n
+
+buildDescription :: B.ByteString -> ((Int, Int), B.ByteString)
+buildDescription bs = if B.head bs == 'p' then (parseP l, B.tail bs') else buildDescription (B.tail bs')
+  where
+    (l, bs') = B.span ('\n' /=) bs
+    -- format: p cnf n m, length "p cnf" == 5
+    parseP l = case B.readInt $ B.dropWhile (`elem` " \t") (B.drop 5 l) of
+      Just (x, snd) -> case B.readInt (B.dropWhile (`elem` " \t") snd) of
+        Just (y, rest) -> (x, y)
+        _ -> (0, 0)
+      _ -> (0, 0)
+
+-- | the easiest interface for Haskell programs
+-- This returns the result @::[[Int]]@ for a given @(CNFDescription, [[Int]])@
 -- The first argument @target@ can be build by @Just target <- cnfFromFile targetfile@.
-solveSAT :: (CNFDescription, [SizedVectorInt]) -> IO [Int]
-solveSAT = solveSATWithOption miosDefaultOption
+-- The second part of the first argument is a list of vector, which 0th element is the number of its real elements
+solveSAT :: Traversable m => (CNFDescription, m [Int]) -> IO [Int]
+solveSAT = solveSATWithConfiguration defaultConfiguration
 
-solveSATWithOption :: MiosConfigurationOption -> (CNFDescription, [SizedVectorInt]) -> IO [Int]
-solveSATWithOption opts (desc, vecs) = do
-  s <- flip setInternalState (numberOfVariables desc) =<< newSolver (toMiosConf opts)
+-- | solves the problem (2rd arg) under the configuration (1st arg)
+-- and returns an assignment as list of literals :: Int
+solveSATWithConfiguration :: Traversable m => MiosConfiguration -> (CNFDescription, m [Int]) -> IO [Int]
+solveSATWithConfiguration conf (desc, clauses) = do
+  s <- flip setInternalState (numberOfVariables desc) =<< newSolver conf
   -- mapM_ (const (newVar s)) [0 .. numberOfVariables desc - 1]
-  mapM_ ((s `addClause`) <=< newSizedVecIntFromUVector) vecs
+  mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . (\c -> length c : c))) clauses
   noConf <- simplifyDB s
   if noConf
     then do
@@ -72,3 +144,43 @@ solveSATWithOption opts (desc, vecs) = do
             then zipWith (\n b -> if b then n else negate n) [1 .. ] <$> asList (model s)
             else return []
     else return []
+
+-- | validates a given assignment from STDIN for the CNF file (2nd arg)
+-- this is the entry point for standalone programs
+runValidatorOn :: FilePath -> IO ()
+runValidatorOn path = runValidator (miosDefaultOption { _targetFile = Just path })
+
+-- | validates a given assignment for the problem (2nd arg)
+-- this is another entry point for standalone programs; see app/mios.hs
+runValidator :: MiosConfigurationOption -> IO ()
+runValidator opts@(_targetFile -> target@(Just cnfFile)) = do
+  str <- B.readFile cnfFile
+  let ((n, m), clauses) = buildDescription str
+  let desc = CNFDescription n m target
+  case (n, m) of
+   (0, 0) -> error $ "couldn't load " ++ show cnfFile
+   _ -> do
+     when (_confVerbose opts) $
+       putStrLn $ "loaded : #v = " ++ show (numberOfVariables desc) ++ " #c = " ++ show (numberOfClauses desc)
+     s <- flip setInternalState (numberOfVariables desc) =<< newSolver (toMiosConf opts)
+     injectClauses s n m clauses
+     when (_confVerbose opts) $ do
+       nc <- nConstraints s
+       nl <- nLearnts s
+       putStrLn $ "(nv, nc, nl) = " ++ show (nVars s, nc, nl)
+     asg <- read <$> getContents
+     result <- s `validate` (asg :: [Int])
+     if result
+       then putStrLn "It's a valid assignment." >> exitSuccess
+       else putStrLn "It's an invalid assignment." >> exitFailure
+
+runValidator _  = return ()
+
+-- | returns True if a given assignment (2nd arg) satisfies the problem (1st arg)
+-- if you want to check the @answer@ which a @slover@ returned, run @solver `validate` answer@,
+-- where 'validate' @ :: Traversable t => Solver -> t Lit -> IO Bool@
+validateAssignment :: (Traversable m, Traversable n) => (CNFDescription, m [Int]) -> n Int -> IO Bool
+validateAssignment (desc, clauses) asg = do
+  s <- flip setInternalState (numberOfVariables desc) =<< newSolver defaultConfiguration
+  mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . (\c -> length c : c))) clauses
+  s `validate` asg

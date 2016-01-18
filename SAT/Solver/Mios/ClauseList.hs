@@ -18,8 +18,10 @@ module SAT.Solver.Mios.ClauseList
          ClauseLink
        , newClauseLink
        , numberOfClauses
+       , clearLink
        , nextClause
        , pushClause
+       , pushClause'
        , unlinkClause
        , removeClause
        , asListOfClauses
@@ -27,21 +29,29 @@ module SAT.Solver.Mios.ClauseList
        where
 
 import Control.Monad (when)
-import Data.IORef
 import Data.List (sort)
 import SAT.Solver.Mios.Types (ContainerLike(..), Lit)
 import SAT.Solver.Mios.Clause (Clause(..), ClausePointer, derefClausePointer, newClausePointer, setClausePointer, selectWatcher)
-import SAT.Solver.Mios.Implementation.IntSingleton
+import SAT.Solver.Mios.Data.Singleton
 
 -- | __Version 0.5__
 -- the definition of 'watcher'
+-- * number of elements
+-- * pointer to the head
+-- * pointer to the tail
 type ClauseLink = (IntSingleton, ClausePointer, ClausePointer)
 
 newClauseLink :: IO ClauseLink
 newClauseLink = do
-  v <- newInt
+  v <- newInt 0
   setInt v 0
   (v,,) <$> newClausePointer NullClause <*> newClausePointer NullClause
+
+clearLink :: ClauseLink -> IO ()
+clearLink (n, b, e) = do
+  setInt n 0
+  setClausePointer b NullClause
+  setClausePointer e NullClause
 
 {-# INLINE numberOfClauses #-}
 numberOfClauses :: ClauseLink -> IO Int
@@ -63,6 +73,17 @@ pushClause !(k, b, e) !c = do
   setClausePointer n c
   setClausePointer e c
   setClausePointer (nextOf c) NullClause
+  modifyInt k (+ 1)
+
+-- | adds a clause to the head of a watcher list
+{-# INLINE pushClause' #-}
+pushClause' :: ClauseLink -> Clause -> IO ()
+pushClause' !(k, b, e) !c = do
+  !c' <- derefClausePointer b
+  setClausePointer b c
+  setClausePointer (nextOf c) c'
+  !c'' <- derefClausePointer e
+  when (c'' == NullClause) $ setClausePointer e c
   modifyInt k (+ 1)
 
 -- | unlinks a clause from the previous clasue and returns the new next clause.
@@ -96,7 +117,7 @@ removeClause !w@(n, b, e) !c = do
 asListOfClauses :: ClauseLink -> IO [Clause]
 asListOfClauses (_, b, _) = do
   let
-    loop l NullClause = return $ reverse l
+    loop l NullClause = return l
     loop l c = do
       loop (c : l) =<< derefClausePointer (nextOf c)
   loop [] =<< derefClausePointer b

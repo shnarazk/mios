@@ -16,9 +16,9 @@
 --
 -- * __FixedVecInt @:: MV.IOVector Int@
 --
-module SAT.Solver.Mios.Implementation.FixedVecInt
+module SAT.Solver.Mios.Data.FixedVecInt
        (
-         FixedVecInt
+         FixedVecInt (..)
        , sizeOfVecInt
        , getNthInt
        , setNthInt
@@ -95,6 +95,7 @@ newSizedVecIntFromList !l = do
   let n = length l
   v <- UV.new $ n + 1
   UV.unsafeWrite v 0 n
+  -- FIXME: why you don't use 'copy'?
   forM_ (zip [1 .. n] l) $ \(i, j) -> UV.unsafeWrite v i j
   return $ FixedVecInt v
 

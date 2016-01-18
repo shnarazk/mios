@@ -3,6 +3,7 @@
 module SAT.Solver.Mios.OptionParser
        (
          MiosConfiguration (..)
+       , defaultConfiguration
        , MiosConfigurationOption (..)
        , miosDefaultOption
        , miosOptions
@@ -26,6 +27,7 @@ data MiosConfigurationOption = MiosConfigurationOption
                      , _confRandomDecisionRate :: Int
                      , _confVerbose :: Bool
                      , _confNoAnswer :: Bool
+                     , _validateAssignment :: Bool
                      , _displayHelp :: Bool
                      , _displayVersion :: Bool
                      }
@@ -40,6 +42,7 @@ miosDefaultOption = MiosConfigurationOption
   , _confRandomDecisionRate = randomDecisionRate defaultConfiguration
   , _confVerbose = False
   , _confNoAnswer = False
+  , _validateAssignment = False
   , _displayHelp = False
   , _displayVersion = False
   }
@@ -50,22 +53,27 @@ miosOptions =
   [
     Option ['d'] ["variable-decay-rate"]
     (ReqArg (\v c -> c { _confVariableDecayRate = read v }) (show (_confVariableDecayRate miosDefaultOption)))
-    "[configuration] variable activity decay rate (0.0 - 1.0)"
+    "[solver] variable activity decay rate (0.0 - 1.0)"
   , Option ['c'] ["clause-decay-rate"]
     (ReqArg (\v c -> c { _confClauseDecayRate = read v }) (show (_confClauseDecayRate miosDefaultOption)))
-    "[configuration] clause activity decay rate (0.0 - 1.0)"
+    "[solver] clause activity decay rate (0.0 - 1.0)"
   , Option ['r'] ["random-decision-rate"]
     (ReqArg (\v c -> c { _confRandomDecisionRate = read v }) (show (_confRandomDecisionRate miosDefaultOption)))
-    "[configuration] rate of selecting a decsion variable randomly (0 - 1000)"
+    "[solver] random selection rate (0 - 1000)"
+{-
   , Option [] ["stdin"]
     (NoArg (\c -> c { _targetFile = Nothing }))
     "[option] read a CNF from STDIN instead of a file"
+-}
   , Option ['v'] ["verbose"]
     (NoArg (\c -> c { _confVerbose = True }))
     "[option] display misc information"
   , Option ['X'] ["hide-solution"]
     (NoArg (\c -> c { _confNoAnswer = True }))
     "[option] hide the solution"
+  , Option [':'] ["validate-assignment"]
+    (NoArg (\c -> c { _validateAssignment = True }))
+    "[option] read an assignment from STDIN and validate it"
   , Option ['h'] ["help"]
     (NoArg (\c -> c { _displayHelp = True }))
     "[misc] display this help message"

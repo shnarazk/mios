@@ -10,3 +10,4 @@ dist
 *.dyn_hi
 *~
 TAGS
+app/sample

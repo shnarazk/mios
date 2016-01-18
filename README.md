@@ -21,39 +21,53 @@ project: 'Study on SAT solver Algorithms in Haskell.'
 
 ![](https://docs.google.com/spreadsheets/d/1cNltZ4FIu_exSUQMcXe53w4fADr3sOUxpo3L7oM0H_Q/pubchart?oid=297581252&format=image)
 
+#### > Release Note
+
+##### 1.0.1
+
+* CNF reader was changed from a parser based on 'Parsec' to a simple *reader* based on `Data.ByteString.Char8.readInt`
+* uses a true `sortOnActivity` implementation
+* phase saving
+* provides assignment validation mode (see below)
+
+```
+$ mios test/data/uf200-012.cnf | mios -: test/data/uf200-012.cnf      # `-:` is the option for validation.
+It's a valid assignment.
+$ echo "[1,2,-3,4,-5]" | mios -: test/data/uf200-012.cnf
+It's an invalid assignment.
+```
+
 #### > Install
 
 * ghc-7.10.2 or upper
 * [Stack](http://www.haskellstack.org/) or `cabal-install`
 
 ```
-stack init --solver nightly
-stack install --flag mios:llvm
+stack init --resolver lts-4.2
+stack install
 ```
 
 ```
 cabal install
-cabal install -f llvm
-cabal install -f profile
 ```
 
 #### > Usage
 
-##### * As a command
+##### * As a standalone program
 
 ```
 $ mios a.cnf
 dumps an assignment :: [Int]
 
 $ mios --help
-mios version 1.0.0, #hofo
+mios version 1.0.1
 Usage: mios [OPTIONS] target.cnf
-  -d 0.95   --variable-decay-rate=0.95  [configuration] variable activity decay rate (0.0 - 1.0)
-  -c 0.999  --clause-decay-rate=0.999   [configuration] clause activity decay rate (0.0 - 1.0)
-  -r 20     --random-decision-rate=20   [configuration] rate of selecting a decsion variable randomly (0 - 1000)
-            --stdin                     [option] read a CNF from STDIN instead of a file
+  -d 0.95   --variable-decay-rate=0.95  [solver] variable activity decay rate (0.0 - 1.0)
+  -c 0.999  --clause-decay-rate=0.999   [solver] clause activity decay rate (0.0 - 1.0)
+  -r 20     --random-decision-rate=20   [solver] random selection rate (0 - 1000)
   -v        --verbose                   [option] display misc information
   -X        --hide-solution             [option] hide the solution
+  -:        --validate-assignment       [option] read an assignment from STDIN and validate it
   -h        --help                      [misc] display this help message
             --version                   [misc] display program ID
 ```
@@ -62,17 +76,13 @@ Usage: mios [OPTIONS] target.cnf
 
 ```haskell
 module Main where -- this is sample.hs in app/
-
-import qualified Data.Vector.Unboxed as U -- used for representing clauses
 import SAT.Solver.Mios (CNFDescription (..), solveSAT)
 
-clauses = [[1, 2], [1, 3], [-1, -2], [1, -2, 3], [-3]] :: [Int]
+clauses = [[1, 2], [1, 3], [-1, -2], [1, -2, 3], [-3]]
 desc = CNFDescription 3 5 Nothing    -- #vars, #clauses, Just pathname or Nothing
 
 main = do
-  -- the 0th element of a clause vector is the number of literals in it
-  let clausesWithSize = map (\l -> length l : l) clauses
-  asg <- solveSAT (desc, map U.fromList clausesWithSize)
+  asg <- solveSAT (desc, clauses)    -- solveSAT :: Traversable m => (CNFDescription, m [Int]) -> IO [Int]
   putStrLn $ if null asg then "unsatisfiable" else show asg
 ```
 

@@ -16,7 +16,7 @@
 --
 -- * __FixedVecDouble@::UV.IOVector Double@ -- data type that contains a mutable list of elements
 --
-module SAT.Solver.Mios.Implementation.FixedVecDouble
+module SAT.Solver.Mios.Data.FixedVecDouble
        (
          FixedVecDouble
        , newVecDouble

@@ -20,7 +20,7 @@
 --
 -- * __FixedQueueOf Lit__ @:: UV.IOVector Int@
 --
-module SAT.Solver.Mios.Implementation.FixedUVecOf
+module SAT.Solver.Mios.Data.FixedUVecOf
        (
          FixedUVecOf (..)
        , FixedVecInt

@@ -1,10 +1,4 @@
-module Main
-       (
-         main
-       )
-       where
-
-import qualified Data.Vector.Unboxed as U -- used for representing clauses
+module Main where
 import SAT.Solver.Mios (CNFDescription (..), solveSAT)
 
 -- | a sample CNF
@@ -20,15 +14,13 @@ clauses =
 
 -- | a property holder
 desc :: CNFDescription
-desc = CNFDescription		-- :: Int -> Int -> Maybe String -> CNFDescription
+desc = CNFDescription           -- :: Int -> Int -> Maybe String -> CNFDescription
        (maximum . map abs . concat $ clauses) -- number of variables
        (length clauses)                       -- number of clauses
        Nothing                                -- Just pathname or Nothing
 
 main :: IO ()
 main = do
-  -- the 0th element of a clause vector is the number of literals in it
-  let clausesWithSize = map (\l -> length l : l) clauses
-  -- solveSAT :: (CNFDescription, [U.Vector Int]) -> IO [Int]
-  asg <- solveSAT (desc, map U.fromList clausesWithSize)
+  -- solveSAT :: Traversable m => (CNFDescription, m [Int]) -> IO [Int]
+  asg <- solveSAT (desc, clauses)
   putStrLn $ if null asg then "unsatisfiable" else show asg

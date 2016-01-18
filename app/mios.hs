@@ -15,5 +15,6 @@ main = do
     _ | _displayVersion opts        -> putStrLn versionId
     _ | _displayHelp opts           -> putStrLn $ miosUsage $ versionId ++ "\nUsage: mios [OPTIONS] target.cnf"
     _ | _targetFile opts == Just "" -> putStrLn $ miosUsage $ versionId ++ "\nUsage: mios [OPTIONS] target.cnf"
-    _ | otherwise                   -> runSolverWithOption opts $ _targetFile opts
+    _ | _validateAssignment opts    -> runValidator opts
+    _ | otherwise                   -> runSolver opts
 

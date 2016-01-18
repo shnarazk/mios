@@ -39,7 +39,7 @@ import qualified Data.Vector.Mutable as MV
 import SAT.Solver.Mios.Types (ContainerLike(..), VectorLike(..), Lit)
 import SAT.Solver.Mios.Internal (FixedVecInt, FixedVecOf(..), getNthInt, setNthInt)
 -- import qualified Data.Vector.Storable.Mutable as SM
--- import SAT.Solver.Mios.Implementation.IntSingleton
+-- import SAT.Solver.Mios.Data.IntSingleton
 
 {-
 import Foreign.StablePtr
