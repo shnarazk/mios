@@ -29,7 +29,6 @@ module SAT.Solver.Mios.Data.ListOf
        where
 
 import Data.IORef
-import Data.List (sortOn)
 import SAT.Solver.Mios.Types (ContainerLike(..))
 
 -- | __version 0.1__ : pointing a list by IORef
@@ -41,13 +40,13 @@ newtype ListOf a = ListOf
 
 {-# INLINE sizeOfVec #-}
 sizeOfVec :: ListOf a -> IO Int
-sizeOfVec !(ListOf ptr) = length <$> readIORef ptr
+sizeOfVec (ListOf ptr) = length <$> readIORef ptr
 
 -- | provides 'clear' and 'size'
 instance ContainerLike (ListOf a) a where
   {-# SPECIALIZE INLINE asList :: ListOf Int -> IO [Int] #-}
   {-# SPECIALIZE INLINE asList :: ListOf Bool -> IO [Bool] #-}
-  asList !(ListOf ptr) = readIORef ptr
+  asList (ListOf ptr) = readIORef ptr
   dump str (ListOf ptr) = (str ++) . show <$> readIORef ptr
 
 {-# INLINABLE newList #-}
@@ -60,12 +59,12 @@ newListFromList !l = ListOf <$> newIORef l
 
 {-# INLINE pushToList #-}
 pushToList :: ListOf Int -> Int -> IO ()
-pushToList !(ListOf ptr) !x = modifyIORef' ptr (x :)
+pushToList (ListOf ptr) !x = modifyIORef' ptr (x :)
 
 {-# INLINE popFromList #-}
 popFromList :: ListOf Int -> IO ()
-popFromList !(ListOf ptr) = modifyIORef' ptr tail
+popFromList (ListOf ptr) = modifyIORef' ptr tail
 
 {-# INLINE lastOfList #-}
 lastOfList :: ListOf Int -> IO Int
-lastOfList !(ListOf ptr) = head <$> readIORef ptr
+lastOfList (ListOf ptr) = head <$> readIORef ptr

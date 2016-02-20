@@ -8,7 +8,7 @@
   , UndecidableInstances
   , ViewPatterns
   #-}
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Safe #-}
 
 -- | __Version 0.8__
 --
@@ -29,9 +29,7 @@ module SAT.Solver.Mios.ClauseList
        where
 
 import Control.Monad (when)
-import Data.List (sort)
-import SAT.Solver.Mios.Types (ContainerLike(..), Lit)
-import SAT.Solver.Mios.Clause (Clause(..), ClausePointer, derefClausePointer, newClausePointer, setClausePointer, selectWatcher)
+import SAT.Solver.Mios.Clause (Clause(..), ClausePointer, derefClausePointer, newClausePointer, setClausePointer)
 import SAT.Solver.Mios.Data.Singleton
 
 -- | __Version 0.5__
@@ -42,11 +40,9 @@ import SAT.Solver.Mios.Data.Singleton
 type ClauseLink = (IntSingleton, ClausePointer, ClausePointer)
 
 newClauseLink :: IO ClauseLink
-newClauseLink = do
-  v <- newInt 0
-  setInt v 0
-  (v,,) <$> newClausePointer NullClause <*> newClausePointer NullClause
+newClauseLink = (,,) <$> newInt 0 <*> newClausePointer NullClause <*> newClausePointer NullClause
 
+{-# INLINE clearLink #-}
 clearLink :: ClauseLink -> IO ()
 clearLink (n, b, e) = do
   setInt n 0
@@ -104,20 +100,27 @@ unlinkClause !(k, b, e) !c = do
 -- Don't use it in critial path.
 {-# INLINE removeClause #-}
 removeClause :: ClauseLink -> Clause -> IO ()
-removeClause !w@(n, b, e) !c = do
+removeClause !w@(n, b, _) !c = do
   let
     -- invaliant: c should be included in the watcher list
+    loop :: Clause -> IO ()
     loop !pre = do
-      !c' <- if pre == NullClause then derefClausePointer b else nextClause w pre
+      !c' <- nextClause w pre
       if c == c'
-        then unlinkClause w pre >> modifyInt n (subtract 1) >> return ()
-        else if c' == NullClause then return () else loop c'
-  loop NullClause
+        then unlinkClause w pre >> return ()
+        else loop c'
+  first <- derefClausePointer b
+  if first == c
+    then do
+        c' <- nextClause w first
+        setClausePointer b c'
+    else loop first
+  modifyInt n (subtract 1) 
 
 asListOfClauses :: ClauseLink -> IO [Clause]
 asListOfClauses (_, b, _) = do
   let
-    loop l NullClause = return l
-    loop l c = do
-      loop (c : l) =<< derefClausePointer (nextOf c)
-  loop [] =<< derefClausePointer b
+    loop :: Clause -> IO [Clause]
+    loop NullClause = return []
+    loop c = (c :) <$> (loop =<< derefClausePointer (nextOf c))
+  loop =<< derefClausePointer b

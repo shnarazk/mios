@@ -34,6 +34,7 @@ newtype StackOfBoundedInt = StackOfBoundedInt
                     stackL :: UV.IOVector Int
                   }
 
+{-# INLINE sizeOfStack #-}
 sizeOfStack :: StackOfBoundedInt -> IO Int
 sizeOfStack StackOfBoundedInt{..} = UV.unsafeRead stackL 0
 
@@ -55,21 +56,19 @@ traverseStack StackOfBoundedInt{..} = do
 
 instance VectorLike StackOfBoundedInt Int where
   newVec n = StackOfBoundedInt <$> UV.new (2 + n)
-  newVecWith n x = error "StackOfBoundedInt.newVecWith" -- FixedLitVec <$> UV.new n
+  newVecWith _ _ = error "StackOfBoundedInt.newVecWith" -- FixedLitVec <$> UV.new n
 
 -- * Stack operations
+-- __Pre-Condition:__ stack should not be empty
 {-# INLINE popStack #-}
 popStack :: StackOfBoundedInt -> IO ()
 popStack StackOfBoundedInt{..} = do
   n <- UV.unsafeRead stackL 0
-  if n == 0
-    then error "StackOfBoundedInt.pop zero"
-    else do
-        l <- UV.unsafeRead stackL 1
-        l' <- UV.unsafeRead stackL $ index l + 2
-        UV.unsafeWrite stackL 1 l'
-        UV.unsafeWrite stackL 0 $ n - 1
-        return ()
+  l <- UV.unsafeRead stackL 1
+  l' <- UV.unsafeRead stackL $ index l + 2
+  UV.unsafeWrite stackL 1 l'
+  UV.unsafeWrite stackL 0 $ n - 1
+  return ()
 
 {-# INLINE pushStack #-}
 pushStack :: StackOfBoundedInt -> Int -> IO ()
@@ -87,4 +86,4 @@ pushStack !StackOfBoundedInt{..} !x = do
 
 {-# INLINE lastElementInStack #-}
 lastElementInStack :: StackOfBoundedInt -> IO Int
-lastElementInStack !(StackOfBoundedInt s) = UV.unsafeRead s 1
+lastElementInStack (StackOfBoundedInt s) = UV.unsafeRead s 1

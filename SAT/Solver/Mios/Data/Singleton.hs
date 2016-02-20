@@ -1,12 +1,19 @@
+-- | A fast(est) mutable data
 {-# LANGUAGE
     BangPatterns
   #-}
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Safe #-}
 
 module SAT.Solver.Mios.Data.Singleton
        (
+         -- * Bool
+         BoolSingleton
+       , newBool
+       , getBool
+       , setBool
+       , modifyBool
          -- * Int
-         IntSingleton
+       , IntSingleton
        , newInt
        , getInt
        , setInt
@@ -20,16 +27,33 @@ module SAT.Solver.Mios.Data.Singleton
        )
        where
 
-import Data.IORef
-
 ----------------------------------------
 -- Implementation 1. :: IORef
 ----------------------------------------
 
+import Data.IORef
+
+type BoolSingleton = IORef Bool
+
+newBool :: Bool -> IO BoolSingleton
+newBool = newIORef
+
+{-# INLINE getBool #-}
+getBool :: BoolSingleton -> IO Bool
+getBool = readIORef
+
+{-# INLINE setBool #-}
+setBool :: BoolSingleton -> Bool -> IO ()
+setBool = writeIORef
+
+{-# INLINE modifyBool #-}
+modifyBool :: BoolSingleton -> (Bool -> Bool) -> IO ()
+modifyBool = modifyIORef'
+
 type IntSingleton = IORef Int
 
 newInt :: Int -> IO IntSingleton
-newInt n = newIORef n
+newInt = newIORef
 
 {-# INLINE getInt #-}
 getInt :: IntSingleton -> IO Int
@@ -46,7 +70,7 @@ modifyInt = modifyIORef'
 type DoubleSingleton = IORef Double
 
 newDouble :: Double -> IO DoubleSingleton
-newDouble d = newIORef d
+newDouble = newIORef
 
 {-# INLINE getDouble #-}
 getDouble :: DoubleSingleton -> IO Double
@@ -64,6 +88,7 @@ modifyDouble = modifyIORef'
 ----------------------------------------
 -- Implementation 2. :: Data.Mutable.IOURef
 ----------------------------------------
+
 import qualified Data.Mutable as M
 
 newtype IntSingleton = IntSingleton

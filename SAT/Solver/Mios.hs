@@ -92,10 +92,15 @@ injectClauses :: Solver -> Int -> Int -> B.ByteString -> IO ()
 injectClauses solver n m str = do
   let
     initialSize = 3
+    -- | skip comment lines and whitespaces
+    -- CAVEAT: this code interpretes 'c' as a comment designator even if it is placed in the middle of a line
+    skipToInt :: B.ByteString -> B.ByteString
+    skipToInt str = if B.head bol == 'c' then skipToInt $ B.dropWhile ('\n' /=) bol else bol
+      where bol = B.dropWhile (`elem` " \t\n") str
     -- | read an Int and store it to /j/-th literal of /i/-th clause
     loop :: Int -> Int -> B.ByteString -> FixedVecInt -> IO ()
     loop i j str vec = do
-      case B.readInt $ B.dropWhile (`elem` " \t\n") str of
+      case B.readInt (skipToInt str) of
         Just (0, str') -> do
           setAt 0 vec (j - 1)
           solver `addClause` vec

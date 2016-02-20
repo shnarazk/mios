@@ -30,7 +30,6 @@ module SAT.Solver.Mios.Data.FixedVecInt
        where
 
 import Control.Monad (forM, forM_)
-import Data.List hiding (insert)
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as UV
 import SAT.Solver.Mios.Types (ContainerLike(..), VectorLike(..))

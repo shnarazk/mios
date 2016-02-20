@@ -51,13 +51,13 @@ newWatchLink = (,) <$> newClausePointer NullClause <*> newClausePointer NullClau
 {-# INLINE nextWatcher #-}
 nextWatcher :: WatchLink -> Lit -> Clause -> IO Clause
 nextWatcher !(b, _) _ NullClause = derefClausePointer b
-nextWatcher _ l c               = derefClausePointer =<< selectWatcher l c
+nextWatcher _ l c                = derefClausePointer =<< selectWatcher l c
 
 -- | adds a clause to the end of a watcher list
 {-# INLINE pushWatcher #-}
 pushWatcher :: WatchLink -> Lit -> Clause -> IO ()
 pushWatcher !(b, e) !l !c = do
-  !c' <- derefClausePointer e
+  c' <- derefClausePointer e
   n <- if c' == NullClause then return b else selectWatcher l c'
   setClausePointer n c
   setClausePointer e c
@@ -81,24 +81,26 @@ unlinkWatcher !(b, e) !l !c = do
 -- Don't use it in critial path.
 {-# INLINE removeWatcher #-}
 removeWatcher :: WatchLink -> Lit -> Clause -> IO ()
-removeWatcher !w@(b, e) !l !c = do
+removeWatcher !w@(b, _) !l !c = do
   let
     -- invaliant: c should be included in the watcher list
+    loop :: Clause -> IO ()
     loop !pre = do
       !c' <- if pre == NullClause then derefClausePointer b else nextWatcher w l pre
       if c == c'
         then unlinkWatcher w l pre >> return ()
-        else if c' == NullClause then return () else loop c'
+        else loop c'
   loop NullClause
 
 traverseWatcher :: WatchLink -> Lit -> IO [[Lit]]
-traverseWatcher (b, e) lit = do
+traverseWatcher (b, _) lit = do
   let
-    loop l NullClause = return $ reverse l
-    loop l c = do
+    loop :: Clause -> IO [[Lit]]
+    loop NullClause = return []
+    loop c = do
       l' <- asList c
-      loop (l' : l) =<< derefClausePointer =<< selectWatcher lit c
-  loop [] =<< derefClausePointer b
+      (l' :) <$> (loop =<< derefClausePointer =<< selectWatcher lit c)
+  loop =<< derefClausePointer b
 
 {-# INLINE mergeWatcher #-}
 mergeWatcher :: WatchLink -> Lit -> WatchLink -> IO ()

@@ -99,6 +99,7 @@ data Clause = Clause
 --
 -- The equality on 'Clause' is defined by pointer equivalencce.
 instance Eq Clause where
+  {-# SPECIALIZE INLINE (==) :: Clause -> Clause -> Bool #-}
   (==) x y = x `seq` y `seq` tagToEnum# (reallyUnsafePtrEquality# x y)
 
 instance Show Clause where
@@ -132,19 +133,20 @@ shrinkClause !n Clause{..} = setNthInt 0 lits . subtract n =<< getNthInt 0 lits
 
 {-# INLINE newClauseFromVec #-}
 newClauseFromVec :: Bool -> FixedVecInt -> IO Clause
-newClauseFromVec l vec = do
-  act <- newIORef 0
-  n1 <- newClausePointer NullClause
-  n2 <- newClausePointer NullClause
-  n <- newClausePointer NullClause
-  return $! Clause l act n1 n2 n vec
+newClauseFromVec l vec =
+  Clause l
+    <$> newIORef 0
+    <*> newClausePointer NullClause
+    <*> newClausePointer NullClause
+    <*> newClausePointer NullClause
+    <*> return vec
 
 -- | returns /the pointer/ to the next clause watching /the lit/
 {-# INLINE selectWatcher #-}
 selectWatcher :: Lit -> Clause -> IO ClausePointer
-selectWatcher !l !c = do
-  !l0 <- getNthInt 1 $ lits c
-  return $! if l0 == negate l then nextWatch1 c else nextWatch2 c
+selectWatcher !l Clause{..} = do
+  !w <- (l ==) .negate <$> getNthInt 1 lits
+  return $! if w then nextWatch1 else nextWatch2
 
 newtype VecOfClause = VecOfClause
               {

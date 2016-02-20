@@ -121,7 +121,7 @@ newLit = error "newLit undefined"
 -- | converts 'Lit' into 'Var'
 {-# INLINE var #-}
 var :: Lit -> Var
-var (I# n#) = if tagToEnum# (0# <# n#) then (I# n#) else (I# (negateInt# n#))
+var = abs
 
 -- | converts 'Lit' into valid 'Int'
 -- folding @Lit = [ -N, -N + 1  .. -1] ++ [1 .. N]@,
@@ -144,9 +144,10 @@ index2lit (I# n#) =
 type LBool = Int
 
 -- | converts 'Bool' into 'LBool'
+{-# INLINE lbool #-}
 lbool :: Bool -> LBool
-lbool !True = lTrue
-lbool !False = lFalse
+lbool True = lTrue
+lbool False = lFalse
 
 -- | A contant representing False
 lFalse:: LBool

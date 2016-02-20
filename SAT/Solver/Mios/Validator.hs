@@ -1,3 +1,6 @@
+{-# LANGUAGE
+    ViewPatterns
+  #-}
 module SAT.Solver.Mios.Validator
        (
          validate
@@ -13,7 +16,7 @@ import SAT.Solver.Mios.Solver
 
 -- | validate the assignment even if the implementation of 'Solver' is wrong; we re-implement some functions here.
 validate :: Traversable t => Solver -> t Lit -> IO Bool
-validate s asg = do
+validate s (toList -> lst) = do
   assignment <- newVec $ 1 + nVars s
   let
     inject :: Lit -> IO ()
@@ -25,8 +28,8 @@ validate s asg = do
     satAny :: [Lit] -> IO Bool
     satAny [] = return False
     satAny (l:ls) = do
-      s <- satisfied l
-      if s then return True else satAny ls
+      sat' <- satisfied l
+      if sat' then return True else satAny ls
     -- traverse all clauses in 'constrs'
     loop :: Clause -> IO Bool
     loop pre = do
@@ -34,7 +37,8 @@ validate s asg = do
       if c == NullClause
         then return True
         else do
-            s <- satAny =<< asList c
-            if s then loop c else return False
-  mapM_ inject (toList asg)
-  loop NullClause
+            sat' <- satAny =<< asList c
+            if sat' then loop c else return False
+  if null lst
+    then error "validator got an empty assignment."
+    else mapM_ inject lst >> loop NullClause
