@@ -75,7 +75,7 @@ library
   build-depends:       base ==4.8.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.4.*, bytestring ==0.10.*,
                           primitive ==0.6.*, random ==1.*
 
-executable mios
+executable mios-WIP1.0.3
   main-is:            app/mios.hs
   if flag(profile) || flag(devel)
     buildable:	       False
@@ -106,7 +106,7 @@ executable mios
     SAT.Solver.Mios.Validator
     SAT.Solver.Mios.WatchList
 
-executable mios-1.0.2
+executable mios-WIP1.0.3
   main-is:            app/mios.hs
   if flag(devel)
     buildable:	       True
@@ -137,7 +137,7 @@ executable mios-1.0.2
     SAT.Solver.Mios.Validator
     SAT.Solver.Mios.WatchList
 
-executable mios-1.0.2-prof
+executable mios-WIP1.0.3-prof
   main-is:            app/mios.hs
   if flag(profile) && flag(devel)
     buildable:	       True
@@ -173,7 +173,7 @@ Test-Suite doctest
   main-Is:              doctest.hs
   build-depends:        base, doctest >= 0.9.3
 
-Benchmark mios-1.0.2-benchmark
+Benchmark mios-WIP1.0.3-benchmark
   type:    exitcode-stdio-1.0
   main-is: test/mios-criterion.hs
   default-language:	Haskell2010
@@ -182,7 +182,7 @@ Benchmark mios-1.0.2-benchmark
                           primitive ==0.6.*, random ==1.*,
                           criterion == 1.*
 
-executable mios-1.0.2-cr
+executable mios-WIP1.0.3-cr
   main-is: test/mios-criterion.hs
   default-language:	Haskell2010
   if flag(criterion) && flag(devel)

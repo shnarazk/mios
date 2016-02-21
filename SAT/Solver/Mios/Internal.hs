@@ -30,7 +30,7 @@ import SAT.Solver.Mios.Data.Singleton
 
 -- | version name
 versionId :: String
-versionId = "mios 1.0.2 #yas2114" -- YetAnotherStepTo1.14
+versionId = "mios WIP1.0.3"
 
 -- | solver configuration
 data MiosConfiguration = MiosConfiguration
