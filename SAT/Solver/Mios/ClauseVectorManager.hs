@@ -14,7 +14,7 @@
 --
 -- | Universal data structure for Clauses
 -- | Both of watchlists and @learnt@ are implemented by this.
-module SAT.Solver.Mios.ClauseVector
+module SAT.Solver.Mios.ClauseVectorManager
        (
          -- * Vector of Clause
          ClauseVector
