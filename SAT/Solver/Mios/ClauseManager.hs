@@ -23,6 +23,7 @@ module SAT.Solver.Mios.ClauseManager
        , newClauseManager
        , numberOfClauses
        , clearClauseManager
+       , shrinkClauseManager
        , getClauseVector
        , pushClause
        , removeClause
@@ -47,9 +48,11 @@ instance ContainerLike ClauseVector C.Clause where
     sts <- mapM (dump ",") (l :: [C.Clause])
     return $ mes ++ tail (concat sts)
 
+{-# INLINE getNthClause #-}
 getNthClause :: ClauseVector -> Int -> IO C.Clause
 getNthClause = MV.unsafeRead
 
+{-# INLINE setNthClause #-}
 setNthClause :: ClauseVector -> Int -> C.Clause -> IO ()
 setNthClause = MV.unsafeWrite
 
@@ -67,12 +70,17 @@ newClauseManager initialSize = do
   MV.set v C.NullClause
   ClauseManager i <$> IORef.newIORef v
 
+{-# INLINE numberOfClauses #-}
 numberOfClauses :: ClauseManager -> IO Int
 numberOfClauses ClauseManager{..} = getInt _nActives
 
 clearClauseManager :: ClauseManager -> IO ()
 clearClauseManager ClauseManager{..} = setInt _nActives 0
 
+{-# INLINE shrinkClauseManager #-}
+shrinkClauseManager ClauseManager{..} n = setInt _nActives n
+
+{-# INLINE getClauseVector #-}
 getClauseVector :: ClauseManager -> IO ClauseVector
 getClauseVector ClauseManager{..} = IORef.readIORef _clauseVector
 
@@ -95,7 +103,7 @@ removeNthClause :: ClauseManager -> Int -> IO ()
 removeNthClause m@ClauseManager{..} i = do
   n <- subtract 1 <$> getInt _nActives
   v <- IORef.readIORef _clauseVector
-  MV.unsafeSwap v i n
+  MV.unsafeWrite v i =<< MV.unsafeRead v n
   setInt _nActives n
 
 -- | O(n) but lightweight remove-and-compact function
@@ -111,7 +119,8 @@ removeClause ClauseManager{..} c = do
     seekIndex k = do
       c' <- MV.unsafeRead v k
       if c' == c then return k else seekIndex $ k + 1
-  MV.unsafeSwap v n =<< seekIndex 0
+  i <- seekIndex 0
+  MV.unsafeWrite v i =<< MV.unsafeRead v n
   setInt _nActives n
 
 instance ContainerLike ClauseManager C.Clause where
