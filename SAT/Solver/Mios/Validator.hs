@@ -18,6 +18,8 @@ import SAT.Solver.Mios.Solver
 validate :: Traversable t => Solver -> t Lit -> IO Bool
 validate s (toList -> lst) = do
   assignment <- newVec $ 1 + nVars s
+  vec <- getClauseVector (constrs s)
+  nc <- numberOfClauses (constrs s)
   let
     inject :: Lit -> IO ()
     inject l = setNthInt (abs l) assignment (signum l)
@@ -31,14 +33,12 @@ validate s (toList -> lst) = do
       sat' <- satisfied l
       if sat' then return True else satAny ls
     -- traverse all clauses in 'constrs'
-    loop :: Clause -> IO Bool
-    loop pre = do
-      c <- nextClause (constrs s) pre
-      if c == NullClause
-        then return True
-        else do
-            sat' <- satAny =<< asList c
-            if sat' then loop c else return False
+    loopOnVector :: Int -> IO Bool
+    loopOnVector ((< nc) -> False) = return True
+    loopOnVector i = do
+      c <- getNthClause vec i
+      sat' <- satAny =<< asList c
+      if sat' then loopOnVector (i + 1) else return False
   if null lst
     then error "validator got an empty assignment."
-    else mapM_ inject lst >> loop NullClause
+    else mapM_ inject lst >> loopOnVector 0

@@ -67,7 +67,6 @@ data Solver = Solver
               , level        :: FixedVecInt            -- ^ For each variable, the decision level it was assigned; var-indexed
               , rootLevel    :: IntSingleton           -- ^ Separates incremental and search assumptions.
               , seen         :: UV.IOVector Int        -- ^ scratch vector for 'analyze'; var-indexed
-              , currentWatch :: IORef.IORef ClauseVector -- ^ used in 'propagate` repeatedely
               , nVars        :: Int                    -- ^ number of variables
                 -- Configuration
               , config       :: MiosConfiguration      -- ^ search paramerters
@@ -135,13 +134,13 @@ setInternalState s nv = do
 newSolver :: MiosConfiguration -> IO Solver
 newSolver conf = Solver
             <$> newList          -- model
-            <*> newClauseManager -- constrs
-            <*> newClauseManager -- learnts
+            <*> newClauseManager 0 -- constrs
+            <*> newClauseManager 0 -- learnts
             <*> newDouble 1.0    -- claInc
             <*> newVecDouble 0 0 -- activities
             <*> newDouble 1.0    -- varInc
             <*> newVarHeap 0     -- order
-            <*> ewWatcherLists 0 -- watches
+            <*> newWatcherLists 0 -- watches
             <*> newVec 0         -- undos
             <*> newQueue 0       -- porqQ
             <*> newVec 0         -- assigns
@@ -152,7 +151,6 @@ newSolver conf = Solver
             <*> newVec 0         -- level
             <*> newInt 0         -- rootLevel
             <*> UV.new 0         -- seen
-            <*> undefined        -- currentWatch
             <*> return 0         -- nVars
             <*> return conf      -- config
 
@@ -181,37 +179,27 @@ addClause s@Solver{..} vecLits = do
 propagate :: Solver -> IO Clause
 propagate s@Solver{..} = do
   let
-    !(cwb, cwe) = currentWatch
-    loop :: IO Clause
-    loop = do
+    loopOnQueue :: IO Clause
+    loopOnQueue = do
       k <- sizeOfQueue propQ
       if k == 0
         then return NullClause        -- No conflict
         else do
             p <- dequeue propQ
-            let !w@(fw, sw) = getNthWatchLink (index p) watches
-            -- moveTo w tmp
-            setClausePointer cwb =<< derefClausePointer fw
-            setClausePointer cwe =<< derefClausePointer sw
-            setClausePointer fw NullClause
-            setClausePointer sw NullClause
+            let w = getNthWatchers watches (index p)
+            n <- numberOfClauses w
+            vec <- getClauseVector w
             let
-              for :: Clause -> IO Clause
-              for !c = do
-                !next <- nextWatcher w p c
-                x <- propagateLit c s p w
-                if not x
-                  then do
-                      -- Constraint is conflicting; copy remaining watches to 'watches[p]'
-                      -- and return constraint:
-                      setClausePointer cwb next
-                      mergeWatcher w p currentWatch
-                      clearQueue propQ
-                      return c
-                  else if next == NullClause then loop else for next
-            c <- derefClausePointer cwb
-            if c == NullClause then loop else for c
-  loop
+              loopOnWatcher :: Int -> IO Clause
+              loopOnWatcher (-1) = loopOnQueue
+              loopOnWatcher i = do
+                c <- getNthClause vec i
+                x <- propagateLit c s p w -- c will be inserted into apropriate watchers in this function
+                if not x -- Constraint is conflicting;return constraint
+                  then clearQueue propQ >> return c
+                  else loopOnWatcher $ i - 1
+            loopOnWatcher $ n - 1         -- not to do compaction we run on reversely
+  loopOnQueue
 
 -- | __Fig. 9 (p.14)__
 -- Puts a new fact on the propagation queue, as well as immediately updating the variable's value
@@ -231,7 +219,7 @@ enqueue !s@Solver{..} !p !from = do
         setNthInt v assigns $! signum p
         d <- getInt decisionLevel
         setNthInt v level d
-        setNthClause v reason from     -- NOTE: @from@ might be NULL!
+        setVecAt reason v from     -- NOTE: @from@ might be NULL!
         pushToListOfInt trail p
         insertQueue propQ p
         return True
@@ -292,7 +280,7 @@ analyze s@Solver{..} confl learnt = do
         doWhile = do
           p <- lastOfListOfInt trail
           let !i = var p
-          confl <- getNthClause i reason -- should call it before 'undoOne'
+          confl <- getVecAt reason i -- should call it before 'undoOne'
           undoOne s
           sn <- UV.unsafeRead seen i
           if sn == 0 then doWhile else return (p, confl)
@@ -322,7 +310,7 @@ undoOne :: Solver -> IO ()
 undoOne s@Solver{..} = do
   !v <- var <$> lastOfListOfInt trail
   setNthInt v assigns lBottom
-  setNthClause v reason NullClause
+  setVecAt reason v NullClause
   setNthInt v level (-1)
   undo s v
   popFromListOfInt trail
@@ -497,13 +485,16 @@ claDecayActivity Solver{..} = modifyDouble claInc (/ clauseDecayRate config)
 {-# INLINE claRescaleActivity #-}
 claRescaleActivity :: Solver -> IO ()
 claRescaleActivity Solver{..} = do
+  vec <- getClauseVector learnts
+  n <- numberOfClauses learnts
   let
-    loop :: Clause -> IO ()
-    loop NullClause = return ()
-    loop c@Clause{..} = do
-      modifyDouble activity (* 1e-100)
-      loop =<< nextClause learnts c
-  loop =<< nextClause learnts NullClause
+    loopOnVector :: Int -> IO ()
+    loopOnVector ((< n) -> False) = return ()
+    loopOnVector i = do
+      c <- getNthClause vec i
+      modifyDouble (activity c) (* 1e-100)
+      loopOnVector $ i + 1
+  loopOnVector 0
   modifyDouble claInc (* 1e-100)
 
 -- | __Fig. 14 (p.19)__
@@ -568,14 +559,16 @@ reduceDB s@Solver{..} = do
       if k < half
         then loop (k + 1) l
         else forM_ l $ \c -> isRequired c >>= handle c
-  clss <- map snd <$> sortOnActivity learnts
-  clearLink learnts
-  loop 0 clss
+--  clss <- map snd <$> sortOnActivity learnts
+--  clearLink learnts
+--  loop 0 clss
+  return ()
 
+-- FIXME: sort on Vector!
 -- | returns list of (activity, clause) in activity order (small to large)
-{-# INLINABLE sortOnActivity #-}
-sortOnActivity :: ClauseLink -> IO [(Double, Clause)]
-sortOnActivity link = sortOn fst <$> (mapM (\c -> (, c) <$> getDouble (activity c)) =<< asListOfClauses link)
+-- {-# INLINABLE sortOnActivity #-}
+-- sortOnActivity :: ClauseLink -> IO [(Double, Clause)]
+-- sortOnActivity link = sortOn fst <$> (mapM (\c -> (, c) <$> getDouble (activity c)) =<< asListOfClauses link)
 
 -- | __Fig. 15. (p.20)__
 -- Top-level simplify of constraint database. Will remove any satisfied constraint
@@ -599,17 +592,18 @@ simplifyDB s@Solver{..} = do
           for t = do
             let
               ptr = if t == 0 then learnts else constrs
-              loop :: Clause -> IO Bool
-              loop c = do
-                c' <- nextClause ptr c
-                if c' == NullClause
-                  then return True
-                  else do
-                      r <- simplify c' s
-                      if r
-                        then remove c' s >> unlinkClause ptr c >> loop c
-                        else loop c'
-            loop NullClause
+            vec <- getClauseVector ptr
+            n <- numberOfClauses ptr
+            let
+              loopOnVector :: Int -> IO Bool
+              loopOnVector ((< n) -> False) = return True
+              loopOnVector i = do
+                c <- getNthClause vec i
+                r <- simplify c s
+                if r
+                  then remove c s >> {- unlinkClause ptr c >> -} loopOnVector i
+                  else loopOnVector $ i + 1
+            loopOnVector 0
         for 0
 
 -- | __Fig. 16. (p.20)__
@@ -660,10 +654,10 @@ remove !c@Clause{..} Solver{..} = do
   -- checkWatches s
   -- version 0.5 -- removeElem c =<< (watches .!) . index . negate =<< lits .! 0
   l1 <- negate <$> getNthLiteral 0 c
-  removeWatcher (getNthWatchLink (index l1) watches) l1 c
+  removeClause (getNthWatchers watches (index l1)) c
   -- version 0.5 -- removeElem c =<< (watches .!) . index . negate =<< lits .! 1
   l2 <- negate <$> getNthLiteral 1 c
-  removeWatcher (getNthWatchLink (index l2) watches) l2 c
+  removeClause (getNthWatchers watches (index l2)) c
   -- c should be deleted here
   return ()
 
@@ -685,10 +679,10 @@ simplify c@Clause{..} s@Solver{..} = do
         shrinkClause (n - j) c
         l1' <- negate <$> getNthLiteral 0 c
         when (l1 /= l1') $ do
-          pushWatcher (getNthWatchLink (index l1') watches) l1' c
+          pushClause (getNthWatchers watches (index l1')) c
         l2' <- negate <$> getNthLiteral 1 c
         when (l2 /= l2') $ do
-          pushWatcher (getNthWatchLink (index l2') watches) l2' c
+          pushClause (getNthWatchers watches (index l2')) c
       return False
     loop i j = do
       l <- getNthLiteral i c
@@ -697,7 +691,7 @@ simplify c@Clause{..} s@Solver{..} = do
        _ | v == lTrue   -> return True
        _ | v == lBottom -> do
              when (i /= j && j < 2) $ do
-               removeWatcher (getNthWatchLink (index (negate l)) watches) (negate l) c
+               removeClause (getNthWatchers watches (index (negate l))) c
              when (i /= j) $ do
                setNthLiteral j c l      -- false literals are not copied (only occur for i >= 2)
              loop (i+1) (j+1)
@@ -715,23 +709,19 @@ simplify c@Clause{..} s@Solver{..} = do
 -- | returns @True@ if no conflict occured
 -- this is invoked by 'propagate'
 {-# INLINABLE propagateLit #-}
-propagateLit :: Clause -> Solver -> Lit -> WatchLink -> IO Bool
-propagateLit !c@Clause{..} !s@Solver{..} !p !w = do
+propagateLit :: Clause -> Solver -> Lit -> ClauseManager -> IO Bool
+propagateLit !c@Clause{..} !s@Solver{..} !p !m = do
   -- Make sure the false literal is lits[1] = 2nd literal = 2nd watcher:
   !l' <- negate <$> getNthInt 1 lits
   when (l' == p) $ do
     -- swap lits[0] and lits[1]
     swapIntsBetween lits 1 2
-    -- then swap watcher[0] and watcher[1], of course!
-    !c' <- derefClausePointer nextWatch1
-    setClausePointer nextWatch1 =<< derefClausePointer nextWatch2
-    setClausePointer nextWatch2 c'
   -- If 0th watch is True, then clause is already satisfied.
   !l1 <- getNthInt 1 lits
   !val <- valueLit s l1
   if val == lTrue
     then do
-        pushWatcher w p c -- re-insert clause into watcher list
+        pushClause m c -- re-insert clause into watcher list
         return True
     else do
         -- Look for a new literal to watch:
@@ -740,7 +730,7 @@ propagateLit !c@Clause{..} !s@Solver{..} !p !w = do
           loop :: Int -> IO Bool
           loop ((<= n) -> False) = do
             -- Clause is unit under assignment:
-            pushWatcher w p c
+            pushClause m c
             enqueue s l1 c
           loop i = do
             !(l :: Int) <- getNthInt i lits
@@ -749,7 +739,7 @@ propagateLit !c@Clause{..} !s@Solver{..} !p !w = do
               then do
                   swapIntsBetween lits 2 i -- setNthInt 2 lits l >> setNthInt i lits np
                   let !nl = negate l
-                  pushWatcher (getNthWatchLink (index nl) watches) nl c -- insert clause into watcher list
+                  pushClause (getNthWatchers watches (index nl)) c -- insert clause into watcher list
                   return True
               else loop $ i + 1
         loop 3
@@ -886,16 +876,16 @@ clauseNew s@Solver{..} ps learnt = do
        forM_ [1 .. k] $ varBumpActivity s . var <=< flip getNthInt ps -- variables in conflict clauses are bumped
      -- Add clause to watcher lists:
      l0 <- negate <$> getNthInt 1 ps
-     pushWatcher (getNthWatchLink (index l0) watches) l0 c
+     pushClause (getNthWatchers watches (index l0)) c
      l1 <- negate <$> getNthInt 2 ps
-     pushWatcher (getNthWatchLink (index l1) watches) l1 c
+     pushClause (getNthWatchers watches (index l1)) c
      return (True, c)
 
 -- | __Fig. 7. (p.11)__
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__
 {-# INLINE locked #-}
 locked :: Clause -> Solver -> IO Bool
-locked !c@Clause{..} !Solver{..} =  (c ==) <$> ((flip getNthClause reason) . var =<< getNthInt 1 lits)
+locked !c@Clause{..} !Solver{..} =  (c ==) <$> (getVecAt reason . var =<< getNthInt 1 lits)
 
 -- | For small-sized problems, heap may not be a good choice.
 useHeap :: Int
@@ -1080,7 +1070,7 @@ checkWatches :: Solver -> IO ()
 checkWatches s@Solver{..} = do
   n <- nVars s
   forM_ [0 .. 2 * n -1] $ \i -> do
-    let w = getNthWatchLink i watches
+    let w = getNthWatchers i watches
     let l = index2lit i
     putStrLn . ((show l ++ " : ") ++) . show =<< traverseWatcher w l
 

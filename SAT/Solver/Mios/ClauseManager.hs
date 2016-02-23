@@ -54,9 +54,10 @@ data ClauseManager =
   }
 
 newClauseManager :: Int -> IO ClauseManager
-newClauseManager k = do
-  i <- newInt k
-  v <- MV.new k
+newClauseManager initialSize = do
+  i <- newInt 0
+  v <- MV.new initialSize
+  MV.set v C.NullClause
   ClauseManager i <$> IORef.newIORef v
 
 numberOfClauses :: ClauseManager -> IO Int
@@ -82,7 +83,7 @@ pushClause ClauseManager{..} c = do
   MV.unsafeWrite v' n c
   modifyInt _nActives (1 +)
 
--- | O(n) but lightweight remove and compactor
+-- | O(n) but lightweight remove-and-compact function
 removeClause :: ClauseManager -> C.Clause -> IO ()
 removeClause ClauseManager{..} c = do
   n <- getInt _nActives

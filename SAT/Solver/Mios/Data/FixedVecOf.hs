@@ -23,6 +23,8 @@
 module SAT.Solver.Mios.Data.FixedVecOf
        (
          FixedVecOf(..)
+       , getVecAt
+       , setVecAt
        )
        where
 
@@ -57,8 +59,13 @@ instance VectorLike (FixedVecOf a) a where
   -- * Conversion
   newFromList _ = error "FixedVecOf.newFromList"
 
+{-# INLINE setVecAt #-}
 setVecAt :: FixedVecOf a -> Int -> a -> IO ()
-setVecAt FixedVecOf{..} n x = MV.unsafeWrite fVec n x
+setVecAt FixedVecOf{..} n = MV.unsafeWrite fVec n
+
+{-# INLINE getVecAt #-}
+getVecAt :: FixedVecOf a -> Int -> IO a
+getVecAt FixedVecOf{..} = MV.unsafeRead fVec
 
 -- | sort elements in /big-to-small/ order
 sortByFst :: FixedVecOf (Double, Int) -> IO ()
