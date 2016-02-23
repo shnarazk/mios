@@ -199,7 +199,7 @@ propagate s@Solver{..} = do
                     case () of
                       _ | x == lTrue   {- still in -} -> loopOnWatcher (i + 1) n
                       _ | x == lFalse  {- conflict -} -> clearQueue propQ >> return c
-                      _ | x == lBottom {- it moved -} -> loopOnWatcher i (n - 1)
+                      _ | x == lBottom {- it moved -} -> removeNthClause w i >> loopOnWatcher i (n - 1)
 {-
                 if not x -- Constraint is conflicting;return constraint
                   then clearQueue propQ >> shrinkClauseManager w (max 0 (i - 1)) >> return c
@@ -776,7 +776,7 @@ propagateLit !c@Clause{..} !s@Solver{..} !p !m = do
               then do
                   swapIntsBetween lits 2 i -- setNthInt 2 lits l >> setNthInt i lits np
                   -- putStrLn "## from propagateLit"
-                  removeClause m c
+                  -- @removeClause m c@ will be done by propagate
                   pushClause (getNthWatchers watches (index (negate l))) c -- insert clause into watcher list
                   return lBottom -- this means the clause is moved to other watcher list
               else loopOnLits $ i + 1

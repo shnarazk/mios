@@ -8,8 +8,6 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | __Version 0.8__
---
 -- | Universal data structure for Clauses
 -- | Both of watchlists and @learnt@ are implemented by this.
 module SAT.Solver.Mios.ClauseManager
@@ -78,7 +76,8 @@ clearClauseManager :: ClauseManager -> IO ()
 clearClauseManager ClauseManager{..} = setInt _nActives 0
 
 {-# INLINE shrinkClauseManager #-}
-shrinkClauseManager ClauseManager{..} n = setInt _nActives n
+shrinkClauseManager :: ClauseManager -> Int -> IO ()
+shrinkClauseManager ClauseManager{..} = setInt _nActives
 
 {-# INLINE getClauseVector #-}
 getClauseVector :: ClauseManager -> IO ClauseVector
@@ -99,14 +98,16 @@ pushClause ClauseManager{..} c = do
   modifyInt _nActives (1 +)
 
 -- | O(1) remove-and-compact function
+{-# INLINE removeNthClause #-}
 removeNthClause :: ClauseManager -> Int -> IO ()
-removeNthClause m@ClauseManager{..} i = do
+removeNthClause ClauseManager{..} i = do
   n <- subtract 1 <$> getInt _nActives
   v <- IORef.readIORef _clauseVector
   MV.unsafeWrite v i =<< MV.unsafeRead v n
   setInt _nActives n
 
 -- | O(n) but lightweight remove-and-compact function
+{-# INLINE removeClause #-}
 removeClause :: ClauseManager -> C.Clause -> IO ()
 removeClause ClauseManager{..} c = do
   -- putStrLn =<< dump "@removeClause| remove " c
