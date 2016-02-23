@@ -548,27 +548,63 @@ reduceDB s@Solver{..} = do
                 then putStr "L" >> return True
                 else putStr "_" >> return False
 -}
+  vec <- getClauseVector learnts
   let
-    handle c True = return ()
-    handle c False = putStrLn "## from handle" >> remove c s
     half = div nL 2
-    loop :: Int -> [Clause] -> IO ()
-    loop _ [] = return ()
-    loop k (c:l) = do
-      isRequired' c >>= handle c
-      if k < half
-        then loop (k + 1) l
-        else forM_ l $ \c -> isRequired c >>= handle c
---  clss <- map snd <$> sortOnActivity learnts
---  clearLink learnts
---  loop 0 clss
-  return ()
+    loopOn :: Int -> Int -> IO ()
+    loopOn i j
+      | i >= j = return ()
+      | otherwise = do
+          c <- getNthClause vec i
+          yes <- if i < half then isRequired' c else isRequired c
+          if yes then loopOn (i + 1) j else remove c i s >> loopOn i (j - 1)
+  sortOnActivity learnts
+  loopOn 0 nL
 
--- FIXME: sort on Vector!
--- | returns list of (activity, clause) in activity order (small to large)
--- {-# INLINABLE sortOnActivity #-}
--- sortOnActivity :: ClauseLink -> IO [(Double, Clause)]
--- sortOnActivity link = sortOn fst <$> (mapM (\c -> (, c) <$> getDouble (activity c)) =<< asListOfClauses link)
+-- | (Big to small) Quick sort on a clause vector based on their activities
+sortOnActivity :: ClauseManager -> IO ()
+sortOnActivity cm = do
+  n <- numberOfClauses cm
+  vec <- getClauseVector cm
+  let
+    keyOf :: Clause -> IO Double
+    keyOf NullClause = return $ -10000
+    keyOf Clause{..} = negate <$> getDouble activity
+    loop :: Int -> Int -> IO ()
+    loop left right
+      | not (left < right) = return ()
+      | otherwise = do
+          pivot <- keyOf =<< getNthClause vec (div (left + right) 2)
+          let
+            nextLeft :: Int -> IO Int
+            nextLeft i@((<= right) -> False) = return i
+            nextLeft i = do
+              v <- keyOf =<< getNthClause vec i
+              if v <= pivot then nextLeft $ i + 1 else return i
+            nextRight :: Int -> IO Int
+            nextRight i@((left <=) -> False) = return i
+            nextRight i = do
+              v <- keyOf =<< getNthClause vec i
+              if pivot < v then nextRight $ i - 1 else return i
+            divide l r
+              | not (l < r) = return l
+              | r - l == 1 = do
+                  v1 <- keyOf =<< getNthClause vec l
+                  v2 <- keyOf =<< getNthClause vec r
+                  unless (v1 < v2) $ MV.unsafeSwap vec l r
+                  return r
+              | otherwise = do
+                  l' <- nextLeft l
+                  r' <- nextRight r
+                  case () of
+                    _ | l' < r' -> MV.unsafeSwap vec l' r' >> divide (l' + 1) (r' - 1)
+                    _ | l' <= r -> MV.unsafeSwap vec l' r >> divide l (r - 1)
+                    _ | l <= r' -> MV.unsafeSwap vec l r' >> divide (l + 1) r
+                    _           -> return $ div (l + r) 2
+          m <- divide left right
+          loop left (m - 1)
+          loop m right
+  loop 0 (n - 1)
 
 -- | __Fig. 15. (p.20)__
 -- Top-level simplify of constraint database. Will remove any satisfied constraint
@@ -599,7 +635,7 @@ simplifyDB s@Solver{..} = do
                 | otherwise = do
                     c <- getNthClause vec i
                     r <- simplify c s
-                    if r then remove c s >> loopOnVector i (n - 1) else loopOnVector (i + 1) n
+                    if r then remove c i s >> loopOnVector i (n - 1) else loopOnVector (i + 1) n
             loopOnVector 0 =<< numberOfClauses ptr
         for 0
 
@@ -646,18 +682,13 @@ solve s@Solver{..} assumps = do
 -- the solver state as a parameter. It should dispose the constraint and
 -- remove it from the watcher lists.
 {-# INLINABLE remove #-}
-remove :: Clause -> Solver -> IO ()
-remove !c@Clause{..} Solver{..} = do
-  -- checkWatches s
+remove :: Clause -> Int -> Solver -> IO ()
+remove !c@Clause{..} i Solver{..} = do
   l1 <- negate <$> getNthLiteral 0 c
-  -- putStrLn $ "## from remove l1:" ++ show l1
   removeClause (getNthWatchers watches (index l1)) c
   l2 <- negate <$> getNthLiteral 1 c
-  -- putStrLn $ "## from remove l2:" ++ show l2
   removeClause (getNthWatchers watches (index l2)) c
-  -- c should be deleted here
-  -- putStrLn "## from remove learnts/constrs"
-  removeClause (if learnt then learnts else constrs) c
+  removeNthClause (if learnt then learnts else constrs) i
   return ()
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to

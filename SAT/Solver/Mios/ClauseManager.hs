@@ -26,6 +26,7 @@ module SAT.Solver.Mios.ClauseManager
        , getClauseVector
        , pushClause
        , removeClause
+       , removeNthClause
        )
        where
 
@@ -89,21 +90,28 @@ pushClause ClauseManager{..} c = do
   MV.unsafeWrite v' n c
   modifyInt _nActives (1 +)
 
+-- | O(1) remove-and-compact function
+removeNthClause :: ClauseManager -> Int -> IO ()
+removeNthClause m@ClauseManager{..} i = do
+  n <- subtract 1 <$> getInt _nActives
+  v <- IORef.readIORef _clauseVector
+  MV.unsafeSwap v i n
+  setInt _nActives n
+
 -- | O(n) but lightweight remove-and-compact function
 removeClause :: ClauseManager -> C.Clause -> IO ()
-removeClause m@ClauseManager{..} c = do
+removeClause ClauseManager{..} c = do
   -- putStrLn =<< dump "@removeClause| remove " c
   -- putStrLn =<< dump "@removeClause| from " m
   n <- subtract 1 <$> getInt _nActives
-  unless (0 <= n) $ error $ "removeClause catches " ++ show n
+  -- unless (0 <= n) $ error $ "removeClause catches " ++ show n
   v <- IORef.readIORef _clauseVector
   let
     seekIndex :: Int -> IO Int
     seekIndex k = do
       c' <- MV.unsafeRead v k
       if c' == c then return k else seekIndex $ k + 1
-  j <- seekIndex 0
-  MV.unsafeSwap v j n           -- swap the last active element and it
+  MV.unsafeSwap v n =<< seekIndex 0
   setInt _nActives n
 
 instance ContainerLike ClauseManager C.Clause where
