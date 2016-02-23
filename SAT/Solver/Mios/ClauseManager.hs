@@ -1,12 +1,10 @@
 {-# LANGUAGE
-    BangPatterns
-  , FlexibleInstances
+    FlexibleInstances
   , MagicHash
   , MultiParamTypeClasses
   , RecordWildCards
   , TupleSections
   , UndecidableInstances
-  , ViewPatterns
   #-}
 {-# LANGUAGE Trustworthy #-}
 
@@ -31,13 +29,22 @@ module SAT.Solver.Mios.ClauseManager
        )
        where
 
-import Control.Monad (when)
+import Control.Monad (unless)
 import qualified Data.IORef as IORef
+import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
+import SAT.Solver.Mios.Types (ContainerLike (..))
 import qualified SAT.Solver.Mios.Clause as C
 import SAT.Solver.Mios.Data.Singleton
 
 type ClauseVector = MV.IOVector C.Clause
+
+instance ContainerLike ClauseVector C.Clause where
+  asList cv = V.toList <$> V.freeze cv
+  dump mes cv = do
+    l <- take 10 <$> asList cv
+    sts <- mapM (dump ",") (l :: [C.Clause])
+    return $ mes ++ concat sts
 
 getNthClause :: ClauseVector -> Int -> IO C.Clause
 getNthClause = MV.unsafeRead
@@ -45,12 +52,11 @@ getNthClause = MV.unsafeRead
 setNthClause :: ClauseVector -> Int -> C.Clause -> IO ()
 setNthClause = MV.unsafeWrite
 
-
-data ClauseManager =
-  ClauseManager
+-- | The Clause Container
+data ClauseManager = ClauseManager
   {
-    _nActives     :: IntSingleton
-  , _clauseVector :: IORef.IORef ClauseVector
+    _nActives     :: IntSingleton -- number of active clause
+  , _clauseVector :: IORef.IORef ClauseVector -- clause list
   }
 
 newClauseManager :: Int -> IO ClauseManager
@@ -76,9 +82,9 @@ pushClause ClauseManager{..} c = do
   v <- IORef.readIORef _clauseVector
   v' <- if MV.length v <= n
        then do
-        v' <- MV.grow v 200 
+        v' <- MV.grow v 200
         IORef.writeIORef _clauseVector v'
-        return v' 
+        return v'
        else return v
   MV.unsafeWrite v' n c
   modifyInt _nActives (1 +)
@@ -86,7 +92,8 @@ pushClause ClauseManager{..} c = do
 -- | O(n) but lightweight remove-and-compact function
 removeClause :: ClauseManager -> C.Clause -> IO ()
 removeClause ClauseManager{..} c = do
-  n <- getInt _nActives
+  n <- subtract 1 <$> getInt _nActives
+  unless (0 <= n) $ error "removeClause catches 0"
   v <- IORef.readIORef _clauseVector
   let
     seekIndex :: Int -> IO Int
@@ -94,5 +101,12 @@ removeClause ClauseManager{..} c = do
       c' <- MV.unsafeRead v k
       if c' == c then return k else seekIndex $ k + 1
   j <- seekIndex 0
-  MV.unsafeSwap v j (n - 1)     -- swap the last active element and it
-  modifyInt _nActives (subtract 1)
+  MV.unsafeSwap v j n           -- swap the last active element and it
+  setInt _nActives n
+
+instance ContainerLike ClauseManager C.Clause where
+  dump mes ClauseManager{..} = do
+    n <- IORef.readIORef _nActives
+    l <- take n <$> (asList =<< IORef.readIORef _clauseVector)
+    sts <- mapM (dump ",") (l :: [C.Clause])
+    return $ mes ++ concat sts

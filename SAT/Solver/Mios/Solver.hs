@@ -549,7 +549,7 @@ reduceDB s@Solver{..} = do
                 else putStr "_" >> return False
 -}
   let
-    handle c True = pushClause learnts c
+    handle c True = return ()
     handle c False = remove c s
     half = div nL 2
     loop :: Int -> [Clause] -> IO ()
@@ -601,7 +601,7 @@ simplifyDB s@Solver{..} = do
                 c <- getNthClause vec i
                 r <- simplify c s
                 if r
-                  then remove c s >> {- unlinkClause ptr c >> -} loopOnVector i
+                  then remove c s >> loopOnVector i
                   else loopOnVector $ i + 1
             loopOnVector 0
         for 0
@@ -652,13 +652,12 @@ solve s@Solver{..} assumps = do
 remove :: Clause -> Solver -> IO ()
 remove !c@Clause{..} Solver{..} = do
   -- checkWatches s
-  -- version 0.5 -- removeElem c =<< (watches .!) . index . negate =<< lits .! 0
   l1 <- negate <$> getNthLiteral 0 c
   removeClause (getNthWatchers watches (index l1)) c
-  -- version 0.5 -- removeElem c =<< (watches .!) . index . negate =<< lits .! 1
   l2 <- negate <$> getNthLiteral 1 c
   removeClause (getNthWatchers watches (index l2)) c
   -- c should be deleted here
+  removeClause (if learnt then learnts else constrs) c
   return ()
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
@@ -720,29 +719,29 @@ propagateLit !c@Clause{..} !s@Solver{..} !p !m = do
   !l1 <- getNthInt 1 lits
   !val <- valueLit s l1
   if val == lTrue
-    then do
-        pushClause m c -- re-insert clause into watcher list
-        return True
+    then return True
     else do
         -- Look for a new literal to watch:
         !n <- sizeOfClause c
         let
-          loop :: Int -> IO Bool
-          loop ((<= n) -> False) = do
+          loopOnLits :: Int -> IO Bool
+          loopOnLits ((<= n) -> False) = do
             -- Clause is unit under assignment:
             pushClause m c
             enqueue s l1 c
-          loop i = do
+          loopOnLits i = do
             !(l :: Int) <- getNthInt i lits
             !val <- valueLit s l
-            if val /= lFalse
+            if val /= lFalse    -- l is unassigned or satisfied already
               then do
                   swapIntsBetween lits 2 i -- setNthInt 2 lits l >> setNthInt i lits np
                   let !nl = negate l
+                  putStrLn =<< dump "@propagateLit -> remove" watches
+                  removeClause m c
                   pushClause (getNthWatchers watches (index nl)) c -- insert clause into watcher list
                   return True
-              else loop $ i + 1
-        loop 3
+              else loopOnLits $ i + 1
+        loopOnLits 3
 
 -- | __Undo.__ During backtracking, this method is called if the constaint added itself
 -- to the undo list of /var(p)/ in 'propagateLit'.The current variable assignments are
@@ -1064,15 +1063,6 @@ fromReason vec = do
   l <- zip [1..] <$> asList vec
   let f (i, c) = (i, ) <$> asList c
   mapM f l
-
--- | dump the current status of 'watches'
-checkWatches :: Solver -> IO ()
-checkWatches s@Solver{..} = do
-  n <- nVars s
-  forM_ [0 .. 2 * n -1] $ \i -> do
-    let w = getNthWatchers i watches
-    let l = index2lit i
-    putStrLn . ((show l ++ " : ") ++) . show =<< traverseWatcher w l
 
 watcherList :: Solver -> Lit -> IO [[Lit]]
 watcherList Solver{..} lit = do
