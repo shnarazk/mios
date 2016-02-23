@@ -44,7 +44,7 @@ instance ContainerLike ClauseVector C.Clause where
   dump mes cv = do
     l <- take 10 <$> asList cv
     sts <- mapM (dump ",") (l :: [C.Clause])
-    return $ mes ++ concat sts
+    return $ mes ++ tail (concat sts)
 
 getNthClause :: ClauseVector -> Int -> IO C.Clause
 getNthClause = MV.unsafeRead
@@ -91,9 +91,11 @@ pushClause ClauseManager{..} c = do
 
 -- | O(n) but lightweight remove-and-compact function
 removeClause :: ClauseManager -> C.Clause -> IO ()
-removeClause ClauseManager{..} c = do
+removeClause m@ClauseManager{..} c = do
+  -- putStrLn =<< dump "@removeClause| remove " c
+  -- putStrLn =<< dump "@removeClause| from " m
   n <- subtract 1 <$> getInt _nActives
-  unless (0 <= n) $ error "removeClause catches 0"
+  unless (0 <= n) $ error $ "removeClause catches " ++ show n
   v <- IORef.readIORef _clauseVector
   let
     seekIndex :: Int -> IO Int
@@ -107,6 +109,9 @@ removeClause ClauseManager{..} c = do
 instance ContainerLike ClauseManager C.Clause where
   dump mes ClauseManager{..} = do
     n <- IORef.readIORef _nActives
-    l <- take n <$> (asList =<< IORef.readIORef _clauseVector)
-    sts <- mapM (dump ",") (l :: [C.Clause])
-    return $ mes ++ concat sts
+    if n == 0
+      then return $ mes ++ "empty clausemanager"
+      else do
+          l <- take n <$> (asList =<< IORef.readIORef _clauseVector)
+          sts <- mapM (dump ",") (l :: [C.Clause])
+          return $ mes ++ "[" ++ show n ++ "]" ++ tail (concat sts)

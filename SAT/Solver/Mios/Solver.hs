@@ -550,7 +550,7 @@ reduceDB s@Solver{..} = do
 -}
   let
     handle c True = return ()
-    handle c False = remove c s
+    handle c False = putStrLn "## from handle" >> remove c s
     half = div nL 2
     loop :: Int -> [Clause] -> IO ()
     loop _ [] = return ()
@@ -590,20 +590,17 @@ simplifyDB s@Solver{..} = do
           for :: Int -> IO Bool
           for ((< 2) -> False) = return True
           for t = do
-            let
-              ptr = if t == 0 then learnts else constrs
+            let ptr = if t == 0 then learnts else constrs
             vec <- getClauseVector ptr
-            n <- numberOfClauses ptr
             let
-              loopOnVector :: Int -> IO Bool
-              loopOnVector ((< n) -> False) = return True
-              loopOnVector i = do
-                c <- getNthClause vec i
-                r <- simplify c s
-                if r
-                  then remove c s >> loopOnVector i
-                  else loopOnVector $ i + 1
-            loopOnVector 0
+              loopOnVector :: Int -> Int -> IO Bool
+              loopOnVector i n
+                | i == n = return True
+                | otherwise = do
+                    c <- getNthClause vec i
+                    r <- simplify c s
+                    if r then remove c s >> loopOnVector i (n - 1) else loopOnVector (i + 1) n
+            loopOnVector 0 =<< numberOfClauses ptr
         for 0
 
 -- | __Fig. 16. (p.20)__
@@ -653,10 +650,13 @@ remove :: Clause -> Solver -> IO ()
 remove !c@Clause{..} Solver{..} = do
   -- checkWatches s
   l1 <- negate <$> getNthLiteral 0 c
+  -- putStrLn $ "## from remove l1:" ++ show l1
   removeClause (getNthWatchers watches (index l1)) c
   l2 <- negate <$> getNthLiteral 1 c
+  -- putStrLn $ "## from remove l2:" ++ show l2
   removeClause (getNthWatchers watches (index l2)) c
   -- c should be deleted here
+  -- putStrLn "## from remove learnts/constrs"
   removeClause (if learnt then learnts else constrs) c
   return ()
 
@@ -678,9 +678,11 @@ simplify c@Clause{..} s@Solver{..} = do
         shrinkClause (n - j) c
         l1' <- negate <$> getNthLiteral 0 c
         when (l1 /= l1') $ do
+          removeClause (getNthWatchers watches (index l1)) c
           pushClause (getNthWatchers watches (index l1')) c
         l2' <- negate <$> getNthLiteral 1 c
         when (l2 /= l2') $ do
+          removeClause (getNthWatchers watches (index l2)) c
           pushClause (getNthWatchers watches (index l2')) c
       return False
     loop i j = do
@@ -689,10 +691,7 @@ simplify c@Clause{..} s@Solver{..} = do
       case () of
        _ | v == lTrue   -> return True
        _ | v == lBottom -> do
-             when (i /= j && j < 2) $ do
-               removeClause (getNthWatchers watches (index (negate l))) c
-             when (i /= j) $ do
-               setNthLiteral j c l      -- false literals are not copied (only occur for i >= 2)
+             when (i /= j) $ setNthLiteral j c l      -- false literals are not copied (only occur for i >= 2)
              loop (i+1) (j+1)
        _ -> loop (i+1) j
   loop 0 0
@@ -727,7 +726,7 @@ propagateLit !c@Clause{..} !s@Solver{..} !p !m = do
           loopOnLits :: Int -> IO Bool
           loopOnLits ((<= n) -> False) = do
             -- Clause is unit under assignment:
-            pushClause m c
+            -- pushClause m c
             enqueue s l1 c
           loopOnLits i = do
             !(l :: Int) <- getNthInt i lits
@@ -735,10 +734,9 @@ propagateLit !c@Clause{..} !s@Solver{..} !p !m = do
             if val /= lFalse    -- l is unassigned or satisfied already
               then do
                   swapIntsBetween lits 2 i -- setNthInt 2 lits l >> setNthInt i lits np
-                  let !nl = negate l
-                  putStrLn =<< dump "@propagateLit -> remove" watches
+                  -- putStrLn "## from propagateLit"
                   removeClause m c
-                  pushClause (getNthWatchers watches (index nl)) c -- insert clause into watcher list
+                  pushClause (getNthWatchers watches (index (negate l))) c -- insert clause into watcher list
                   return True
               else loopOnLits $ i + 1
         loopOnLits 3
