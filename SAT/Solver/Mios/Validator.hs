@@ -10,7 +10,7 @@ module SAT.Solver.Mios.Validator
 import Data.Foldable (toList)
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Clause
-import SAT.Solver.Mios.ClauseList
+import SAT.Solver.Mios.ClauseManager
 import SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Solver
 

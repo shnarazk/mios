@@ -30,46 +30,47 @@ module SAT.Solver.Mios.Solver
 import Control.Monad ((<=<), filterM, forM, forM_, unless, when)
 import qualified Data.IORef as IORef
 import Data.List (sortOn)
+import qualified Data.Vector.Mutable as MV
 import qualified Data.Vector.Unboxed.Mutable as UV
 import System.Random (mkStdGen, randomIO, setStdGen)
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Clause
-import SAT.Solver.Mios.ClauseList
-import SAT.Solver.Mios.WatchList
+import SAT.Solver.Mios.ClauseManager
+import SAT.Solver.Mios.WatcherLists
 
 -- | __Fig. 2.(p.9)__ Internal State of the solver
 data Solver = Solver
               {
                 -- for public interface
-                model      :: ListOf Bool       -- ^ If found, this vector has the model
+                model        :: ListOf Bool            -- ^ If found, this vector has the model
                 -- Contraint database
-              , constrs    :: ClauseLink        -- ^ List of problem constraints.
-              , learnts    :: ClauseLink        -- ^ List of learnt clauses.
-              , claInc     :: DoubleSingleton   -- ^ Clause activity increment amount to bump with.
+              , constrs      :: ClauseManager          -- ^ List of problem constraints.
+              , learnts      :: ClauseManager          -- ^ List of learnt clauses.
+              , claInc       :: DoubleSingleton        -- ^ Clause activity increment amount to bump with.
                 -- Variable order
-              , activities :: FixedVecDouble    -- ^ Heuristic measurement of the activity of a variable; var-indexed
-              , varInc     :: DoubleSingleton   -- ^ Variable activity increment amount to bump with.
-              , order      :: VarHeap           -- ^ Keeps track of the dynamic variable order.
+              , activities   :: FixedVecDouble         -- ^ Heuristic measurement of the activity of a variable; var-indexed
+              , varInc       :: DoubleSingleton        -- ^ Variable activity increment amount to bump with.
+              , order        :: VarHeap                -- ^ Keeps track of the dynamic variable order.
                 -- Propagation
-              , watches    :: WatcherList       -- ^ For each literal 'p', a list of constraint wathing 'p'.
-                             -- A constraint will be inspected when 'p' becomes true.
-              , undos      :: FixedVecOf VecOfClause -- ^ For each variable 'x', a list of constraints that need
-                             -- to update when 'x' becomes unbound by backtracking.
-              , propQ      :: QueueOfBoundedInt -- ^ Propagation queue.
+              , watches      :: WatcherLists           -- ^ For each literal 'p', a list of constraint wathing 'p'.
+                                -- A constraint will be inspected when 'p' becomes true.
+              , undos        :: FixedVecOf ClauseManager -- ^ For each variable 'x', a list of constraints that need
+                                -- to update when 'x' becomes unbound by backtracking.
+              , propQ        :: QueueOfBoundedInt      -- ^ Propagation queue.
                 -- Assignments
-              , assigns    :: FixedVecInt       -- ^ The current assignments indexed on variables; var-indexed
-              , trail      :: ListOfInt         -- ^ List of assignments in chronological order; var-indexed
-              , trailLim   :: ListOfInt         -- ^ Separator indices for different decision levels in 'trail'.
+              , assigns      :: FixedVecInt            -- ^ The current assignments indexed on variables; var-indexed
+              , trail        :: ListOfInt              -- ^ List of assignments in chronological order; var-indexed
+              , trailLim     :: ListOfInt              -- ^ Separator indices for different decision levels in 'trail'.
               , decisionLevel :: IntSingleton
-              , reason     :: FixedVecOf Clause -- ^ For each variable, the constraint that implied its value; var-indexed
-              , level      :: FixedVecInt       -- ^ For each variable, the decision level it was assigned; var-indexed
-              , rootLevel  :: IntSingleton      -- ^ Separates incremental and search assumptions.
-              , seen       :: UV.IOVector Int   -- ^ scratch vector for 'analyze'; var-indexed
-              , currentWatch :: WatchLink       -- ^ used in 'propagate` repeatedely
-              , nVars      :: Int               -- ^ number of variables
-                -- * configuration
-              , config    :: MiosConfiguration  -- ^ search paramerters
+              , reason       :: FixedVecOf Clause      -- ^ For each variable, the constraint that implied its value; var-indexed
+              , level        :: FixedVecInt            -- ^ For each variable, the decision level it was assigned; var-indexed
+              , rootLevel    :: IntSingleton           -- ^ Separates incremental and search assumptions.
+              , seen         :: UV.IOVector Int        -- ^ scratch vector for 'analyze'; var-indexed
+              , currentWatch :: IORef.IORef ClauseVector -- ^ used in 'propagate` repeatedely
+              , nVars        :: Int                    -- ^ number of variables
+                -- Configuration
+              , config       :: MiosConfiguration      -- ^ search paramerters
               }
 
 -- | returns the number of current assigments
@@ -102,7 +103,7 @@ setInternalState :: Solver -> Int -> IO Solver
 setInternalState s nv = do
   setStdGen $ mkStdGen 91648253
   ac <- newVecDouble (nv + 1) 0.0
-  w <- newWatcherList $ nv * 2
+  w <- newWatcherLists (nv * 2)
   u <- newVec 0 -- nv
   -- forM_ [0 .. nv - 1] $ \i -> setVecAt u i =<< newVec 0
   a <- newVecWith (nv + 1) lBottom
@@ -134,13 +135,13 @@ setInternalState s nv = do
 newSolver :: MiosConfiguration -> IO Solver
 newSolver conf = Solver
             <$> newList          -- model
-            <*> newClauseLink    -- constrs
-            <*> newClauseLink    -- learnts
+            <*> newClauseManager -- constrs
+            <*> newClauseManager -- learnts
             <*> newDouble 1.0    -- claInc
             <*> newVecDouble 0 0 -- activities
             <*> newDouble 1.0    -- varInc
             <*> newVarHeap 0     -- order
-            <*> newWatcherList 0 -- watches
+            <*> ewWatcherLists 0 -- watches
             <*> newVec 0         -- undos
             <*> newQueue 0       -- porqQ
             <*> newVec 0         -- assigns
@@ -151,7 +152,7 @@ newSolver conf = Solver
             <*> newVec 0         -- level
             <*> newInt 0         -- rootLevel
             <*> UV.new 0         -- seen
-            <*> newWatchLink     -- currentWatch
+            <*> undefined        -- currentWatch
             <*> return 0         -- nVars
             <*> return conf      -- config
 

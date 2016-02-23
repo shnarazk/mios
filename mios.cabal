@@ -53,8 +53,8 @@ library
   exposed-modules:
                                          SAT.Solver.Mios.Types
                                          SAT.Solver.Mios.Clause
-                                         SAT.Solver.Mios.ClauseList
-                                         SAT.Solver.Mios.WatchList
+                                         SAT.Solver.Mios.ClauseManager
+                                         SAT.Solver.Mios.WatcherLists
                                          SAT.Solver.Mios.Data.FixedVecDouble
                                          SAT.Solver.Mios.Data.FixedVecInt
                                          SAT.Solver.Mios.Data.FixedVecOf
@@ -75,7 +75,7 @@ library
   build-depends:       base ==4.8.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.4.*, bytestring ==0.10.*,
                           primitive ==0.6.*, random ==1.*
 
-executable mios-WIP1.0.3
+executable mios
   main-is:            app/mios.hs
   if flag(profile) || flag(devel)
     buildable:	       False
@@ -91,7 +91,7 @@ executable mios-WIP1.0.3
   other-modules:
     SAT.Solver.Mios
     SAT.Solver.Mios.Clause
-    SAT.Solver.Mios.ClauseList
+    SAT.Solver.Mios.ClauseManager
     SAT.Solver.Mios.Data.FixedVecDouble
     SAT.Solver.Mios.Data.FixedVecInt
     SAT.Solver.Mios.Data.FixedVecOf
@@ -104,7 +104,7 @@ executable mios-WIP1.0.3
     SAT.Solver.Mios.Solver
     SAT.Solver.Mios.Types
     SAT.Solver.Mios.Validator
-    SAT.Solver.Mios.WatchList
+    SAT.Solver.Mios.WatcherLists
 
 executable mios-WIP1.0.3
   main-is:            app/mios.hs
@@ -122,7 +122,7 @@ executable mios-WIP1.0.3
   other-modules:
     SAT.Solver.Mios
     SAT.Solver.Mios.Clause
-    SAT.Solver.Mios.ClauseList
+    SAT.Solver.Mios.ClauseManager
     SAT.Solver.Mios.Data.FixedVecDouble
     SAT.Solver.Mios.Data.FixedVecInt
     SAT.Solver.Mios.Data.FixedVecOf
@@ -135,7 +135,7 @@ executable mios-WIP1.0.3
     SAT.Solver.Mios.Solver
     SAT.Solver.Mios.Types
     SAT.Solver.Mios.Validator
-    SAT.Solver.Mios.WatchList
+    SAT.Solver.Mios.WatcherLists
 
 executable mios-WIP1.0.3-prof
   main-is:            app/mios.hs
@@ -150,7 +150,7 @@ executable mios-WIP1.0.3-prof
   other-modules:
     SAT.Solver.Mios
     SAT.Solver.Mios.Clause
-    SAT.Solver.Mios.ClauseList
+    SAT.Solver.Mios.ClauseManager
     SAT.Solver.Mios.Data.FixedVecDouble
     SAT.Solver.Mios.Data.FixedVecInt
     SAT.Solver.Mios.Data.FixedVecOf
@@ -163,7 +163,7 @@ executable mios-WIP1.0.3-prof
     SAT.Solver.Mios.Solver
     SAT.Solver.Mios.Types
     SAT.Solver.Mios.Validator
-    SAT.Solver.Mios.WatchList
+    SAT.Solver.Mios.WatcherLists
 
 Test-Suite doctest
   type:                 exitcode-stdio-1.0
@@ -196,7 +196,7 @@ executable mios-WIP1.0.3-cr
   other-modules:
     SAT.Solver.Mios
     SAT.Solver.Mios.Clause
-    SAT.Solver.Mios.ClauseList
+    SAT.Solver.Mios.ClauseManager
     SAT.Solver.Mios.Data.FixedVecDouble
     SAT.Solver.Mios.Data.FixedVecInt
     SAT.Solver.Mios.Data.FixedVecOf
@@ -209,4 +209,4 @@ executable mios-WIP1.0.3-cr
     SAT.Solver.Mios.Solver
     SAT.Solver.Mios.Types
     SAT.Solver.Mios.Validator
-    SAT.Solver.Mios.WatchList
+    SAT.Solver.Mios.WatcherLists
