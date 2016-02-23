@@ -14,17 +14,17 @@
 --
 -- | Universal data structure for Clauses
 -- | Both of watchlists and @learnt@ are implemented by this.
-module SAT.Solver.Mios.ClauseVectorManager
+module SAT.Solver.Mios.ClauseManager
        (
          -- * Vector of Clause
          ClauseVector
        , getNthClause
        , setNthClause
          -- * higher level interface for ClauseVector
-       , ClauseVectorManager (..)
-       , newClauseVectorManager
+       , ClauseManager (..)
+       , newClauseManager
        , numberOfClauses
-       , clearClauseVectorManager
+       , clearClauseManager
        , getClauseVector
        , pushClause
        , removeClause
@@ -46,31 +46,31 @@ setNthClause :: ClauseVector -> Int -> C.Clause -> IO ()
 setNthClause = MV.unsafeWrite
 
 
-data ClauseVectorManager =
-  ClauseVectorManager
+data ClauseManager =
+  ClauseManager
   {
     _nActives     :: IntSingleton
   , _clauseVector :: IORef.IORef ClauseVector
   }
 
-newClauseVectorManager :: Int -> IO ClauseVectorManager
-newClauseVectorManager k = do
+newClauseManager :: Int -> IO ClauseManager
+newClauseManager k = do
   i <- newInt k
   v <- MV.new k
-  ClauseVectorManager i <$> IORef.newIORef v
+  ClauseManager i <$> IORef.newIORef v
 
-numberOfClauses :: ClauseVectorManager -> IO Int
-numberOfClauses ClauseVectorManager{..} = getInt _nActives
+numberOfClauses :: ClauseManager -> IO Int
+numberOfClauses ClauseManager{..} = getInt _nActives
 
-clearClauseVectorManager :: ClauseVectorManager -> IO ()
-clearClauseVectorManager ClauseVectorManager{..} = setInt _nActives 0
+clearClauseManager :: ClauseManager -> IO ()
+clearClauseManager ClauseManager{..} = setInt _nActives 0
 
-getClauseVector :: ClauseVectorManager -> IO ClauseVector
-getClauseVector ClauseVectorManager{..} = IORef.readIORef _clauseVector
+getClauseVector :: ClauseManager -> IO ClauseVector
+getClauseVector ClauseManager{..} = IORef.readIORef _clauseVector
 
 -- | O(1) inserter
-pushClause :: ClauseVectorManager -> C.Clause -> IO ()
-pushClause ClauseVectorManager{..} c = do
+pushClause :: ClauseManager -> C.Clause -> IO ()
+pushClause ClauseManager{..} c = do
   n <- getInt _nActives
   v <- IORef.readIORef _clauseVector
   v' <- if MV.length v <= n
@@ -83,8 +83,8 @@ pushClause ClauseVectorManager{..} c = do
   modifyInt _nActives (1 +)
 
 -- | O(n) but lightweight remove and compactor
-removeClause :: ClauseVectorManager -> C.Clause -> IO ()
-removeClause ClauseVectorManager{..} c = do
+removeClause :: ClauseManager -> C.Clause -> IO ()
+removeClause ClauseManager{..} c = do
   n <- getInt _nActives
   v <- IORef.readIORef _clauseVector
   let
