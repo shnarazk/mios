@@ -1,5 +1,6 @@
 {-# LANGUAGE
-    FlexibleInstances
+    BangPatterns
+  , FlexibleInstances
   , MagicHash
   , MultiParamTypeClasses
   , RecordWildCards
@@ -85,16 +86,15 @@ getClauseVector ClauseManager{..} = IORef.readIORef _clauseVector
 
 -- | O(1) inserter
 pushClause :: ClauseManager -> C.Clause -> IO ()
-pushClause ClauseManager{..} c = do
-  n <- getInt _nActives
-  v <- IORef.readIORef _clauseVector
-  v' <- if MV.length v <= n
-       then do
-        v' <- MV.grow v 200
+pushClause !ClauseManager{..} !c = do
+  !n <- getInt _nActives
+  !v <- IORef.readIORef _clauseVector
+  if MV.length v - 1 <= n
+    then do
+        v' <- MV.unsafeGrow v (max 8 (MV.length v))
         IORef.writeIORef _clauseVector v'
-        return v'
-       else return v
-  MV.unsafeWrite v' n c
+        MV.unsafeWrite v' n c
+       else MV.unsafeWrite v n c
   modifyInt _nActives (1 +)
 
 -- | O(1) remove-and-compact function
@@ -126,7 +126,7 @@ removeClause ClauseManager{..} c = do
 
 instance ContainerLike ClauseManager C.Clause where
   dump mes ClauseManager{..} = do
-    n <- IORef.readIORef _nActives
+    n <- getInt _nActives
     if n == 0
       then return $ mes ++ "empty clausemanager"
       else do
