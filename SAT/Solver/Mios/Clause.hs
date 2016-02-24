@@ -24,18 +24,17 @@ module SAT.Solver.Mios.Clause
        where
 
 import GHC.Prim (tagToEnum#, reallyUnsafePtrEquality#)
-import Data.IORef
 import Data.List (intercalate)
 import SAT.Solver.Mios.Types (ContainerLike(..), VectorLike(..), Lit)
-import SAT.Solver.Mios.Internal (FixedVecInt, FixedVecOf(..), getNthInt, setNthInt)
+import SAT.Solver.Mios.Internal (FixedVecInt, FixedVecOf(..), getNthInt, setNthInt, DoubleSingleton, getDouble, newDouble)
 
 -- | __Fig. 7.(p.11)__
 -- Clause
 data Clause = Clause
               {
-                learnt     :: Bool           -- ^ whether this is a learnt clause
-              , activity   :: IORef Double   -- ^ activity of this clause
-              , lits       :: FixedVecInt    -- ^ which this clause consists of
+                learnt     :: Bool            -- ^ whether this is a learnt clause
+              , activity   :: DoubleSingleton -- ^ activity of this clause
+              , lits       :: FixedVecInt     -- ^ which this clause consists of
               }
             | NullClause
 
@@ -54,7 +53,7 @@ instance Show Clause where
 instance ContainerLike Clause Lit where
   dump mes NullClause = return $ "NullClause" ++ if mes == "" then "" else "(" ++ mes ++ ")"
   dump mes Clause{..} = do
-    a <- show <$> readIORef activity
+    a <- show <$> getDouble activity
     (len:ls) <- asList lits
     return $ mes ++ "C" ++ show len ++ "{" ++ intercalate "," [show learnt, a, show (take len ls)] ++ "}"
   {-# SPECIALIZE INLINE asList :: Clause -> IO [Int] #-}
@@ -77,7 +76,7 @@ shrinkClause !n Clause{..} = setNthInt 0 lits . subtract n =<< getNthInt 0 lits
 
 {-# INLINE newClauseFromVec #-}
 newClauseFromVec :: Bool -> FixedVecInt -> IO Clause
-newClauseFromVec l vec = Clause l <$> newIORef 0 <*> return vec
+newClauseFromVec l vec = Clause l <$> newDouble 0 <*> return vec
 
 {-# INLINE sizeOfClause #-}
 sizeOfClause :: Clause -> IO Int
