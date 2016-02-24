@@ -25,6 +25,7 @@ module SAT.Solver.Mios.Data.ListOf
        , pushToList
        , popFromList
        , lastOfList
+       , setToList
        )
        where
 
@@ -68,3 +69,7 @@ popFromList (ListOf ptr) = modifyIORef' ptr tail
 {-# INLINE lastOfList #-}
 lastOfList :: ListOf Int -> IO Int
 lastOfList (ListOf ptr) = head <$> readIORef ptr
+
+{-# INLINE setToList #-}
+setToList :: ListOf Int -> [Int] -> IO ()
+setToList (ListOf ptr) = writeIORef ptr

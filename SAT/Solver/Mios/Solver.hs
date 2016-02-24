@@ -27,7 +27,8 @@ module SAT.Solver.Mios.Solver
        )
         where
 
-import Control.Monad ((<=<), filterM, forM, forM_, unless, when)
+import Control.Monad ((<=<), filterM, foldM, forM, forM_, unless, when)
+import Data.Bits
 import qualified Data.IORef as IORef
 import Data.List (sortOn)
 import qualified Data.Vector.Unboxed.Mutable as UV
@@ -61,13 +62,15 @@ data Solver = Solver
               , propQ        :: QueueOfBoundedInt      -- ^ Propagation queue.
                 -- Assignments
               , assigns      :: FixedVecInt            -- ^ The current assignments indexed on variables; var-indexed
-              , trail        :: ListOfInt              -- ^ List of assignments in chronological order; var-indexed
-              , trailLim     :: ListOfInt              -- ^ Separator indices for different decision levels in 'trail'.
+              , trail        :: StackOfInt             -- ^ List of assignments in chronological order; var-indexed
+              , trailLim     :: StackOfInt             -- ^ Separator indices for different decision levels in 'trail'.
               , decisionLevel :: IntSingleton
               , reason       :: ClauseVector           -- ^ For each variable, the constraint that implied its value; var-indexed
               , level        :: FixedVecInt            -- ^ For each variable, the decision level it was assigned; var-indexed
               , rootLevel    :: IntSingleton           -- ^ Separates incremental and search assumptions.
-              , seen         :: UV.IOVector Int        -- ^ scratch vector for 'analyze'; var-indexed
+              , an_seen      :: UV.IOVector Int        -- ^ scratch var for 'analyze'; var-indexed
+              , an_toClear   :: StackOfInt             -- ^ ditto
+              , an_stack     :: StackOfInt             -- ^ ditto
               , nVars        :: Int                    -- ^ number of variables
                 -- Configuration
               , config       :: MiosConfiguration      -- ^ search paramerters
@@ -76,7 +79,7 @@ data Solver = Solver
 -- | returns the number of current assigments
 {-# INLINE nAssigns #-}
 nAssigns :: Solver -> IO Int
-nAssigns = sizeOfListOfInt . trail
+nAssigns = sizeOfStackOfInt . trail
 
 -- | returns the number of constraints (clauses)
 {-# INLINE nConstraints #-}
@@ -109,13 +112,15 @@ setInternalState nv nc s = do
 --  u <- newVec 0 -- nv
   -- forM_ [0 .. nv - 1] $ \i -> setVecAt u i =<< newVec 0
   a <- newVecWith (nv + 1) lBottom
-  t <- newListOfInt (2 * nv)
-  t' <- newListOfInt nv
+  t <- newStackOfInt (2 * nv)
+  t' <- newStackOfInt nv
   r <- newClauseVector (nv + 1)
   l <- newVecWith (nv + 1) (-1)
   o <- newVarHeap nv
   q <- newQueue (2 * nv)
-  n <- UV.new (nv + 1)
+  n1 <- UV.new (nv + 1)
+  n2 <- newStackOfInt nv
+  n3 <- newStackOfInt nv
   let s' = s
            {
              activities = ac
@@ -130,7 +135,9 @@ setInternalState nv nc s = do
            , level = l
            , order = o
            , propQ = q
-           , seen = n
+           , an_seen = n1
+           , an_toClear = n2
+           , an_stack = n3
            , nVars  = nv
            }
   return s'
@@ -149,15 +156,17 @@ newSolver conf = Solver
 --            <*> newVec 0          -- undos
             <*> newQueue 0          -- porqQ
             <*> newVec 0            -- assigns
-            <*> newListOfInt 0      -- trail
-            <*> newListOfInt 0      -- trailLim
+            <*> newStackOfInt 0     -- trail
+            <*> newStackOfInt 0     -- trailLim
             <*> newInt 0            -- decisionLevel
             <*> newClauseVector 0   -- reason
             <*> newVec 0            -- level
             <*> newInt 0            -- rootLevel
-            <*> UV.new 0            -- seen
+            <*> UV.new 0            -- an_seen
+            <*> newStackOfInt 0     -- an_toClear
+            <*> newStackOfInt 0     -- an_stack
             <*> return 0            -- nVars
-            <*> return conf        -- config
+            <*> return conf         -- config
 
 -- | public interface of 'Solver' (p.2)
 --
@@ -232,7 +241,7 @@ enqueue !s@Solver{..} !p !from = do
         d <- getInt decisionLevel
         setNthInt v level d
         setNthClause reason v from     -- NOTE: @from@ might be NULL!
-        pushToListOfInt trail p
+        pushToStackOfInt trail p
         insertQueue propQ p
         return True
 
@@ -255,7 +264,7 @@ enqueue !s@Solver{..} !p !from = do
 {-# INLINEABLE analyze #-}
 analyze :: Solver -> Clause -> ListOf Lit -> IO Int
 analyze s@Solver{..} confl learnt = do
-  UV.set seen 0
+  UV.set an_seen 0
   d <- getInt decisionLevel
   -- learnt `push` 0               -- leave room for the asserting literal
   let
@@ -263,7 +272,7 @@ analyze s@Solver{..} confl learnt = do
     loop !p confl !counter !btLevel = do
       -- invariant here: @confl /= NullClause@
       -- Because any decision var should be a member of reason of an implication vars.
-      -- So it becomes /seen/ in an early stage before the traversing loop
+      -- So it becomes /an_seen/ in an early stage before the traversing loop
       -- clear pReason
       !pReason <- calcReason confl s p -- pReason holds a negated reason now.
       -- TRACE REASON FOR P:
@@ -272,10 +281,10 @@ analyze s@Solver{..} confl learnt = do
         for [] c b = return (c, b)
         for !(q:rest) counter btLevel = do
           let v = var q
-          sv <- UV.unsafeRead seen v
+          sv <- UV.unsafeRead an_seen v
           if sv == 0
             then do
-                UV.unsafeWrite seen v 1
+                UV.unsafeWrite an_seen v 1
                 l <- getNthInt v level
                 case () of
                  _ | l == d -> for rest (counter + 1) btLevel
@@ -290,17 +299,119 @@ analyze s@Solver{..} confl learnt = do
       let
         doWhile :: IO (Lit, Clause)
         doWhile = do
-          p <- lastOfListOfInt trail
+          p <- lastOfStackOfInt trail
           let !i = var p
           confl <- getNthClause reason i -- should call it before 'undoOne'
           undoOne s
-          sn <- UV.unsafeRead seen i
+          sn <- UV.unsafeRead an_seen i
           if sn == 0 then doWhile else return (p, confl)
       !(p, confl) <- doWhile
       if 1 < counter
         then loop p confl (counter - 1) btLevel
         else {- setAt learnt 0 (negate p) -} pushToList learnt (negate p) >> return btLevel
-  loop bottomLit confl 0 0
+  result <- loop bottomLit confl 0 0
+  -- Simplify phase
+  lits <- asList learnt
+  let
+    merger :: Int -> Lit -> IO Int
+    merger i lit = setBit i . mod 60 <$> getNthInt (var lit) level
+  levels <- foldM merger 0 lits
+  clearStackOfInt an_stack           -- analyze_stack.clear();
+  clearStackOfInt an_toClear         -- out_learnt.copyTo(analyze_toclear);
+  forM_ lits $ pushToStackOfInt an_toClear
+  let
+    loop2 [] = return []
+    loop2 (l:l') = do
+      c1 <- (NullClause ==) <$> getNthClause reason (var l)
+      if c1
+        then (l :) <$> loop2 l'
+        else do
+           c2 <- not <$> analyzeRemovable s l levels
+           if c2 then (l :) <$> loop2 l' else loop2 l'
+  lits' <- (head lits :) <$> loop2 (tail lits)
+  -- when (length lits /= length lits') $ print (length lits - length lits')
+  setToList learnt lits'
+  k <- sizeOfStackOfInt an_toClear
+  let StackOfInt vec = an_toClear
+  forM_ [1 .. k] $ \i -> do
+    v <- var <$> UV.unsafeRead vec i
+    UV.unsafeWrite an_seen v 0
+  return result
+
+-- | Check if 'p' can be removed, 'min_level' is used to abort early if visiting literals at a level that
+-- cannot be removed.
+-- Implementation memo:
+--
+-- * @an_toClear@ is initialized by @ps@ in 'analyze' (a copy of 'learnt').
+--   This is used only in this function and `analyze'.
+--
+analyzeRemovable :: Solver -> Lit -> Int -> IO Bool
+analyzeRemovable Solver{..} p minLevel = do
+  -- assert (reason[var(p)]!= NullCaulse);
+  clearStackOfInt an_stack           -- analyze_stack.clear()
+  pushToStackOfInt an_stack p          -- analyze_stack.push(p);
+  top <- sizeOfStackOfInt an_toClear
+  let
+    getRoot :: Lit -> IO Clause
+    getRoot l = do
+      (r :: Clause) <- getNthClause reason (var l) -- GClause r = reason[var(analyze_stack.last())]
+      if r == NullClause
+        then return NullClause
+        else do
+            nl <- sizeOfClause r
+            if nl == 2
+              then do
+                  l1 <- getNthLiteral 0 r
+                  l2 <- getNthLiteral 1 r
+                  tmp <- getRoot $ if l1 /= l then l1 else l2
+                  return $ if tmp == NullClause then r else tmp
+              else return r
+    loopOnStack :: IO Bool
+    loopOnStack = do
+      k <- sizeOfStackOfInt an_stack  -- int top = analyze_toclear.size();
+      if 0 == k
+        then return True
+        else do -- assert(reason[var(analyze_stack.last())] != GClause_NULL);
+            sl <- lastOfStackOfInt an_stack
+            popFromStackOfInt an_stack        -- analyze_stack.pop();
+            c <- getNthClause reason (var sl) -- getRoot sl
+            nl <- sizeOfClause c
+            let
+              for :: Int -> IO Bool -- for (int i = 1; i < c.size(); i++){
+              for ((< nl) -> False) = loopOnStack
+              for i = do
+                p' <- getNthLiteral i c              -- valid range is [0 .. nl - 1]
+                let v' = var p'
+                c1 <- (1 /=) <$> UV.unsafeRead an_seen v'
+                c2 <- (0 <) <$> getNthInt v' level
+                if c1 && c2   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
+                  then do
+                      c3 <- (NullClause /=) <$> getNthClause reason v'
+                      c4 <- testBit minLevel . flip mod 60 <$> getNthInt v' level
+                      if c3 && c4 -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
+                        then do
+                            UV.unsafeWrite an_seen v' 1     -- analyze_seen[var(p)] = 1;
+                            pushToStackOfInt an_stack p'    -- analyze_stack.push(p);
+                            pushToStackOfInt an_toClear p'  -- analyze_toclear.push(p);
+                            for $ i + 1
+                        else do
+                            -- for (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
+                            top' <- sizeOfStackOfInt an_toClear
+                            let
+                              StackOfInt vec = an_toClear
+                              for' :: Int -> IO ()
+                              for' ((<= top') -> False) = return ()
+                              for' j = do
+                                x <- UV.unsafeRead vec j -- CAVEAT: this depends implementation details!
+                                UV.unsafeWrite an_seen (var x) 0
+                                for' $ j + 1
+                            for' (top + 1)
+                            -- analyze_toclear.shrink(analyze_toclear.size() - top); note: shrink n == repeat n pop
+                            shrinkStackOfInt an_toClear $ top' - top
+                            return False
+                  else for (i + 1)
+            for 1
+  loopOnStack
 
 -- | __Fig. 11. (p.15)__
 -- Record a clause and drive backtracking.
@@ -320,12 +431,12 @@ record s@Solver{..} v = do
 {-# INLINE undoOne #-}
 undoOne :: Solver -> IO ()
 undoOne s@Solver{..} = do
-  !v <- var <$> lastOfListOfInt trail
+  !v <- var <$> lastOfStackOfInt trail
   setNthInt v assigns lBottom
   setNthClause reason v NullClause
   setNthInt v level (-1)
   undo s v
-  popFromListOfInt trail
+  popFromStackOfInt trail
 {-
   // 'undos' is not used in the paper
   let
@@ -347,7 +458,7 @@ undoOne s@Solver{..} = do
 {-# INLINE assume #-}
 assume :: Solver -> Lit -> IO Bool
 assume s@Solver{..} p = do
-  pushToListOfInt trailLim =<< sizeOfListOfInt trail
+  pushToStackOfInt trailLim =<< sizeOfStackOfInt trail
   modifyInt decisionLevel (+ 1)
   enqueue s p NullClause
 
@@ -361,10 +472,10 @@ cancel s@Solver{..} = do
   let
     for :: Int -> IO ()
     for c = when (c /= 0) $ undoOne s >> for (c - 1)
-  st <- sizeOfListOfInt trail
-  tl <- lastOfListOfInt trailLim
+  st <- sizeOfStackOfInt trail
+  tl <- lastOfStackOfInt trailLim
   when (0 < st - tl) $ for $ st - tl
-  popFromListOfInt trailLim
+  popFromStackOfInt trailLim
   modifyInt decisionLevel (subtract 1)
 
 -- | __Fig. 12 (p.17)__
@@ -424,7 +535,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
               reduceDB s -- Reduce the set of learnt clauses
               {-
               n2 <- nLearnts s
-              n3 <- sizeOfListOfInt trail
+              n3 <- sizeOfStackOfInt trail
               dl <- getInt decisionLevel
               case () of
                 _ | n2 <= n3 -dl -> putStrLn "purge all"

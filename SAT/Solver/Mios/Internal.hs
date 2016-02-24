@@ -9,9 +9,9 @@ module SAT.Solver.Mios.Internal
 -- >>>>
 --       , module SAT.Solver.Mios.Data.FixedVecOf
        , module SAT.Solver.Mios.Data.ListOf
-       , module SAT.Solver.Mios.Data.ListOfInt
        , module SAT.Solver.Mios.Data.QueueOfBoundedInt
        , module SAT.Solver.Mios.Data.Singleton
+       , module SAT.Solver.Mios.Data.StackOfInt
        , MiosConfiguration (..)
        , defaultConfiguration
        )
@@ -24,13 +24,13 @@ import SAT.Solver.Mios.Data.FixedVecInt
 -- >>>>
 -- import SAT.Solver.Mios.Data.FixedVecOf
 import SAT.Solver.Mios.Data.ListOf
-import SAT.Solver.Mios.Data.ListOfInt
 import SAT.Solver.Mios.Data.QueueOfBoundedInt
 import SAT.Solver.Mios.Data.Singleton
+import SAT.Solver.Mios.Data.StackOfInt
 
 -- | version name
 versionId :: String
-versionId = "mios WIP1.0.3 cv heap nr"
+versionId = "mios WIP#ClauseVector heap no-rand StackOfInt AnalyzeRemovable on 1.0.2"
 
 -- | solver configuration
 data MiosConfiguration = MiosConfiguration
