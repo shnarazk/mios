@@ -71,7 +71,7 @@ runSolver opts@(_targetFile -> target@(Just cnfFile)) = do
    _ -> do
      when (_confVerbose opts) $
        putStrLn $ "loaded : #v = " ++ show (numberOfVariables desc) ++ " #c = " ++ show (numberOfClauses desc)
-     s <- flip setInternalState (numberOfVariables desc) =<< newSolver (toMiosConf opts)
+     s <- setInternalState (numberOfVariables desc) (numberOfClauses desc) =<< newSolver (toMiosConf opts)
      injectClauses s n m clauses
      when (_confVerbose opts) $ do
        nc <- nConstraints s
@@ -138,7 +138,7 @@ solveSAT = solveSATWithConfiguration defaultConfiguration
 -- and returns an assignment as list of literals :: Int
 solveSATWithConfiguration :: Traversable m => MiosConfiguration -> (CNFDescription, m [Int]) -> IO [Int]
 solveSATWithConfiguration conf (desc, clauses) = do
-  s <- flip setInternalState (numberOfVariables desc) =<< newSolver conf
+  s <- setInternalState (numberOfVariables desc) (numberOfClauses desc) =<< newSolver conf
   -- mapM_ (const (newVar s)) [0 .. numberOfVariables desc - 1]
   mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . (\c -> length c : c))) clauses
   noConf <- simplifyDB s
@@ -167,7 +167,7 @@ runValidator opts@(_targetFile -> target@(Just cnfFile)) = do
    _ -> do
      when (_confVerbose opts) $
        putStrLn $ "loaded : #v = " ++ show (numberOfVariables desc) ++ " #c = " ++ show (numberOfClauses desc)
-     s <- flip setInternalState (numberOfVariables desc) =<< newSolver (toMiosConf opts)
+     s <- setInternalState (numberOfVariables desc) (numberOfClauses desc) =<< newSolver (toMiosConf opts)
      injectClauses s n m clauses
      when (_confVerbose opts) $ do
        nc <- nConstraints s
@@ -186,6 +186,6 @@ runValidator _  = return ()
 -- where 'validate' @ :: Traversable t => Solver -> t Lit -> IO Bool@
 validateAssignment :: (Traversable m, Traversable n) => (CNFDescription, m [Int]) -> n Int -> IO Bool
 validateAssignment (desc, clauses) asg = do
-  s <- flip setInternalState (numberOfVariables desc) =<< newSolver defaultConfiguration
+  s <- setInternalState (numberOfVariables desc) (numberOfClauses desc) =<< newSolver defaultConfiguration
   mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . (\c -> length c : c))) clauses
   s `validate` asg

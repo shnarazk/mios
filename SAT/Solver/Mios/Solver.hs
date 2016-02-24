@@ -98,11 +98,13 @@ valueLit :: Solver -> Lit -> IO LBool
 valueLit !Solver{..} !p = if p < 0 then negate <$> getNthInt (var p) assigns else getNthInt (var p) assigns
 
 -- | returns an everything-is-initialized solver from the argument
-setInternalState :: Solver -> Int -> IO Solver
-setInternalState s nv = do
+setInternalState :: Int -> Int -> Solver -> IO Solver
+setInternalState nv nc s = do
   setStdGen $ mkStdGen 91648253
+  m1 <- newClauseManager nc
+  m2 <- newClauseManager nc
   ac <- newVecDouble (nv + 1) 0.0
-  w <- newWatcherLists (nv * 2)
+  w <- newWatcherLists (nv * 2) (div (2 * nc) nv)
   u <- newVec 0 -- nv
   -- forM_ [0 .. nv - 1] $ \i -> setVecAt u i =<< newVec 0
   a <- newVecWith (nv + 1) lBottom
@@ -116,6 +118,8 @@ setInternalState s nv = do
   let s' = s
            {
              activities = ac
+           , constrs = m1
+           , learnts = m2
            , watches = w
            , undos = u
            , assigns = a
@@ -134,13 +138,13 @@ setInternalState s nv = do
 newSolver :: MiosConfiguration -> IO Solver
 newSolver conf = Solver
             <$> newList          -- model
-            <*> newClauseManager 0 -- constrs
-            <*> newClauseManager 0 -- learnts
+            <*> newClauseManager 1 -- constrs
+            <*> newClauseManager 1 -- learnts
             <*> newDouble 1.0    -- claInc
             <*> newVecDouble 0 0 -- activities
             <*> newDouble 1.0    -- varInc
             <*> newVarHeap 0     -- order
-            <*> newWatcherLists 0 -- watches
+            <*> newWatcherLists 1 1 -- watches
             <*> newVec 0         -- undos
             <*> newQueue 0       -- porqQ
             <*> newVec 0         -- assigns
@@ -563,7 +567,7 @@ reduceDB s@Solver{..} = do
       | i >= j = return ()
       | otherwise = do
           c <- getNthClause vec i
-          yes <- if i < half then isRequired' c else isRequired c
+          yes <- if i < half then isRequired c else isRequired' c
           if yes then loopOn (i + 1) j else remove c i s >> loopOn i (j - 1)
   sortOnActivity learnts
   loopOn 0 nL

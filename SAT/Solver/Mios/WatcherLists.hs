@@ -27,8 +27,8 @@ import SAT.Solver.Mios.ClauseManager
 
 type WatcherLists = V.Vector ClauseManager
 
-newWatcherLists :: Int -> IO WatcherLists
-newWatcherLists n = V.fromList <$> (forM [0 .. n - 1] $ \_ -> newClauseManager n)
+newWatcherLists :: Int -> Int -> IO WatcherLists
+newWatcherLists n m = V.fromList <$> (forM [0 .. n - 1] $ \_ -> newClauseManager m)
 
 {-# INLINE getNthWatchers #-}
 getNthWatchers :: WatcherLists -> Int -> ClauseManager

@@ -64,7 +64,7 @@ data ClauseManager = ClauseManager
 newClauseManager :: Int -> IO ClauseManager
 newClauseManager initialSize = do
   i <- newInt 0
-  v <- MV.new initialSize
+  v <- MV.new (max 4 initialSize)
   MV.set v C.NullClause
   ClauseManager i <$> IORef.newIORef v
 
