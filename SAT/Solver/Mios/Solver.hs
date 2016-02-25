@@ -940,10 +940,10 @@ locked !c@Clause{..} !Solver{..} =  (c ==) <$> (getVecAt reason . var =<< getNth
 
 -- | For small-sized problems, heap may not be a good choice.
 useHeap :: Int
-useHeap = 1000000
+useHeap = 100
 -- | For small-sized problems, randomess may lead to worse results.
 useRand :: Int
-useRand = 1000
+useRand = 100
 
 -- | Interfate to select a decision var based on variable activity.
 instance VarOrder Solver where
