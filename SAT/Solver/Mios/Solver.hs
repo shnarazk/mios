@@ -612,7 +612,7 @@ sortOnActivity cm = do
             nextL i@((<= right) -> False) = return i
             nextL i = do v <- keyOf i; if v < pivot then nextL (i + 1) else return i
             nextR :: Int -> IO Int
-            nextR i@((left <=) -> False) = return i
+            -- nextR i@((left <=) -> False) = return i
             nextR i = do v <- keyOf i; if pivot < v then nextR (i - 1) else return i
             divide :: Int -> Int -> IO Int
             divide l r = do
