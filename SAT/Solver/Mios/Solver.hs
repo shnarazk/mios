@@ -32,6 +32,8 @@ import qualified Data.IORef as IORef
 import Data.List (sortOn)
 import qualified Data.Vector.Mutable as MV
 import qualified Data.Vector.Unboxed.Mutable as UV
+-- import qualified Data.Vector.Algorithms.Intro as VA
+-- import System.IO.Unsafe (unsafePerformIO)
 import System.Random (mkStdGen, randomIO, setStdGen)
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Internal
@@ -577,45 +579,52 @@ sortOnActivity :: ClauseManager -> IO ()
 sortOnActivity cm = do
   n <- numberOfClauses cm
   vec <- getClauseVector cm
+{-
+  -- This code causes core dumps sadly.
   let
-    keyOf :: Clause -> IO Double
-    keyOf NullClause = return $ -10000
-    keyOf Clause{..} = negate <$> getDouble activity
-    loop :: Int -> Int -> IO ()
-    loop left right
+    compareActivity NullClause NullClause = EQ
+    compareActivity NullClause _ = GT
+    compareActivity _ NullClause = LT
+    compareActivity c1 c2 = unsafePerformIO $ reverseCompareActivityReally c1 c2
+      where
+        reverseCompareActivityReally x y = compare <$> getDouble (activity y) <*> getDouble (activity x)
+  putStr "sorting..."
+  VA.sortBy compareActivity vec
+  putStr "done..."
+-}
+  let
+    keyOf :: Int -> IO Double
+    keyOf i = negate <$> (getDouble . activity =<< getNthClause vec i)
+    sortOnRange :: Int -> Int -> IO ()
+    sortOnRange left right
       | not (left < right) = return ()
+      | left + 1 == right = do
+          a <- keyOf left
+          b <- keyOf right
+          unless (a < b) $ MV.unsafeSwap vec left right
       | otherwise = do
-          pivot <- keyOf =<< getNthClause vec (div (left + right) 2)
+          --let check m i = unless (0 <= i && i < n) $ error (m ++ " out of index:" ++ (show (i, (left, right), n)))
+          let p = div (left + right) 2
+          pivot <- keyOf p
+          MV.unsafeSwap vec p left -- set a sentinel for r'
           let
-            nextLeft :: Int -> IO Int
-            nextLeft i@((<= right) -> False) = return i
-            nextLeft i = do
-              v <- keyOf =<< getNthClause vec i
-              if v <= pivot then nextLeft $ i + 1 else return i
-            nextRight :: Int -> IO Int
-            nextRight i@((left <=) -> False) = return i
-            nextRight i = do
-              v <- keyOf =<< getNthClause vec i
-              if pivot < v then nextRight $ i - 1 else return i
-            divide l r
-              | not (l < r) = return l
-              | r - l == 1 = do
-                  v1 <- keyOf =<< getNthClause vec l
-                  v2 <- keyOf =<< getNthClause vec r
-                  unless (v1 < v2) $ MV.unsafeSwap vec l r
-                  return r
-              | otherwise = do
-                  l' <- nextLeft l
-                  r' <- nextRight r
-                  case () of
-                    _ | l' < r' -> MV.unsafeSwap vec l' r' >> divide (l' + 1) (r' - 1)
-                    _ | l' <= r -> MV.unsafeSwap vec l' r >> divide l (r - 1)
-                    _ | l <= r' -> MV.unsafeSwap vec l r' >> divide (l + 1) r
-                    _           -> return $ div (l + r) 2
-          m <- divide left right
-          loop left (m - 1)
-          loop m right
-  loop 0 (n - 1)
+            nextL :: Int -> IO Int
+            nextL i@((<= right) -> False) = return i
+            nextL i = do v <- keyOf i; if v < pivot then nextL (i + 1) else return i
+            nextR :: Int -> IO Int
+            nextR i@((left <=) -> False) = return i
+            nextR i = do v <- keyOf i; if pivot < v then nextR (i - 1) else return i
+            divide :: Int -> Int -> IO Int
+            divide l r = do
+              l' <- nextL l
+              r' <- nextR r
+              if l' < r' then MV.unsafeSwap vec l' r' >> divide (l' + 1) (r' - 1) else return r'
+          m <- divide (left + 1) right
+          MV.unsafeSwap vec left m
+          sortOnRange left (m - 1)
+          sortOnRange (m + 1) right
+  sortOnRange 0 (n - 1)
+  -- checkClauseOrder cm
 
 -- | __Fig. 15. (p.20)__
 -- Top-level simplify of constraint database. Will remove any satisfied constraint
