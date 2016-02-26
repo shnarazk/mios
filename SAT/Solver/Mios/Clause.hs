@@ -26,7 +26,7 @@ module SAT.Solver.Mios.Clause
 import GHC.Prim (tagToEnum#, reallyUnsafePtrEquality#)
 import Data.List (intercalate)
 import SAT.Solver.Mios.Types (ContainerLike(..), VectorLike(..), Lit)
-import SAT.Solver.Mios.Internal (FixedVecInt, FixedVecOf(..), getNthInt, setNthInt, DoubleSingleton, getDouble, newDouble)
+import SAT.Solver.Mios.Internal (FixedVecInt, getNthInt, setNthInt, DoubleSingleton, getDouble, newDouble)
 
 -- | __Fig. 7.(p.11)__
 -- Clause

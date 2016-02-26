@@ -15,8 +15,10 @@ module SAT.Solver.Mios.ClauseManager
        (
          -- * Vector of Clause
          ClauseVector
+       , newClauseVector
        , getNthClause
        , setNthClause
+       , swapClauses
          -- * higher level interface for ClauseVector
        , ClauseManager (..)
        , newClauseManager
@@ -49,6 +51,12 @@ instance ContainerLike ClauseVector C.Clause where
     sts <- mapM (dump ",") (l :: [C.Clause])
     return $ mes ++ tail (concat sts)
 
+newClauseVector  :: Int -> IO ClauseVector
+newClauseVector n = do
+  v <- MV.new (max 4 n)
+  MV.set v C.NullClause
+  return v
+
 {-# INLINE getNthClause #-}
 getNthClause :: ClauseVector -> Int -> IO C.Clause
 getNthClause = MV.unsafeRead
@@ -56,6 +64,10 @@ getNthClause = MV.unsafeRead
 {-# INLINE setNthClause #-}
 setNthClause :: ClauseVector -> Int -> C.Clause -> IO ()
 setNthClause = MV.unsafeWrite
+
+{-# INLINE swapClauses #-}
+swapClauses :: ClauseVector -> Int -> Int -> IO ()
+swapClauses = MV.unsafeSwap
 
 -- | The Clause Container
 data ClauseManager = ClauseManager
@@ -67,8 +79,7 @@ data ClauseManager = ClauseManager
 newClauseManager :: Int -> IO ClauseManager
 newClauseManager initialSize = do
   i <- newInt 0
-  v <- MV.new (max 4 initialSize)
-  MV.set v C.NullClause
+  v <- newClauseVector initialSize
   ClauseManager i <$> IORef.newIORef v
 
 {-# INLINE numberOfClauses #-}

@@ -30,7 +30,6 @@ module SAT.Solver.Mios.Solver
 import Control.Monad ((<=<), filterM, forM, forM_, unless, when)
 import qualified Data.IORef as IORef
 import Data.List (sortOn)
-import qualified Data.Vector.Mutable as MV
 import qualified Data.Vector.Unboxed.Mutable as UV
 -- import qualified Data.Vector.Algorithms.Intro as VA
 -- import System.IO.Unsafe (unsafePerformIO)
@@ -57,7 +56,7 @@ data Solver = Solver
                 -- Propagation
               , watches      :: WatcherLists           -- ^ For each literal 'p', a list of constraint wathing 'p'.
                                 -- A constraint will be inspected when 'p' becomes true.
-              , undos        :: FixedVecOf ClauseManager -- ^ For each variable 'x', a list of constraints that need
+--              , undos        :: FixedVecOf ClauseManager -- ^ For each variable 'x', a list of constraints that need
                                 -- to update when 'x' becomes unbound by backtracking.
               , propQ        :: QueueOfBoundedInt      -- ^ Propagation queue.
                 -- Assignments
@@ -65,7 +64,7 @@ data Solver = Solver
               , trail        :: ListOfInt              -- ^ List of assignments in chronological order; var-indexed
               , trailLim     :: ListOfInt              -- ^ Separator indices for different decision levels in 'trail'.
               , decisionLevel :: IntSingleton
-              , reason       :: FixedVecOf Clause      -- ^ For each variable, the constraint that implied its value; var-indexed
+              , reason       :: ClauseVector           -- ^ For each variable, the constraint that implied its value; var-indexed
               , level        :: FixedVecInt            -- ^ For each variable, the decision level it was assigned; var-indexed
               , rootLevel    :: IntSingleton           -- ^ Separates incremental and search assumptions.
               , seen         :: UV.IOVector Int        -- ^ scratch vector for 'analyze'; var-indexed
@@ -107,12 +106,12 @@ setInternalState nv nc s = do
   m2 <- newClauseManager nc
   ac <- newVecDouble (nv + 1) 0.0
   w <- newWatcherLists (nv * 2) (div (2 * nc) nv)
-  u <- newVec 0 -- nv
+--  u <- newVec 0 -- nv
   -- forM_ [0 .. nv - 1] $ \i -> setVecAt u i =<< newVec 0
   a <- newVecWith (nv + 1) lBottom
   t <- newListOfInt (2 * nv)
   t' <- newListOfInt nv
-  r <- newVecWith (nv + 1) NullClause
+  r <- newClauseVector (nv + 1)
   l <- newVecWith (nv + 1) (-1)
   o <- newVarHeap nv
   q <- newQueue (2 * nv)
@@ -123,7 +122,7 @@ setInternalState nv nc s = do
            , constrs = m1
            , learnts = m2
            , watches = w
-           , undos = u
+--           , undos = u
            , assigns = a
            , trail = t
            , trailLim = t'
@@ -139,26 +138,26 @@ setInternalState nv nc s = do
 -- | constructor
 newSolver :: MiosConfiguration -> IO Solver
 newSolver conf = Solver
-            <$> newList          -- model
-            <*> newClauseManager 1 -- constrs
-            <*> newClauseManager 1 -- learnts
-            <*> newDouble 1.0    -- claInc
-            <*> newVecDouble 0 0 -- activities
-            <*> newDouble 1.0    -- varInc
-            <*> newVarHeap 0     -- order
+            <$> newList             -- model
+            <*> newClauseManager 1  -- constrs
+            <*> newClauseManager 1  -- learnts
+            <*> newDouble 1.0       -- claInc
+            <*> newVecDouble 0 0    -- activities
+            <*> newDouble 1.0       -- varInc
+            <*> newVarHeap 0        -- order
             <*> newWatcherLists 1 1 -- watches
-            <*> newVec 0         -- undos
-            <*> newQueue 0       -- porqQ
-            <*> newVec 0         -- assigns
-            <*> newListOfInt 0   -- trail
-            <*> newListOfInt 0   -- trailLim
-            <*> newInt 0         -- decisionLevel
-            <*> newVec 0         -- reason
-            <*> newVec 0         -- level
-            <*> newInt 0         -- rootLevel
-            <*> UV.new 0         -- seen
-            <*> return 0         -- nVars
-            <*> return conf      -- config
+--            <*> newVec 0          -- undos
+            <*> newQueue 0          -- porqQ
+            <*> newVec 0            -- assigns
+            <*> newListOfInt 0      -- trail
+            <*> newListOfInt 0      -- trailLim
+            <*> newInt 0            -- decisionLevel
+            <*> newClauseVector 0   -- reason
+            <*> newVec 0            -- level
+            <*> newInt 0            -- rootLevel
+            <*> UV.new 0            -- seen
+            <*> return 0            -- nVars
+            <*> return conf        -- config
 
 -- | public interface of 'Solver' (p.2)
 --
@@ -232,7 +231,7 @@ enqueue !s@Solver{..} !p !from = do
         setNthInt v assigns $! signum p
         d <- getInt decisionLevel
         setNthInt v level d
-        setVecAt reason v from     -- NOTE: @from@ might be NULL!
+        setNthClause reason v from     -- NOTE: @from@ might be NULL!
         pushToListOfInt trail p
         insertQueue propQ p
         return True
@@ -293,7 +292,7 @@ analyze s@Solver{..} confl learnt = do
         doWhile = do
           p <- lastOfListOfInt trail
           let !i = var p
-          confl <- getVecAt reason i -- should call it before 'undoOne'
+          confl <- getNthClause reason i -- should call it before 'undoOne'
           undoOne s
           sn <- UV.unsafeRead seen i
           if sn == 0 then doWhile else return (p, confl)
@@ -323,7 +322,7 @@ undoOne :: Solver -> IO ()
 undoOne s@Solver{..} = do
   !v <- var <$> lastOfListOfInt trail
   setNthInt v assigns lBottom
-  setVecAt reason v NullClause
+  setNthClause reason v NullClause
   setNthInt v level (-1)
   undo s v
   popFromListOfInt trail
@@ -601,12 +600,12 @@ sortOnActivity cm = do
       | left + 1 == right = do
           a <- keyOf left
           b <- keyOf right
-          unless (a < b) $ MV.unsafeSwap vec left right
+          unless (a < b) $ swapClauses vec left right
       | otherwise = do
           --let check m i = unless (0 <= i && i < n) $ error (m ++ " out of index:" ++ (show (i, (left, right), n)))
           let p = div (left + right) 2
           pivot <- keyOf p
-          MV.unsafeSwap vec p left -- set a sentinel for r'
+          swapClauses vec p left -- set a sentinel for r'
           let
             nextL :: Int -> IO Int
             nextL i@((<= right) -> False) = return i
@@ -618,9 +617,9 @@ sortOnActivity cm = do
             divide l r = do
               l' <- nextL l
               r' <- nextR r
-              if l' < r' then MV.unsafeSwap vec l' r' >> divide (l' + 1) (r' - 1) else return r'
+              if l' < r' then swapClauses vec l' r' >> divide (l' + 1) (r' - 1) else return r'
           m <- divide (left + 1) right
-          MV.unsafeSwap vec left m
+          swapClauses vec left m
           sortOnRange left (m - 1)
           sortOnRange (m + 1) right
   sortOnRange 0 (n - 1)
@@ -936,11 +935,11 @@ clauseNew s@Solver{..} ps learnt = do
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__
 {-# INLINE locked #-}
 locked :: Clause -> Solver -> IO Bool
-locked !c@Clause{..} !Solver{..} =  (c ==) <$> (getVecAt reason . var =<< getNthInt 1 lits)
+locked !c@Clause{..} !Solver{..} =  (c ==) <$> (getNthClause reason . var =<< getNthInt 1 lits)
 
 -- | For small-sized problems, heap may not be a good choice.
 useHeap :: Int
-useHeap = 100
+useHeap = 100 -- 0000
 -- | For small-sized problems, randomess may lead to worse results.
 useRand :: Int
 useRand = 100
@@ -992,10 +991,13 @@ instance VarOrder Solver where
                 then loop2 (i + 1) i actv
                 else loop2 (i + 1) j best
           else loop2 (i + 1) j best
-    if useRand < nv
+    -- the threshold used in MiniSat 1.14 is 0.02, namely 20/1000
+    -- But it is 0 in MiniSat 2.20
+    let rd = randomDecisionRate (config s)
+    if 0 < rd
       then do
           !r <- flip mod 1001 <$> randomIO :: IO Int
-          if r < randomDecisionRate (config s) -- the threshold used in MiniSat 1.14 is 0.02, namely 20/1000
+          if r < rd
             then do
                 !i <- (+ 1) . flip mod nv <$> randomIO
                 x <- getNthInt i asg
