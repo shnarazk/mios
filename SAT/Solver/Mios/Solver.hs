@@ -263,7 +263,79 @@ enqueue !s@Solver{..} !p !from = do
 -- `analyze` is invoked from `search`
 {-# INLINEABLE analyze #-}
 analyze :: Solver -> Clause -> ListOf Lit -> IO Int
-analyze s@Solver{..} confl learnt = do
+analyze s@Solver{..} confl litvec = do
+  ti <- sizeOfStackOfInt trail
+  dl <- getInt decisionLevel
+  let
+    loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
+    loopOnClauseChain c p ti bl pc = do -- ti = trail index, bl = backtrack level, pc = pathC
+      when (learnt c) $ claBumpActivity s c
+      sc <- sizeOfClause c
+      let
+        StackOfInt trailVec = trail
+        loopOnLiterals :: Int -> Int -> Int -> IO (Int, Int)
+        loopOnLiterals ((< sc) -> False) b p = return (b, p) -- b = btLevel, p = pathC
+        loopOnLiterals j b p = do
+          (q :: Lit) <- getNthLiteral j c
+          let v = var q
+          s <- UV.unsafeRead an_seen v
+          l <- getNthInt v level
+          if not s && 0 < l
+            then do
+                varBumpActivity s q
+                UV.unsafeWrite an_seen v 1
+                if s == dl
+                  then loopOnLiterals (j + 1) b (pc + 1)
+                  else pushToList litvec q >> loopOnLiterals (j + 1) (max b l) p
+            else loopOnLiterals (j + 1) b pc
+      (b', p') <- loopOnLiterals (if p == 0 then 0 else 1) 0 p
+      let
+        -- select next clause to look at
+        nextUnseenLit :: Int -> IO Int
+        nextUnseenLit i = do
+          x <- UV.unsafeRead an_seen . var =<<  UV.unsafeRead trailVec i
+          if x == 1 then return i else nextUnseenLit $ i - 1
+      ti' <- nextUnseenLit ti
+      nextP <- UV.unsafeRead an_seen (ti' + 1)
+      confl' <- getNthClause reason (var nextP)
+      UV.unsafeWrite an_seen (var nextP) 0
+      if 1 < p'
+        then loopOnClauseChain confl' nextP ti' b' (p' - 1)
+        else pushToList litvec (negate p) >> return b'
+  result <- loopOnClauseChain confl 0 (ti - 1) 0 0
+  -- Simplify phase
+  lits <- asList learnt
+  let
+    merger :: Int -> Lit -> IO Int
+    merger i lit = setBit i . mod 60 <$> getNthInt (var lit) level
+  levels <- foldM merger 0 (tail lits)
+  clearStackOfInt an_stack           -- analyze_stack.clear();
+  clearStackOfInt an_toClear         -- out_learnt.copyTo(analyze_toclear);
+  forM_ lits $ pushToStackOfInt an_toClear
+  let
+    loop2 [] = return []
+    loop2 (l:l') = do
+      c1 <- (NullClause ==) <$> getNthClause reason (var l)
+      if c1
+        then (l :) <$> loop2 l'
+        else do
+           c2 <- not <$> analyzeRemovable s l levels
+           if c2 then (l :) <$> loop2 l' else loop2 l'
+  lits' <- (head lits :) <$> loop2 (tail lits)
+  setToList litvec lits'
+  k <- sizeOfStackOfInt an_toClear
+  let StackOfInt vec = an_toClear
+  forM_ [1 .. k] $ \i -> do
+    v <- var <$> UV.unsafeRead vec i
+    UV.unsafeWrite an_seen v 0
+  -- check an_seen, which should be now cleared
+  forM_ [1 .. nVars] $ \i -> do
+    x <- UV.unsafeRead an_seen i
+    when (x == 1) $ error "an_seen is not cleared"
+-- -}
+  return result
+
+_analyze s@Solver{..} confl learnt = do
   UV.set an_seen 0
   d <- getInt decisionLevel
   -- learnt `push` 0               -- leave room for the asserting literal
