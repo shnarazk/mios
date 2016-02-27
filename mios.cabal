@@ -96,9 +96,9 @@ executable mios
     SAT.Solver.Mios.Data.FixedVecInt
     SAT.Solver.Mios.Data.FixedVecOf
     SAT.Solver.Mios.Data.ListOf
-    SAT.Solver.Mios.Data.ListOfInt
     SAT.Solver.Mios.Data.QueueOfBoundedInt
     SAT.Solver.Mios.Data.Singleton
+    SAT.Solver.Mios.Data.StackOfInt
     SAT.Solver.Mios.Internal
     SAT.Solver.Mios.OptionParser
     SAT.Solver.Mios.Solver
@@ -127,9 +127,9 @@ executable mios-WIP1.0.3
     SAT.Solver.Mios.Data.FixedVecInt
     SAT.Solver.Mios.Data.FixedVecOf
     SAT.Solver.Mios.Data.ListOf
-    SAT.Solver.Mios.Data.ListOfInt
     SAT.Solver.Mios.Data.QueueOfBoundedInt
     SAT.Solver.Mios.Data.Singleton
+    SAT.Solver.Mios.Data.StackOfInt
     SAT.Solver.Mios.Internal
     SAT.Solver.Mios.OptionParser
     SAT.Solver.Mios.Solver
@@ -155,9 +155,9 @@ executable mios-WIP1.0.3-prof
     SAT.Solver.Mios.Data.FixedVecInt
     SAT.Solver.Mios.Data.FixedVecOf
     SAT.Solver.Mios.Data.ListOf
-    SAT.Solver.Mios.Data.ListOfInt
     SAT.Solver.Mios.Data.QueueOfBoundedInt
     SAT.Solver.Mios.Data.Singleton
+    SAT.Solver.Mios.Data.StackOfInt
     SAT.Solver.Mios.Internal
     SAT.Solver.Mios.OptionParser
     SAT.Solver.Mios.Solver
@@ -201,9 +201,9 @@ executable mios-WIP1.0.3-cr
     SAT.Solver.Mios.Data.FixedVecInt
     SAT.Solver.Mios.Data.FixedVecOf
     SAT.Solver.Mios.Data.ListOf
-    SAT.Solver.Mios.Data.ListOfInt
     SAT.Solver.Mios.Data.QueueOfBoundedInt
     SAT.Solver.Mios.Data.Singleton
+    SAT.Solver.Mios.Data.StackOfInt
     SAT.Solver.Mios.Internal
     SAT.Solver.Mios.OptionParser
     SAT.Solver.Mios.Solver
