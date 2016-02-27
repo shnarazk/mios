@@ -304,18 +304,21 @@ analyze s@Solver{..} confl learnt = do
           confl <- getNthClause reason i -- should call it before 'undoOne'
           undoOne s
           sn <- UV.unsafeRead an_seen i
+          -- UV.unsafeWrite an_seen i 0
           if sn == 0 then doWhile else return (p, confl)
       !(p, confl) <- doWhile
       if 1 < counter
         then loop p confl (counter - 1) btLevel
         else {- setAt learnt 0 (negate p) -} pushToList learnt (negate p) >> return btLevel
   result <- loop bottomLit confl 0 0
+-- {-
+  UV.set an_seen 0
   -- Simplify phase
   lits <- asList learnt
   let
     merger :: Int -> Lit -> IO Int
     merger i lit = setBit i . mod 60 <$> getNthInt (var lit) level
-  levels <- foldM merger 0 lits
+  levels <- foldM merger 0 (tail lits)
   clearStackOfInt an_stack           -- analyze_stack.clear();
   clearStackOfInt an_toClear         -- out_learnt.copyTo(analyze_toclear);
   forM_ lits $ pushToStackOfInt an_toClear
@@ -329,13 +332,18 @@ analyze s@Solver{..} confl learnt = do
            c2 <- not <$> analyzeRemovable s l levels
            if c2 then (l :) <$> loop2 l' else loop2 l'
   lits' <- (head lits :) <$> loop2 (tail lits)
-  -- when (length lits /= length lits') $ print (length lits - length lits')
+  -- when (length lits < length lits') $ print (length lits - length lits')
   setToList learnt lits'
   k <- sizeOfStackOfInt an_toClear
   let StackOfInt vec = an_toClear
   forM_ [1 .. k] $ \i -> do
     v <- var <$> UV.unsafeRead vec i
     UV.unsafeWrite an_seen v 0
+  -- check an_seen, which should be now cleared
+  forM_ [1 .. nVars] $ \i -> do
+    x <- UV.unsafeRead an_seen i
+    when (x == 1) $ error "an_seen is not cleared"
+-- -}
   return result
 
 -- | Check if 'p' can be removed, 'min_level' is used to abort early if visiting literals at a level that
