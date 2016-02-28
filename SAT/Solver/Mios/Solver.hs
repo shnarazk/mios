@@ -268,43 +268,44 @@ analyze s@Solver{..} confl litvec = do
   dl <- getInt decisionLevel
   let
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
-    loopOnClauseChain c p ti bl pc = do -- ti = trail index, bl = backtrack level, pc = pathC
+    loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
+      when (c == NullClause) $ error "!!!"
       when (learnt c) $ claBumpActivity s c
       sc <- sizeOfClause c
       let
         StackOfInt trailVec = trail
         loopOnLiterals :: Int -> Int -> Int -> IO (Int, Int)
-        loopOnLiterals ((< sc) -> False) b p = return (b, p) -- b = btLevel, p = pathC
-        loopOnLiterals j b p = do
+        loopOnLiterals ((< sc) -> False) b pc = return (b, pc) -- b = btLevel, pc = pathC
+        loopOnLiterals j b pc = do
           (q :: Lit) <- getNthLiteral j c
           let v = var q
-          s <- UV.unsafeRead an_seen v
+          sn <- UV.unsafeRead an_seen v
           l <- getNthInt v level
-          if not s && 0 < l
+          if sn == 0 && 0 < l
             then do
                 varBumpActivity s q
                 UV.unsafeWrite an_seen v 1
-                if s == dl
+                if l == dl
                   then loopOnLiterals (j + 1) b (pc + 1)
-                  else pushToList litvec q >> loopOnLiterals (j + 1) (max b l) p
+                  else pushToList litvec q >> loopOnLiterals (j + 1) (max b l) pc
             else loopOnLiterals (j + 1) b pc
-      (b', p') <- loopOnLiterals (if p == 0 then 0 else 1) 0 p
+      (b', pathC') <- loopOnLiterals (if p == 0 then 0 else 1) 0 pathC
       let
         -- select next clause to look at
         nextUnseenLit :: Int -> IO Int
         nextUnseenLit i = do
           x <- UV.unsafeRead an_seen . var =<<  UV.unsafeRead trailVec i
-          if x == 1 then return i else nextUnseenLit $ i - 1
+          if x == 0 then nextUnseenLit $ i - 1 else return i
       ti' <- nextUnseenLit ti
-      nextP <- UV.unsafeRead an_seen (ti' + 1)
+      nextP <- UV.unsafeRead trailVec ti'
       confl' <- getNthClause reason (var nextP)
       UV.unsafeWrite an_seen (var nextP) 0
-      if 1 < p'
-        then loopOnClauseChain confl' nextP ti' b' (p' - 1)
+      if 1 < pathC'
+        then loopOnClauseChain confl' nextP ti' b' (pathC' - 1)
         else pushToList litvec (negate p) >> return b'
   result <- loopOnClauseChain confl 0 (ti - 1) 0 0
   -- Simplify phase
-  lits <- asList learnt
+  lits <- asList litvec
   let
     merger :: Int -> Lit -> IO Int
     merger i lit = setBit i . mod 60 <$> getNthInt (var lit) level
