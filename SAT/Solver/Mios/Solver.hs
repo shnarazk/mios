@@ -261,33 +261,39 @@ enqueue !s@Solver{..} !p !from = do
 -- initialize /p/ to 'bottomLit', which will make 'calcReason' return the reason for the conflict.
 --
 -- `analyze` is invoked from `search`
-{-# INLINEABLE analyze #-}
+-- {-# INLINEABLE analyze #-}
 analyze :: Solver -> Clause -> ListOf Lit -> IO Int
 analyze s@Solver{..} confl litvec = do
+  putStrLn . ("analyze: " ++) =<< dump "confl: " confl
   ti <- sizeOfStackOfInt trail
   dl <- getInt decisionLevel
   let
+    StackOfInt trailVec = trail
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
+      putStr  =<< dump "loopOnClauseChain :: Clause, Literal, trail index, backtrack level, path count: " c
+      print (p, ti, bl, pathC)
       when (c == NullClause) $ error "!!!"
       when (learnt c) $ claBumpActivity s c
       sc <- sizeOfClause c
       let
-        StackOfInt trailVec = trail
         loopOnLiterals :: Int -> Int -> Int -> IO (Int, Int)
-        loopOnLiterals ((< sc) -> False) b pc = return (b, pc) -- b = btLevel, pc = pathC
+        loopOnLiterals ((< sc) -> False) b pc = putStrLn "loopOnLiterals terminate" >> return (b, pc) -- b = btLevel, pc = pathC
         loopOnLiterals j b pc = do
+          putStrLn $ "loopOnLiterals :: lit index, btlevel, pathc: " ++ show (j, b, pc)
           (q :: Lit) <- getNthLiteral j c
           let v = var q
+          -- putStrLn $ " * (q, v) = " ++ show (q, v)
           sn <- UV.unsafeRead an_seen v
           l <- getNthInt v level
+          -- putStrLn $ " * (sn, l) = " ++ show (sn, l)
           if sn == 0 && 0 < l
             then do
-                varBumpActivity s q
+                varBumpActivity s v
                 UV.unsafeWrite an_seen v 1
                 if l == dl
                   then loopOnLiterals (j + 1) b (pc + 1)
-                  else pushToList litvec q >> loopOnLiterals (j + 1) (max b l) pc
+                  else putStrLn (" * else " ++ show (l, dl, q)) >> pushToList litvec q >> loopOnLiterals (j + 1) (max b l) pc
             else loopOnLiterals (j + 1) b pc
       (b', pathC') <- loopOnLiterals (if p == 0 then 0 else 1) 0 pathC
       let
@@ -300,10 +306,13 @@ analyze s@Solver{..} confl litvec = do
       nextP <- UV.unsafeRead trailVec ti'
       confl' <- getNthClause reason (var nextP)
       UV.unsafeWrite an_seen (var nextP) 0
+      putStrLn $ "end of loopOnLiterals: ti' = " ++ show ti'
       if 1 < pathC'
         then loopOnClauseChain confl' nextP ti' b' (pathC' - 1)
-        else pushToList litvec (negate p) >> return b'
+        else pushToList litvec (negate nextP) >> return b'
   result <- loopOnClauseChain confl 0 (ti - 1) 0 0
+  putStrLn . ("done" ++ ) . show =<< asList litvec
+{-
   -- Simplify phase
   lits <- asList litvec
   let
@@ -333,7 +342,7 @@ analyze s@Solver{..} confl litvec = do
   forM_ [1 .. nVars] $ \i -> do
     x <- UV.unsafeRead an_seen i
     when (x == 1) $ error "an_seen is not cleared"
--- -}
+-}
   return result
 
 _analyze s@Solver{..} confl learnt = do
