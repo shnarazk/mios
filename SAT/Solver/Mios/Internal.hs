@@ -30,7 +30,7 @@ import SAT.Solver.Mios.Data.StackOfInt
 
 -- | version name
 versionId :: String
-versionId = "mios WIP#ClauseVector heap no-rand StackOfInt AnalyzeRemovable on 1.0.2"
+versionId = "mios M22"
 
 -- | solver configuration
 data MiosConfiguration = MiosConfiguration
