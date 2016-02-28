@@ -23,7 +23,17 @@ project: 'Study on SAT solver Algorithms in Haskell.'
 
 #### > Release Note
 
-##### 1.0.1
+##### 1.0.3
+
+* switches pointer-based clause containers to vector-based containers
+
+This is the last version based on MiniSat 1.14.
+
+##### 1.0.2
+
+* fixs a bug on CNF reader at 1.0.1
+
+##### 1.0.1 => canceled by a bug on CNF reader 
 
 * CNF reader was changed from a parser based on 'Parsec' to a simple *reader* based on `Data.ByteString.Char8.readInt`
 * uses a true `sortOnActivity` implementation
