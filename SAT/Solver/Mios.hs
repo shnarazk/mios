@@ -84,6 +84,14 @@ runSolver opts@(_targetFile -> target@(Just cnfFile)) = do
        if result
          then print . zipWith (\n b -> if b then n else negate n) [1 .. ] =<< asList (model s)
          else putStrLn "[]"
+     when (result && _confCheckAnswer opts) $ do
+       asg <- zipWith (\n b -> if b then n else negate n) [1 .. ] <$> asList (model s)
+       s' <- flip setInternalState (numberOfVariables desc) (numberOfClauses desc) =<< newSolver (toMiosConf opts)
+       injectClauses s' n m clauses
+       ok <- validate s' asg
+       if _confVerbose opts
+         then putStrLn $ if ok then "a vaild answer" else "mios returns a wrong answer"
+         else unless ok $ error "mios returns a wrong answer"
 
 runSolver _ = return ()
 
