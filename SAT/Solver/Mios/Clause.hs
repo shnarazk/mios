@@ -5,7 +5,6 @@
   , MultiParamTypeClasses
   , RecordWildCards
   , TupleSections
-  , UnboxedTuples
   , UndecidableInstances
   , ViewPatterns
   #-}
@@ -52,7 +51,7 @@ instance Show Clause where
 
 -- | supports a restricted set of 'ContainerLike' methods
 instance ContainerLike Clause Lit where
-  dump mes NullClause = return $ "NullClause" ++ if mes == "" then "" else "(" ++ mes ++ ")"
+  dump mes NullClause = return $ "NullClause" ++  mes ++ "[Null]"
   dump mes Clause{..} = do
     a <- show <$> getDouble activity
     (len:ls) <- asList lits
