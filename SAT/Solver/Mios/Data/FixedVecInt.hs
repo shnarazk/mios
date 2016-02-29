@@ -12,13 +12,10 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | This is the implementation pack __version 0.6 #activityEstimation
---
--- * __FixedVecInt @:: MV.IOVector Int@
---
+-- | The fundamental data structure: Fixed Unboxed Int Vector
 module SAT.Solver.Mios.Data.FixedVecInt
        (
-         FixedVecInt (..)
+         FixedVecInt
        , sizeOfVecInt
        , getNthInt
        , setNthInt
@@ -37,57 +34,54 @@ import SAT.Solver.Mios.Types (ContainerLike(..), VectorLike(..))
 -- | __version 0.3__
 --
 -- Costs of all operations are /O/(/1/)
-newtype FixedVecInt = FixedVecInt
-                      {
-                        litVec :: UV.IOVector Int
-                      }
+type FixedVecInt = UV.IOVector Int
 
 {-# INLINE sizeOfVecInt #-}
 sizeOfVecInt :: FixedVecInt -> IO Int
-sizeOfVecInt FixedVecInt{..} = return $! UV.length litVec
+sizeOfVecInt v = return $! UV.length v
 
 -- | provides 'clear' and 'size'
 instance ContainerLike FixedVecInt Int where
-  clear FixedVecInt{..} = error "FixedVecInt.clear"
+  clear = error "FixedVecInt.clear"
   {-# SPECIALIZE INLINE asList :: FixedVecInt -> IO [Int] #-}
-  asList FixedVecInt{..} = forM [0 .. UV.length litVec - 1] $ UV.unsafeRead litVec
+  asList v = forM [0 .. UV.length v - 1] $ UV.unsafeRead v
   dump str v = (str ++) . show <$> asList v
-  asVector v = undefined
+  asVector v = v
 
 -- | constructors, resize, stack, vector, and duplication operations
 instance VectorLike FixedVecInt Int where
   -- * Constructors
-  newVec n = FixedVecInt <$> UV.new n
+  newVec n = UV.new n
   newVecWith n x = do
     v <- UV.new n
     UV.set v x
-    return $ FixedVecInt v
+    return v
   -- * Vector operations
   {-# SPECIALIZE INLINE getAt :: Int -> FixedVecInt -> IO Int #-}
-  getAt !n FixedVecInt{..} = UV.unsafeRead litVec n
+  getAt !n v = UV.unsafeRead v n
   {-# SPECIALIZE INLINE setAt :: Int -> FixedVecInt -> Int -> IO () #-}
-  setAt !n FixedVecInt{..} !x = UV.unsafeWrite litVec n x
+  setAt !n v !x = UV.unsafeWrite v n x
   -- * Conversion
   newFromList l = do
     v <- UV.new $ length l
     forM_ (zip [0 .. length l - 1] l) $ \(i, j) -> UV.unsafeWrite v i j
-    return $ FixedVecInt v
+    return v
 
 {-# INLINE getNthInt #-}
 getNthInt :: Int -> FixedVecInt -> IO Int
-getNthInt !n !(FixedVecInt litVec) = UV.unsafeRead litVec n
+getNthInt !n !v = UV.unsafeRead v n
 
 {-# INLINE setNthInt #-}
 setNthInt :: Int -> FixedVecInt -> Int -> IO ()
-setNthInt !n !(FixedVecInt litVec) !x = UV.unsafeWrite litVec n x
+setNthInt !n !v !x = UV.unsafeWrite v n x
 
 {-# INLINE modifyNthInt #-}
 modifyNthInt :: Int -> FixedVecInt -> (Int -> Int) -> IO ()
-modifyNthInt !n !(FixedVecInt litVec) !f = UV.unsafeModify litVec f n
+modifyNthInt !n !v !f = UV.unsafeModify v f n
 
 {-# INLINE swapIntsBetween #-}
 swapIntsBetween:: FixedVecInt -> Int -> Int -> IO ()
-swapIntsBetween !(FixedVecInt litVec) !i !j = UV.unsafeSwap litVec i j
+swapIntsBetween = UV.unsafeSwap
 
 {-# INLINE newSizedVecIntFromList #-}
 newSizedVecIntFromList :: [Int] -> IO FixedVecInt
@@ -97,8 +91,8 @@ newSizedVecIntFromList !l = do
   UV.unsafeWrite v 0 n
   -- FIXME: why you don't use 'copy'?
   forM_ (zip [1 .. n] l) $ \(i, j) -> UV.unsafeWrite v i j
-  return $ FixedVecInt v
+  return v
 
 {-# INLINE newSizedVecIntFromUVector #-}
 newSizedVecIntFromUVector :: U.Vector Int -> IO FixedVecInt
-newSizedVecIntFromUVector vec = FixedVecInt <$> U.unsafeThaw vec
+newSizedVecIntFromUVector vec = U.unsafeThaw vec
