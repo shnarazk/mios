@@ -14,6 +14,8 @@
 module SAT.Solver.Mios.Clause
        (
          Clause (..)
+       , isLit
+       , getLit
        , getNthLiteral
        , setNthLiteral
        , shrinkClause
@@ -63,9 +65,15 @@ instance ContainerLike Clause Lit where
     return $ take n ls
 
 -- | returns True if it is a 'BinaryClause'
+-- FIXME: this might be discarded in minisat 2.2
 isLit :: Clause -> Bool
 isLit (BinaryClause _) = True
 isLit _ = False
+
+-- | returns the literal in a BinaryClause
+-- FIXME: this might be discarded in minisat 2.2
+getLit :: Clause -> Lit
+getLit (BinaryClause x) = x
 
 -- | coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes
 liftToClause :: Clause -> Clause
@@ -73,11 +81,10 @@ liftToClause (BinaryClause _) = error "So far I use generic function approach in
 
 -- | returns the nth literal in a clause
 -- Valid range: [0 .. sizeOfClause c - 1]
--- | If the given clause is a BinaryClause, returns the literal, ignorirng the index.
+-- | Don't use a generic approach with performance penalty!
 {-# INLINE getNthLiteral #-}
 getNthLiteral :: Int -> Clause -> IO Int
 getNthLiteral !i Clause{..} = getNthInt (1 + i) lits
-getNthLiteral _ (BinaryClause l) = return l
 
 {-# INLINE setNthLiteral #-}
 setNthLiteral :: Int -> Clause -> Int -> IO ()
