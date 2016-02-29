@@ -52,7 +52,7 @@ class ContainerLike s t | s -> t where
   -- | dump the contents
   dump :: Show t => String -> s -> IO String
   dump msg _ = error $ msg ++ ": no defalut method for dump"
-  -- | get raw data
+  -- | get a raw data
   asVector :: s -> UV.IOVector Int
   asVector = error "asVector undefined"
   -- | converts into a list
