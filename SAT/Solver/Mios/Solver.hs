@@ -264,23 +264,24 @@ enqueue !s@Solver{..} !p !from = do
 -- {-# INLINEABLE analyze #-}
 analyze :: Solver -> Clause -> ListOf Lit -> IO Int
 analyze s@Solver{..} confl litvec = do
-  putStrLn . ("analyze: " ++) =<< dump "confl: " confl
+  UV.set an_seen 0
+  -- putStrLn . ("analyze: " ++) =<< dump "confl: " confl
   ti <- sizeOfStackOfInt trail
   dl <- getInt decisionLevel
   let
     StackOfInt trailVec = trail
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
-      putStr  =<< dump "loopOnClauseChain :: Clause, Literal, trail index, backtrack level, path count: " c
-      print (p, ti, bl, pathC)
-      when (c == NullClause) $ error "!!!"
+      -- putStr  =<< dump "loopOnClauseChain :: Clause, Literal, trail index, backtrack level, path count: " c
+      -- print $ " " ++ show (p, ti, bl, pathC)
+      -- when (c == NullClause) $ error "!!!"
       when (learnt c) $ claBumpActivity s c
       sc <- sizeOfClause c
       let
         loopOnLiterals :: Int -> Int -> Int -> IO (Int, Int)
-        loopOnLiterals ((< sc) -> False) b pc = putStrLn "loopOnLiterals terminate" >> return (b, pc) -- b = btLevel, pc = pathC
+        loopOnLiterals ((< sc) -> False) b pc = {- putStrLn "loopOnLiterals terminate" >> -} return (b, pc) -- b = btLevel, pc = pathC
         loopOnLiterals j b pc = do
-          putStrLn $ "loopOnLiterals :: lit index, btlevel, pathc: " ++ show (j, b, pc)
+          -- putStrLn $ "loopOnLiterals :: lit index, btlevel, pathc: " ++ show (j, b, pc)
           (q :: Lit) <- getNthLiteral j c
           let v = var q
           -- putStrLn $ " * (q, v) = " ++ show (q, v)
@@ -293,9 +294,9 @@ analyze s@Solver{..} confl litvec = do
                 UV.unsafeWrite an_seen v 1
                 if l == dl
                   then loopOnLiterals (j + 1) b (pc + 1)
-                  else putStrLn (" * else " ++ show (l, dl, q)) >> pushToList litvec q >> loopOnLiterals (j + 1) (max b l) pc
+                  else pushToList litvec q >> loopOnLiterals (j + 1) (max b l) pc
             else loopOnLiterals (j + 1) b pc
-      (b', pathC') <- loopOnLiterals (if p == 0 then 0 else 1) 0 pathC
+      (b', pathC') <- loopOnLiterals (if p == 0 then 0 else 1) bl pathC
       let
         -- select next clause to look at
         nextUnseenLit :: Int -> IO Int
@@ -306,12 +307,13 @@ analyze s@Solver{..} confl litvec = do
       nextP <- UV.unsafeRead trailVec ti'
       confl' <- getNthClause reason (var nextP)
       UV.unsafeWrite an_seen (var nextP) 0
-      putStrLn $ "end of loopOnLiterals: ti' = " ++ show ti'
+      -- putStrLn $ "end of loopOnLiterals: ti' = " ++ show (ti' - 1)
       if 1 < pathC'
-        then loopOnClauseChain confl' nextP ti' b' (pathC' - 1)
+        then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
         else pushToList litvec (negate nextP) >> return b'
-  result <- loopOnClauseChain confl 0 (ti - 1) 0 0
-  putStrLn . ("done" ++ ) . show =<< asList litvec
+  result <- loopOnClauseChain confl 0 ti 0 0
+  x <- asList litvec
+  putStrLn $ "done" ++ show (result, x)
 {-
   -- Simplify phase
   lits <- asList litvec
@@ -393,7 +395,9 @@ _analyze s@Solver{..} confl learnt = do
         then loop p confl (counter - 1) btLevel
         else {- setAt learnt 0 (negate p) -} pushToList learnt (negate p) >> return btLevel
   result <- loop bottomLit confl 0 0
--- {-
+  x <- asList learnt
+  putStrLn $ "done" ++ show (result, x)
+{-
   UV.set an_seen 0
   -- Simplify phase
   lits <- asList learnt
