@@ -109,8 +109,8 @@ injectClauses solver n m str = do
           len <- sizeOfVecInt vec
           if len <= j
             then do
-                vec <- FixedVecInt <$> UM.unsafeGrow (litVec vec) len
-                setNthInt j vec l >> loop i (j + 1) str' vec
+                vec' <- UM.unsafeGrow vec len
+                setNthInt j vec' l >> loop i (j + 1) str' vec'
             else setNthInt j vec l >> loop i (j + 1) str' vec
         Nothing -> return ()
   loop 0 1 str =<< newVec n
