@@ -246,7 +246,7 @@ enqueue !s@Solver{..} !p !from = do
         return True
 
 -- | __Fig. 10. (p.15)__
--- Analyze a cnflict and produce a reason clause.
+-- #M114 Analyze a cnflict and produce a reason clause.
 --
 -- __Pre-conditions:__ (1) 'outLearnt' is
 -- assumed to be cleared. (2) Current decision level must be greater than root level.
