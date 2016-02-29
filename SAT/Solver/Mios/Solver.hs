@@ -590,7 +590,7 @@ cancelUntil s@Solver{..} lvl = do
       loopOnLevel c = do
         x <- var <$> getNthInt c tr
         setNthInt x assigns lBottom
-        -- FIXME: #porality https://github.com/shnarazk/minisat/blob/master/core/Solver.cc#L212
+        -- FIXME: #polarity https://github.com/shnarazk/minisat/blob/master/core/Solver.cc#L212
         undo s x
         -- insert s x              -- insertVerOrder
         loopOnLevel $ c - 1
