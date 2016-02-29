@@ -40,6 +40,7 @@ module SAT.Solver.Mios.Types
 
 import GHC.Exts (Int(..))
 import GHC.Prim
+import qualified Data.Vector.Unboxed.Mutable as UV
 
 -- | Public interface as /Container/
 class ContainerLike s t | s -> t where
@@ -51,6 +52,9 @@ class ContainerLike s t | s -> t where
   -- | dump the contents
   dump :: Show t => String -> s -> IO String
   dump msg _ = error $ msg ++ ": no defalut method for dump"
+  -- | get raw data
+  asVector :: s -> UV.IOVector Int
+  asVector = error "asVector undefined"
   -- | converts into a list
   asList :: s -> IO [t]
   asList = error "asList undefined"

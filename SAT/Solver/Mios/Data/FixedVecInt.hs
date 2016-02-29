@@ -52,6 +52,7 @@ instance ContainerLike FixedVecInt Int where
   {-# SPECIALIZE INLINE asList :: FixedVecInt -> IO [Int] #-}
   asList FixedVecInt{..} = forM [0 .. UV.length litVec - 1] $ UV.unsafeRead litVec
   dump str v = (str ++) . show <$> asList v
+  asVector v = undefined
 
 -- | constructors, resize, stack, vector, and duplication operations
 instance VectorLike FixedVecInt Int where
