@@ -572,11 +572,34 @@ cancel s@Solver{..} = do
   popFromStackOfInt trailLim
   modifyInt decisionLevel (subtract 1)
 
--- | __Fig. 12 (p.17)__
+-- | M22 __Fig. 12 (p.17)__
 -- cancels several levels of assumptions.
 {-# INLINABLE cancelUntil #-}
 cancelUntil :: Solver -> Int -> IO ()
-cancelUntil s lvl = do
+cancelUntil s@Solver{..} lvl = do
+  dl <- getInt decisionLevel
+  when (lvl < dl) $ do
+    let tr = asVector trail
+    let tl = asVector trailLim
+    lim <- getNthInt (lvl + 1) tl
+    ts <- sizeOfStackOfInt trail
+    ls <- sizeOfStackOfInt trailLim
+    let
+      loopOnLevel :: Int -> IO ()
+      loopOnLevel ((lim <) -> False) = return ()
+      loopOnLevel c = do
+        x <- var <$> getNthInt c tr
+        setNthInt x assigns lBottom
+        -- FIXME: #porality https://github.com/shnarazk/minisat/blob/master/core/Solver.cc#L212
+        undo s x
+        -- insert s x              -- insertVerOrder
+        loopOnLevel $ c - 1
+    loopOnLevel ts
+    shrinkStackOfInt trail (ts - lim)
+    shrinkStackOfInt trailLim (ls - lvl)
+    setInt decisionLevel lvl
+
+_cancelUntil s lvl = do
   let
     loop :: Int -> IO ()
     loop ((lvl <) -> False) = return ()
