@@ -69,7 +69,7 @@ miosOptions =
 -}
   , Option [] ["validate"]
     (NoArg (\c -> c { _confCheckAnswer = True }))
-    "[option] self-check the (satisfied answer"
+    "[option] self-check the (satisfied) answer"
   , Option ['v'] ["verbose"]
     (NoArg (\c -> c { _confVerbose = True }))
     "[option] display misc information"
