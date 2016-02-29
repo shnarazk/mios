@@ -7,11 +7,11 @@ module SAT.Solver.Mios.Internal
 -- ----
 --       , module SAT.Solver.Mios.Data.FixedUVecOf
 -- >>>>
-       , module SAT.Solver.Mios.Data.FixedVecOf
+--       , module SAT.Solver.Mios.Data.FixedVecOf
        , module SAT.Solver.Mios.Data.ListOf
-       , module SAT.Solver.Mios.Data.ListOfInt
        , module SAT.Solver.Mios.Data.QueueOfBoundedInt
        , module SAT.Solver.Mios.Data.Singleton
+       , module SAT.Solver.Mios.Data.StackOfInt
        , MiosConfiguration (..)
        , defaultConfiguration
        )
@@ -22,15 +22,15 @@ import SAT.Solver.Mios.Data.FixedVecInt
 -- ----
 -- import SAT.Solver.Mios.Data.FixedUVecOf
 -- >>>>
-import SAT.Solver.Mios.Data.FixedVecOf
+-- import SAT.Solver.Mios.Data.FixedVecOf
 import SAT.Solver.Mios.Data.ListOf
-import SAT.Solver.Mios.Data.ListOfInt
 import SAT.Solver.Mios.Data.QueueOfBoundedInt
 import SAT.Solver.Mios.Data.Singleton
+import SAT.Solver.Mios.Data.StackOfInt
 
 -- | version name
 versionId :: String
-versionId = "mios 1.0.2 #yas2114" -- YetAnotherStepTo1.14
+versionId = "mios 1.0.3"
 
 -- | solver configuration
 data MiosConfiguration = MiosConfiguration
@@ -41,6 +41,7 @@ data MiosConfiguration = MiosConfiguration
                          }
 
 -- | dafault configuration
--- Minisat-1.14 uses the identical values: (0.95, 0.999, 0.2 = 20 / 1000)
+-- Minisat-1.14 uses (0.95, 0.999, 0.2 = 20 / 1000).
+-- Minisat-2.20 uses (0.95, 0.999, 0).
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 0.999 20
+defaultConfiguration = MiosConfiguration 0.95 0.999 0

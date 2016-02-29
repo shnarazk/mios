@@ -25,6 +25,7 @@ data MiosConfigurationOption = MiosConfigurationOption
                      , _confVariableDecayRate :: Double
                      , _confClauseDecayRate :: Double
                      , _confRandomDecisionRate :: Int
+                     , _confCheckAnswer :: Bool
                      , _confVerbose :: Bool
                      , _confNoAnswer :: Bool
                      , _validateAssignment :: Bool
@@ -40,6 +41,7 @@ miosDefaultOption = MiosConfigurationOption
   , _confVariableDecayRate = variableDecayRate defaultConfiguration
   , _confClauseDecayRate = clauseDecayRate defaultConfiguration
   , _confRandomDecisionRate = randomDecisionRate defaultConfiguration
+  , _confCheckAnswer = False
   , _confVerbose = False
   , _confNoAnswer = False
   , _validateAssignment = False
@@ -65,6 +67,9 @@ miosOptions =
     (NoArg (\c -> c { _targetFile = Nothing }))
     "[option] read a CNF from STDIN instead of a file"
 -}
+  , Option [] ["validate"]
+    (NoArg (\c -> c { _confCheckAnswer = True }))
+    "[option] self-check the (satisfied) answer"
   , Option ['v'] ["verbose"]
     (NoArg (\c -> c { _confVerbose = True }))
     "[option] display misc information"

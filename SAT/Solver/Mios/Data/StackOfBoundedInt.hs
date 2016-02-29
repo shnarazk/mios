@@ -1,3 +1,5 @@
+-- | This is O(1) peekable stack implementation.
+-- NOTE: Since Minisat doesn't peek a stack, this is an over-featured implementation.
 {-# LANGUAGE
     BangPatterns
   , FlexibleInstances
@@ -22,6 +24,7 @@ module SAT.Solver.Mios.Data.StackOfBoundedInt
        , sizeOfStack
        , popStack
        , pushStack
+       , clearStack
        , lastElementInStack
        )
        where
@@ -83,6 +86,14 @@ pushStack !StackOfBoundedInt{..} !x = do
         UV.unsafeWrite stackL (index x + 2) l
         UV.unsafeWrite stackL 1 x
         UV.unsafeWrite stackL 0 $ n + 1
+
+{-# INLINE clearStack #-}
+clearStack :: StackOfBoundedInt -> IO ()
+clearStack StackOfBoundedInt{..} = do
+  UV.unsafeWrite stackL 0 0
+  UV.unsafeWrite stackL 1 0
+  UV.unsafeWrite stackL 2 0
+  return ()
 
 {-# INLINE lastElementInStack #-}
 lastElementInStack :: StackOfBoundedInt -> IO Int

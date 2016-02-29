@@ -2,7 +2,7 @@
 {-# LANGUAGE
     BangPatterns
   #-}
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 
 module SAT.Solver.Mios.Data.Singleton
        (
@@ -26,7 +26,7 @@ module SAT.Solver.Mios.Data.Singleton
        , modifyDouble
        )
        where
-
+{-
 ----------------------------------------
 -- Implementation 1. :: IORef
 ----------------------------------------
@@ -83,7 +83,7 @@ setDouble = writeIORef
 {-# INLINE modifyDouble #-}
 modifyDouble :: DoubleSingleton -> (Double -> Double) -> IO ()
 modifyDouble = modifyIORef'
-
+-}
 {-
 ----------------------------------------
 -- Implementation 2. :: Data.Mutable.IOURef
@@ -112,30 +112,70 @@ modifyInt :: IntSingleton -> (Int -> Int) -> IO ()
 modifyInt !(IntSingleton val) !f = M.modifyRef' val f
 -}
 
-{-
+-- {-
 ----------------------------------------
 -- Implementation 3. :: Data.Vector.Unboxed.Mutable
 ----------------------------------------
 
 import qualified Data.Vector.Unboxed.Mutable as UV
 
-newtype IntSingleton = IntSingleton
-                       {
-                         mutableInt :: UV.IOVector Int
-                       }
+type IntSingleton = UV.IOVector Int
 
-newInt :: IO IntSingleton
-newInt = IntSingleton <$> UV.new 1
+newInt :: Int -> IO IntSingleton
+newInt k = do
+  s <- UV.new 1
+  UV.unsafeWrite s 0 k
+  return s
 
 {-# INLINE getInt #-}
 getInt :: IntSingleton -> IO Int
-getInt !(IntSingleton val) = UV.unsafeRead val 0
+getInt val = UV.unsafeRead val 0
 
 {-# INLINE setInt #-}
 setInt :: IntSingleton -> Int -> IO ()
-setInt !(IntSingleton val) !x = UV.unsafeWrite val 0 x
+setInt val !x = UV.unsafeWrite val 0 x
 
 {-# INLINE modifyInt #-}
 modifyInt :: IntSingleton -> (Int -> Int) -> IO ()
-modifyInt !(IntSingleton val) !f = UV.unsafeModify val f 0
--}
+modifyInt val !f = UV.unsafeModify val f 0
+
+type BoolSingleton = UV.IOVector Bool
+
+newBool :: Bool -> IO BoolSingleton
+newBool b = do
+  s <- UV.new 1
+  UV.unsafeWrite s 0 b
+  return s
+
+{-# INLINE getBool #-}
+getBool :: BoolSingleton -> IO Bool
+getBool val = UV.unsafeRead val 0
+
+{-# INLINE setBool #-}
+setBool :: BoolSingleton -> Bool -> IO ()
+setBool val !x = UV.unsafeWrite val 0 x
+
+{-# INLINE modifyBool #-}
+modifyBool :: BoolSingleton -> (Bool -> Bool) -> IO ()
+modifyBool val !f = UV.unsafeModify val f 0
+
+type DoubleSingleton = UV.IOVector Double
+
+newDouble :: Double -> IO DoubleSingleton
+newDouble d = do
+  s <- UV.new 1
+  UV.unsafeWrite s 0 d
+  return s
+
+{-# INLINE getDouble #-}
+getDouble :: DoubleSingleton -> IO Double
+getDouble val = UV.unsafeRead val 0
+
+{-# INLINE setDouble #-}
+setDouble :: DoubleSingleton -> Double -> IO ()
+setDouble val !x = UV.unsafeWrite val 0 x
+
+{-# INLINE modifyDouble #-}
+modifyDouble :: DoubleSingleton -> (Double -> Double) -> IO ()
+modifyDouble val !f = UV.unsafeModify val f 0
+-- -}

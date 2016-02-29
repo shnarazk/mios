@@ -38,15 +38,6 @@ import SAT.Solver.Mios.Internal (FixedVecInt (..), setNthInt, sizeOfVecInt, vers
 import SAT.Solver.Mios.OptionParser
 import SAT.Solver.Mios.Validator
 
--- | misc information on CNF
-data CNFDescription = CNFDescription
-  {
-    numberOfVariables :: !Int           -- ^ number of variables
-  , numberOfClauses :: !Int             -- ^ number of clauses
-  , pathname :: Maybe FilePath          -- ^ given filename
-  }
-  deriving (Eq, Ord, Show)
-
 -- | SizedVectorInt is an Int vector with the number of 'active' elements
 -- namely,
 -- * v[0]            == the number of using elements
@@ -70,8 +61,8 @@ runSolver opts@(_targetFile -> target@(Just cnfFile)) = do
    (0, 0) -> error $ "couldn't load " ++ show cnfFile
    _ -> do
      when (_confVerbose opts) $
-       putStrLn $ "loaded : #v = " ++ show (numberOfVariables desc) ++ " #c = " ++ show (numberOfClauses desc)
-     s <- flip setInternalState (numberOfVariables desc) =<< newSolver (toMiosConf opts)
+       putStrLn $ "loaded : #v = " ++ show (_numberOfVariables desc) ++ " #c = " ++ show (_numberOfClauses desc)
+     s <- newSolver (toMiosConf opts) >>= (`setInternalState` desc)
      injectClauses s n m clauses
      when (_confVerbose opts) $ do
        nc <- nConstraints s
@@ -84,6 +75,14 @@ runSolver opts@(_targetFile -> target@(Just cnfFile)) = do
        if result
          then print . zipWith (\n b -> if b then n else negate n) [1 .. ] =<< asList (model s)
          else putStrLn "[]"
+     when (result && _confCheckAnswer opts) $ do
+       asg <- zipWith (\n b -> if b then n else negate n) [1 .. ] <$> asList (model s)
+       s' <- newSolver (toMiosConf opts) >>= (`setInternalState` desc)
+       injectClauses s' n m clauses
+       ok <- validate s' asg
+       if _confVerbose opts
+         then putStrLn $ if ok then "a vaild answer" else "mios returns a wrong answer"
+         else unless ok $ error "mios returns a wrong answer"
 
 runSolver _ = return ()
 
@@ -138,8 +137,8 @@ solveSAT = solveSATWithConfiguration defaultConfiguration
 -- and returns an assignment as list of literals :: Int
 solveSATWithConfiguration :: Traversable m => MiosConfiguration -> (CNFDescription, m [Int]) -> IO [Int]
 solveSATWithConfiguration conf (desc, clauses) = do
-  s <- flip setInternalState (numberOfVariables desc) =<< newSolver conf
-  -- mapM_ (const (newVar s)) [0 .. numberOfVariables desc - 1]
+  s <- newSolver conf >>= (`setInternalState` desc)
+  -- mapM_ (const (newVar s)) [0 .. _numberOfVariables desc - 1]
   mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . (\c -> length c : c))) clauses
   noConf <- simplifyDB s
   if noConf
@@ -166,8 +165,8 @@ runValidator opts@(_targetFile -> target@(Just cnfFile)) = do
    (0, 0) -> error $ "couldn't load " ++ show cnfFile
    _ -> do
      when (_confVerbose opts) $
-       putStrLn $ "loaded : #v = " ++ show (numberOfVariables desc) ++ " #c = " ++ show (numberOfClauses desc)
-     s <- flip setInternalState (numberOfVariables desc) =<< newSolver (toMiosConf opts)
+       putStrLn $ "loaded : #v = " ++ show (_numberOfVariables desc) ++ " #c = " ++ show (_numberOfClauses desc)
+     s <- newSolver (toMiosConf opts) >>= (`setInternalState` desc)
      injectClauses s n m clauses
      when (_confVerbose opts) $ do
        nc <- nConstraints s
@@ -186,6 +185,6 @@ runValidator _  = return ()
 -- where 'validate' @ :: Traversable t => Solver -> t Lit -> IO Bool@
 validateAssignment :: (Traversable m, Traversable n) => (CNFDescription, m [Int]) -> n Int -> IO Bool
 validateAssignment (desc, clauses) asg = do
-  s <- flip setInternalState (numberOfVariables desc) =<< newSolver defaultConfiguration
+  s <- newSolver defaultConfiguration >>= (`setInternalState` desc)
   mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . (\c -> length c : c))) clauses
   s `validate` asg
