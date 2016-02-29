@@ -27,6 +27,7 @@ project: 'Study on SAT solver Algorithms in Haskell.'
 
 * uses vector-based containers instead of pointer-based clause containers
 * adds self checking option (`--validate`), which works only on satisfiable problems
+* `stack install` installs `mios`. `stack install --flag mios:devel` installs `mios-1.0.3` for developers.
 
 This is the last version based on MiniSat 1.14.
 
