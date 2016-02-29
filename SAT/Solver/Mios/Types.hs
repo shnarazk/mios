@@ -33,6 +33,8 @@ module SAT.Solver.Mios.Types
        , lTrue
        , lBottom
        , VarOrder (..)
+         -- * CNF
+       , CNFDescription (..)
        )
        where
 
@@ -189,3 +191,12 @@ class VarOrder o where
   -- | Called to select a new, unassigned variable.
   select :: o -> IO Var
   select    = error "select undefined"
+
+-- | misc information on CNF
+data CNFDescription = CNFDescription
+  {
+    _numberOfVariables :: !Int           -- ^ number of variables
+  , _numberOfClauses :: !Int             -- ^ number of clauses
+  , _pathname :: Maybe FilePath          -- ^ given filename
+  }
+  deriving (Eq, Ord, Show)

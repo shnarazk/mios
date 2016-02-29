@@ -102,8 +102,8 @@ valueLit :: Solver -> Lit -> IO LBool
 valueLit !Solver{..} !p = if p < 0 then negate <$> getNthInt (var p) assigns else getNthInt (var p) assigns
 
 -- | returns an everything-is-initialized solver from the argument
-setInternalState :: Int -> Int -> Solver -> IO Solver
-setInternalState nv nc s = do
+setInternalState :: Solver -> CNFDescription -> IO Solver
+setInternalState s (CNFDescription nv nc _) = do
   setStdGen $ mkStdGen 91648253
   m1 <- newClauseManager nc
   m2 <- newClauseManager nc
