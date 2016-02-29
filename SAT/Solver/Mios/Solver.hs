@@ -264,7 +264,7 @@ enqueue !s@Solver{..} !p !from = do
 -- {-# INLINEABLE analyze #-}
 analyze :: Solver -> Clause -> ListOf Lit -> IO Int
 analyze s@Solver{..} confl litvec = do
-  UV.set an_seen 0
+  UV.set an_seen 0   -- FIXME: it should be done in a valid place; not here.
   -- putStrLn . ("analyze: " ++) =<< dump "confl: " confl
   ti <- sizeOfStackOfInt trail
   dl <- getInt decisionLevel
@@ -312,8 +312,8 @@ analyze s@Solver{..} confl litvec = do
         then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
         else pushToList litvec (negate nextP) >> return b'
   result <- loopOnClauseChain confl 0 ti 0 0
-  x <- asList litvec
-  putStrLn $ "done" ++ show (result, x)
+  -- x <- asList litvec
+  -- putStrLn $ "done" ++ show (result, x)
 {-
   -- Simplify phase
   lits <- asList litvec
@@ -395,8 +395,8 @@ _analyze s@Solver{..} confl learnt = do
         then loop p confl (counter - 1) btLevel
         else {- setAt learnt 0 (negate p) -} pushToList learnt (negate p) >> return btLevel
   result <- loop bottomLit confl 0 0
-  x <- asList learnt
-  putStrLn $ "done" ++ show (result, x)
+  -- x <- asList learnt
+  -- putStrLn $ "done" ++ show (result, x)
 {-
   UV.set an_seen 0
   -- Simplify phase
