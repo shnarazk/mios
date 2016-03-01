@@ -278,11 +278,12 @@ analyze s@Solver{..} confl litvec = do
       when (learnt c) $ claBumpActivity s c
       sc <- sizeOfClause c
       let
+        lvec = asVec c
         loopOnLiterals :: Int -> Int -> Int -> IO (Int, Int)
         loopOnLiterals ((< sc) -> False) b pc = {- putStrLn "loopOnLiterals terminate" >> -} return (b, pc) -- b = btLevel, pc = pathC
         loopOnLiterals j b pc = do
           -- putStrLn $ "loopOnLiterals :: lit index, btlevel, pathc: " ++ show (j, b, pc)
-          (q :: Lit) <- getNthLiteral j c
+          (q :: Lit) <- getNth lvec j
           let v = var q
           -- putStrLn $ " * (q, v) = " ++ show (q, v)
           sn <- UV.unsafeRead an_seen v
@@ -449,14 +450,15 @@ analyzeRemovable Solver{..} p minLevel = do
     getRoot :: Lit -> IO Clause
     getRoot l = do
       (r :: Clause) <- getNthClause reason (var l) -- GClause r = reason[var(analyze_stack.last())]
+      let cvec = asVec r
       if r == NullClause
         then return NullClause
         else do
             nl <- sizeOfClause r
             if nl == 2
               then do
-                  l1 <- getNthLiteral 0 r
-                  l2 <- getNthLiteral 1 r
+                  l1 <- getNth cvec 0
+                  l2 <- getNth cvec 1
                   tmp <- getRoot $ if l1 /= l then l1 else l2
                   return $ if tmp == NullClause then r else tmp
               else return r
@@ -471,10 +473,11 @@ analyzeRemovable Solver{..} p minLevel = do
             c <- getNthClause reason (var sl) -- getRoot sl
             nl <- sizeOfClause c
             let
+              cvec = asVec c
               for :: Int -> IO Bool -- for (int i = 1; i < c.size(); i++){
               for ((< nl) -> False) = loopOnStack
               for i = do
-                p' <- getNthLiteral i c              -- valid range is [0 .. nl - 1]
+                p' <- getNth cvec i              -- valid range is [0 .. nl - 1]
                 let v' = var p'
                 c1 <- (1 /=) <$> UV.unsafeRead an_seen v'
                 c2 <- (0 <) <$> getNth level v'
@@ -931,9 +934,10 @@ solve s@Solver{..} assumps = do
 {-# INLINABLE remove #-}
 remove :: Clause -> Int -> Solver -> IO ()
 remove !c@Clause{..} i Solver{..} = do
-  l1 <- negate <$> getNthLiteral 0 c
+  let lvec = asVec c
+  l1 <- negate <$> getNth lvec 0
   removeClause (getNthWatchers watches (index l1)) c
-  l2 <- negate <$> getNthLiteral 1 c
+  l2 <- negate <$> getNth lvec 1
   removeClause (getNthWatchers watches (index l2)) c
   removeNthClause (if learnt then learnts else constrs) i
   return ()
@@ -946,30 +950,32 @@ remove !c@Clause{..} i Solver{..} = do
 {-# INLINABLE simplify #-}
 simplify :: Clause -> Solver -> IO Bool
 simplify c@Clause{..} s@Solver{..} = do
+  let cvec = asVec c
   n <- sizeOfClause c
-  l1 <- negate <$> getNthLiteral 0 c
-  l2 <- negate <$> getNthLiteral 1 c
+  l1 <- negate <$> getNth cvec 0
+  l2 <- negate <$> getNth cvec 1
   let
+    lvec = asVec c
     loop :: Int -> Int -> IO Bool
     loop ((< n) -> False) j = do
       when (0 < n - j) $ do
         shrinkClause (n - j) c
-        l1' <- negate <$> getNthLiteral 0 c
+        l1' <- negate <$> getNth lvec 0
         when (l1 /= l1') $ do
           removeClause (getNthWatchers watches (index l1)) c
           pushClause (getNthWatchers watches (index l1')) c
-        l2' <- negate <$> getNthLiteral 1 c
+        l2' <- negate <$> getNth lvec 1
         when (l2 /= l2') $ do
           removeClause (getNthWatchers watches (index l2)) c
           pushClause (getNthWatchers watches (index l2')) c
       return False
     loop i j = do
-      l <- getNthLiteral i c
+      l <- getNth lvec i
       v <- valueLit s l
       case () of
        _ | v == lTrue   -> return True
        _ | v == lBottom -> do
-             when (i /= j) $ setNthLiteral j c l      -- false literals are not copied (only occur for i >= 2)
+             when (i /= j) $ setNth lvec j l      -- false literals are not copied (only occur for i >= 2)
              loop (i+1) (j+1)
        _ -> loop (i+1) j
   loop 0 0
@@ -1057,10 +1063,9 @@ calcReason c s@Solver{..} p {- outReason -} = do
   -- putStrLn $ "calcReason :: n = " ++ show n
   when (learnt c) $ claBumpActivity s c
   let
+    lvec = asVec c
     loop ((< n) -> False) l = return l
-    loop i l = do loop (i + 1) . (: l) =<< getNthLiteral i c
---      push' outReason =<< getNthLiteral i c -- invariant: S.value(lits[i]) == lFalse
---      loop $ i + 1
+    loop i l = do loop (i + 1) . (: l) =<< getNth lvec i
   loop (if p == bottomLit then 0 else 1) []
 
 -- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists

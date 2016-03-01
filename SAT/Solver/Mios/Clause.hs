@@ -16,8 +16,6 @@ module SAT.Solver.Mios.Clause
          Clause (..)
        , isLit
        , getLit
-       , getNthLiteral
-       , setNthLiteral
        , shrinkClause
        , newClauseFromVec
        , sizeOfClause
@@ -25,6 +23,7 @@ module SAT.Solver.Mios.Clause
        where
 
 import GHC.Prim (tagToEnum#, reallyUnsafePtrEquality#)
+import qualified Data.Vector.Unboxed.Mutable as MV
 import Data.List (intercalate)
 import SAT.Solver.Mios.Types
 
@@ -57,11 +56,13 @@ instance VectorFamily Clause Lit where
     a <- show <$> getDouble activity
     (len:ls) <- asList lits
     return $ mes ++ "C" ++ show len ++ "{" ++ intercalate "," [show learnt, a, show (take len ls)] ++ "}"
+  asVec Clause{..} = MV.tail lits
   {-# SPECIALIZE INLINE asList :: Clause -> IO [Int] #-}
   asList NullClause = return []
   asList Clause{..} = do
     (n : ls)  <- asList lits
     return $ take n ls
+  {-# SPECIALIZE INLINE asVec :: Clause -> Vec #-}
 
 -- | returns True if it is a 'BinaryClause'
 -- FIXME: this might be discarded in minisat 2.2
@@ -77,17 +78,6 @@ getLit (BinaryClause x) = x
 -- | coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes
 liftToClause :: Clause -> Clause
 liftToClause (BinaryClause _) = error "So far I use generic function approach instead of lifting"
-
--- | returns the nth literal in a clause
--- Valid range: [0 .. sizeOfClause c - 1]
--- | Don't use a generic approach with performance penalty!
-{-# INLINE getNthLiteral #-}
-getNthLiteral :: Int -> Clause -> IO Int
-getNthLiteral !i Clause{..} = getNth lits (1 + i)
-
-{-# INLINE setNthLiteral #-}
-setNthLiteral :: Int -> Clause -> Int -> IO ()
-setNthLiteral !i Clause{..} x = setNth lits (1 + i) x
 
 {-# INLINABLE shrinkClause #-}
 shrinkClause :: Int -> Clause -> IO ()
