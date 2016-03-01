@@ -72,7 +72,8 @@ instance VectorFamily Vec Int where
   {-# SPECIALIZE INLINE asList :: Vec -> IO [Int] #-}
   asList v = forM [0 .. UV.length v - 1] $ UV.unsafeRead v
   dump str v = (str ++) . show <$> asList v
-  asVec v = v
+  {-# SPECIALIZE INLINE asVec :: Vec -> Vec #-}
+  asVec = id
 
 -- | represents "Var"
 type Var = Int

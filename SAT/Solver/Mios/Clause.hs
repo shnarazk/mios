@@ -56,7 +56,7 @@ instance VectorFamily Clause Lit where
     a <- show <$> getDouble activity
     (len:ls) <- asList lits
     return $ mes ++ "C" ++ show len ++ "{" ++ intercalate "," [show learnt, a, show (take len ls)] ++ "}"
-  asVec Clause{..} = MV.tail lits
+  asVec Clause{..} = MV.unsafeTail lits
   {-# SPECIALIZE INLINE asList :: Clause -> IO [Int] #-}
   asList NullClause = return []
   asList Clause{..} = do
