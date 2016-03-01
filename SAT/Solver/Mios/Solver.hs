@@ -61,12 +61,12 @@ data Solver = Solver
                                 -- to update when 'x' becomes unbound by backtracking.
               , propQ        :: QueueOfBoundedInt      -- ^ Propagation queue.
                 -- Assignments
-              , assigns      :: FixedVecInt            -- ^ The current assignments indexed on variables; var-indexed
+              , assigns      :: Vec                    -- ^ The current assignments indexed on variables; var-indexed
               , trail        :: StackOfInt             -- ^ List of assignments in chronological order; var-indexed
               , trailLim     :: StackOfInt             -- ^ Separator indices for different decision levels in 'trail'.
               , decisionLevel :: IntSingleton
               , reason       :: ClauseVector           -- ^ For each variable, the constraint that implied its value; var-indexed
-              , level        :: FixedVecInt            -- ^ For each variable, the decision level it was assigned; var-indexed
+              , level        :: Vec                    -- ^ For each variable, the decision level it was assigned; var-indexed
               , rootLevel    :: IntSingleton           -- ^ Separates incremental and search assumptions.
               , an_seen      :: UV.IOVector Int        -- ^ scratch var for 'analyze'; var-indexed
               , an_toClear   :: StackOfInt             -- ^ ditto
@@ -94,12 +94,12 @@ nLearnts = numberOfClauses . learnts
 -- | returns the assignment (:: 'LBool' = @[-1, 0, -1]@) from 'Var'
 {-# INLINE valueVar #-}
 valueVar :: Solver -> Var -> IO Int
-valueVar !s !x = getNthInt x (assigns s)
+valueVar !s !x = getNth (assigns s) x
 
 -- | returns the assignment (:: 'LBool' = @[-1, 0, -1]@) from 'Lit'
 {-# INLINE valueLit #-}
 valueLit :: Solver -> Lit -> IO LBool
-valueLit !Solver{..} !p = if p < 0 then negate <$> getNthInt (var p) assigns else getNthInt (var p) assigns
+valueLit !Solver{..} !p = if p < 0 then negate <$> getNth assigns (var p) else getNth assigns (var p)
 
 -- | returns an everything-is-initialized solver from the argument
 setInternalState :: Solver -> CNFDescription -> IO Solver
@@ -155,12 +155,12 @@ newSolver conf = Solver
             <*> newWatcherLists 1 1 -- watches
 --            <*> newVec 0          -- undos
             <*> newQueue 0          -- porqQ
-            <*> newVec 0            -- assigns
+            <*> newVec 0    -- assigns
             <*> newStackOfInt 0     -- trail
             <*> newStackOfInt 0     -- trailLim
             <*> newInt 0            -- decisionLevel
             <*> newClauseVector 0   -- reason
-            <*> newVec 0            -- level
+            <*> newVec 0    -- level
             <*> newInt 0            -- rootLevel
             <*> UV.new 0            -- an_seen
             <*> newStackOfInt 0     -- an_toClear
@@ -173,7 +173,7 @@ newSolver conf = Solver
 -- returns @False@ if a conflict has occured.
 -- This function is called only before the solving phase to register the given clauses.
 {-# INLINABLE addClause #-}
-addClause :: Solver -> FixedVecInt -> IO Bool
+addClause :: Solver -> Vec -> IO Bool
 addClause s@Solver{..} vecLits = do
   result <- clauseNew s vecLits False
   case result of
@@ -237,9 +237,9 @@ enqueue !s@Solver{..} !p !from = do
         return $ signum val == signum p
     else do
         -- New fact, store it
-        setNthInt v assigns $! signum p
+        setNth assigns v $! signum p
         d <- getInt decisionLevel
-        setNthInt v level d
+        setNth level v d
         setNthClause reason v from     -- NOTE: @from@ might be NULL!
         pushToStackOfInt trail p
         insertQueue propQ p
@@ -286,7 +286,7 @@ analyze s@Solver{..} confl litvec = do
           let v = var q
           -- putStrLn $ " * (q, v) = " ++ show (q, v)
           sn <- UV.unsafeRead an_seen v
-          l <- getNthInt v level
+          l <- getNth level v
           -- putStrLn $ " * (sn, l) = " ++ show (sn, l)
           if sn == 0 && 0 < l
             then do
@@ -319,7 +319,7 @@ analyze s@Solver{..} confl litvec = do
   lits <- asList litvec
   let
     merger :: Int -> Lit -> IO Int
-    merger i lit = setBit i . mod 60 <$> getNthInt (var lit) level
+    merger i lit = setBit i . mod 60 <$> getNth (var lit) level
   levels <- foldM merger 0 (tail lits)
   clearStackOfInt an_stack           -- analyze_stack.clear();
   clearStackOfInt an_toClear         -- out_learnt.copyTo(analyze_toclear);
@@ -369,7 +369,7 @@ _analyze s@Solver{..} confl learnt = do
           if sv == 0
             then do
                 UV.unsafeWrite an_seen v 1
-                l <- getNthInt v level
+                l <- getNth level v
                 case () of
                  _ | l == d -> for rest (counter + 1) btLevel
                  _ | 0 <  l -> do -- exclude variables from decision level 0
@@ -403,7 +403,7 @@ _analyze s@Solver{..} confl learnt = do
   lits <- asList learnt
   let
     merger :: Int -> Lit -> IO Int
-    merger i lit = setBit i . mod 60 <$> getNthInt (var lit) level
+    merger i lit = setBit i . mod 60 <$> getNth (var lit) level
   levels <- foldM merger 0 (tail lits)
   clearStackOfInt an_stack           -- analyze_stack.clear();
   clearStackOfInt an_toClear         -- out_learnt.copyTo(analyze_toclear);
@@ -477,11 +477,11 @@ analyzeRemovable Solver{..} p minLevel = do
                 p' <- getNthLiteral i c              -- valid range is [0 .. nl - 1]
                 let v' = var p'
                 c1 <- (1 /=) <$> UV.unsafeRead an_seen v'
-                c2 <- (0 <) <$> getNthInt v' level
+                c2 <- (0 <) <$> getNth level v'
                 if c1 && c2   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
                   then do
                       c3 <- (NullClause /=) <$> getNthClause reason v'
-                      c4 <- testBit minLevel . flip mod 60 <$> getNthInt v' level
+                      c4 <- testBit minLevel . flip mod 60 <$> getNth level v'
                       if c3 && c4 -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
                         then do
                             UV.unsafeWrite an_seen v' 1     -- analyze_seen[var(p)] = 1;
@@ -513,10 +513,10 @@ analyzeRemovable Solver{..} p minLevel = do
 -- __Pre-Condition:__ "clause[0]" must contain
 -- the asserting literal. In particular, 'clause[]' must not be empty.
 {-# INLINE record #-}
-record :: Solver -> FixedVecInt -> IO ()
+record :: Solver -> Vec -> IO ()
 record s@Solver{..} v = do
   c <- snd <$> clauseNew s v True -- will be set to created clause, or NULL if @clause[]@ is unit
-  l <- getNthInt 1 v
+  l <- getNth v 1
   enqueue s l c
   unless (c == NullClause) $ pushClause learnts c
 
@@ -526,9 +526,9 @@ record s@Solver{..} v = do
 undoOne :: Solver -> IO ()
 undoOne s@Solver{..} = do
   !v <- var <$> lastOfStackOfInt trail
-  setNthInt v assigns lBottom
+  setNth assigns v lBottom
   setNthClause reason v NullClause
-  setNthInt v level (-1)
+  setNth level v (-1)
   undo s v
   popFromStackOfInt trail
 {-
@@ -579,17 +579,17 @@ cancelUntil :: Solver -> Int -> IO ()
 cancelUntil s@Solver{..} lvl = do
   dl <- getInt decisionLevel
   when (lvl < dl) $ do
-    let tr = asVector trail
-    let tl = asVector trailLim
-    lim <- getNthInt (lvl + 1) tl
+    let tr = asVec trail
+    let tl = asVec trailLim
+    lim <- getNth tl (lvl + 1)
     ts <- sizeOfStackOfInt trail
     ls <- sizeOfStackOfInt trailLim
     let
       loopOnLevel :: Int -> IO ()
       loopOnLevel ((lim <) -> False) = return ()
       loopOnLevel c = do
-        x <- var <$> getNthInt c tr
-        setNthInt x assigns lBottom
+        x <- var <$> getNth tr c
+        setNth assigns x lBottom
         -- FIXME: #polarity https://github.com/shnarazk/minisat/blob/master/core/Solver.cc#L212
         undo s x
         -- insert s x              -- insertVerOrder
@@ -988,12 +988,12 @@ simplify c@Clause{..} s@Solver{..} = do
 propagateLit :: Clause -> Solver -> Lit -> ClauseManager -> IO LBool
 propagateLit !c@Clause{..} !s@Solver{..} !p !m = do
   -- Make sure the false literal is lits[1] = 2nd literal = 2nd watcher:
-  !l' <- negate <$> getNthInt 1 lits
+  !l' <- negate <$> getNth lits 1
   when (l' == p) $ do
     -- swap lits[0] and lits[1]
-    swapIntsBetween lits 1 2
+    swapBetween lits 1 2
   -- If 0th watch is True, then clause is already satisfied.
-  !l1 <- getNthInt 1 lits
+  !l1 <- getNth lits 1
   !val <- valueLit s l1
   if val == lTrue
     then return lTrue           -- this means the clause is satisfied, so we must keep it in the original watcher list
@@ -1010,11 +1010,11 @@ propagateLit !c@Clause{..} !s@Solver{..} !p !m = do
               then return lTrue  -- unit caluse should be in the original watcher list
               else return lFalse -- A conflict occures
           loopOnLits i = do
-            !(l :: Int) <- getNthInt i lits
+            !(l :: Int) <- getNth lits i
             !val <- valueLit s l
             if val /= lFalse    -- l is unassigned or satisfied already
               then do
-                  swapIntsBetween lits 2 i -- setNthInt 2 lits l >> setNthInt i lits np
+                  swapBetween lits 2 i -- setNth 2 lits l >> setNth i lits np
                   -- putStrLn "## from propagateLit"
                   -- @removeClause m c@ will be done by propagate
                   pushClause (getNthWatchers watches (index (negate l))) c -- insert clause into watcher list
@@ -1074,7 +1074,7 @@ calcReason c s@Solver{..} p {- outReason -} = do
 -- first be unbound by backtracking. (Note that none of the learnt-clause specific things
 -- needs to done for a user defined contraint type.)
 {-# INLINABLE clauseNew #-}
-clauseNew :: Solver -> FixedVecInt -> Bool -> IO (Bool, Clause)
+clauseNew :: Solver -> Vec -> Bool -> IO (Bool, Clause)
 clauseNew s@Solver{..} ps learnt = do
   -- now ps[0] is the number of living literals
   exit <- do
@@ -1083,38 +1083,38 @@ clauseNew s@Solver{..} ps learnt = do
       handle j l n      -- removes duplicates, but returns @True@ if this clause is satisfied
         | j > n = return False
         | otherwise = do
-            y <- getNthInt j ps
+            y <- getNth ps j
             case () of
              _ | y == l -> do             -- finds a duplicate
-                   swapIntsBetween ps j n
-                   modifyNthInt 0 ps (subtract 1)
+                   swapBetween ps j n
+                   modifyNth ps (subtract 1) 0
                    handle j l (n - 1)
-             _ | - y == l -> setNthInt 0 ps 0 >> return True -- p and negate p occurs in ps
+             _ | - y == l -> setNth ps 0 0 >> return True -- p and negate p occurs in ps
              _ -> handle (j + 1) l n
       loopForLearnt :: Int -> IO Bool
       loopForLearnt i = do
-        n <- getNthInt 0 ps
+        n <- getNth ps 0
         if n < i
           then return False
           else do
-              l <- getNthInt i ps
+              l <- getNth ps i
               sat <- handle (i + 1) l n
               if sat
                 then return True
                 else loopForLearnt $ i + 1
       loop :: Int -> IO Bool
       loop i = do
-        n <- getNthInt 0 ps
+        n <- getNth ps 0
         if n < i
           then return False
           else do
-              l <- getNthInt i ps     -- check the i-th literal's satisfiability
+              l <- getNth ps i     -- check the i-th literal's satisfiability
               sat <- valueLit s l                                      -- any literal in ps is true
               case () of
-               _ | sat == lTrue -> setNthInt 0 ps 0 >> return True
+               _ | sat == lTrue -> setNth ps 0 0 >> return True
                _ | sat == lFalse -> do
-                 swapIntsBetween ps i n
-                 modifyNthInt 0 ps (subtract 1)
+                 swapBetween ps i n
+                 modifyNth ps (subtract 1) 0
                  loop i
                _ -> do
                  sat' <- handle (i + 1) l n
@@ -1122,11 +1122,11 @@ clauseNew s@Solver{..} ps learnt = do
                    then return True
                    else loop $ i + 1
     if learnt then loopForLearnt 1 else loop 1
-  k <- getNthInt 0 ps
+  k <- getNth ps 0
   case k of
    0 -> return (exit, NullClause)
    1 -> do
-     l <- getNthInt 1 ps
+     l <- getNth ps 1
      (, NullClause) <$> enqueue s l NullClause
    _ -> do
      -- allocate clause:
@@ -1137,25 +1137,25 @@ clauseNew s@Solver{..} ps learnt = do
          findMax :: Int -> Int -> Int -> IO Int
          findMax ((<= k) -> False) j _ = return j
          findMax i j val = do
-           v' <- var <$> getNthInt i ps
-           a <- getNthInt v' assigns
-           b <- getNthInt v' level
+           v' <- var <$> getNth ps i
+           a <- getNth assigns v'
+           b <- getNth level v'
            if (a /= lBottom) && (val < b)
              then findMax (i + 1) i b
              else findMax (i + 1) j val
        -- Let @max_i@ be the index of the literal with highest decision level
        max_i <- findMax 1 1 0
-       swapIntsBetween ps 2 max_i
+       swapBetween ps 2 max_i
        -- check literals occurences
        -- x <- asList c
        -- unless (length x == length (nub x)) $ error "new clause contains a element doubly"
        -- Bumping:
        claBumpActivity s c -- newly learnt clauses should be considered active
-       forM_ [1 .. k] $ varBumpActivity s . var <=< flip getNthInt ps -- variables in conflict clauses are bumped
+       forM_ [1 .. k] $ varBumpActivity s . var <=< getNth ps -- variables in conflict clauses are bumped
      -- Add clause to watcher lists:
-     l0 <- negate <$> getNthInt 1 ps
+     l0 <- negate <$> getNth ps 1
      pushClause (getNthWatchers watches (index l0)) c
-     l1 <- negate <$> getNthInt 2 ps
+     l1 <- negate <$> getNth ps 2
      pushClause (getNthWatchers watches (index l1)) c
      return (True, c)
 
@@ -1163,7 +1163,7 @@ clauseNew s@Solver{..} ps learnt = do
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__
 {-# INLINE locked #-}
 locked :: Clause -> Solver -> IO Bool
-locked !c@Clause{..} !Solver{..} =  (c ==) <$> (getNthClause reason . var =<< getNthInt 1 lits)
+locked !c@Clause{..} !Solver{..} =  (c ==) <$> (getNthClause reason . var =<< getNth lits 1)
 
 -- | For small-sized problems, heap may not be a good choice.
 useHeap :: Int
@@ -1205,13 +1205,13 @@ instance VarOrder Solver where
           then return 0
           else do
               v <- getHeapRoot s
-              val <- getNthInt v asg
+              val <- getNth asg v
               if val == lBottom then return v else loop
       -- | O(n) implementation on vector: loop2 1 0 (-1)
       loop2 :: Int -> Int -> Double -> IO Var
       loop2 ((<= nv) -> False) j _ = return j
       loop2 i j best = do
-        x <- getNthInt i asg
+        x <- getNth asg i
         if x == lBottom
           then do
               actv <- getNthDouble i $ activities s
@@ -1228,21 +1228,21 @@ instance VarOrder Solver where
           if r < rd
             then do
                 !i <- (+ 1) . flip mod nv <$> randomIO
-                x <- getNthInt i asg
+                x <- getNth asg i
                 if x == lBottom then return i else if useHeap < nv then loop else loop2 1 0 (-1)
             else if useHeap < nv then loop else loop2 1 0 (-1)
       else if useHeap < nv then loop else loop2 1 0 (-1)
 
 -------------------------------------------------------------------------------- VarHeap
 
--- | 'VarHeap' is a heap tree built from two 'FixedVecInt'
+-- | 'VarHeap' is a heap tree built from two 'Vec'
 -- This implementation is identical wtih that in Minisat-1.14
 -- Note: the zero-th element of 'heap' is used for holding the number of elements
 -- Note: VarHeap itself is not a 'VarOrder', because it requires a pointer to solver
 data VarHeap = VarHeap
                 {
-                  heap :: FixedVecInt -- order to var
-                , idxs :: FixedVecInt -- var to order (index)
+                  heap :: Vec -- order to var
+                , idxs :: Vec -- var to order (index)
                 }
 
 newVarHeap :: Int -> IO VarHeap
@@ -1252,42 +1252,42 @@ newVarHeap n = VarHeap <$> newSizedVecIntFromList lst <*> newSizedVecIntFromList
 
 {-# INLINE numElementsInHeap #-}
 numElementsInHeap :: Solver -> IO Int
-numElementsInHeap (order -> heap -> h) = getNthInt 0 h
+numElementsInHeap (order -> heap -> h) = getNth h 0
 
 {-# INLINE inHeap #-}
 inHeap :: Solver -> Int -> IO Bool
-inHeap (order -> idxs -> at) n = (/= 0) <$> getNthInt n at
+inHeap (order -> idxs -> at) n = (/= 0) <$> getNth at n
 
 {-# INLINE increase #-}
 increase :: Solver -> Int -> IO ()
-increase s@(order -> idxs -> at) n = inHeap s n >>= (`when` (percolateUp s =<< getNthInt n at))
+increase s@(order -> idxs -> at) n = inHeap s n >>= (`when` (percolateUp s =<< getNth at n))
 
 {-# INLINABLE percolateUp #-}
 percolateUp :: Solver -> Int -> IO ()
 percolateUp Solver{..} start = do
   let VarHeap to at = order
-  v <- getNthInt start to
+  v <- getNth to start
   ac <- getNthDouble v activities
   let
     loop :: Int -> IO ()
     loop i = do
       let iP = div i 2          -- parent
       if iP == 0
-        then setNthInt i to v >> setNthInt v at i >> return () -- end
+        then setNth to i v >> setNth at v i >> return () -- end
         else do
-            v' <- getNthInt iP to
+            v' <- getNth to iP
             acP <- getNthDouble v' activities
             if ac > acP
-              then setNthInt i to v' >> setNthInt v' at i >> loop iP -- loop
-              else setNthInt i to v >> setNthInt v at i >> return () -- end
+              then setNth to i v' >> setNth at v' i >> loop iP -- loop
+              else setNth to i v >> setNth at v i >> return () -- end
   loop start
 
 {-# INLINABLE percolateDown #-}
 percolateDown :: Solver -> Int -> IO ()
 percolateDown Solver{..} start = do
   let (VarHeap to at) = order
-  n <- getNthInt 0 to
-  v <- getNthInt start to
+  n <- getNth to 0
+  v <- getNth to start
   ac <- getNthDouble v activities
   let
     loop :: Int -> IO ()
@@ -1296,37 +1296,37 @@ percolateDown Solver{..} start = do
       if iL <= n
         then do
             let iR = iL + 1     -- right
-            l <- getNthInt iL to
-            r <- getNthInt iR to
+            l <- getNth to iL
+            r <- getNth to iR
             acL <- getNthDouble l activities
             acR <- getNthDouble r activities
             let (ci, child, ac') = if iR <= n && acL < acR then (iR, r, acR) else (iL, l, acL)
             if ac' > ac
-              then setNthInt i to child >> setNthInt child at i >> loop ci
-              else setNthInt i to v >> setNthInt v at i >> return () -- end
-        else setNthInt i to v >> setNthInt v at i >> return ()       -- end
+              then setNth to i child >> setNth at child i >> loop ci
+              else setNth to i v >> setNth at v i >> return () -- end
+        else setNth to i v >> setNth at v i >> return ()       -- end
   loop start
 
 {-# INLINE insert #-}
 insert :: Solver -> Var -> IO ()
 insert s@(order -> VarHeap to at) v = do
-  n <- (1 +) <$> getNthInt 0 to
-  setNthInt v at n
-  setNthInt n to v
-  setNthInt 0 to n
+  n <- (1 +) <$> getNth to 0
+  setNth at v n
+  setNth to n v
+  setNth to 0 n
   percolateUp s n
 
 -- | renamed from 'getmin'
 {-# INLINE getHeapRoot #-}
 getHeapRoot :: Solver -> IO Int
 getHeapRoot s@(order -> VarHeap to at) = do
-  r <- getNthInt 1 to
-  l <- flip getNthInt to =<< getNthInt 0 to -- the last element's value
-  setNthInt 1 to l
-  setNthInt l at 1
-  setNthInt r at 0
-  modifyNthInt 0 to $ subtract 1 -- pop
-  n <- getNthInt 0 to
+  r <- getNth to 1
+  l <- getNth to =<< getNth to 0 -- the last element's value
+  setNth to 1 l
+  setNth at l 1
+  setNth at r 0
+  modifyNth to (subtract 1) 0 -- pop
+  n <- getNth to 0
   when (1 < n) $ percolateDown s 1
   return r
 
@@ -1340,7 +1340,7 @@ dumpStatus Solver{..} = do
   putStrLn =<< dump "trailLim: " trailLim
   putStrLn =<< makeGraph <$> asList trail <*> fromReason reason
 
-fromReason :: VecOf Clause -> IO [(Int, [Int])]
+fromReason :: ClauseVector -> IO [(Int, [Int])]
 fromReason vec = do
   l <- zip [1..] <$> asList vec
   let f (i, c) = (i, ) <$> asList c

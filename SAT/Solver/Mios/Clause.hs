@@ -26,8 +26,7 @@ module SAT.Solver.Mios.Clause
 
 import GHC.Prim (tagToEnum#, reallyUnsafePtrEquality#)
 import Data.List (intercalate)
-import SAT.Solver.Mios.Types (ContainerLike(..), VectorLike(..), Lit)
-import SAT.Solver.Mios.Internal (FixedVecInt, getNthInt, setNthInt, DoubleSingleton, getDouble, newDouble)
+import SAT.Solver.Mios.Types
 
 -- | __Fig. 7.(p.11)__
 -- clause, null, binary clause.
@@ -37,7 +36,7 @@ data Clause = Clause
               {
                 learnt     :: Bool            -- ^ whether this is a learnt clause
               , activity   :: DoubleSingleton -- ^ activity of this clause
-              , lits       :: FixedVecInt     -- ^ which this clause consists of
+              , lits       :: Vec     -- ^ which this clause consists of
               }
   | BinaryClause Int            -- binary clause consists of only a propagating literal
   | NullClause                  -- as null pointer
@@ -51,8 +50,8 @@ instance Show Clause where
   show NullClause = "NullClause"
   show _ = "a clause"
 
--- | supports a restricted set of 'ContainerLike' methods
-instance ContainerLike Clause Lit where
+-- | supports a restricted set of 'VectorFamily' methods
+instance VectorFamily Clause Lit where
   dump mes NullClause = return $ mes ++ "[Null]"
   dump mes Clause{..} = do
     a <- show <$> getDouble activity
@@ -84,22 +83,22 @@ liftToClause (BinaryClause _) = error "So far I use generic function approach in
 -- | Don't use a generic approach with performance penalty!
 {-# INLINE getNthLiteral #-}
 getNthLiteral :: Int -> Clause -> IO Int
-getNthLiteral !i Clause{..} = getNthInt (1 + i) lits
+getNthLiteral !i Clause{..} = getNth lits (1 + i)
 
 {-# INLINE setNthLiteral #-}
 setNthLiteral :: Int -> Clause -> Int -> IO ()
-setNthLiteral !i Clause{..} x = setNthInt (1 + i) lits x
+setNthLiteral !i Clause{..} x = setNth lits (1 + i) x
 
 {-# INLINABLE shrinkClause #-}
 shrinkClause :: Int -> Clause -> IO ()
-shrinkClause !n Clause{..} = setNthInt 0 lits . subtract n =<< getNthInt 0 lits
+shrinkClause !n Clause{..} = setNth lits 0 . subtract n =<< getNth lits 0
 
 {-# INLINE newClauseFromVec #-}
-newClauseFromVec :: Bool -> FixedVecInt -> IO Clause
+newClauseFromVec :: Bool -> Vec -> IO Clause
 newClauseFromVec l vec = Clause l <$> newDouble 0 <*> return vec
 
 -- | returns the numeber of literals in a clause, even if the given clause is a binary clause
 {-# INLINE sizeOfClause #-}
 sizeOfClause :: Clause -> IO Int
 sizeOfClause (BinaryClause _) = return 1
-sizeOfClause !c = getNthInt 0 (lits c)
+sizeOfClause !c = getNth (lits c) 0

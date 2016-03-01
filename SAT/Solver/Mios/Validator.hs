@@ -9,9 +9,7 @@ module SAT.Solver.Mios.Validator
 
 import Data.Foldable (toList)
 import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.ClauseManager
-import SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Solver
 
 -- | validate the assignment even if the implementation of 'Solver' is wrong; we re-implement some functions here.
@@ -22,10 +20,10 @@ validate s (toList -> lst) = do
   nc <- numberOfClauses (constrs s)
   let
     inject :: Lit -> IO ()
-    inject l = setNthInt (abs l) assignment (signum l)
+    inject l = setNth assignment (abs l) (signum l)
     -- return True if the literal is satisfied under the assignment
     satisfied :: Lit -> IO Bool
-    satisfied n = (signum n ==) . signum <$> getNthInt (abs n) assignment  
+    satisfied n = (signum n ==) . signum <$> getNth assignment (abs n)
     -- return True is any literal in the given list
     satAny :: [Lit] -> IO Bool
     satAny [] = return False

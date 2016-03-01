@@ -38,13 +38,12 @@ import Control.Monad (forM_, unless, when)
 import qualified Data.IORef as IORef
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
-import SAT.Solver.Mios.Types (ContainerLike (..))
+import SAT.Solver.Mios.Types
 import qualified SAT.Solver.Mios.Clause as C
-import SAT.Solver.Mios.Data.Singleton
 
 type ClauseVector = MV.IOVector C.Clause
 
-instance ContainerLike ClauseVector C.Clause where
+instance VectorFamily ClauseVector C.Clause where
   asList cv = V.toList <$> V.freeze cv
   dump mes cv = do
     l <- take 10 <$> asList cv
@@ -140,7 +139,7 @@ removeClause ClauseManager{..} c = do
   MV.unsafeWrite v i =<< MV.unsafeRead v n
   setInt _nActives n
 
-instance ContainerLike ClauseManager C.Clause where
+instance VectorFamily ClauseManager C.Clause where
   dump mes ClauseManager{..} = do
     n <- getInt _nActives
     if n == 0

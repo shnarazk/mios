@@ -29,7 +29,7 @@ module SAT.Solver.Mios.Data.FixedVecDouble
 import Control.Monad (forM)
 import Data.List ()
 import qualified Data.Vector.Unboxed.Mutable as UV
-import SAT.Solver.Mios.Types (ContainerLike(..))
+import SAT.Solver.Mios.Types (VectorFamily(..))
 
 -- | __version 0.3__
 --
@@ -40,7 +40,7 @@ newtype FixedVecDouble = FixedVecDouble
                           }
 
 -- | provides 'clear' and 'size'
-instance ContainerLike FixedVecDouble Double where
+instance VectorFamily FixedVecDouble Double where
   clear FixedVecDouble{..} = error "FixedVecDouble.clear"
   asList FixedVecDouble{..} = forM [0 .. UV.length doubleVec - 1] $ UV.unsafeRead doubleVec
   dump str v = (str ++) . show <$> asList v

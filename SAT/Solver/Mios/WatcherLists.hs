@@ -1,11 +1,7 @@
 {-# LANGUAGE
-    BangPatterns
-  , FlexibleInstances
-  , MagicHash
+    FlexibleInstances
   , MultiParamTypeClasses
-  , RecordWildCards
   , UndecidableInstances
-  , ViewPatterns
   #-}
 {-# LANGUAGE Trustworthy #-}
 
@@ -18,10 +14,10 @@ module SAT.Solver.Mios.WatcherLists
        )
        where
 
-import Control.Monad (forM, forM_, when)
+import Control.Monad (forM)
 import qualified Data.List as L
 import qualified Data.Vector as V
-import SAT.Solver.Mios.Types (ContainerLike(..), Lit, index2lit)
+import SAT.Solver.Mios.Types
 import qualified SAT.Solver.Mios.Clause as C
 import SAT.Solver.Mios.ClauseManager
 
@@ -34,5 +30,5 @@ newWatcherLists n m = V.fromList <$> (forM [0 .. n - 1] $ \_ -> newClauseManager
 getNthWatchers :: WatcherLists -> Int -> ClauseManager
 getNthWatchers = V.unsafeIndex
 
-instance ContainerLike WatcherLists C.Clause where
+instance VectorFamily WatcherLists C.Clause where
   dump mes wl = (mes ++) . L.concat <$> (forM [0 .. V.length wl - 1] $ \i -> dump ("\n" ++ show (index2lit i) ++ "' watchers:") (getNthWatchers wl i))

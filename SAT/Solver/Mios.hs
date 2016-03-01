@@ -34,7 +34,7 @@ import System.Exit
 
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Solver
-import SAT.Solver.Mios.Internal (FixedVecInt (..), setNthInt, sizeOfVecInt, versionId, FixedVecInt, ListOf, newList, newListFromList, newSizedVecIntFromList)
+import SAT.Solver.Mios.Internal (versionId, ListOf, newList, newListFromList)
 import SAT.Solver.Mios.OptionParser
 import SAT.Solver.Mios.Validator
 
@@ -97,21 +97,21 @@ injectClauses solver n m str = do
     skipToInt str = if B.head bol == 'c' then skipToInt $ B.dropWhile ('\n' /=) bol else bol
       where bol = B.dropWhile (`elem` " \t\n") str
     -- | read an Int and store it to /j/-th literal of /i/-th clause
-    loop :: Int -> Int -> B.ByteString -> FixedVecInt -> IO ()
+    loop :: Int -> Int -> B.ByteString -> Vec -> IO ()
     loop i j str vec = do
       case B.readInt (skipToInt str) of
         Just (0, str') -> do
-          setAt 0 vec (j - 1)
+          setNth vec 0 (j - 1)
           solver `addClause` vec
           let i' = i + 1
           if m == i' then return () else loop i' 1 str' =<< newVec initialSize
         Just (l, str') -> do
-          len <- sizeOfVecInt vec
+          len <- sizeOfVector vec
           if len <= j
             then do
                 vec' <- UM.unsafeGrow vec len
-                setNthInt j vec' l >> loop i (j + 1) str' vec'
-            else setNthInt j vec l >> loop i (j + 1) str' vec
+                setNth vec' j l >> loop i (j + 1) str' vec'
+            else setNth vec j l >> loop i (j + 1) str' vec
         Nothing -> return ()
   loop 0 1 str =<< newVec n
 

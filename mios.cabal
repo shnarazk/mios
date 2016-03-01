@@ -56,8 +56,7 @@ library
                                          SAT.Solver.Mios.ClauseManager
                                          SAT.Solver.Mios.WatcherLists
                                          SAT.Solver.Mios.Data.FixedVecDouble
-                                         SAT.Solver.Mios.Data.FixedVecInt
-                                         SAT.Solver.Mios.Data.FixedVecOf
+                                         SAT.Solver.Mios.Data.Vec
                                          SAT.Solver.Mios.Data.ListOf
                                          SAT.Solver.Mios.Data.QueueOfBoundedInt
                                          SAT.Solver.Mios.Data.Singleton
@@ -93,8 +92,7 @@ executable mios
     SAT.Solver.Mios.Clause
     SAT.Solver.Mios.ClauseManager
     SAT.Solver.Mios.Data.FixedVecDouble
-    SAT.Solver.Mios.Data.FixedVecInt
-    SAT.Solver.Mios.Data.FixedVecOf
+    SAT.Solver.Mios.Data.Vec
     SAT.Solver.Mios.Data.ListOf
     SAT.Solver.Mios.Data.QueueOfBoundedInt
     SAT.Solver.Mios.Data.Singleton
@@ -124,8 +122,7 @@ executable mios-M22
     SAT.Solver.Mios.Clause
     SAT.Solver.Mios.ClauseManager
     SAT.Solver.Mios.Data.FixedVecDouble
-    SAT.Solver.Mios.Data.FixedVecInt
-    SAT.Solver.Mios.Data.FixedVecOf
+    SAT.Solver.Mios.Data.Vec
     SAT.Solver.Mios.Data.ListOf
     SAT.Solver.Mios.Data.QueueOfBoundedInt
     SAT.Solver.Mios.Data.Singleton
@@ -152,8 +149,7 @@ executable mios-M22-prof
     SAT.Solver.Mios.Clause
     SAT.Solver.Mios.ClauseManager
     SAT.Solver.Mios.Data.FixedVecDouble
-    SAT.Solver.Mios.Data.FixedVecInt
-    SAT.Solver.Mios.Data.FixedVecOf
+    SAT.Solver.Mios.Data.Vec
     SAT.Solver.Mios.Data.ListOf
     SAT.Solver.Mios.Data.QueueOfBoundedInt
     SAT.Solver.Mios.Data.Singleton
@@ -198,8 +194,7 @@ executable mios-M22-cr
     SAT.Solver.Mios.Clause
     SAT.Solver.Mios.ClauseManager
     SAT.Solver.Mios.Data.FixedVecDouble
-    SAT.Solver.Mios.Data.FixedVecInt
-    SAT.Solver.Mios.Data.FixedVecOf
+    SAT.Solver.Mios.Data.Vec
     SAT.Solver.Mios.Data.ListOf
     SAT.Solver.Mios.Data.QueueOfBoundedInt
     SAT.Solver.Mios.Data.Singleton

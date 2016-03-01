@@ -30,7 +30,7 @@ module SAT.Solver.Mios.Data.ListOf
        where
 
 import Data.IORef
-import SAT.Solver.Mios.Types (ContainerLike(..))
+import SAT.Solver.Mios.Types (VectorFamily(..))
 
 -- | __version 0.1__ : pointing a list by IORef
 --
@@ -44,7 +44,7 @@ sizeOfVec :: ListOf a -> IO Int
 sizeOfVec (ListOf ptr) = length <$> readIORef ptr
 
 -- | provides 'clear' and 'size'
-instance ContainerLike (ListOf a) a where
+instance VectorFamily (ListOf a) a where
   {-# SPECIALIZE INLINE asList :: ListOf Int -> IO [Int] #-}
   {-# SPECIALIZE INLINE asList :: ListOf Bool -> IO [Bool] #-}
   asList (ListOf ptr) = readIORef ptr

@@ -31,7 +31,7 @@ module SAT.Solver.Mios.Data.StackOfInt
        where
 
 import qualified Data.Vector.Unboxed.Mutable as UV
-import SAT.Solver.Mios.Types (ContainerLike(..))
+import SAT.Solver.Mios.Types (VectorFamily(..))
 
 -- | __version 0.1__ : pointing a list by IORef
 --
@@ -40,8 +40,8 @@ newtype StackOfInt = StackOfInt
                     ivec :: UV.IOVector Int
                   }
 
-instance ContainerLike StackOfInt Int where
-  asVector StackOfInt{..} = ivec
+instance VectorFamily StackOfInt Int where
+  asVec StackOfInt{..} = ivec
 
 {-# INLINE sizeOfStackOfInt #-}
 sizeOfStackOfInt :: StackOfInt -> IO Int

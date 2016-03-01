@@ -15,9 +15,12 @@
 -- | Basic abstract data types used throughout the code.
 module SAT.Solver.Mios.Types
        (
+         -- Singleton
+         module SAT.Solver.Mios.Data.Singleton
+         -- Fixed Unboxed Mutable Int Vector
+       , module SAT.Solver.Mios.Data.Vec
          -- Abstract interfaces
-         ContainerLike (..)
-       , VectorLike (..)
+       , VectorFamily (..)
          -- * misc function
        , Var
        , bottomVar
@@ -38,12 +41,15 @@ module SAT.Solver.Mios.Types
        )
        where
 
+import Control.Monad (forM)
 import GHC.Exts (Int(..))
 import GHC.Prim
 import qualified Data.Vector.Unboxed.Mutable as UV
+import SAT.Solver.Mios.Data.Singleton
+import SAT.Solver.Mios.Data.Vec
 
 -- | Public interface as /Container/
-class ContainerLike s t | s -> t where
+class VectorFamily s t | s -> t where
   -- * Size operations
   -- | erases all elements in it
   clear :: s -> IO ()
@@ -53,53 +59,20 @@ class ContainerLike s t | s -> t where
   dump :: Show t => String -> s -> IO String
   dump msg _ = error $ msg ++ ": no defalut method for dump"
   -- | get a raw data
-  asVector :: s -> UV.IOVector Int
-  asVector = error "asVector undefined"
+  asVec :: s -> UV.IOVector Int
+  asVec = error "asVector undefined"
   -- | converts into a list
   asList :: s -> IO [t]
   asList = error "asList undefined"
   {-# MINIMAL dump #-}
 
--- | The vector data type can push a default constructed element by the 'push` method
--- with no argument. The 'moveTo' method will move the contents of a vector to another
--- vector in constant time, crearing the source vector.
-class ContainerLike v t => VectorLike v t | v -> t where
-  -- * Constructors
-  -- | returns a /n/ length uninitialized new vector
-  newVec :: Int -> IO v
-  newVec = error "newVecSized undefined"
-  -- | returns a /n/ length nev vector whose elements are set to the 2nd arg
-  newVecWith :: Int -> t -> IO v
-  newVecWith = error "newVecWith undefined"
-  -- * Conversion
-  -- | converts from @list :: [t]@ in a monadic context
-  newFromList :: [t] -> IO v
-  newFromList = error "newFromList undefined"
-  -- * Vector interface
-  -- | get the value at /n/-th field of the vector
-  getAt :: Int -> v -> IO t
-  getAt _ _ = error "getAt undefined"
-  -- | set an value to the /n/-th field of the vector
-  setAt :: Int -> v -> t -> IO ()
-  setAt _ _ _ = error "setAt undefined"
-  -- | update the /n/-th field of the vector
-  modifyAt :: Int -> v -> (t -> t) -> IO ()
-  modifyAt _ _ _ = error "modifyAt undefined"
-  {-# MINIMAL newVec #-}
-
--- | Pointer-based implementation of "equality"
---
--- __Note:__ this requires strict evaluation; use @BangPatterns@
---
--- >>> let x = [2,3]
--- >>> let y = [2,3]
--- >>> let z = x
--- >>> let z' = z in print =<< sequence [x <==> x, x <==> y, x <==> z, x <==> z']
--- [True, False, True, True]
---
--- (<==>) :: a -> a -> IO Bool
--- (<==>) !a !b = (==) <$> makeStableName a <*> makeStableName b
--- (<==>) !x !y = return $! x `seq` y `seq` tagToEnum# (reallyUnsafePtrEquality# x y)
+-- | provides 'clear' and 'size'
+instance VectorFamily Vec Int where
+  clear = error "Vec.clear"
+  {-# SPECIALIZE INLINE asList :: Vec -> IO [Int] #-}
+  asList v = forM [0 .. UV.length v - 1] $ UV.unsafeRead v
+  dump str v = (str ++) . show <$> asList v
+  asVec v = v
 
 -- | represents "Var"
 type Var = Int
@@ -173,7 +146,7 @@ lBottom = I# 0#
 -- with the highest activity.
 class VarOrder o where
   -- | constructor
-  newVarOrder :: (VectorLike v1 Bool, VectorLike v2 Double) => v1 -> v2 -> IO o
+  newVarOrder :: (VectorFamily v1 Bool, VectorFamily v2 Double) => v1 -> v2 -> IO o
   newVarOrder _ _ = error "newVarOrder undefined"
 
   -- | Called when a new variable is created.
