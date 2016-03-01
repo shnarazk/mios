@@ -31,7 +31,7 @@ module SAT.Solver.Mios.Data.StackOfInt
        where
 
 import qualified Data.Vector.Unboxed.Mutable as UV
-import SAT.Solver.Mios.Types (VectorFamily(..))
+import SAT.Solver.Mios.Types
 
 -- | __version 0.1__ : pointing a list by IORef
 --
