@@ -41,6 +41,10 @@ newtype StackOfInt = StackOfInt
                   }
 
 instance VectorFamily StackOfInt Int where
+  dump str v = do
+    (n:l) <- asList v
+    return $ str ++ show (take n l)
+  {-# SPECIALIZE INLINE asVec :: StackOfInt -> Vec #-}
   asVec StackOfInt{..} = ivec
 
 {-# INLINE sizeOfStackOfInt #-}
