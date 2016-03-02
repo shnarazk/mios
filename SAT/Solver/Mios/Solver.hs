@@ -451,7 +451,7 @@ cancelUntil s@Solver{..} lvl = do
         setNth assigns x lBottom
         -- FIXME: #polarity https://github.com/shnarazk/minisat/blob/master/core/Solver.cc#L212
         undo s x
-        -- insert s x              -- insertVerOrder
+        -- insertHeap s x              -- insertVerOrder
         loopOnLevel $ c - 1
     loopOnLevel $ ts - 1
     shrinkStackOfInt trail (ts - lim)
@@ -1005,7 +1005,7 @@ instance VarOrder Solver where
   {-# SPECIALIZE INLINE update :: Solver -> Var -> IO () #-}
   update s v = when (useHeap < nVars s) $ increase s v
   {-# SPECIALIZE INLINE undo :: Solver -> Var -> IO () #-}
-  undo s v = when (useHeap < nVars s) $ inHeap s v >>= (`unless` insert s v)
+  undo s v = when (useHeap < nVars s) $ inHeap s v >>= (`unless` insertHeap s v)
   {-# SPECIALIZE INLINE select :: Solver -> IO Var #-}
   select s = do
     let
@@ -1121,9 +1121,9 @@ percolateDown Solver{..} start = do
         else setNth to i v >> setNth at v i >> return ()       -- end
   loop start
 
-{-# INLINE insert #-}
-insert :: Solver -> Var -> IO ()
-insert s@(order -> VarHeap to at) v = do
+{-# INLINE insertHeap #-}
+insertHeap :: Solver -> Var -> IO ()
+insertHeap s@(order -> VarHeap to at) v = do
   n <- (1 +) <$> getNth to 0
   setNth at v n
   setNth to n v
