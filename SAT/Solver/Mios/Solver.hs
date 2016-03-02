@@ -44,35 +44,35 @@ import SAT.Solver.Mios.WatcherLists
 data Solver = Solver
               {
                 -- for public interface
-                model        :: ListOf Bool            -- ^ If found, this vector has the model
+                model         :: ListOf Bool       -- ^ If found, this vector has the model
                 -- Contraint database
-              , constrs      :: ClauseManager          -- ^ List of problem constraints.
-              , learnts      :: ClauseManager          -- ^ List of learnt clauses.
-              , claInc       :: DoubleSingleton        -- ^ Clause activity increment amount to bump with.
+              , constrs       :: ClauseManager     -- ^ List of problem constraints.
+              , learnts       :: ClauseManager     -- ^ List of learnt clauses.
+              , claInc        :: DoubleSingleton   -- ^ Clause activity increment amount to bump with.
                 -- Variable order
-              , activities   :: FixedVecDouble         -- ^ Heuristic measurement of the activity of a variable; var-indexed
-              , varInc       :: DoubleSingleton        -- ^ Variable activity increment amount to bump with.
-              , order        :: VarHeap                -- ^ Keeps track of the dynamic variable order.
+              , activities    :: FixedVecDouble    -- ^ Heuristic measurement of the activity of a variable; var-indexed
+              , varInc        :: DoubleSingleton   -- ^ Variable activity increment amount to bump with.
+              , order         :: VarHeap           -- ^ Keeps track of the dynamic variable order.
                 -- Propagation
-              , watches      :: WatcherLists           -- ^ For each literal 'p', a list of constraint wathing 'p'.
-                                -- A constraint will be inspected when 'p' becomes true.
---              , undos        :: FixedVecOf ClauseManager -- ^ For each variable 'x', a list of constraints that need
-                                -- to update when 'x' becomes unbound by backtracking.
-              , propQ        :: QueueOfBoundedInt      -- ^ Propagation queue.
+              , watches       :: WatcherLists      -- ^ For each literal 'p', a list of constraint wathing 'p'.
+                                 -- A constraint will be inspected when 'p' becomes true.
+--            , undos         :: FixedVecOf ClauseManager -- ^ For each variable 'x', a list of constraints that need
+                                 -- to update when 'x' becomes unbound by backtracking.
+              , propQ         :: QueueOfBoundedInt -- ^ Propagation queue.
                 -- Assignments
-              , assigns      :: Vec                    -- ^ The current assignments indexed on variables; var-indexed
-              , trail        :: StackOfInt             -- ^ List of assignments in chronological order; var-indexed
-              , trailLim     :: StackOfInt             -- ^ Separator indices for different decision levels in 'trail'.
+              , assigns       :: Vec               -- ^ The current assignments indexed on variables; var-indexed
+              , trail         :: StackOfInt        -- ^ List of assignments in chronological order; var-indexed
+              , trailLim      :: StackOfInt        -- ^ Separator indices for different decision levels in 'trail'.
               , decisionLevel :: IntSingleton
-              , reason       :: ClauseVector           -- ^ For each variable, the constraint that implied its value; var-indexed
-              , level        :: Vec                    -- ^ For each variable, the decision level it was assigned; var-indexed
-              , rootLevel    :: IntSingleton           -- ^ Separates incremental and search assumptions.
-              , an_seen      :: Vec                    -- ^ scratch var for 'analyze'; var-indexed
-              , an_toClear   :: StackOfInt             -- ^ ditto
-              , an_stack     :: StackOfInt             -- ^ ditto
-              , nVars        :: Int                    -- ^ number of variables
+              , reason        :: ClauseVector      -- ^ For each variable, the constraint that implied its value; var-indexed
+              , level         :: Vec               -- ^ For each variable, the decision level it was assigned; var-indexed
+              , rootLevel     :: IntSingleton      -- ^ Separates incremental and search assumptions.
+              , an_seen       :: Vec               -- ^ scratch var for 'analyze'; var-indexed
+              , an_toClear    :: StackOfInt        -- ^ ditto
+              , an_stack      :: StackOfInt        -- ^ ditto
+              , nVars         :: Int               -- ^ number of variables
                 -- Configuration
-              , config       :: MiosConfiguration      -- ^ search paramerters
+              , config        :: MiosConfiguration -- ^ search paramerters
               }
 
 -- | returns the number of current assigments
