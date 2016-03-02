@@ -21,6 +21,7 @@ module SAT.Solver.Mios.Data.Vec
        , setNth
        , swapBetween
        , modifyNth
+       , setAll
        , newVec
        , newVecWith
        , newSizedVecIntFromList
@@ -82,6 +83,10 @@ setNth = UV.unsafeWrite
 {-# INLINE modifyNth #-}
 modifyNth :: Vec -> (Int -> Int) -> Int -> IO ()
 modifyNth = UV.unsafeModify
+
+{-# INLINE setAll #-}
+setAll :: Vec -> Int -> IO ()
+setAll = UV.set
 
 {-# INLINE swapBetween #-}
 swapBetween:: Vec -> Int -> Int -> IO ()

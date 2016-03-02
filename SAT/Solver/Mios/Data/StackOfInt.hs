@@ -45,7 +45,7 @@ instance VectorFamily StackOfInt Int where
     (n:l) <- asList v
     return $ str ++ show (take n l)
   {-# SPECIALIZE INLINE asVec :: StackOfInt -> Vec #-}
-  asVec StackOfInt{..} = ivec
+  asVec StackOfInt{..} = UV.unsafeTail ivec
 
 {-# INLINE sizeOfStackOfInt #-}
 sizeOfStackOfInt :: StackOfInt -> IO Int

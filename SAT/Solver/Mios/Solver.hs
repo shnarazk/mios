@@ -31,7 +31,6 @@ import Control.Monad ((<=<), filterM, foldM, forM, forM_, unless, when)
 import Data.Bits
 import qualified Data.IORef as IORef
 import Data.List (sortOn)
-import qualified Data.Vector.Unboxed.Mutable as UV
 -- import qualified Data.Vector.Algorithms.Intro as VA
 -- import System.IO.Unsafe (unsafePerformIO)
 import System.Random (mkStdGen, randomIO, setStdGen)
@@ -68,7 +67,7 @@ data Solver = Solver
               , reason       :: ClauseVector           -- ^ For each variable, the constraint that implied its value; var-indexed
               , level        :: Vec                    -- ^ For each variable, the decision level it was assigned; var-indexed
               , rootLevel    :: IntSingleton           -- ^ Separates incremental and search assumptions.
-              , an_seen      :: UV.IOVector Int        -- ^ scratch var for 'analyze'; var-indexed
+              , an_seen      :: Vec                    -- ^ scratch var for 'analyze'; var-indexed
               , an_toClear   :: StackOfInt             -- ^ ditto
               , an_stack     :: StackOfInt             -- ^ ditto
               , nVars        :: Int                    -- ^ number of variables
@@ -118,7 +117,7 @@ setInternalState s (CNFDescription nv nc _) = do
   l <- newVecWith (nv + 1) (-1)
   o <- newVarHeap nv
   q <- newQueue (2 * nv)
-  n1 <- UV.new (nv + 1)
+  n1 <- newVec (nv + 1)
   n2 <- newStackOfInt nv
   n3 <- newStackOfInt nv
   let s' = s
@@ -162,7 +161,7 @@ newSolver conf = Solver
             <*> newClauseVector 0   -- reason
             <*> newVec 0    -- level
             <*> newInt 0            -- rootLevel
-            <*> UV.new 0            -- an_seen
+            <*> newVec 0            -- an_seen
             <*> newStackOfInt 0     -- an_toClear
             <*> newStackOfInt 0     -- an_stack
             <*> return 0            -- nVars
@@ -264,12 +263,12 @@ enqueue !s@Solver{..} !p !from = do
 -- {-# INLINEABLE analyze #-}
 analyze :: Solver -> Clause -> ListOf Lit -> IO Int
 analyze s@Solver{..} confl litvec = do
-  UV.set an_seen 0   -- FIXME: it should be done in a valid place; not here.
+  setAll an_seen 0   -- FIXME: it should be done in a valid place; not here.
   -- putStrLn . ("analyze: " ++) =<< dump "confl: " confl
-  ti <- sizeOfStackOfInt trail
+  ti <- subtract 1 <$> sizeOfStackOfInt trail
   dl <- getInt decisionLevel
   let
-    StackOfInt trailVec = trail
+    trailVec = asVec trail
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
       -- putStr  =<< dump "loopOnClauseChain :: Clause, Literal, trail index, backtrack level, path count: " c
@@ -286,13 +285,13 @@ analyze s@Solver{..} confl litvec = do
           (q :: Lit) <- getNth lvec j
           let v = var q
           -- putStrLn $ " * (q, v) = " ++ show (q, v)
-          sn <- UV.unsafeRead an_seen v
+          sn <- getNth an_seen v
           l <- getNth level v
           -- putStrLn $ " * (sn, l) = " ++ show (sn, l)
           if sn == 0 && 0 < l
             then do
                 varBumpActivity s v
-                UV.unsafeWrite an_seen v 1
+                setNth an_seen v 1
                 if l == dl
                   then loopOnLiterals (j + 1) b (pc + 1)
                   else pushToList litvec q >> loopOnLiterals (j + 1) (max b l) pc
@@ -302,12 +301,12 @@ analyze s@Solver{..} confl litvec = do
         -- select next clause to look at
         nextUnseenLit :: Int -> IO Int
         nextUnseenLit i = do
-          x <- UV.unsafeRead an_seen . var =<<  UV.unsafeRead trailVec i
+          x <- getNth an_seen . var =<< getNth trailVec i
           if x == 0 then nextUnseenLit $ i - 1 else return i
       ti' <- nextUnseenLit ti
-      nextP <- UV.unsafeRead trailVec ti'
+      nextP <- getNth trailVec ti'
       confl' <- getNthClause reason (var nextP)
-      UV.unsafeWrite an_seen (var nextP) 0
+      setNth an_seen (var nextP) 0
       -- putStrLn $ "end of loopOnLiterals: ti' = " ++ show (ti' - 1)
       if 1 < pathC'
         then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
@@ -315,12 +314,12 @@ analyze s@Solver{..} confl litvec = do
   result <- loopOnClauseChain confl 0 ti 0 0
   -- x <- asList litvec
   -- putStrLn $ "done" ++ show (result, x)
-{-
+-- {-
   -- Simplify phase
   lits <- asList litvec
   let
     merger :: Int -> Lit -> IO Int
-    merger i lit = setBit i . mod 60 <$> getNth (var lit) level
+    merger i lit = setBit i . mod 60 <$> getNth level (var lit)
   levels <- foldM merger 0 (tail lits)
   clearStackOfInt an_stack           -- analyze_stack.clear();
   clearStackOfInt an_toClear         -- out_learnt.copyTo(analyze_toclear);
@@ -336,20 +335,20 @@ analyze s@Solver{..} confl litvec = do
            if c2 then (l :) <$> loop2 l' else loop2 l'
   lits' <- (head lits :) <$> loop2 (tail lits)
   setToList litvec lits'
-  k <- sizeOfStackOfInt an_toClear
-  let StackOfInt vec = an_toClear
-  forM_ [1 .. k] $ \i -> do
-    v <- var <$> UV.unsafeRead vec i
-    UV.unsafeWrite an_seen v 0
+--  k <- sizeOfStackOfInt an_toClear
+--  let StackOfInt vec = an_toClear
+--  forM_ [1 .. k] $ \i -> do
+--    v <- var <$> getNth vec i
+--    setNth an_seen v 0
   -- check an_seen, which should be now cleared
-  forM_ [1 .. nVars] $ \i -> do
-    x <- UV.unsafeRead an_seen i
-    when (x == 1) $ error "an_seen is not cleared"
--}
+--  forM_ [1 .. nVars] $ \i -> do
+--    x <- getNth an_seen i
+--    when (x == 1) $ error "an_seen is not cleared"
+-- -}
   return result
 
 _analyze s@Solver{..} confl learnt = do
-  UV.set an_seen 0
+  setAll an_seen 0
   d <- getInt decisionLevel
   -- learnt `push` 0               -- leave room for the asserting literal
   let
@@ -366,10 +365,10 @@ _analyze s@Solver{..} confl learnt = do
         for [] c b = return (c, b)
         for !(q:rest) counter btLevel = do
           let v = var q
-          sv <- UV.unsafeRead an_seen v
+          sv <- getNth an_seen v
           if sv == 0
             then do
-                UV.unsafeWrite an_seen v 1
+                setNth an_seen v 1
                 l <- getNth level v
                 case () of
                  _ | l == d -> for rest (counter + 1) btLevel
@@ -388,8 +387,8 @@ _analyze s@Solver{..} confl learnt = do
           let !i = var p
           confl <- getNthClause reason i -- should call it before 'undoOne'
           undoOne s
-          sn <- UV.unsafeRead an_seen i
-          -- UV.unsafeWrite an_seen i 0
+          sn <- getNth an_seen i
+          -- setNth an_seen i 0
           if sn == 0 then doWhile else return (p, confl)
       !(p, confl) <- doWhile
       if 1 < counter
@@ -399,7 +398,7 @@ _analyze s@Solver{..} confl learnt = do
   -- x <- asList learnt
   -- putStrLn $ "done" ++ show (result, x)
 {-
-  UV.set an_seen 0
+  setAll an_seen 0
   -- Simplify phase
   lits <- asList learnt
   let
@@ -424,11 +423,11 @@ _analyze s@Solver{..} confl learnt = do
   k <- sizeOfStackOfInt an_toClear
   let StackOfInt vec = an_toClear
   forM_ [1 .. k] $ \i -> do
-    v <- var <$> UV.unsafeRead vec i
-    UV.unsafeWrite an_seen v 0
+    v <- var <$> getNth vec i
+    setNth an_seen v 0
   -- check an_seen, which should be now cleared
   forM_ [1 .. nVars] $ \i -> do
-    x <- UV.unsafeRead an_seen i
+    x <- getNth an_seen i
     when (x == 1) $ error "an_seen is not cleared"
 -- -}
   return result
@@ -479,7 +478,7 @@ analyzeRemovable Solver{..} p minLevel = do
               for i = do
                 p' <- getNth cvec i              -- valid range is [0 .. nl - 1]
                 let v' = var p'
-                c1 <- (1 /=) <$> UV.unsafeRead an_seen v'
+                c1 <- (1 /=) <$> getNth an_seen v'
                 c2 <- (0 <) <$> getNth level v'
                 if c1 && c2   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
                   then do
@@ -487,7 +486,7 @@ analyzeRemovable Solver{..} p minLevel = do
                       c4 <- testBit minLevel . flip mod 60 <$> getNth level v'
                       if c3 && c4 -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
                         then do
-                            UV.unsafeWrite an_seen v' 1     -- analyze_seen[var(p)] = 1;
+                            setNth an_seen v' 1             -- analyze_seen[var(p)] = 1;
                             pushToStackOfInt an_stack p'    -- analyze_stack.push(p);
                             pushToStackOfInt an_toClear p'  -- analyze_toclear.push(p);
                             for $ i + 1
@@ -499,8 +498,8 @@ analyzeRemovable Solver{..} p minLevel = do
                               for' :: Int -> IO ()
                               for' ((<= top') -> False) = return ()
                               for' j = do
-                                x <- UV.unsafeRead vec j -- CAVEAT: this depends implementation details!
-                                UV.unsafeWrite an_seen (var x) 0
+                                x <- getNth vec j -- CAVEAT: this depends implementation details!
+                                setNth an_seen (var x) 0
                                 for' $ j + 1
                             for' (top + 1)
                             -- analyze_toclear.shrink(analyze_toclear.size() - top); note: shrink n == repeat n pop
@@ -584,12 +583,12 @@ cancelUntil s@Solver{..} lvl = do
   when (lvl < dl) $ do
     let tr = asVec trail
     let tl = asVec trailLim
-    lim <- getNth tl (lvl + 1)
+    lim <- getNth tl lvl
     ts <- sizeOfStackOfInt trail
     ls <- sizeOfStackOfInt trailLim
     let
       loopOnLevel :: Int -> IO ()
-      loopOnLevel ((lim <) -> False) = return ()
+      loopOnLevel ((lim <=) -> False) = return ()
       loopOnLevel c = do
         x <- var <$> getNth tr c
         setNth assigns x lBottom
@@ -597,7 +596,7 @@ cancelUntil s@Solver{..} lvl = do
         undo s x
         -- insert s x              -- insertVerOrder
         loopOnLevel $ c - 1
-    loopOnLevel ts
+    loopOnLevel $ ts - 1
     shrinkStackOfInt trail (ts - lim)
     shrinkStackOfInt trailLim (ls - lvl)
     setInt decisionLevel lvl
