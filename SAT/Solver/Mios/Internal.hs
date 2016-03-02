@@ -1,16 +1,16 @@
 module SAT.Solver.Mios.Internal
        (
          versionId
+       , module SAT.Solver.Mios.Data.FixedVecBool
        , module SAT.Solver.Mios.Data.FixedVecDouble
-       , module SAT.Solver.Mios.Data.ListOf
        , module SAT.Solver.Mios.Data.QueueOfBoundedInt
        , module SAT.Solver.Mios.Data.Stack
        , MiosConfiguration (..)
        , defaultConfiguration
        )
        where
+import SAT.Solver.Mios.Data.FixedVecBool
 import SAT.Solver.Mios.Data.FixedVecDouble
-import SAT.Solver.Mios.Data.ListOf
 import SAT.Solver.Mios.Data.QueueOfBoundedInt
 import SAT.Solver.Mios.Data.Stack
 

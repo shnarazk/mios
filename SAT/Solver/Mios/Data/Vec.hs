@@ -26,6 +26,7 @@ module SAT.Solver.Mios.Data.Vec
        , newVecWith
        , newSizedVecIntFromList
        , newSizedVecIntFromUVector
+       , subVec
        )
        where
 
@@ -105,3 +106,10 @@ newSizedVecIntFromList !l = do
 {-# INLINE newSizedVecIntFromUVector #-}
 newSizedVecIntFromUVector :: U.Vector Int -> IO Vec
 newSizedVecIntFromUVector vec = U.unsafeThaw vec
+
+{-# INLINE subVec #-}
+subVec :: Int -> Vec -> IO Vec
+subVec n v = do
+  v' <- UV.new n
+  forM_ [0 .. n - 1] $ \i -> UV.unsafeWrite v' i =<< UV.unsafeRead v i
+  return v'

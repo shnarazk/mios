@@ -29,6 +29,7 @@ module SAT.Solver.Mios.Solver
 
 import Control.Monad ((<=<), filterM, foldM, forM, forM_, unless, when)
 import Data.Bits
+import Data.Foldable (foldrM)
 import qualified Data.IORef as IORef
 import System.Random (mkStdGen, randomIO, setStdGen)
 import SAT.Solver.Mios.Types
@@ -41,7 +42,7 @@ import SAT.Solver.Mios.WatcherLists
 data Solver = Solver
               {
                 -- for public interface
-                model         :: ListOf Bool       -- ^ If found, this vector has the model
+               model         :: FixedVecBool       -- ^ If found, this vector has the model
                 -- Contraint database
               , constrs       :: ClauseManager     -- ^ List of problem constraints.
               , learnts       :: ClauseManager     -- ^ List of learnt clauses.
@@ -68,6 +69,8 @@ data Solver = Solver
               , an_toClear    :: Stack             -- ^ ditto
               , an_stack      :: Stack             -- ^ ditto
               , nVars         :: Int               -- ^ number of variables
+                -- working memory
+              , litsLearnt    :: Stack             -- ^ used to create a learnt clause
                 -- Configuration
               , config        :: MiosConfiguration -- ^ search paramerters
               }
@@ -101,6 +104,7 @@ valueLit !Solver{..} !p = if p < 0 then negate <$> getNth assigns (var p) else g
 setInternalState :: Solver -> CNFDescription -> IO Solver
 setInternalState s (CNFDescription nv nc _) = do
   setStdGen $ mkStdGen 91648253
+  m <- newVecBool nv False
   m1 <- newClauseManager nc
   m2 <- newClauseManager nc
   ac <- newVecDouble (nv + 1) 0.0
@@ -117,9 +121,11 @@ setInternalState s (CNFDescription nv nc _) = do
   n1 <- newVec (nv + 1)
   n2 <- newStack nv
   n3 <- newStack nv
+  ll <- newStack nv
   let s' = s
            {
-             activities = ac
+             model = m
+           , activities = ac
            , constrs = m1
            , learnts = m2
            , watches = w
@@ -135,13 +141,14 @@ setInternalState s (CNFDescription nv nc _) = do
            , an_toClear = n2
            , an_stack = n3
            , nVars  = nv
+           , litsLearnt = ll
            }
   return s'
 
 -- | constructor
 newSolver :: MiosConfiguration -> IO Solver
 newSolver conf = Solver
-            <$> newList             -- model
+            <$> newVecBool 0 False  -- model
             <*> newClauseManager 1  -- constrs
             <*> newClauseManager 1  -- learnts
             <*> newDouble 1.0       -- claInc
@@ -162,6 +169,7 @@ newSolver conf = Solver
             <*> newStack 0          -- an_toClear
             <*> newStack 0          -- an_stack
             <*> return 0            -- nVars
+            <*> newStack 0          -- litsLearnt
             <*> return conf         -- config
 
 -- | public interface of 'Solver' (p.2)
@@ -257,8 +265,11 @@ enqueue s@Solver{..} p from = do
 --
 -- `analyze` is invoked from `search`
 -- {-# INLINEABLE analyze #-}
-analyze :: Solver -> Clause -> ListOf Lit -> IO Int
-analyze s@Solver{..} confl litvec = do
+analyze :: Solver -> Clause -> IO Int
+analyze s@Solver{..} confl = do
+  -- litvec
+  clearStack litsLearnt
+  pushToStack litsLearnt 0 -- reserve the first place for the unassigned literal
   setAll an_seen 0   -- FIXME: it should be done in a valid place; not here.
   ti <- subtract 1 <$> sizeOfStack trail
   dl <- getInt decisionLevel
@@ -283,7 +294,7 @@ analyze s@Solver{..} confl litvec = do
                 setNth an_seen v 1
                 if l == dl
                   then loopOnLiterals (j + 1) b (pc + 1)
-                  else pushToList litvec q >> loopOnLiterals (j + 1) (max b l) pc
+                  else pushToStack litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
             else loopOnLiterals (j + 1) b pc
       (b', pathC') <- loopOnLiterals (if p == 0 then 0 else 1) bl pathC
       let
@@ -298,29 +309,36 @@ analyze s@Solver{..} confl litvec = do
       setNth an_seen (var nextP) 0
       if 1 < pathC'
         then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
-        else pushToList litvec (negate nextP) >> return b'
+        else setNth (asVec litsLearnt) 0 (negate nextP) >> return b'
   result <- loopOnClauseChain confl 0 ti 0 0
--- {-
   -- Simplify phase
-  lits <- asList litvec
-  let
-    merger :: Int -> Lit -> IO Int
-    merger i lit = setBit i . mod 60 <$> getNth level (var lit)
-  levels <- foldM merger 0 (tail lits)
+  let litsVec = asVec litsLearnt
+  n <- sizeOfStack litsLearnt
   clearStack an_stack           -- analyze_stack.clear();
   clearStack an_toClear         -- out_learnt.copyTo(analyze_toclear);
-  forM_ lits $ pushToStack an_toClear
+  pushToStack an_toClear =<< getNth litsVec 0
   let
-    loop2 [] = return []
-    loop2 (l:l') = do
+    merger :: Int -> Int -> IO Int
+    merger ((< n) -> False) b = return b
+    merger i b = do
+      l <- getNth litsVec i
+      pushToStack an_toClear l
+      setBit i . mod 60 <$> getNth level (var l)
+  levels <-  merger 0 0
+  let
+    loopOnLits :: Int -> Int -> IO ()
+    loopOnLits ((< n) -> False) n' = shrinkStack litsLearnt $ n - n'
+    loopOnLits i j = do
+      l <- getNth litsVec i
       c1 <- (NullClause ==) <$> getNthClause reason (var l)
       if c1
-        then (l :) <$> loop2 l'
+        then setNth litsVec j l >> loopOnLits (i + 1) (j + 1)
         else do
            c2 <- not <$> litRedundant s l levels
-           if c2 then (l :) <$> loop2 l' else loop2 l'
-  lits' <- (head lits :) <$> loop2 (tail lits)
-  setToList litvec lits'
+           if c2
+             then setNth litsVec j l >> loopOnLits (i + 1) (j + 1)
+             else loopOnLits (i + 1) j
+  loopOnLits 1 1                -- the first literal is specail
   return result
 
 -- | M22: Check if 'p' can be removed, 'min_level' is used to abort early if visiting literals at a level that
@@ -472,11 +490,10 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
             if d == r
               then return lFalse
               else do
-                  learntClause <- newList
-                  backtrackLevel <- analyze s confl learntClause
+                  backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
                   (s `cancelUntil`) . max backtrackLevel =<< getInt rootLevel
                   -- putStrLn =<< dump "BACKTRACK after search.analyze :: trail: " trail
-                  (s `record`) =<< newSizedVecIntFromList =<< asList learntClause
+                  record s =<< isoVec litsLearnt
                   decayActivities s
                   -- checkIt "search done backtrack" s Nothing
                   loop $ conflictC + 1
@@ -503,7 +520,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                    -- (model `growTo`) nv
                    -- nv <- nVars s
                    -- forM_ [1 .. nv] $ \i -> setAt model i =<< (lTrue ==) <$> assigns .! i
-                   setToList model . map (lTrue ==) . tail =<< asList assigns
+                   forM_ [0 .. nVars - 1] $ \i -> setNthBool model i . (lTrue ==) =<< getNth assigns (i + 1)
                    -- putStrLn =<< dump "activities:" activities
                    return lTrue
              _ | conflictC >= nOfConflicts -> do
@@ -730,7 +747,7 @@ simplifyDB s@Solver{..} = do
 -- __Pre-condition:__ If assumptions are used, 'simplifyDB' must be
 -- called right before using this method. If not, a top-level conflict (resulting in a
 -- non-usable internal state) cannot be distinguished from a conflict under assumptions.
-solve :: Solver -> ListOf Lit -> IO Bool
+solve :: (Foldable t) => Solver -> t Lit -> IO Bool
 solve s@Solver{..} assumps = do
   nc <- fromIntegral <$> nConstraints s
   -- PUSH INCREMENTAL ASSUMPTIONS:
@@ -745,7 +762,19 @@ solve s@Solver{..} assumps = do
             if c /= NullClause
               then cancelUntil s 0 >> return False
               else for rest
-  !x <- for =<< asList assumps
+    injector :: Lit -> Bool -> IO Bool
+    injector _ False = return False
+    injector a True = do
+      b <- assume s a
+      if not b
+        then cancelUntil s 0 >> return False
+        else do
+            c <- propagate s
+            if c /= NullClause
+              then cancelUntil s 0 >> return False
+              else return True
+  x <- foldrM injector True assumps
+  -- !x <- for =<< asList assumps
   if not x
     then return False
     else do

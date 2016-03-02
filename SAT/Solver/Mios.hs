@@ -34,7 +34,7 @@ import System.Exit
 
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Solver
-import SAT.Solver.Mios.Internal (versionId, ListOf, newList, newListFromList)
+import SAT.Solver.Mios.Internal (versionId)
 import SAT.Solver.Mios.OptionParser
 import SAT.Solver.Mios.Validator
 
@@ -70,7 +70,7 @@ runSolver opts@(_targetFile -> target@(Just cnfFile)) = do
        putStrLn $ "(nv, nc, nl) = " ++ show (nVars s, nc, nl)
      res <- simplifyDB s
      when (_confVerbose opts) $ putStrLn $ "`simplifyDB`: " ++ show res
-     result <- solve s =<< newList
+     result <- solve s []
      unless (_confNoAnswer opts) $
        if result
          then print . zipWith (\n b -> if b then n else negate n) [1 .. ] =<< asList (model s)
@@ -143,7 +143,7 @@ solveSATWithConfiguration conf (desc, clauses) = do
   noConf <- simplifyDB s
   if noConf
     then do
-        result <- solve s =<< newList
+        result <- solve s []
         if result
             then zipWith (\n b -> if b then n else negate n) [1 .. ] <$> asList (model s)
             else return []

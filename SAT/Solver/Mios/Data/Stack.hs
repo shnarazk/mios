@@ -27,6 +27,7 @@ module SAT.Solver.Mios.Data.Stack
        , popFromStack
        , lastOfStack
        , shrinkStack
+       , isoVec
        )
        where
 
@@ -82,3 +83,9 @@ lastOfStack (Stack ivec) = UV.unsafeRead ivec =<< UV.unsafeRead ivec 0
 {-# INLINE shrinkStack #-}
 shrinkStack :: Stack -> Int -> IO ()
 shrinkStack (Stack ivec) k = UV.unsafeModify ivec (subtract k) 0
+
+-- | isomorphic conversion to 'Vec'
+-- Note: 'asVec' drops the 1st element and no copy; 'isoVec' copies the active segment
+{-# INLINE isoVec #-}
+isoVec :: Stack -> IO Vec
+isoVec (Stack ivec) = UV.clone . flip UV.take ivec . (1 +) =<< UV.unsafeRead ivec 0
