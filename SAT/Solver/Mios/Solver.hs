@@ -420,31 +420,6 @@ record s@Solver{..} v = do
   enqueue s l c
   unless (c == NullClause) $ pushClause learnts c
 
--- | __Fig. 12. (p.17)__
--- unbinds the last variable on the trail.
-{-# INLINE undoOne #-}
-undoOne :: Solver -> IO ()
-undoOne s@Solver{..} = do
-  !v <- var <$> lastOfStackOfInt trail
-  setNth assigns v lBottom
-  setNthClause reason v NullClause
-  setNth level v (-1)
-  undo s v
-  popFromStackOfInt trail
-{-
-  // 'undos' is not used in the paper
-  let
-    loop = do
-      k <- sizeOfClauses =<< undos .! x
-      when (0 < k) $ do
-        a <- undos .! x
-        b <- lastE' a
-        undoConstraint b s p
-        pop' a
-        loop
-  loop
--}
-
 -- | __Fig. 12 (p.17)__
 -- returns @False@ if immediate conflict.
 --
