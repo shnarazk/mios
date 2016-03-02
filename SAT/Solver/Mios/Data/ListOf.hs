@@ -18,7 +18,7 @@
 --
 module SAT.Solver.Mios.Data.ListOf
        (
-         ListOf (..)
+         ListOf
        , newList
        , newListFromList
        , sizeOfVec
@@ -59,17 +59,17 @@ newListFromList :: [a] -> IO (ListOf a)
 newListFromList !l = ListOf <$> newIORef l
 
 {-# INLINE pushToList #-}
-pushToList :: ListOf Int -> Int -> IO ()
+pushToList :: ListOf a -> a -> IO ()
 pushToList (ListOf ptr) !x = modifyIORef' ptr (x :)
 
 {-# INLINE popFromList #-}
-popFromList :: ListOf Int -> IO ()
+popFromList :: ListOf a -> IO ()
 popFromList (ListOf ptr) = modifyIORef' ptr tail
 
 {-# INLINE lastOfList #-}
-lastOfList :: ListOf Int -> IO Int
+lastOfList :: ListOf a -> IO a
 lastOfList (ListOf ptr) = head <$> readIORef ptr
 
 {-# INLINE setToList #-}
-setToList :: ListOf Int -> [Int] -> IO ()
+setToList :: ListOf a -> [a] -> IO ()
 setToList (ListOf ptr) = writeIORef ptr

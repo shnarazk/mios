@@ -19,7 +19,7 @@
 --
 module SAT.Solver.Mios.Data.StackOfInt
        (
-         StackOfInt (..)
+         StackOfInt
        , newStackOfInt
        , clearStackOfInt
        , sizeOfStackOfInt

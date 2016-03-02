@@ -504,7 +504,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                    -- (model `growTo`) nv
                    -- nv <- nVars s
                    -- forM_ [1 .. nv] $ \i -> setAt model i =<< (lTrue ==) <$> assigns .! i
-                   IORef.writeIORef (ptr model) . map (lTrue ==) . tail =<< asList assigns
+                   setToList model . map (lTrue ==) . tail =<< asList assigns
                    -- putStrLn =<< dump "activities:" activities
                    return lTrue
              _ | conflictC >= nOfConflicts -> do
