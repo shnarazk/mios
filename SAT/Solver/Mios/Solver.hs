@@ -58,15 +58,15 @@ data Solver = Solver
               , propQ         :: QueueOfBoundedInt -- ^ Propagation queue.
                 -- Assignments
               , assigns       :: Vec               -- ^ The current assignments indexed on variables; var-indexed
-              , trail         :: StackOfInt        -- ^ List of assignments in chronological order; var-indexed
-              , trailLim      :: StackOfInt        -- ^ Separator indices for different decision levels in 'trail'.
+              , trail         :: Stack             -- ^ List of assignments in chronological order; var-indexed
+              , trailLim      :: Stack             -- ^ Separator indices for different decision levels in 'trail'.
               , decisionLevel :: IntSingleton
               , reason        :: ClauseVector      -- ^ For each variable, the constraint that implied its value; var-indexed
               , level         :: Vec               -- ^ For each variable, the decision level it was assigned; var-indexed
               , rootLevel     :: IntSingleton      -- ^ Separates incremental and search assumptions.
               , an_seen       :: Vec               -- ^ scratch var for 'analyze'; var-indexed
-              , an_toClear    :: StackOfInt        -- ^ ditto
-              , an_stack      :: StackOfInt        -- ^ ditto
+              , an_toClear    :: Stack             -- ^ ditto
+              , an_stack      :: Stack             -- ^ ditto
               , nVars         :: Int               -- ^ number of variables
                 -- Configuration
               , config        :: MiosConfiguration -- ^ search paramerters
@@ -75,7 +75,7 @@ data Solver = Solver
 -- | returns the number of current assigments
 {-# INLINE nAssigns #-}
 nAssigns :: Solver -> IO Int
-nAssigns = sizeOfStackOfInt . trail
+nAssigns = sizeOfStack . trail
 
 -- | returns the number of constraints (clauses)
 {-# INLINE nConstraints #-}
@@ -108,15 +108,15 @@ setInternalState s (CNFDescription nv nc _) = do
 --  u <- newVec 0 -- nv
   -- forM_ [0 .. nv - 1] $ \i -> setVecAt u i =<< newVec 0
   a <- newVecWith (nv + 1) lBottom
-  t <- newStackOfInt (2 * nv)
-  t' <- newStackOfInt nv
+  t <- newStack (2 * nv)
+  t' <- newStack nv
   r <- newClauseVector (nv + 1)
   l <- newVecWith (nv + 1) (-1)
   o <- newVarHeap nv
   q <- newQueue (2 * nv)
   n1 <- newVec (nv + 1)
-  n2 <- newStackOfInt nv
-  n3 <- newStackOfInt nv
+  n2 <- newStack nv
+  n3 <- newStack nv
   let s' = s
            {
              activities = ac
@@ -151,16 +151,16 @@ newSolver conf = Solver
             <*> newWatcherLists 1 1 -- watches
 --            <*> newVec 0          -- undos
             <*> newQueue 0          -- porqQ
-            <*> newVec 0    -- assigns
-            <*> newStackOfInt 0     -- trail
-            <*> newStackOfInt 0     -- trailLim
+            <*> newVec 0            -- assigns
+            <*> newStack 0          -- trail
+            <*> newStack 0          -- trailLim
             <*> newInt 0            -- decisionLevel
             <*> newClauseVector 0   -- reason
-            <*> newVec 0    -- level
+            <*> newVec 0            -- level
             <*> newInt 0            -- rootLevel
             <*> newVec 0            -- an_seen
-            <*> newStackOfInt 0     -- an_toClear
-            <*> newStackOfInt 0     -- an_stack
+            <*> newStack 0          -- an_toClear
+            <*> newStack 0          -- an_stack
             <*> return 0            -- nVars
             <*> return conf         -- config
 
@@ -178,7 +178,7 @@ addClause s@Solver{..} vecLits = do
      unless (c == NullClause) $ pushClause constrs c
      return True                -- No conflict
 
--- function on "Solver"
+-- functions on "Solver"
 
 -- | __Fig. 9 (p.14)__
 -- Propagates all enqueued facts. If a conflict arises, the /conflicting/
@@ -197,7 +197,6 @@ propagate s@Solver{..} = do
         else do
             p <- dequeue propQ
             let w = getNthWatchers watches (index p)
-            n <- numberOfClauses w
             vec <- getClauseVector w
             let
               loopOnWatcher :: Int -> Int-> IO Clause
@@ -207,15 +206,15 @@ propagate s@Solver{..} = do
                     c <- getNthClause vec i
                     x <- propagateLit c s p w -- c will be inserted into apropriate watchers in this function
                     case () of
-                      _ | x == lTrue   {- still in -} -> loopOnWatcher (i + 1) n
-                      _ | x == lFalse  {- conflict -} -> clearQueue propQ >> return c
-                      _ | x == lBottom {- it moved -} -> removeNthClause w i >> loopOnWatcher i (n - 1)
+                      _ | x == lTrue  {- still in -} -> loopOnWatcher (i + 1) n
+                      _ | x == lFalse {- conflict -} -> clearQueue propQ >> return c
+                      _               {- it moved -} -> removeNthClause w i >> loopOnWatcher i (n - 1)
 {-
                 if not x -- Constraint is conflicting;return constraint
                   then clearQueue propQ >> shrinkClauseManager w (max 0 (i - 1)) >> return c
                   else loopOnWatcher $ i - 1
 -}
-            loopOnWatcher 0 n
+            loopOnWatcher 0 =<< numberOfClauses w
   loopOnQueue
 
 -- | __Fig. 9 (p.14)__
@@ -225,7 +224,7 @@ propagate s@Solver{..} = do
 -- propagated (defaults to @Nothing@ if omitted).
 {-# INLINABLE enqueue #-}
 enqueue :: Solver -> Lit -> Clause -> IO Bool
-enqueue !s@Solver{..} !p !from = do
+enqueue s@Solver{..} p from = do
   let v = var p
   val <- valueVar s v
   if val /= lBottom
@@ -237,7 +236,7 @@ enqueue !s@Solver{..} !p !from = do
         d <- getInt decisionLevel
         setNth level v d
         setNthClause reason v from     -- NOTE: @from@ might be NULL!
-        pushToStackOfInt trail p
+        pushToStack trail p
         insertQueue propQ p
         return True
 
@@ -261,7 +260,7 @@ enqueue !s@Solver{..} !p !from = do
 analyze :: Solver -> Clause -> ListOf Lit -> IO Int
 analyze s@Solver{..} confl litvec = do
   setAll an_seen 0   -- FIXME: it should be done in a valid place; not here.
-  ti <- subtract 1 <$> sizeOfStackOfInt trail
+  ti <- subtract 1 <$> sizeOfStack trail
   dl <- getInt decisionLevel
   let
     trailVec = asVec trail
@@ -308,9 +307,9 @@ analyze s@Solver{..} confl litvec = do
     merger :: Int -> Lit -> IO Int
     merger i lit = setBit i . mod 60 <$> getNth level (var lit)
   levels <- foldM merger 0 (tail lits)
-  clearStackOfInt an_stack           -- analyze_stack.clear();
-  clearStackOfInt an_toClear         -- out_learnt.copyTo(analyze_toclear);
-  forM_ lits $ pushToStackOfInt an_toClear
+  clearStack an_stack           -- analyze_stack.clear();
+  clearStack an_toClear         -- out_learnt.copyTo(analyze_toclear);
+  forM_ lits $ pushToStack an_toClear
   let
     loop2 [] = return []
     loop2 (l:l') = do
@@ -334,9 +333,9 @@ analyze s@Solver{..} confl litvec = do
 litRedundant :: Solver -> Lit -> Int -> IO Bool
 litRedundant Solver{..} p minLevel = do
   -- assert (reason[var(p)]!= NullCaulse);
-  clearStackOfInt an_stack           -- analyze_stack.clear()
-  pushToStackOfInt an_stack p          -- analyze_stack.push(p);
-  top <- sizeOfStackOfInt an_toClear
+  clearStack an_stack      -- analyze_stack.clear()
+  pushToStack an_stack p   -- analyze_stack.push(p);
+  top <- sizeOfStack an_toClear
   let
     getRoot :: Lit -> IO Clause
     getRoot l = do
@@ -355,12 +354,12 @@ litRedundant Solver{..} p minLevel = do
               else return r
     loopOnStack :: IO Bool
     loopOnStack = do
-      k <- sizeOfStackOfInt an_stack  -- int top = analyze_toclear.size();
+      k <- sizeOfStack an_stack  -- int top = analyze_toclear.size();
       if 0 == k
         then return True
         else do -- assert(reason[var(analyze_stack.last())] != GClause_NULL);
-            sl <- lastOfStackOfInt an_stack
-            popFromStackOfInt an_stack        -- analyze_stack.pop();
+            sl <- lastOfStack an_stack
+            popFromStack an_stack             -- analyze_stack.pop();
             c <- getNthClause reason (var sl) -- getRoot sl
             nl <- sizeOfClause c
             let
@@ -378,17 +377,17 @@ litRedundant Solver{..} p minLevel = do
                       c4 <- testBit minLevel . flip mod 60 <$> getNth level v'
                       if c3 && c4 -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
                         then do
-                            setNth an_seen v' 1             -- analyze_seen[var(p)] = 1;
-                            pushToStackOfInt an_stack p'    -- analyze_stack.push(p);
-                            pushToStackOfInt an_toClear p'  -- analyze_toclear.push(p);
+                            setNth an_seen v' 1        -- analyze_seen[var(p)] = 1;
+                            pushToStack an_stack p'    -- analyze_stack.push(p);
+                            pushToStack an_toClear p'  -- analyze_toclear.push(p);
                             for $ i + 1
                         else do
                             -- for (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
-                            top' <- sizeOfStackOfInt an_toClear
+                            top' <- sizeOfStack an_toClear
                             let vec = asVec an_toClear
                             forM_ [top .. top' - 1] $ \j -> do x <- getNth vec j; setNth an_seen (var x) 0
                             -- analyze_toclear.shrink(analyze_toclear.size() - top); note: shrink n == repeat n pop
-                            shrinkStackOfInt an_toClear $ top' - top
+                            shrinkStack an_toClear $ top' - top
                             return False
                   else for (i + 1)
             for 1
@@ -414,7 +413,7 @@ record s@Solver{..} v = do
 {-# INLINE assume #-}
 assume :: Solver -> Lit -> IO Bool
 assume s@Solver{..} p = do
-  pushToStackOfInt trailLim =<< sizeOfStackOfInt trail
+  pushToStack trailLim =<< sizeOfStack trail
   modifyInt decisionLevel (+ 1)
   enqueue s p NullClause
 
@@ -428,8 +427,8 @@ cancelUntil s@Solver{..} lvl = do
     let tr = asVec trail
     let tl = asVec trailLim
     lim <- getNth tl lvl
-    ts <- sizeOfStackOfInt trail
-    ls <- sizeOfStackOfInt trailLim
+    ts <- sizeOfStack trail
+    ls <- sizeOfStack trailLim
     let
       loopOnLevel :: Int -> IO ()
       loopOnLevel ((lim <=) -> False) = return ()
@@ -441,8 +440,8 @@ cancelUntil s@Solver{..} lvl = do
         -- insertHeap s x              -- insertVerOrder
         loopOnLevel $ c - 1
     loopOnLevel $ ts - 1
-    shrinkStackOfInt trail (ts - lim)
-    shrinkStackOfInt trailLim (ls - lvl)
+    shrinkStack trail (ts - lim)
+    shrinkStack trailLim (ls - lvl)
     setInt decisionLevel lvl
 
 -- | __Fig. 13. (p.18)__
@@ -491,7 +490,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
               reduceDB s -- Reduce the set of learnt clauses
               {-
               n2 <- nLearnts s
-              n3 <- sizeOfStackOfInt trail
+              n3 <- sizeOfStack trail
               dl <- getInt decisionLevel
               case () of
                 _ | n2 <= n3 -dl -> putStrLn "purge all"

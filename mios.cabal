@@ -96,7 +96,7 @@ executable mios
     SAT.Solver.Mios.Data.ListOf
     SAT.Solver.Mios.Data.QueueOfBoundedInt
     SAT.Solver.Mios.Data.Singleton
-    SAT.Solver.Mios.Data.StackOfInt
+    SAT.Solver.Mios.Data.Stack
     SAT.Solver.Mios.Internal
     SAT.Solver.Mios.OptionParser
     SAT.Solver.Mios.Solver
@@ -126,7 +126,7 @@ executable mios-M22
     SAT.Solver.Mios.Data.ListOf
     SAT.Solver.Mios.Data.QueueOfBoundedInt
     SAT.Solver.Mios.Data.Singleton
-    SAT.Solver.Mios.Data.StackOfInt
+    SAT.Solver.Mios.Data.Stack
     SAT.Solver.Mios.Internal
     SAT.Solver.Mios.OptionParser
     SAT.Solver.Mios.Solver
@@ -153,7 +153,7 @@ executable mios-M22-prof
     SAT.Solver.Mios.Data.ListOf
     SAT.Solver.Mios.Data.QueueOfBoundedInt
     SAT.Solver.Mios.Data.Singleton
-    SAT.Solver.Mios.Data.StackOfInt
+    SAT.Solver.Mios.Data.Stack
     SAT.Solver.Mios.Internal
     SAT.Solver.Mios.OptionParser
     SAT.Solver.Mios.Solver
@@ -198,7 +198,7 @@ executable mios-M22-cr
     SAT.Solver.Mios.Data.ListOf
     SAT.Solver.Mios.Data.QueueOfBoundedInt
     SAT.Solver.Mios.Data.Singleton
-    SAT.Solver.Mios.Data.StackOfInt
+    SAT.Solver.Mios.Data.Stack
     SAT.Solver.Mios.Internal
     SAT.Solver.Mios.OptionParser
     SAT.Solver.Mios.Solver

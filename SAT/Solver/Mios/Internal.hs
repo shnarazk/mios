@@ -4,7 +4,7 @@ module SAT.Solver.Mios.Internal
        , module SAT.Solver.Mios.Data.FixedVecDouble
        , module SAT.Solver.Mios.Data.ListOf
        , module SAT.Solver.Mios.Data.QueueOfBoundedInt
-       , module SAT.Solver.Mios.Data.StackOfInt
+       , module SAT.Solver.Mios.Data.Stack
        , MiosConfiguration (..)
        , defaultConfiguration
        )
@@ -12,7 +12,7 @@ module SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Data.FixedVecDouble
 import SAT.Solver.Mios.Data.ListOf
 import SAT.Solver.Mios.Data.QueueOfBoundedInt
-import SAT.Solver.Mios.Data.StackOfInt
+import SAT.Solver.Mios.Data.Stack
 
 -- | version name
 versionId :: String
