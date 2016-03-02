@@ -335,101 +335,6 @@ analyze s@Solver{..} confl litvec = do
            if c2 then (l :) <$> loop2 l' else loop2 l'
   lits' <- (head lits :) <$> loop2 (tail lits)
   setToList litvec lits'
---  k <- sizeOfStackOfInt an_toClear
---  let StackOfInt vec = an_toClear
---  forM_ [1 .. k] $ \i -> do
---    v <- var <$> getNth vec i
---    setNth an_seen v 0
-  -- check an_seen, which should be now cleared
---  forM_ [1 .. nVars] $ \i -> do
---    x <- getNth an_seen i
---    when (x == 1) $ error "an_seen is not cleared"
--- -}
-  return result
-
-_analyze s@Solver{..} confl learnt = do
-  setAll an_seen 0
-  d <- getInt decisionLevel
-  -- learnt `push` 0               -- leave room for the asserting literal
-  let
-    loop :: Lit -> Clause -> Int -> Int -> IO Int
-    loop !p confl !counter !btLevel = do
-      -- invariant here: @confl /= NullClause@
-      -- Because any decision var should be a member of reason of an implication vars.
-      -- So it becomes /an_seen/ in an early stage before the traversing loop
-      -- clear pReason
-      !pReason <- calcReason confl s p -- pReason holds a negated reason now.
-      -- TRACE REASON FOR P:
-      let
-        for :: [Int] -> Int -> Int -> IO (Int, Int)
-        for [] c b = return (c, b)
-        for !(q:rest) counter btLevel = do
-          let v = var q
-          sv <- getNth an_seen v
-          if sv == 0
-            then do
-                setNth an_seen v 1
-                l <- getNth level v
-                case () of
-                 _ | l == d -> for rest (counter + 1) btLevel
-                 _ | 0 <  l -> do -- exclude variables from decision level 0
-                       pushToList learnt q
-                       for rest counter $! max btLevel l
-                 _ -> for rest counter btLevel
-            else for rest counter btLevel
-      -- pl <- asList pReason
-      !(counter, btLevel) <- for pReason counter btLevel
-      -- SELECT NEXT LITERAL TO LOOK AT:
-      let
-        doWhile :: IO (Lit, Clause)
-        doWhile = do
-          p <- lastOfStackOfInt trail
-          let !i = var p
-          confl <- getNthClause reason i -- should call it before 'undoOne'
-          undoOne s
-          sn <- getNth an_seen i
-          -- setNth an_seen i 0
-          if sn == 0 then doWhile else return (p, confl)
-      !(p, confl) <- doWhile
-      if 1 < counter
-        then loop p confl (counter - 1) btLevel
-        else {- setAt learnt 0 (negate p) -} pushToList learnt (negate p) >> return btLevel
-  result <- loop bottomLit confl 0 0
-  -- x <- asList learnt
-  -- putStrLn $ "done" ++ show (result, x)
-{-
-  setAll an_seen 0
-  -- Simplify phase
-  lits <- asList learnt
-  let
-    merger :: Int -> Lit -> IO Int
-    merger i lit = setBit i . mod 60 <$> getNth (var lit) level
-  levels <- foldM merger 0 (tail lits)
-  clearStackOfInt an_stack           -- analyze_stack.clear();
-  clearStackOfInt an_toClear         -- out_learnt.copyTo(analyze_toclear);
-  forM_ lits $ pushToStackOfInt an_toClear
-  let
-    loop2 [] = return []
-    loop2 (l:l') = do
-      c1 <- (NullClause ==) <$> getNthClause reason (var l)
-      if c1
-        then (l :) <$> loop2 l'
-        else do
-           c2 <- not <$> analyzeRemovable s l levels
-           if c2 then (l :) <$> loop2 l' else loop2 l'
-  lits' <- (head lits :) <$> loop2 (tail lits)
-  -- when (length lits < length lits') $ print (length lits - length lits')
-  setToList learnt lits'
-  k <- sizeOfStackOfInt an_toClear
-  let StackOfInt vec = an_toClear
-  forM_ [1 .. k] $ \i -> do
-    v <- var <$> getNth vec i
-    setNth an_seen v 0
-  -- check an_seen, which should be now cleared
-  forM_ [1 .. nVars] $ \i -> do
-    x <- getNth an_seen i
-    when (x == 1) $ error "an_seen is not cleared"
--- -}
   return result
 
 -- | Check if 'p' can be removed, 'min_level' is used to abort early if visiting literals at a level that
@@ -558,22 +463,6 @@ assume s@Solver{..} p = do
   modifyInt decisionLevel (+ 1)
   enqueue s p NullClause
 
--- | __Fig. 12 (p.17)__
--- reverts to the state before last "push".
---
--- __Pre-condition:__ propagation queue is empty.
-{-# INLINABLE cancel #-}
-cancel :: Solver -> IO ()
-cancel s@Solver{..} = do
-  let
-    for :: Int -> IO ()
-    for c = when (c /= 0) $ undoOne s >> for (c - 1)
-  st <- sizeOfStackOfInt trail
-  tl <- lastOfStackOfInt trailLim
-  when (0 < st - tl) $ for $ st - tl
-  popFromStackOfInt trailLim
-  modifyInt decisionLevel (subtract 1)
-
 -- | M22 __Fig. 12 (p.17)__
 -- cancels several levels of assumptions.
 {-# INLINABLE cancelUntil #-}
@@ -600,13 +489,6 @@ cancelUntil s@Solver{..} lvl = do
     shrinkStackOfInt trail (ts - lim)
     shrinkStackOfInt trailLim (ls - lvl)
     setInt decisionLevel lvl
-
-_cancelUntil s lvl = do
-  let
-    loop :: Int -> IO ()
-    loop ((lvl <) -> False) = return ()
-    loop d = cancel s >> loop (d - 1)
-  loop =<< getInt (decisionLevel s)
 
 -- | __Fig. 13. (p.18)__
 -- Assumes and propagates until a conflict is found, from which a conflict clause
