@@ -331,21 +331,21 @@ analyze s@Solver{..} confl litvec = do
       if c1
         then (l :) <$> loop2 l'
         else do
-           c2 <- not <$> analyzeRemovable s l levels
+           c2 <- not <$> litRedundant s l levels
            if c2 then (l :) <$> loop2 l' else loop2 l'
   lits' <- (head lits :) <$> loop2 (tail lits)
   setToList litvec lits'
   return result
 
--- | Check if 'p' can be removed, 'min_level' is used to abort early if visiting literals at a level that
+-- | M22: Check if 'p' can be removed, 'min_level' is used to abort early if visiting literals at a level that
 -- cannot be removed.
 -- Implementation memo:
 --
 -- * @an_toClear@ is initialized by @ps@ in 'analyze' (a copy of 'learnt').
 --   This is used only in this function and `analyze'.
 --
-analyzeRemovable :: Solver -> Lit -> Int -> IO Bool
-analyzeRemovable Solver{..} p minLevel = do
+litRedundant :: Solver -> Lit -> Int -> IO Bool
+litRedundant Solver{..} p minLevel = do
   -- assert (reason[var(p)]!= NullCaulse);
   clearStackOfInt an_stack           -- analyze_stack.clear()
   pushToStackOfInt an_stack p          -- analyze_stack.push(p);
@@ -398,15 +398,8 @@ analyzeRemovable Solver{..} p minLevel = do
                         else do
                             -- for (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
                             top' <- sizeOfStackOfInt an_toClear
-                            let
-                              StackOfInt vec = an_toClear
-                              for' :: Int -> IO ()
-                              for' ((<= top') -> False) = return ()
-                              for' j = do
-                                x <- getNth vec j -- CAVEAT: this depends implementation details!
-                                setNth an_seen (var x) 0
-                                for' $ j + 1
-                            for' (top + 1)
+                            let vec = asVec an_toClear
+                            forM_ [top .. top' - 1] $ \j -> do x <- getNth vec j; setNth an_seen (var x) 0
                             -- analyze_toclear.shrink(analyze_toclear.size() - top); note: shrink n == repeat n pop
                             shrinkStackOfInt an_toClear $ top' - top
                             return False
