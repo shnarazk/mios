@@ -98,7 +98,7 @@ valueVar !s !x = getNth (assigns s) x
 -- | returns the assignment (:: 'LBool' = @[-1, 0, -1]@) from 'Lit'
 {-# INLINE valueLit #-}
 valueLit :: Solver -> Lit -> IO LBool
-valueLit !Solver{..} !p = if positiveLit p then negate <$> getNth assigns (lit2var p) else getNth assigns (lit2var p)
+valueLit !Solver{..} !p = if positiveLit p then getNth assigns (lit2var p) else negate <$> getNth assigns (lit2var p)
 
 -- | returns an everything-is-initialized solver from the argument
 setInternalState :: Solver -> CNFDescription -> IO Solver
