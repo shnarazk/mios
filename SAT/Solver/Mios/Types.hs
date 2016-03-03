@@ -3,12 +3,9 @@
   , FlexibleContexts
   , FlexibleInstances
   , FunctionalDependencies
-  , MagicHash
   , MultiParamTypeClasses
   , TypeFamilies
-  , UnboxedTuples
   , UndecidableInstances
-  , ViewPatterns
   #-}
 {-# LANGUAGE Trustworthy #-}
 
@@ -81,7 +78,7 @@ type Var = Int
 
 -- | Special constant in 'Var' (p.7)
 bottomVar :: Var
-bottomVar = I# 0#
+bottomVar = 0
 
 -- | The literal data has an 'index' method which converts the literal to
 -- a "small" integer suitable for array indexing. The 'var'  method returns
@@ -91,7 +88,7 @@ type Lit = Int
 
 -- | Special constant in 'Lit' (p.7)
 bottomLit :: Lit
-bottomLit = I# 0#
+bottomLit = 0
 
 -- | converts "Var" into 'Lit'
 newLit :: Var -> Lit
@@ -109,7 +106,7 @@ var = abs
 -- to @[0 .. 2N - 1]
 {-# INLINE index #-}
 index :: Lit -> Int
-index (I# l#) = if tagToEnum# (0# <# l#) then I# (2# *# (l# -# 1#)) else I# (-2# *# l# -# 1#)
+index l = if 0 < l then 2 * (l - 1) else -2 * l - 1
 
 -- | revese convert to 'Lit' from index
 -- >>> index2lit 0
@@ -143,15 +140,15 @@ lbool False = lFalse
 
 -- | A contant representing False
 lFalse:: LBool
-lFalse = I# -1#
+lFalse = -1
 
 -- | A constant representing True
 lTrue :: LBool
-lTrue = I# 1#
+lTrue = 1
 
 -- | A constant for "undefined"
 lBottom :: LBool
-lBottom = I# 0#
+lBottom = 0
 
 -- | Assisting ADT for the dynamic variable ordering of the solver.
 -- The constructor takes references to the assignment vector and the activity
