@@ -29,7 +29,7 @@ project: 'Study on SAT solver Algorithms in Haskell.'
 * adds self checking option (`--validate`), which works only on satisfiable problems
 * `stack install` installs `mios`. `stack install --flag mios:devel` installs `mios-1.0.3` for developers.
 
-This is the last version based on MiniSat 1.14.
+This is the last version based on *“An extensible SAT-solver [extended version 1.2].”*
 
 ##### 1.0.2
 
@@ -55,7 +55,7 @@ It's an invalid assignment.
 * [Stack](http://www.haskellstack.org/) or `cabal-install`
 
 ```
-stack init --resolver lts-4.2
+stack init --resolver lts-5.5
 stack install
 ```
 
@@ -72,11 +72,12 @@ $ mios a.cnf
 dumps an assignment :: [Int]
 
 $ mios --help
-mios version 1.0.1
+mios 1.0.3
 Usage: mios [OPTIONS] target.cnf
   -d 0.95   --variable-decay-rate=0.95  [solver] variable activity decay rate (0.0 - 1.0)
   -c 0.999  --clause-decay-rate=0.999   [solver] clause activity decay rate (0.0 - 1.0)
-  -r 20     --random-decision-rate=20   [solver] random selection rate (0 - 1000)
+  -r 0      --random-decision-rate=0    [solver] random selection rate (0 - 1000)
+            --validate                  [option] self-check the (satisfied) answer
   -v        --verbose                   [option] display misc information
   -X        --hide-solution             [option] hide the solution
   -:        --validate-assignment       [option] read an assignment from STDIN and validate it
