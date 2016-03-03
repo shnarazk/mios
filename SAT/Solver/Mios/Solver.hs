@@ -238,7 +238,7 @@ enqueue s@Solver{..} p from = do
   val <- valueVar s v
   if val /= lBottom
     then do -- Existing consistent assignment -- don't enqueue
-        return $ signum val == signumP
+        return $ val == signumP
     else do
         -- New fact, store it
         setNth assigns v $! signumP
@@ -526,9 +526,9 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
              _ -> do
                -- New variable decision:
                v <- select s -- many have heuristic for polarity here
-               -- putStrLn $ "search determines next decision var: " ++ show v
                -- << #phasesaving
                oldVal <- valueVar s v
+               -- putStrLn $ "search determines next decision var: " ++ show (v, var2lit v (0 < oldVal))
                assume s $ var2lit v (0 < oldVal) -- cannot return @False@
                -- >> #phasesaving
                loop conflictC
@@ -874,7 +874,7 @@ propagateLit !c@Clause{..} !s@Solver{..} !p !m = do
               then return lTrue  -- unit caluse should be in the original watcher list
               else return lFalse -- A conflict occures
           loopOnLits i = do
-            !(l :: Int) <- getNth lits i
+            !(l :: Lit) <- getNth lits i
             !val <- valueLit s l
             if val /= lFalse    -- l is unassigned or satisfied already
               then do
