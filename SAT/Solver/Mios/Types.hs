@@ -111,12 +111,20 @@ index :: Lit -> Int
 index (I# l#) = if tagToEnum# (0# <# l#) then I# (2# *# (l# -# 1#)) else I# (-2# *# l# -# 1#)
 
 -- | revese convert to 'Lit' from index
+-- >>> index2lit 0
+-- 1
+-- >>> index2lit 1
+-- -1
+-- >>> index2lit 2
+-- 2
+-- >>> index2lit 3
+-- -2
 {-# INLINE index2lit #-}
-index2lit :: Int -> Int
-index2lit (I# n#) =
-  case quotRemInt# n# 2# of
-   (# q#, 0# #) -> I# (q# +# 1#)
-   (# q#, _ #) -> I# (negateInt# (q# +# 1#))
+index2lit :: Int -> Lit
+index2lit !n =
+  case divMod n 2 :: (Int, Int) of
+    (q, 0) -> q + 1
+    (q, _) -> negate $ q + 1
 
 -- index2lit (I# n#) = (div n 2 + 1) * if odd n then -1 else 1
 
