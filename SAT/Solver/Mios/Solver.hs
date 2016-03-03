@@ -475,17 +475,13 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
   let
     loop :: Int -> IO LBool
     loop conflictC = do
-      -- checkIt "search.loop starts" s Nothing
       !confl <- propagate s
-      -- checkIt "search.propagate done" s Nothing
       -- putStrLn $ "propagate done: " ++ show (confl /= NullClause)
-      -- checkWatches s
       d <- getInt decisionLevel
       if confl /= NullClause
         then do
             -- CONFLICT
             -- putStrLn . ("conf: " ++) =<< dump "" confl
-            -- checkIt "search is conflict after propagate" s Nothing
             r <- getInt rootLevel
             if d == r
               then return lFalse
@@ -495,7 +491,6 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                   -- putStrLn =<< dump "BACKTRACK after search.analyze :: trail: " trail
                   record s =<< isoVec litsLearnt
                   decayActivities s
-                  -- checkIt "search done backtrack" s Nothing
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
@@ -526,7 +521,6 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
                    (s `cancelUntil`) =<< getInt rootLevel -- force a restart
-                   -- checkIt "search terminates to restart" s Nothing
                    return lBottom
              _ -> do
                -- New variable decision:
@@ -1158,67 +1152,3 @@ getHeapRoot s@(order -> VarHeap to at) = do
   n <- getNth to 0
   when (1 < n) $ percolateDown s 1
   return r
-
--------------------------------------------------------------------------------- debug code
-
-{-
-dumpStatus :: Solver -> IO ()
-dumpStatus Solver{..} = do
-  putStrLn . ("level: " ++) . show . filter ((0 <=) . snd) . zip [1..] =<< asList level
-  putStrLn =<< dump "trail: " trail
-  putStrLn =<< dump "trailLim: " trailLim
-  putStrLn =<< makeGraph <$> asList trail <*> fromReason reason
-
-fromReason :: ClauseVector -> IO [(Int, [Int])]
-fromReason vec = do
-  l <- zip [1..] <$> asList vec
-  let f (i, c) = (i, ) <$> asList c
-  mapM f l
-
-watcherList :: Solver -> Lit -> IO [[Lit]]
-watcherList Solver{..} lit = do
-  (b, e) <- watches .! index lit
-  x <- map sort <$> (flip traverseWatcher lit =<< watches .! index lit)
-{-
-  unless (null x) $ do
-    cs <- sort <$> (asList =<< getDouble b)
-    ce <- sort <$> (asList =<< getDouble e)
-    unless (head x == cs) $ error $ "inconsistent head watcherList" ++ show (x, cs)
-    unless (last x == ce) $ error $ "inconsistent tail watcherList" ++ show (x, ce)
--}
-  return x
-
-checkWatchers :: Solver -> Clause -> IO ()
-checkWatchers s NullClause = return ()
-checkWatchers s c = do
-  l1 <- negate <$> c .! 0
-  l2 <- negate <$> c .! 1
-  b1 <- watcherList s l1
-  b2 <- watcherList s l2
-  l <- sort <$> asList c
-  s <- dump "clause" c
-  unless (elem l b1) $ error $ s ++ " = " ++ show l ++ " is not registered the 1st wathers list:" ++ show l1
-  unless (elem l b2) $ error $ s ++ " = " ++ show l ++ " is not registered the 2nd wathers list:" ++ show l2
-
-checkIt :: String -> Solver -> Maybe Clause -> IO ()
-checkIt mes s@Solver{..} Nothing = mapM_ (checkIt mes s . Just) =<< asList learnts
-checkIt mes s@Solver{..} (Just c) = do
-  let lits = [-87,-75,-28,-7,-3,-2,-1,5,26,46,73]
-  l <- asList learnts
-  ll <- sort <$> asList c
-  when (ll == lits) $ do
-    putStr $ (take 40 (mes ++ repeat ' ')) ++ " : "
-    putStr =<< dump "The trace " c
-    l1 <- c .! 0
-    l2 <- c .! 1
-    putStr $ " -- 1st literal " ++ show l1 ++ " "
-    w1 <- watcherList s (negate l1)
-    if elem lits w1
-      then putStr ", " -- w1
-      else putStr "not found, " -- >> error "not found"
-    putStr $ " 2nd literal " ++ show l2 ++ " "
-    w2 <- watcherList s (negate l2)
-    if elem lits w2
-      then putStrLn " -- " -- w2
-      else putStrLn "not found -- " --  >> error "not found"
--}
