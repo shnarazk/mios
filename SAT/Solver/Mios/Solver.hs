@@ -56,7 +56,7 @@ data Solver = Solver
                                  -- A constraint will be inspected when 'p' becomes true.
 --            , undos         :: FixedVecOf ClauseManager -- ^ For each variable 'x', a list of constraints that need
                                  -- to update when 'x' becomes unbound by backtracking.
-              , propQ         :: QueueOfBoundedInt -- ^ Propagation queue.
+              , propQ         :: Queue             -- ^ Propagation queue.
                 -- Assignments
               , assigns       :: Vec               -- ^ The current assignments indexed on variables; var-indexed
               , trail         :: Stack             -- ^ List of assignments in chronological order; var-indexed
