@@ -21,13 +21,17 @@ module SAT.Solver.Mios.Types
          -- * misc function
        , Var
        , bottomVar
+         -- * Internal encoded Literal
        , Lit
+       , lit2int
+       , int2lit
        , bottomLit
        , newLit
        , var
        , index
        , index2lit
        , negateLit
+         -- Assignment
        , LBool
        , lbool
        , lFalse
@@ -96,10 +100,57 @@ newLit = error "newLit undefined"
 
 -- sign :: l -> Bool
 
+----------------------------------------
+----------------- Var
+----------------------------------------
+
 -- | converts 'Lit' into 'Var'
 {-# INLINE var #-}
 var :: Lit -> Var
 var = abs
+
+----------------------------------------
+----------------- Int
+----------------------------------------
+
+-- | convert 'Int' into 'Lit'   -- lit2int . int2lit == id
+--
+-- >>> int2lit (-1)
+-- 1
+-- >>> int2lit 1
+-- 2
+-- >>> int2lit (-2)
+-- 3
+-- >>> int2lit 2
+-- 4
+--
+{-# INLINE int2lit #-}
+int2lit :: Int -> Lit
+int2lit = id
+{-
+int2lit n
+  | 0 < n = 2 * n
+-- | 0 == n = error "invalid integer as literal"
+  | otherwise = -2 * n - 1
+-}
+
+-- | converts `Lit' into 'Int'   -- int2lit . lit2int == id
+-- >>> lit2int 1
+-- -1
+-- >>> lit2int 2
+-- 1
+-- >>> lit2int 3
+-- -2
+-- >>> lit2int 4
+-- 2
+{-# INLINE lit2int #-}
+lit2int l
+  | even l = div l 2
+  | otherwise = negate (div l 2) - 1
+
+----------------------------------------
+----------------- Index
+----------------------------------------
 
 -- | converts 'Lit' into valid 'Int'
 -- folding @Lit = [ -N, -N + 1  .. -1] ++ [1 .. N]@,
