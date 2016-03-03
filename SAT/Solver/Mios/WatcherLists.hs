@@ -27,8 +27,8 @@ newWatcherLists :: Int -> Int -> IO WatcherLists
 newWatcherLists n m = V.fromList <$> (forM [0 .. n - 1] $ \_ -> newClauseManager m)
 
 {-# INLINE getNthWatchers #-}
-getNthWatchers :: WatcherLists -> Int -> ClauseManager
-getNthWatchers = V.unsafeIndex
+getNthWatchers :: WatcherLists -> Lit-> ClauseManager
+getNthWatchers w l = V.unsafeIndex w (index l)
 
 instance VectorFamily WatcherLists C.Clause where
   dump mes wl = (mes ++) . L.concat <$> (forM [0 .. V.length wl - 1] $ \i -> dump ("\n" ++ show (index2lit i) ++ "' watchers:") (getNthWatchers wl i))

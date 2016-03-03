@@ -204,7 +204,7 @@ propagate s@Solver{..} = do
         then return NullClause        -- No conflict
         else do
             p <- dequeue propQ
-            let w = getNthWatchers watches (index p)
+            let w = getNthWatchers watches p
             vec <- getClauseVector w
             let
               loopOnWatcher :: Int -> Int-> IO Clause
@@ -794,9 +794,9 @@ remove :: Clause -> Int -> Solver -> IO ()
 remove !c@Clause{..} i Solver{..} = do
   let lvec = asVec c
   l1 <- negate <$> getNth lvec 0
-  removeClause (getNthWatchers watches (index l1)) c
+  removeClause (getNthWatchers watches l1) c
   l2 <- negate <$> getNth lvec 1
-  removeClause (getNthWatchers watches (index l2)) c
+  removeClause (getNthWatchers watches l2) c
   removeNthClause (if learnt then learnts else constrs) i
   return ()
 
@@ -820,12 +820,12 @@ simplify c@Clause{..} s@Solver{..} = do
         shrinkClause (n - j) c
         l1' <- negate <$> getNth lvec 0
         when (l1 /= l1') $ do
-          removeClause (getNthWatchers watches (index l1)) c
-          pushClause (getNthWatchers watches (index l1')) c
+          removeClause (getNthWatchers watches l1) c
+          pushClause (getNthWatchers watches l1') c
         l2' <- negate <$> getNth lvec 1
         when (l2 /= l2') $ do
-          removeClause (getNthWatchers watches (index l2)) c
-          pushClause (getNthWatchers watches (index l2')) c
+          removeClause (getNthWatchers watches l2) c
+          pushClause (getNthWatchers watches l2') c
       return False
     loop i j = do
       l <- getNth lvec i
@@ -881,7 +881,7 @@ propagateLit !c@Clause{..} !s@Solver{..} !p !m = do
                   swapBetween lits 2 i -- setNth 2 lits l >> setNth i lits np
                   -- putStrLn "## from propagateLit"
                   -- @removeClause m c@ will be done by propagate
-                  pushClause (getNthWatchers watches (index (negate l))) c -- insert clause into watcher list
+                  pushClause (getNthWatchers watches (negateLit l)) c -- insert clause into watcher list
                   return lBottom -- this means the clause is moved to other watcher list
               else loopOnLits $ i + 1
         loopOnLits 3
@@ -977,9 +977,9 @@ clauseNew s@Solver{..} ps learnt = do
        forM_ [1 .. k] $ varBumpActivity s . var <=< getNth ps -- variables in conflict clauses are bumped
      -- Add clause to watcher lists:
      l0 <- negate <$> getNth ps 1
-     pushClause (getNthWatchers watches (index l0)) c
+     pushClause (getNthWatchers watches l0) c
      l1 <- negate <$> getNth ps 2
-     pushClause (getNthWatchers watches (index l1)) c
+     pushClause (getNthWatchers watches l1) c
      return (True, c)
 
 -- | __Fig. 7. (p.11)__
@@ -1000,7 +1000,7 @@ instance VarOrder Solver where
   -- | __Fig. 6. (p.10)__
   -- Creates a new SAT variable in the solver.
   newVar _ = return 0
-    -- index <- nVars s
+    -- i <- nVars s
     -- Version 0.4:: push watches =<< newVec      -- push'
     -- Version 0.4:: push watches =<< newVec      -- push'
     -- push undos =<< newVec        -- push'
@@ -1009,8 +1009,8 @@ instance VarOrder Solver where
     -- push level (-1)
     -- push activities (0.0 :: Double)
     -- newVar order
-    -- growQueueSized (index + 1) propQ
-    -- return index
+    -- growQueueSized (i + 1) propQ
+    -- return i
   {-# SPECIALIZE INLINE update :: Solver -> Var -> IO () #-}
   update s v = when (useHeap < nVars s) $ increase s v
   {-# SPECIALIZE INLINE undo :: Solver -> Var -> IO () #-}
