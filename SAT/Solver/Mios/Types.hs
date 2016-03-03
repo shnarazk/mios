@@ -21,6 +21,7 @@ module SAT.Solver.Mios.Types
          -- * misc function
        , Var
        , bottomVar
+       , int2var
          -- * Internal encoded Literal
        , Lit
        , lit2int
@@ -84,6 +85,9 @@ type Var = Int
 -- | Special constant in 'Var' (p.7)
 bottomVar :: Var
 bottomVar = 0
+
+{-# INLINE int2var #-}
+int2var = abs
 
 -- | The literal data has an 'index' method which converts the literal to
 -- a "small" integer suitable for array indexing. The 'var'  method returns

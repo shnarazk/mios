@@ -11,6 +11,7 @@ module SAT.Solver.Mios.WatcherLists
          WatcherLists
        , newWatcherLists
        , getNthWatchers
+       , numberOfRegisteredClauses
        )
        where
 
@@ -35,3 +36,6 @@ getNthWatchers = V.unsafeIndex
 
 instance VectorFamily WatcherLists C.Clause where
   dump mes wl = (mes ++) . L.concat <$> (forM [1 .. V.length wl - 1] $ \i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatchers wl i))
+
+numberOfRegisteredClauses :: WatcherLists -> IO Int
+numberOfRegisteredClauses ws = sum <$> V.mapM numberOfClauses ws
