@@ -105,7 +105,8 @@ injectClauses solver n m str = do
           solver `addClause` vec
           let i' = i + 1
           if m == i' then return () else loop i' 1 str' =<< newVec initialSize
-        Just (l, str') -> do
+        Just (k, str') -> do
+          let l = int2lit k
           len <- sizeOfVector vec
           if len <= j
             then do
@@ -139,7 +140,7 @@ solveSATWithConfiguration :: Traversable m => MiosConfiguration -> (CNFDescripti
 solveSATWithConfiguration conf (desc, clauses) = do
   s <- newSolver conf >>= (`setInternalState` desc)
   -- mapM_ (const (newVar s)) [0 .. _numberOfVariables desc - 1]
-  mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . (\c -> length c : c))) clauses
+  mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . (\c -> length c : map int2lit c))) clauses
   noConf <- simplifyDB s
   if noConf
     then do
@@ -186,5 +187,5 @@ runValidator _  = return ()
 validateAssignment :: (Traversable m, Traversable n) => (CNFDescription, m [Int]) -> n Int -> IO Bool
 validateAssignment (desc, clauses) asg = do
   s <- newSolver defaultConfiguration >>= (`setInternalState` desc)
-  mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . (\c -> length c : c))) clauses
+  mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . (\c -> length c : map int2lit c))) clauses
   s `validate` asg
