@@ -98,7 +98,7 @@ valueVar !s !x = getNth (assigns s) x
 -- | returns the assignment (:: 'LBool' = @[-1, 0, -1]@) from 'Lit'
 {-# INLINE valueLit #-}
 valueLit :: Solver -> Lit -> IO LBool
-valueLit !Solver{..} !p = if p < 0 then negate <$> getNth assigns (var p) else getNth assigns (var p)
+valueLit !Solver{..} !p = if positiveLit p then negate <$> getNth assigns (lit2var p) else getNth assigns (lit2var p)
 
 -- | returns an everything-is-initialized solver from the argument
 setInternalState :: Solver -> CNFDescription -> IO Solver
@@ -233,14 +233,15 @@ propagate s@Solver{..} = do
 {-# INLINABLE enqueue #-}
 enqueue :: Solver -> Lit -> Clause -> IO Bool
 enqueue s@Solver{..} p from = do
-  let v = var p
+  let signumP = if positiveLit p then lTrue else lFalse
+  let v = lit2var p
   val <- valueVar s v
   if val /= lBottom
     then do -- Existing consistent assignment -- don't enqueue
-        return $ signum val == signum p
+        return $ signum val == signumP
     else do
         -- New fact, store it
-        setNth assigns v $! signum p
+        setNth assigns v $! signumP
         d <- getInt decisionLevel
         setNth level v d
         setNthClause reason v from     -- NOTE: @from@ might be NULL!
@@ -285,7 +286,7 @@ analyze s@Solver{..} confl = do
         loopOnLiterals ((< sc) -> False) b pc = return (b, pc) -- b = btLevel, pc = pathC
         loopOnLiterals j b pc = do
           (q :: Lit) <- getNth lvec j
-          let v = var q
+          let v = lit2var q
           sn <- getNth an_seen v
           l <- getNth level v
           if sn == 0 && 0 < l
@@ -296,21 +297,21 @@ analyze s@Solver{..} confl = do
                   then loopOnLiterals (j + 1) b (pc + 1)
                   else pushToStack litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
             else loopOnLiterals (j + 1) b pc
-      (b', pathC') <- loopOnLiterals (if p == 0 then 0 else 1) bl pathC
+      (b', pathC') <- loopOnLiterals (if p == bottomLit then 0 else 1) bl pathC
       let
         -- select next clause to look at
         nextUnseenLit :: Int -> IO Int
         nextUnseenLit i = do
-          x <- getNth an_seen . var =<< getNth trailVec i
+          x <- getNth an_seen . lit2var =<< getNth trailVec i
           if x == 0 then nextUnseenLit $ i - 1 else return i
       ti' <- nextUnseenLit ti
       nextP <- getNth trailVec ti'
-      confl' <- getNthClause reason (var nextP)
-      setNth an_seen (var nextP) 0
+      confl' <- getNthClause reason (lit2var nextP)
+      setNth an_seen (lit2var nextP) 0
       if 1 < pathC'
         then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
         else setNth (asVec litsLearnt) 0 (negateLit nextP) >> return b'
-  result <- loopOnClauseChain confl 0 ti 0 0
+  result <- loopOnClauseChain confl bottomLit ti 0 0
   -- Simplify phase
   let litsVec = asVec litsLearnt
   n <- sizeOfStack litsLearnt
@@ -323,14 +324,14 @@ analyze s@Solver{..} confl = do
     merger i b = do
       l <- getNth litsVec i
       pushToStack an_toClear l
-      setBit i . mod 60 <$> getNth level (var l)
+      setBit i . mod 60 <$> getNth level (lit2var l)
   levels <-  merger 0 0
   let
     loopOnLits :: Int -> Int -> IO ()
     loopOnLits ((< n) -> False) n' = shrinkStack litsLearnt $ n - n'
     loopOnLits i j = do
       l <- getNth litsVec i
-      c1 <- (NullClause ==) <$> getNthClause reason (var l)
+      c1 <- (NullClause ==) <$> getNthClause reason (lit2var l)
       if c1
         then setNth litsVec j l >> loopOnLits (i + 1) (j + 1)
         else do
@@ -357,7 +358,7 @@ litRedundant Solver{..} p minLevel = do
   let
     getRoot :: Lit -> IO Clause
     getRoot l = do
-      (r :: Clause) <- getNthClause reason (var l) -- GClause r = reason[var(analyze_stack.last())]
+      (r :: Clause) <- getNthClause reason (lit2var l) -- GClause r = reason[var(analyze_stack.last())]
       let cvec = asVec r
       if r == NullClause
         then return NullClause
@@ -378,7 +379,7 @@ litRedundant Solver{..} p minLevel = do
         else do -- assert(reason[var(analyze_stack.last())] != GClause_NULL);
             sl <- lastOfStack an_stack
             popFromStack an_stack             -- analyze_stack.pop();
-            c <- getNthClause reason (var sl) -- getRoot sl
+            c <- getNthClause reason (lit2var sl) -- getRoot sl
             nl <- sizeOfClause c
             let
               cvec = asVec c
@@ -386,7 +387,7 @@ litRedundant Solver{..} p minLevel = do
               for ((< nl) -> False) = loopOnStack
               for i = do
                 p' <- getNth cvec i              -- valid range is [0 .. nl - 1]
-                let v' = var p'
+                let v' = lit2var p'
                 c1 <- (1 /=) <$> getNth an_seen v'
                 c2 <- (0 <) <$> getNth level v'
                 if c1 && c2   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
@@ -403,7 +404,7 @@ litRedundant Solver{..} p minLevel = do
                             -- for (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
                             top' <- sizeOfStack an_toClear
                             let vec = asVec an_toClear
-                            forM_ [top .. top' - 1] $ \j -> do x <- getNth vec j; setNth an_seen (var x) 0
+                            forM_ [top .. top' - 1] $ \j -> do x <- getNth vec j; setNth an_seen (lit2var x) 0
                             -- analyze_toclear.shrink(analyze_toclear.size() - top); note: shrink n == repeat n pop
                             shrinkStack an_toClear $ top' - top
                             return False
@@ -451,7 +452,7 @@ cancelUntil s@Solver{..} lvl = do
       loopOnLevel :: Int -> IO ()
       loopOnLevel ((lim <=) -> False) = return ()
       loopOnLevel c = do
-        x <- var <$> getNth tr c
+        x <- lit2var <$> getNth tr c
         setNth assigns x lBottom
         -- FIXME: #polarity https://github.com/shnarazk/minisat/blob/master/core/Solver.cc#L212
         undo s x
@@ -524,12 +525,11 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                    return lBottom
              _ -> do
                -- New variable decision:
-               p <- select s -- many have heuristic for polarity here
-               -- putStrLn $ "search determines next decision var: " ++ show p
+               v <- select s -- many have heuristic for polarity here
+               -- putStrLn $ "search determines next decision var: " ++ show v
                -- << #phasesaving
-               oldVal <- valueVar s p                        -- p means 'Var' here
-               assume s $ if oldVal < 0 then negateLit p else p -- 2nd arg is a 'Literal'
-               -- assume s p        -- cannot return @False@
+               oldVal <- valueVar s v
+               assume s $ var2lit v (0 < oldVal) -- cannot return @False@
                -- >> #phasesaving
                loop conflictC
   loop 0
@@ -960,7 +960,7 @@ clauseNew s@Solver{..} ps learnt = do
          findMax :: Int -> Int -> Int -> IO Int
          findMax ((<= k) -> False) j _ = return j
          findMax i j val = do
-           v' <- var <$> getNth ps i
+           v' <- lit2var <$> getNth ps i
            a <- getNth assigns v'
            b <- getNth level v'
            if (a /= lBottom) && (val < b)
@@ -974,7 +974,7 @@ clauseNew s@Solver{..} ps learnt = do
        -- unless (length x == length (nub x)) $ error "new clause contains a element doubly"
        -- Bumping:
        claBumpActivity s c -- newly learnt clauses should be considered active
-       forM_ [1 .. k] $ varBumpActivity s . var <=< getNth ps -- variables in conflict clauses are bumped
+       forM_ [1 .. k] $ varBumpActivity s . lit2var <=< getNth ps -- variables in conflict clauses are bumped
      -- Add clause to watcher lists:
      l0 <- negateLit <$> getNth ps 1
      pushClause (getNthWatchers watches l0) c
@@ -986,7 +986,7 @@ clauseNew s@Solver{..} ps learnt = do
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__
 {-# INLINE locked #-}
 locked :: Clause -> Solver -> IO Bool
-locked !c@Clause{..} !Solver{..} =  (c ==) <$> (getNthClause reason . var =<< getNth lits 1)
+locked !c@Clause{..} !Solver{..} =  (c ==) <$> (getNthClause reason . lit2var =<< getNth lits 1)
 
 -- | For small-sized problems, heap may not be a good choice.
 useHeap :: Int
@@ -1078,7 +1078,7 @@ numElementsInHeap :: Solver -> IO Int
 numElementsInHeap (order -> heap -> h) = getNth h 0
 
 {-# INLINE inHeap #-}
-inHeap :: Solver -> Int -> IO Bool
+inHeap :: Solver -> Var -> IO Bool
 inHeap (order -> idxs -> at) n = (/= 0) <$> getNth at n
 
 {-# INLINE increase #-}

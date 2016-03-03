@@ -27,9 +27,9 @@ module SAT.Solver.Mios.Types
        , int2lit
        , bottomLit
        , newLit
-       , var
-       , index
-       , index2lit
+       , positiveLit
+       , lit2var
+       , var2lit
        , negateLit
          -- Assignment
        , LBool
@@ -98,16 +98,40 @@ bottomLit = 0
 newLit :: Var -> Lit
 newLit = error "newLit undefined"
 
--- sign :: l -> Bool
+-- | returns @True@ if the literal is positive 
+{-# INLINE positiveLit #-}
+positiveLit :: Lit -> Bool
+positiveLit = even
 
 ----------------------------------------
 ----------------- Var
 ----------------------------------------
 
 -- | converts 'Lit' into 'Var'
-{-# INLINE var #-}
-var :: Lit -> Var
-var = abs
+-- >>> lit2var 1  -- -1
+-- 1
+-- >>> lit2var 2  -- 1
+-- 1
+-- >>> lit2var 3 -- -2
+-- 2
+-- >>> lit2var 4 -- 2
+-- 2
+{-# INLINE lit2var #-}
+lit2var :: Lit -> Var
+lit2var n = div (n + 1) 2
+
+-- >>> var2lit 1 True
+-- 2
+-- >>> var2lit 1 False
+-- 1
+-- >>> var2lit 2 True
+-- 4
+-- >>> var2lit 2 False
+-- 3
+{-# INLINE var2lit #-}
+var2lit :: Var -> Bool -> Lit
+var2lit v True = 2 * v
+var2lit v _ = 2 * v - 1
 
 ----------------------------------------
 ----------------- Int
@@ -126,13 +150,9 @@ var = abs
 --
 {-# INLINE int2lit #-}
 int2lit :: Int -> Lit
-int2lit = id
-{-
 int2lit n
   | 0 < n = 2 * n
--- | 0 == n = error "invalid integer as literal"
   | otherwise = -2 * n - 1
--}
 
 -- | converts `Lit' into 'Int'   -- int2lit . lit2int == id
 -- >>> lit2int 1
@@ -148,37 +168,10 @@ lit2int l
   | even l = div l 2
   | otherwise = negate (div l 2) - 1
 
-----------------------------------------
------------------ Index
-----------------------------------------
-
--- | converts 'Lit' into valid 'Int'
--- folding @Lit = [ -N, -N + 1  .. -1] ++ [1 .. N]@,
--- to @[0 .. 2N - 1]
-{-# INLINE index #-}
-index :: Lit -> Int
-index l = if 0 < l then 2 * (l - 1) else -2 * l - 1
-
--- | revese convert to 'Lit' from index
--- >>> index2lit 0
--- 1
--- >>> index2lit 1
--- -1
--- >>> index2lit 2
--- 2
--- >>> index2lit 3
--- -2
-{-# INLINE index2lit #-}
-index2lit :: Int -> Lit
-index2lit !n =
-  case divMod n 2 :: (Int, Int) of
-    (q, 0) -> q + 1
-    (q, _) -> negate $ q + 1
-
 -- | negates literal
 {-# INLINE negateLit #-}
 negateLit :: Lit -> Lit
-negateLit = negate
+negateLit l = if even l then l - 1 else l + 1
 
 -- | Lifted Boolean domain (p.7) that extends 'Bool' with "⊥" means /undefined/
 type LBool = Int
