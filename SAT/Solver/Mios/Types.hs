@@ -30,6 +30,7 @@ module SAT.Solver.Mios.Types
        , var
        , index
        , index2lit
+       , negateLit
        , LBool
        , lbool
        , lFalse
@@ -126,7 +127,10 @@ index2lit !n =
     (q, 0) -> q + 1
     (q, _) -> negate $ q + 1
 
--- index2lit (I# n#) = (div n 2 + 1) * if odd n then -1 else 1
+-- | negates literal
+{-# INLINE negateLit #-}
+negateLit :: Lit -> Lit
+negateLit = negate
 
 -- | Lifted Boolean domain (p.7) that extends 'Bool' with "⊥" means /undefined/
 type LBool = Int

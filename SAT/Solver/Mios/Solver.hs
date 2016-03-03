@@ -309,7 +309,7 @@ analyze s@Solver{..} confl = do
       setNth an_seen (var nextP) 0
       if 1 < pathC'
         then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
-        else setNth (asVec litsLearnt) 0 (negate nextP) >> return b'
+        else setNth (asVec litsLearnt) 0 (negateLit nextP) >> return b'
   result <- loopOnClauseChain confl 0 ti 0 0
   -- Simplify phase
   let litsVec = asVec litsLearnt
@@ -528,7 +528,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                -- putStrLn $ "search determines next decision var: " ++ show p
                -- << #phasesaving
                oldVal <- valueVar s p                        -- p means 'Var' here
-               assume s $ if oldVal < 0 then negate p else p -- 2nd arg is a 'Literal'
+               assume s $ if oldVal < 0 then negateLit p else p -- 2nd arg is a 'Literal'
                -- assume s p        -- cannot return @False@
                -- >> #phasesaving
                loop conflictC
@@ -793,9 +793,9 @@ solve s@Solver{..} assumps = do
 remove :: Clause -> Int -> Solver -> IO ()
 remove !c@Clause{..} i Solver{..} = do
   let lvec = asVec c
-  l1 <- negate <$> getNth lvec 0
+  l1 <- negateLit <$> getNth lvec 0
   removeClause (getNthWatchers watches l1) c
-  l2 <- negate <$> getNth lvec 1
+  l2 <- negateLit <$> getNth lvec 1
   removeClause (getNthWatchers watches l2) c
   removeNthClause (if learnt then learnts else constrs) i
   return ()
@@ -810,19 +810,19 @@ simplify :: Clause -> Solver -> IO Bool
 simplify c@Clause{..} s@Solver{..} = do
   let cvec = asVec c
   n <- sizeOfClause c
-  l1 <- negate <$> getNth cvec 0
-  l2 <- negate <$> getNth cvec 1
+  l1 <- negateLit <$> getNth cvec 0
+  l2 <- negateLit <$> getNth cvec 1
   let
     lvec = asVec c
     loop :: Int -> Int -> IO Bool
     loop ((< n) -> False) j = do
       when (0 < n - j) $ do
         shrinkClause (n - j) c
-        l1' <- negate <$> getNth lvec 0
+        l1' <- negateLit <$> getNth lvec 0
         when (l1 /= l1') $ do
           removeClause (getNthWatchers watches l1) c
           pushClause (getNthWatchers watches l1') c
-        l2' <- negate <$> getNth lvec 1
+        l2' <- negateLit <$> getNth lvec 1
         when (l2 /= l2') $ do
           removeClause (getNthWatchers watches l2) c
           pushClause (getNthWatchers watches l2') c
@@ -852,7 +852,7 @@ simplify c@Clause{..} s@Solver{..} = do
 propagateLit :: Clause -> Solver -> Lit -> ClauseManager -> IO LBool
 propagateLit !c@Clause{..} !s@Solver{..} !p !m = do
   -- Make sure the false literal is lits[1] = 2nd literal = 2nd watcher:
-  !l' <- negate <$> getNth lits 1
+  !l' <- negateLit <$> getNth lits 1
   when (l' == p) $ do
     -- swap lits[0] and lits[1]
     swapBetween lits 1 2
@@ -912,7 +912,7 @@ clauseNew s@Solver{..} ps learnt = do
                    swapBetween ps j n
                    modifyNth ps (subtract 1) 0
                    handle j l (n - 1)
-             _ | - y == l -> setNth ps 0 0 >> return True -- p and negate p occurs in ps
+             _ | - y == l -> setNth ps 0 0 >> return True -- p and negateLit p occurs in ps
              _ -> handle (j + 1) l n
       loopForLearnt :: Int -> IO Bool
       loopForLearnt i = do
@@ -976,9 +976,9 @@ clauseNew s@Solver{..} ps learnt = do
        claBumpActivity s c -- newly learnt clauses should be considered active
        forM_ [1 .. k] $ varBumpActivity s . var <=< getNth ps -- variables in conflict clauses are bumped
      -- Add clause to watcher lists:
-     l0 <- negate <$> getNth ps 1
+     l0 <- negateLit <$> getNth ps 1
      pushClause (getNthWatchers watches l0) c
-     l1 <- negate <$> getNth ps 2
+     l1 <- negateLit <$> getNth ps 2
      pushClause (getNthWatchers watches l1) c
      return (True, c)
 
