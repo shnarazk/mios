@@ -12,7 +12,7 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | This is the implementation pack __version 0.6 #activityEstimation
+-- | FIXME: this is a too heavy implementation that enables peeking
 --
 -- * __FixedQueueOf Lit__ @:: UV.IOVector Int@
 --
@@ -29,6 +29,7 @@ module SAT.Solver.Mios.Data.QueueOfBoundedInt
 
 import Control.Monad (when)
 import qualified Data.Vector.Unboxed.Mutable as UV
+import SAT.Solver.Mios.Types
 
 -- | __version 1.1__
 --
@@ -102,9 +103,10 @@ dequeue QueueOfBoundedInt{..} = do
   UV.unsafeWrite ring 0 $! n - 1
   return x
 
+-- | /n/ is the number of Literals
 newQueue :: Int -> IO QueueOfBoundedInt
 newQueue n = do
-   q <- UV.new $ 3 + n + 1
+   q <- UV.new $ 3 + int2lit (negate n) + 1
    UV.unsafeWrite q 0 0
    UV.unsafeWrite q 1 0
    UV.unsafeWrite q 2 0

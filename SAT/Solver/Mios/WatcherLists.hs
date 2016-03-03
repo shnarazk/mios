@@ -23,8 +23,10 @@ import SAT.Solver.Mios.ClauseManager
 
 type WatcherLists = V.Vector ClauseManager
 
+-- | /n/ is the number of 'Var', /m/ is default size of each watcher list
+-- | For /n/ vars, we need [0 .. 2 + 2 * n - 1] slots, namely /2 * (n + 1)/-length vector
 newWatcherLists :: Int -> Int -> IO WatcherLists
-newWatcherLists n m = V.fromList <$> (forM [0 .. n] $ \_ -> newClauseManager m)
+newWatcherLists n m = V.fromList <$> (forM [0 .. int2lit (negate n) + 1] $ \_ -> newClauseManager m)
 
 -- | returns the watcher List :: "ClauseManager" for "Literal" /l/
 {-# INLINE getNthWatchers #-}

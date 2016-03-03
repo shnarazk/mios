@@ -44,9 +44,10 @@ module SAT.Solver.Mios.Types
        where
 
 import Control.Monad (forM)
+import Data.Bits
+import qualified Data.Vector.Unboxed.Mutable as UV
 import GHC.Exts (Int(..))
 import GHC.Prim
-import qualified Data.Vector.Unboxed.Mutable as UV
 import SAT.Solver.Mios.Data.Singleton
 import SAT.Solver.Mios.Data.Vec
 
@@ -98,40 +99,53 @@ bottomLit = 0
 newLit :: Var -> Lit
 newLit = error "newLit undefined"
 
--- | returns @True@ if the literal is positive 
+-- | returns @True@ if the literal is positive
 {-# INLINE positiveLit #-}
 positiveLit :: Lit -> Bool
 positiveLit = even
+
+-- | negates literal
+-- >>> negateLit 2
+-- 3
+-- >>> negateLit 3
+-- 2
+-- >>> negateLit 4
+-- 5
+-- >>> negateLit 5
+-- 4
+{-# INLINE negateLit #-}
+negateLit :: Lit -> Lit
+negateLit !l = complementBit l 0 -- if even l then l + 1 else l - 1
 
 ----------------------------------------
 ----------------- Var
 ----------------------------------------
 
 -- | converts 'Lit' into 'Var'
--- >>> lit2var 1  -- -1
--- 1
 -- >>> lit2var 2  -- 1
 -- 1
--- >>> lit2var 3 -- -2
--- 2
+-- >>> lit2var 3  -- -1
+-- 1
 -- >>> lit2var 4 -- 2
+-- 2
+-- >>> lit2var 5 -- -2
 -- 2
 {-# INLINE lit2var #-}
 lit2var :: Lit -> Var
-lit2var n = div (n + 1) 2
+lit2var !n = shiftR n 1
 
 -- >>> var2lit 1 True
 -- 2
 -- >>> var2lit 1 False
--- 1
+-- 3
 -- >>> var2lit 2 True
 -- 4
 -- >>> var2lit 2 False
--- 3
+-- 5
 {-# INLINE var2lit #-}
 var2lit :: Var -> Bool -> Lit
-var2lit v True = 2 * v
-var2lit v _ = 2 * v - 1
+var2lit !v True = shiftL v 1
+var2lit !v _ = shiftL v 1 + 1
 
 ----------------------------------------
 ----------------- Int
@@ -139,39 +153,34 @@ var2lit v _ = 2 * v - 1
 
 -- | convert 'Int' into 'Lit'   -- lit2int . int2lit == id
 --
--- >>> int2lit (-1)
--- 1
 -- >>> int2lit 1
 -- 2
--- >>> int2lit (-2)
+-- >>> int2lit (-1)
 -- 3
 -- >>> int2lit 2
 -- 4
+-- >>> int2lit (-2)
+-- 5
 --
 {-# INLINE int2lit #-}
 int2lit :: Int -> Lit
 int2lit n
   | 0 < n = 2 * n
-  | otherwise = -2 * n - 1
+  | otherwise = -2 * n + 1
 
 -- | converts `Lit' into 'Int'   -- int2lit . lit2int == id
--- >>> lit2int 1
--- -1
 -- >>> lit2int 2
 -- 1
 -- >>> lit2int 3
--- -2
+-- -1
 -- >>> lit2int 4
 -- 2
+-- >>> lit2int 5
+-- -2
 {-# INLINE lit2int #-}
-lit2int l
-  | even l = div l 2
-  | otherwise = negate (div l 2) - 1
-
--- | negates literal
-{-# INLINE negateLit #-}
-negateLit :: Lit -> Lit
-negateLit l = if even l then l - 1 else l + 1
+lit2int l = case divMod l 2 of
+  (i, 0) -> i
+  (i, _) -> - i
 
 -- | Lifted Boolean domain (p.7) that extends 'Bool' with "⊥" means /undefined/
 type LBool = Int

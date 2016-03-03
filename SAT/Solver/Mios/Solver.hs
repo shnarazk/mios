@@ -108,7 +108,7 @@ setInternalState s (CNFDescription nv nc _) = do
   m1 <- newClauseManager nc
   m2 <- newClauseManager nc
   ac <- newVecDouble (nv + 1) 0.0
-  w <- newWatcherLists (nv * 2) (div (2 * nc) nv)
+  w <- newWatcherLists nv (div (2 * nc) nv)
 --  u <- newVec 0 -- nv
   -- forM_ [0 .. nv - 1] $ \i -> setVecAt u i =<< newVec 0
   a <- newVecWith (nv + 1) lBottom
@@ -117,7 +117,7 @@ setInternalState s (CNFDescription nv nc _) = do
   r <- newClauseVector (nv + 1)
   l <- newVecWith (nv + 1) (-1)
   o <- newVarHeap nv
-  q <- newQueue (2 * nv)
+  q <- newQueue nv
   n1 <- newVec (nv + 1)
   n2 <- newStack nv
   n3 <- newStack nv
