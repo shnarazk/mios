@@ -16,7 +16,7 @@ import SAT.Solver.Mios.Data.Stack
 
 -- | version name
 versionId :: String
-versionId = "mios M22"
+versionId = "mios M22; bitencode, simple queue"
 
 -- | solver configuration
 data MiosConfiguration = MiosConfiguration
