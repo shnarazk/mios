@@ -47,8 +47,6 @@ module SAT.Solver.Mios.Types
 import Control.Monad (forM)
 import Data.Bits
 import qualified Data.Vector.Unboxed.Mutable as UV
-import GHC.Exts (Int(..))
-import GHC.Prim
 import SAT.Solver.Mios.Data.Singleton
 import SAT.Solver.Mios.Data.Vec
 
