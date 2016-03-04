@@ -52,7 +52,7 @@ runSolverOn path = runSolver (miosDefaultOption { _targetFile = Just path })
 
 -- | runs a solver on the given 'arg :: MiosConfiguration'
 -- | This is another entry point for standalone programs.
-runSolver :: MiosConfigurationOption -> IO ()
+runSolver :: MiosProgramOption -> IO ()
 runSolver opts@(_targetFile -> target@(Just cnfFile)) = do
   str <- B.readFile cnfFile
   let ((n, m), clauses) = buildDescription str
@@ -157,7 +157,7 @@ runValidatorOn path = runValidator (miosDefaultOption { _targetFile = Just path 
 
 -- | validates a given assignment for the problem (2nd arg)
 -- this is another entry point for standalone programs; see app/mios.hs
-runValidator :: MiosConfigurationOption -> IO ()
+runValidator :: MiosProgramOption -> IO ()
 runValidator opts@(_targetFile -> target@(Just cnfFile)) = do
   str <- B.readFile cnfFile
   let ((n, m), clauses) = buildDescription str

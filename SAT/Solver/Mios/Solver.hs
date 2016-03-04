@@ -217,11 +217,6 @@ propagate s@Solver{..} = do
                       _ | x == lTrue  {- still in -} -> loopOnWatcher (i + 1) n
                       _ | x == lFalse {- conflict -} -> clearQueue propQ >> return c
                       _               {- it moved -} -> removeNthClause w i >> loopOnWatcher i (n - 1)
-{-
-                if not x -- Constraint is conflicting;return constraint
-                  then clearQueue propQ >> shrinkClauseManager w (max 0 (i - 1)) >> return c
-                  else loopOnWatcher $ i - 1
--}
             loopOnWatcher 0 =<< numberOfClauses w
   loopOnQueue
 
@@ -499,17 +494,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
             k1 <- numberOfClauses learnts
             k2 <- nAssigns s
             when (k1 - k2 >= nOfLearnts) $ do
---              n1 <- nLearnts s
               reduceDB s -- Reduce the set of learnt clauses
-              {-
-              n2 <- nLearnts s
-              n3 <- sizeOfStack trail
-              dl <- getInt decisionLevel
-              case () of
-                _ | n2 <= n3 -dl -> putStrLn "purge all"
-                _ | n1 /= 0 && n1 == n2 -> return ()
-                _ -> print (n1, n2, n3, fromIntegral n2 / fromIntegral n1)
-              -}
             case () of
              _ | k2 == nVars -> do
                    -- Model found:
@@ -517,7 +502,6 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                    -- nv <- nVars s
                    -- forM_ [1 .. nv] $ \i -> setAt model i =<< (lTrue ==) <$> assigns .! i
                    forM_ [0 .. nVars - 1] $ \i -> setNthBool model i . (lTrue ==) =<< getNth assigns (i + 1)
-                   -- putStrLn =<< dump "activities:" activities
                    return lTrue
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
@@ -655,19 +639,6 @@ sortOnActivity :: ClauseManager -> IO ()
 sortOnActivity cm = do
   n <- numberOfClauses cm
   vec <- getClauseVector cm
-{-
-  -- This code causes core dumps sadly.
-  let
-    compareActivity NullClause NullClause = EQ
-    compareActivity NullClause _ = GT
-    compareActivity _ NullClause = LT
-    compareActivity c1 c2 = unsafePerformIO $ reverseCompareActivityReally c1 c2
-      where
-        reverseCompareActivityReally x y = compare <$> getDouble (activity y) <*> getDouble (activity x)
-  putStr "sorting..."
-  VA.sortBy compareActivity vec
-  putStr "done..."
--}
   let
     keyOf :: Int -> IO Double
     keyOf i = negate <$> (getDouble . activity =<< getNthClause vec i)
@@ -679,7 +650,6 @@ sortOnActivity cm = do
           b <- keyOf right
           unless (a < b) $ swapClauses vec left right
       | otherwise = do
-          --let check m i = unless (0 <= i && i < n) $ error (m ++ " out of index:" ++ (show (i, (left, right), n)))
           let p = div (left + right) 2
           pivot <- keyOf p
           swapClauses vec p left -- set a sentinel for r'
@@ -768,7 +738,6 @@ solve s@Solver{..} assumps = do
               then cancelUntil s 0 >> return False
               else return True
   x <- foldrM injector True assumps
-  -- !x <- for =<< asList assumps
   if not x
     then return False
     else do

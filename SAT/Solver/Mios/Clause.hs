@@ -33,12 +33,12 @@ import SAT.Solver.Mios.Types
 -- TODO: GADTs is better?
 data Clause = Clause
               {
-                learnt     :: Bool            -- ^ whether this is a learnt clause
-              , activity   :: DoubleSingleton -- ^ activity of this clause
-              , lits       :: Vec     -- ^ which this clause consists of
+                learnt   :: Bool            -- ^ whether this is a learnt clause
+              , activity :: DoubleSingleton -- ^ activity of this clause
+              , lits     :: Vec             -- ^ which this clause consists of
               }
-  | BinaryClause Int            -- binary clause consists of only a propagating literal
-  | NullClause                  -- as null pointer
+  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
+  | NullClause                              -- as null pointer
 
 -- | The equality on 'Clause' is defined by pointer equivalence.
 instance Eq Clause where
@@ -56,13 +56,13 @@ instance VectorFamily Clause Lit where
     a <- show <$> getDouble activity
     (len:ls) <- asList lits
     return $ mes ++ "C" ++ show len ++ "{" ++ intercalate "," [show learnt, a, show . map lit2int . take len $ ls] ++ "}"
+  {-# SPECIALIZE INLINE asVec :: Clause -> Vec #-}
   asVec Clause{..} = MV.unsafeTail lits
   {-# SPECIALIZE INLINE asList :: Clause -> IO [Int] #-}
   asList NullClause = return []
   asList Clause{..} = do
     (n : ls)  <- asList lits
     return $ take n ls
-  {-# SPECIALIZE INLINE asVec :: Clause -> Vec #-}
 
 -- | returns True if it is a 'BinaryClause'
 -- FIXME: this might be discarded in minisat 2.2

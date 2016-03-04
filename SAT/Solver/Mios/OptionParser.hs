@@ -4,7 +4,7 @@ module SAT.Solver.Mios.OptionParser
        (
          MiosConfiguration (..)
        , defaultConfiguration
-       , MiosConfigurationOption (..)
+       , MiosProgramOption (..)
        , miosDefaultOption
        , miosOptions
        , miosUsage
@@ -19,7 +19,7 @@ import System.Environment (getArgs)
 import SAT.Solver.Mios.Internal (MiosConfiguration (..), defaultConfiguration)
 
 -- | configuration swithces
-data MiosConfigurationOption = MiosConfigurationOption
+data MiosProgramOption = MiosProgramOption
                      {
                        _targetFile :: Maybe String
                      , _confVariableDecayRate :: Double
@@ -34,8 +34,8 @@ data MiosConfigurationOption = MiosConfigurationOption
                      }
 
 -- | default option settings
-miosDefaultOption :: MiosConfigurationOption
-miosDefaultOption = MiosConfigurationOption
+miosDefaultOption :: MiosProgramOption
+miosDefaultOption = MiosProgramOption
   {
     _targetFile = Just ""
   , _confVariableDecayRate = variableDecayRate defaultConfiguration
@@ -50,7 +50,7 @@ miosDefaultOption = MiosConfigurationOption
   }
 
 -- | definition of mios option
-miosOptions :: [OptDescr (MiosConfigurationOption -> MiosConfigurationOption)]
+miosOptions :: [OptDescr (MiosProgramOption -> MiosProgramOption)]
 miosOptions =
   [
     Option ['d'] ["variable-decay-rate"]
@@ -91,8 +91,8 @@ miosOptions =
 miosUsage :: String -> String
 miosUsage mes = usageInfo mes miosOptions
 
--- | builds "MiosConfigurationOption" from string given as command option
-miosParseOptions :: String -> [String] -> IO MiosConfigurationOption
+-- | builds "MiosProgramOption" from string given as command option
+miosParseOptions :: String -> [String] -> IO MiosProgramOption
 miosParseOptions mes argv =
     case getOpt Permute miosOptions argv of
       (o, [], []) -> do
@@ -102,12 +102,12 @@ miosParseOptions mes argv =
         return $ conf { _targetFile = Just n }
       (_, _, errs) -> ioError (userError (concat errs ++ miosUsage mes))
 
--- | builds "MiosConfigurationOption" from a String
-miosParseOptionsFromArgs :: String -> IO MiosConfigurationOption
+-- | builds "MiosProgramOption" from a String
+miosParseOptionsFromArgs :: String -> IO MiosProgramOption
 miosParseOptionsFromArgs mes = miosParseOptions mes =<< getArgs
 
--- | converts "MiosConfigurationOption" into "SIHConfiguration"
-toMiosConf :: MiosConfigurationOption -> MiosConfiguration
+-- | converts "MiosProgramOption" into "SIHConfiguration"
+toMiosConf :: MiosProgramOption -> MiosConfiguration
 toMiosConf opts = MiosConfiguration
                  {
                    variableDecayRate = _confVariableDecayRate opts
