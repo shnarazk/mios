@@ -174,6 +174,7 @@ runValidator opts@(_targetFile -> target@(Just cnfFile)) = do
        nl <- nLearnts s
        putStrLn $ "(nv, nc, nl) = " ++ show (nVars s, nc, nl)
      asg <- read <$> getContents
+     unless (_confNoAnswer opts) $ print asg
      result <- s `validate` (asg :: [Int])
      if result
        then putStrLn "It's a valid assignment." >> exitSuccess
