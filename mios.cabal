@@ -58,8 +58,9 @@ library
                                          SAT.Solver.Mios.Data.FixedVecBool
                                          SAT.Solver.Mios.Data.FixedVecDouble
                                          SAT.Solver.Mios.Data.Vec
-                                         SAT.Solver.Mios.Data.QueueOfBoundedInt
+                                         SAT.Solver.Mios.Data.Queue
                                          SAT.Solver.Mios.Data.Singleton
+                                         SAT.Solver.Mios.Data.Stack
                                          SAT.Solver.Mios.Internal
                                          SAT.Solver.Mios.OptionParser
                                          SAT.Solver.Mios.Solver
@@ -67,7 +68,6 @@ library
     -- Modules included in this library but not exported.
   other-modules:
                                          SAT.Solver.Mios.Data.FixedUVecOf
-                                         SAT.Solver.Mios.Data.StackOfBoundedInt
                                          SAT.Solver.Mios.Data.VecOf
                                          SAT.Solver.Mios.Util.Graph
     -- Other library packages from which modules are imported.
@@ -94,7 +94,7 @@ executable mios
     SAT.Solver.Mios.Data.FixedVecBool
     SAT.Solver.Mios.Data.FixedVecDouble
     SAT.Solver.Mios.Data.Vec
-    SAT.Solver.Mios.Data.QueueOfBoundedInt
+    SAT.Solver.Mios.Data.Queue
     SAT.Solver.Mios.Data.Singleton
     SAT.Solver.Mios.Data.Stack
     SAT.Solver.Mios.Internal
@@ -124,7 +124,7 @@ executable mios-M22
     SAT.Solver.Mios.Data.FixedVecBool
     SAT.Solver.Mios.Data.FixedVecDouble
     SAT.Solver.Mios.Data.Vec
-    SAT.Solver.Mios.Data.QueueOfBoundedInt
+    SAT.Solver.Mios.Data.Queue
     SAT.Solver.Mios.Data.Singleton
     SAT.Solver.Mios.Data.Stack
     SAT.Solver.Mios.Internal
@@ -151,7 +151,7 @@ executable mios-M22-prof
     SAT.Solver.Mios.Data.FixedVecBool
     SAT.Solver.Mios.Data.FixedVecDouble
     SAT.Solver.Mios.Data.Vec
-    SAT.Solver.Mios.Data.QueueOfBoundedInt
+    SAT.Solver.Mios.Data.Queue
     SAT.Solver.Mios.Data.Singleton
     SAT.Solver.Mios.Data.Stack
     SAT.Solver.Mios.Internal
@@ -196,7 +196,7 @@ executable mios-M22-cr
     SAT.Solver.Mios.Data.FixedVecBool
     SAT.Solver.Mios.Data.FixedVecDouble
     SAT.Solver.Mios.Data.Vec
-    SAT.Solver.Mios.Data.QueueOfBoundedInt
+    SAT.Solver.Mios.Data.Queue
     SAT.Solver.Mios.Data.Singleton
     SAT.Solver.Mios.Data.Stack
     SAT.Solver.Mios.Internal
