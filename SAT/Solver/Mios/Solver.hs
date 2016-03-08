@@ -340,7 +340,7 @@ analyze s@Solver{..} confl = do
     merger i b = do
       l <- getNth litsVec i
       pushToStack an_toClear l
-      setBit b . flip mod 60 <$> getNth level (lit2var l)
+      setBit b . flip mod 32 <$> getNth level (lit2var l)
   levels <-  merger 1 0
   let
     loopOnLits :: Int -> Int -> IO ()
@@ -411,7 +411,7 @@ litRedundant Solver{..} p minLevel = do
                 if c1 && c2   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
                   then do
                       c3 <- (NullClause /=) <$> getNthClause reason v'
-                      c4 <- testBit minLevel . flip mod 60 <$> getNth level v'
+                      c4 <- testBit minLevel . flip mod 32 <$> getNth level v'
                       if c3 && c4 -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
                         then do
                             setNth an_seen v' 1        -- analyze_seen[var(p)] = 1;
