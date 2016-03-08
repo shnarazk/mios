@@ -340,7 +340,8 @@ analyze s@Solver{..} confl = do
     merger i b = do
       l <- getNth litsVec i
       pushToStack an_toClear l
-      setBit b . flip mod 32 <$> getNth level (lit2var l)
+      b' <- setBit b . flip mod 32 <$> getNth level (lit2var l)
+      merger (i + 1) b'
   levels <-  merger 1 0
   let
     loopOnLits :: Int -> Int -> IO ()
