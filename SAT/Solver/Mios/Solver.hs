@@ -9,7 +9,7 @@
   , TupleSections
   , ViewPatterns
   #-}
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Safe #-}
 
 module SAT.Solver.Mios.Solver
        (
@@ -30,7 +30,6 @@ module SAT.Solver.Mios.Solver
 import Control.Monad ((<=<), filterM, foldM, forM, forM_, unless, when)
 import Data.Bits
 import Data.Foldable (foldrM)
-import qualified Data.IORef as IORef
 import System.Random (mkStdGen, randomIO, setStdGen)
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Internal
