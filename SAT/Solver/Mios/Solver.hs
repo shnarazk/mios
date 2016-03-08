@@ -188,37 +188,6 @@ addClause s@Solver{..} vecLits = do
 
 -- functions on "Solver"
 
--- | __Fig. 9 (p.14)__
--- Propagates all enqueued facts. If a conflict arises, the /conflicting/
--- clause is returned, otherwise @NullClause@ (instead of Null).
---
--- `propagate` is invoked by `search`,`simpleDB` and `solve`
-{-# INLINABLE propagate #-}
-propagate :: Solver -> IO Clause
-propagate s@Solver{..} = do
-  let
-    loopOnQueue :: IO Clause
-    loopOnQueue = do
-      k <- sizeOfQueue propQ
-      if k == 0
-        then return NullClause        -- No conflict
-        else do
-            p <- dequeue propQ
-            let w = getNthWatchers watches p
-            vec <- getClauseVector w
-            let
-              loopOnWatcher :: Int -> Int-> IO Clause
-              loopOnWatcher i n
-                | i == n = loopOnQueue
-                | otherwise = do
-                    c <- getNthClause vec i
-                    x <- propagateLit c s p w -- c will be inserted into apropriate watchers in this function
-                    case () of
-                      _ | x == lTrue  {- still in -} -> loopOnWatcher (i + 1) n
-                      _ | x == lFalse {- conflict -} -> clearQueue propQ >> return c
-                      _               {- it moved -} -> removeNthClause w i >> loopOnWatcher i (n - 1)
-            loopOnWatcher 0 =<< numberOfClauses w
-  loopOnQueue
 
 -- | __Fig. 9 (p.14)__
 -- Puts a new fact on the propagation queue, as well as immediately updating the variable's value
@@ -244,20 +213,73 @@ enqueue s@Solver{..} p from = do
         insertQueue propQ p
         return True
 
+
+-- | __Fig. 11. (p.15)__
+-- Record a clause and drive backtracking.
+--
+-- __Pre-Condition:__ "clause[0]" must contain
+-- the asserting literal. In particular, 'clause[]' must not be empty.
+{-# INLINE record #-}
+record :: Solver -> Vec -> IO ()
+record s@Solver{..} v = do
+  c <- snd <$> clauseNew s v True -- will be set to created clause, or NULL if @clause[]@ is unit
+  l <- getNth v 1
+  enqueue s l c
+  unless (c == NullClause) $ pushClause learnts c
+
+-- | __Fig. 12 (p.17)__
+-- returns @False@ if immediate conflict.
+--
+-- __Pre-condition:__ propagation queue is empty
+{-# INLINE assume #-}
+assume :: Solver -> Lit -> IO Bool
+assume s@Solver{..} p = do
+  pushToStack trailLim =<< sizeOfStack trail
+  modifyInt decisionLevel (+ 1)
+  enqueue s p NullClause
+
+-- | #M22: Revert to the states at given level (keeping all assignment at 'level' but not beyond).
+{-# INLINABLE cancelUntil #-}
+cancelUntil :: Solver -> Int -> IO ()
+cancelUntil s@Solver{..} lvl = do
+  dl <- getInt decisionLevel
+  when (lvl < dl) $ do
+    let tr = asVec trail
+    let tl = asVec trailLim
+    lim <- getNth tl lvl
+    ts <- sizeOfStack trail
+    ls <- sizeOfStack trailLim
+    let
+      loopOnLevel :: Int -> IO ()
+      loopOnLevel ((lim <=) -> False) = return ()
+      loopOnLevel c = do
+        x <- lit2var <$> getNth tr c
+        setNth assigns x lBottom
+        -- FIXME: #polarity https://github.com/shnarazk/minisat/blob/master/core/Solver.cc#L212
+        undo s x
+        -- insertHeap s x              -- insertVerOrder
+        loopOnLevel $ c - 1
+    loopOnLevel $ ts - 1
+    shrinkStack trail (ts - lim)
+    shrinkStack trailLim (ls - lvl)
+    setInt decisionLevel lvl
+
 -- | __Fig. 10. (p.15)__
--- #M114 Analyze a cnflict and produce a reason clause.
+-- #M22:
 --
--- __Pre-conditions:__ (1) 'outLearnt' is
--- assumed to be cleared. (2) Current decision level must be greater than root level.
+-- analyze : (confl : Clause*) (out_learnt : vec<Lit>&) (out_btlevel :: int&) -> [void] 
 --
--- __Post-conditions:__ (1) 'outLearnt[0]' is the asserting literal at level 'outbtLevel'.
+-- __Description:_-
+--   Analzye confilct and produce a reason clause.
 --
--- __Effect:__ Will undo part of the trail, but not beyond last decision level.
+-- __Pre-conditions:__
+--   * 'out_learnt' is assumed to be cleared.
+--   * Corrent decision level must be greater than root level.
 --
--- (p.13) In the code for 'analyze', we make use of the fact that a breadth-first traversal
--- can be archieved by inspecting the trail backwords. Especially, the variables of the
--- reason set of /p/ is always before /p/ in the trail. Furthermore, in the algorithm we
--- initialize /p/ to 'bottomLit', which will make 'calcReason' return the reason for the conflict.
+-- __Post-conditions:__
+--   * 'out_learnt[0]' is the asserting literal at level 'out_btlevel'.
+--   * If out_learnt.size() > 1 then 'out_learnt[1]' has the greatest decision level of the
+--     rest of literals. There may be others from the same level though.
 --
 -- `analyze` is invoked from `search`
 -- {-# INLINEABLE analyze #-}
@@ -337,8 +359,10 @@ analyze s@Solver{..} confl = do
   loopOnLits 1 1                -- the first literal is specail
   return result
 
--- | M22: Check if 'p' can be removed, 'min_level' is used to abort early if visiting literals at a level that
--- cannot be removed.
+-- | #M22
+-- Check if 'p' can be removed, 'abstract_levels' is used to abort early if the algorithm is
+-- visiting literals at levels that cannot be removed later.
+-- 
 -- Implementation memo:
 --
 -- * @an_toClear@ is initialized by @ps@ in 'analyze' (a copy of 'learnt').
@@ -407,63 +431,187 @@ litRedundant Solver{..} p minLevel = do
             for 1
   loopOnStack
 
--- | __Fig. 11. (p.15)__
--- Record a clause and drive backtracking.
+-- | #M22
+-- propagate : [void] -> [Clause+]
 --
--- __Pre-Condition:__ "clause[0]" must contain
--- the asserting literal. In particular, 'clause[]' must not be empty.
-{-# INLINE record #-}
-record :: Solver -> Vec -> IO ()
-record s@Solver{..} v = do
-  c <- snd <$> clauseNew s v True -- will be set to created clause, or NULL if @clause[]@ is unit
-  l <- getNth v 1
-  enqueue s l c
-  unless (c == NullClause) $ pushClause learnts c
-
--- | __Fig. 12 (p.17)__
--- returns @False@ if immediate conflict.
+-- __Description:__
+--   Porpagates all enqueued facts. If a conflict arises, the cornflicting clause is returned.  
+--   otherwise CRef_undef.
 --
--- __Pre-condition:__ propagation queue is empty
-{-# INLINE assume #-}
-assume :: Solver -> Lit -> IO Bool
-assume s@Solver{..} p = do
-  pushToStack trailLim =<< sizeOfStack trail
-  modifyInt decisionLevel (+ 1)
-  enqueue s p NullClause
-
--- | M22 __Fig. 12 (p.17)__
--- cancels several levels of assumptions.
-{-# INLINABLE cancelUntil #-}
-cancelUntil :: Solver -> Int -> IO ()
-cancelUntil s@Solver{..} lvl = do
-  dl <- getInt decisionLevel
-  when (lvl < dl) $ do
-    let tr = asVec trail
-    let tl = asVec trailLim
-    lim <- getNth tl lvl
-    ts <- sizeOfStack trail
-    ls <- sizeOfStack trailLim
-    let
-      loopOnLevel :: Int -> IO ()
-      loopOnLevel ((lim <=) -> False) = return ()
-      loopOnLevel c = do
-        x <- lit2var <$> getNth tr c
-        setNth assigns x lBottom
-        -- FIXME: #polarity https://github.com/shnarazk/minisat/blob/master/core/Solver.cc#L212
-        undo s x
-        -- insertHeap s x              -- insertVerOrder
-        loopOnLevel $ c - 1
-    loopOnLevel $ ts - 1
-    shrinkStack trail (ts - lim)
-    shrinkStack trailLim (ls - lvl)
-    setInt decisionLevel lvl
-
--- | __Fig. 13. (p.18)__
--- Assumes and propagates until a conflict is found, from which a conflict clause
--- is learnt and backtracking until search can continue.
+-- __Post-conditions:__ 
+--   * the propagation queue is empty, even if there was a conflict.
 --
--- __Pre-condition:__
--- @root_level == decisionLevel@
+-- memo:`propagate` is invoked by `search`,`simpleDB` and `solve`
+{-# INLINABLE propagate #-}
+propagate :: Solver -> IO Clause
+propagate s@Solver{..} = do
+  let
+    loopOnQueue :: IO Clause
+    loopOnQueue = do
+      k <- sizeOfQueue propQ
+      if k == 0
+        then return NullClause        -- No conflict
+        else do
+            p <- dequeue propQ
+            let w = getNthWatchers watches p
+            vec <- getClauseVector w
+            let
+              loopOnWatcher :: Int -> Int-> IO Clause
+              loopOnWatcher i n
+                | i == n = loopOnQueue
+                | otherwise = do
+                    c <- getNthClause vec i
+                    x <- propagateLit c s p w -- c will be inserted into apropriate watchers in this function
+                    case () of
+                      _ | x == lTrue  {- still in -} -> loopOnWatcher (i + 1) n
+                      _ | x == lFalse {- conflict -} -> clearQueue propQ >> return c
+                      _               {- it moved -} -> removeNthClause w i >> loopOnWatcher i (n - 1)
+            loopOnWatcher 0 =<< numberOfClauses w
+  loopOnQueue
+
+-- | #M22
+-- reduceDB: () -> [void]
+-- 
+-- __Description:__ 
+--   Remove half of the learnt clauses, minus the clauses locked by the current assigmnent. Locked
+--   clauses are clauses that are reason to some assignment. Binary clauses are never removed.
+{-# INLINABLE reduceDB #-}
+reduceDB :: Solver -> IO ()
+reduceDB s@Solver{..} = do
+  ci <- getDouble claInc
+  nL <- nLearnts s
+  let lim = ci / fromIntegral nL
+  -- new engine 0.8
+  let isRequired c = do
+        l <- sizeOfClause c
+        if l == 2
+          then return True
+          else do
+              l <- locked c s
+              if l
+                then return True
+                else (lim <=) <$> getDouble (activity c)
+  let isRequired' c = do
+        l <- sizeOfClause c
+        if l == 2 then return True else locked c s
+{-
+  let isRequired c = do
+        l <- sizeOfClause c
+        if l == 2
+          then putStr "B" >> return True
+          else do
+              l <- locked c s
+              if l
+                then putStr "L" >> return True
+                else do
+                    r <- (lim <=) <$> getDouble (activity c)
+                    putStr $ if r then "U" else "_"
+                    return r
+  let isRequired' c = do
+        l <- sizeOfClause c
+        if l == 2
+          then putStr "B" >> return True
+          else do
+              l <- locked c s
+              if l
+                then putStr "L" >> return True
+                else putStr "_" >> return False
+-}
+  vec <- getClauseVector learnts
+  let
+    half = div nL 2
+    loopOn :: Int -> Int -> IO ()
+    loopOn i j
+      | i >= j = return ()
+      | otherwise = do
+          c <- getNthClause vec i
+          yes <- if i < half then isRequired c else isRequired' c
+          if yes then loopOn (i + 1) j else remove c i s >> loopOn i (j - 1)
+  sortOnActivity learnts
+  loopOn 0 nL
+
+-- | (Big to small) Quick sort on a clause vector based on their activities
+sortOnActivity :: ClauseManager -> IO ()
+sortOnActivity cm = do
+  n <- numberOfClauses cm
+  vec <- getClauseVector cm
+  let
+    keyOf :: Int -> IO Double
+    keyOf i = negate <$> (getDouble . activity =<< getNthClause vec i)
+    sortOnRange :: Int -> Int -> IO ()
+    sortOnRange left right
+      | not (left < right) = return ()
+      | left + 1 == right = do
+          a <- keyOf left
+          b <- keyOf right
+          unless (a < b) $ swapClauses vec left right
+      | otherwise = do
+          let p = div (left + right) 2
+          pivot <- keyOf p
+          swapClauses vec p left -- set a sentinel for r'
+          let
+            nextL :: Int -> IO Int
+            nextL i@((<= right) -> False) = return i
+            nextL i = do v <- keyOf i; if v < pivot then nextL (i + 1) else return i
+            nextR :: Int -> IO Int
+            -- nextR i@((left <=) -> False) = return i
+            nextR i = do v <- keyOf i; if pivot < v then nextR (i - 1) else return i
+            divide :: Int -> Int -> IO Int
+            divide l r = do
+              l' <- nextL l
+              r' <- nextR r
+              if l' < r' then swapClauses vec l' r' >> divide (l' + 1) (r' - 1) else return r'
+          m <- divide (left + 1) right
+          swapClauses vec left m
+          sortOnRange left (m - 1)
+          sortOnRange (m + 1) right
+  sortOnRange 0 (n - 1)
+  -- checkClauseOrder cm
+
+-- | #M22
+-- 
+-- simplify : [void] -> [bool]
+-- 
+-- __Description:__
+--   Simplify the clause database according to the current top-level assigment. Currently, the only
+--   thing done here is the removal of satisfied clauses, but more things can be put here.
+--
+{-# INLINABLE simplifyDB #-}
+simplifyDB :: Solver -> IO Bool
+simplifyDB s@Solver{..} = do
+  p <- propagate s
+  if p /= NullClause
+    then return False
+    else do
+        let
+          for :: Int -> IO Bool
+          for ((< 2) -> False) = return True
+          for t = do
+            let ptr = if t == 0 then learnts else constrs
+            vec <- getClauseVector ptr
+            let
+              loopOnVector :: Int -> Int -> IO Bool
+              loopOnVector i n
+                | i == n = return True
+                | otherwise = do
+                    c <- getNthClause vec i
+                    r <- simplify c s
+                    if r then remove c i s >> loopOnVector i (n - 1) else loopOnVector (i + 1) n
+            loopOnVector 0 =<< numberOfClauses ptr
+        for 0
+
+-- | #M22
+-- 
+-- search : (nof_conflicts : int) (params : const SearchParams&) -> [lbool]
+--
+-- __Description:__
+--   Search for a model the specified number of conflicts.
+--   NOTE: Use negative value for 'nof_conflicts' indicate infinity.
+--
+-- __Output:__
+--   'l_True' if a partial assigment that is consistent with respect to the clause set is found. If
+--   all variables are decision variables, that means that the clause set is satisfiable. 'l_False'
+--   if the clause set is unsatisfiable. 'l_Undef' if the bound on number of conflicts is reached.
 {-# INLINABLE search #-}
 search :: Solver -> Int -> Int -> IO LBool
 search s@Solver{..} nOfConflicts nOfLearnts = do
@@ -574,136 +722,6 @@ claRescaleActivity Solver{..} = do
 {-# INLINE decayActivities #-}
 decayActivities :: Solver -> IO ()
 decayActivities s = varDecayActivity s >> claDecayActivity s
-
--- | __Fig. 15 (p.20)__
--- Remove half of the learnt clauses minus some locked clause. A locked clause
--- is a clause that is reason to a current assignment. Clauses below a certain
--- lower bound activity are also be removed.
-{-# INLINABLE reduceDB #-}
-reduceDB :: Solver -> IO ()
-reduceDB s@Solver{..} = do
-  ci <- getDouble claInc
-  nL <- nLearnts s
-  let lim = ci / fromIntegral nL
-  -- new engine 0.8
-  let isRequired c = do
-        l <- sizeOfClause c
-        if l == 2
-          then return True
-          else do
-              l <- locked c s
-              if l
-                then return True
-                else (lim <=) <$> getDouble (activity c)
-  let isRequired' c = do
-        l <- sizeOfClause c
-        if l == 2 then return True else locked c s
-{-
-  let isRequired c = do
-        l <- sizeOfClause c
-        if l == 2
-          then putStr "B" >> return True
-          else do
-              l <- locked c s
-              if l
-                then putStr "L" >> return True
-                else do
-                    r <- (lim <=) <$> getDouble (activity c)
-                    putStr $ if r then "U" else "_"
-                    return r
-  let isRequired' c = do
-        l <- sizeOfClause c
-        if l == 2
-          then putStr "B" >> return True
-          else do
-              l <- locked c s
-              if l
-                then putStr "L" >> return True
-                else putStr "_" >> return False
--}
-  vec <- getClauseVector learnts
-  let
-    half = div nL 2
-    loopOn :: Int -> Int -> IO ()
-    loopOn i j
-      | i >= j = return ()
-      | otherwise = do
-          c <- getNthClause vec i
-          yes <- if i < half then isRequired c else isRequired' c
-          if yes then loopOn (i + 1) j else remove c i s >> loopOn i (j - 1)
-  sortOnActivity learnts
-  loopOn 0 nL
-
--- | (Big to small) Quick sort on a clause vector based on their activities
-sortOnActivity :: ClauseManager -> IO ()
-sortOnActivity cm = do
-  n <- numberOfClauses cm
-  vec <- getClauseVector cm
-  let
-    keyOf :: Int -> IO Double
-    keyOf i = negate <$> (getDouble . activity =<< getNthClause vec i)
-    sortOnRange :: Int -> Int -> IO ()
-    sortOnRange left right
-      | not (left < right) = return ()
-      | left + 1 == right = do
-          a <- keyOf left
-          b <- keyOf right
-          unless (a < b) $ swapClauses vec left right
-      | otherwise = do
-          let p = div (left + right) 2
-          pivot <- keyOf p
-          swapClauses vec p left -- set a sentinel for r'
-          let
-            nextL :: Int -> IO Int
-            nextL i@((<= right) -> False) = return i
-            nextL i = do v <- keyOf i; if v < pivot then nextL (i + 1) else return i
-            nextR :: Int -> IO Int
-            -- nextR i@((left <=) -> False) = return i
-            nextR i = do v <- keyOf i; if pivot < v then nextR (i - 1) else return i
-            divide :: Int -> Int -> IO Int
-            divide l r = do
-              l' <- nextL l
-              r' <- nextR r
-              if l' < r' then swapClauses vec l' r' >> divide (l' + 1) (r' - 1) else return r'
-          m <- divide (left + 1) right
-          swapClauses vec left m
-          sortOnRange left (m - 1)
-          sortOnRange (m + 1) right
-  sortOnRange 0 (n - 1)
-  -- checkClauseOrder cm
-
--- | __Fig. 15. (p.20)__
--- Top-level simplify of constraint database. Will remove any satisfied constraint
--- and simplify remaining constraints under current (partial) assignment. If a
--- top-level conflict is found, @False@ is returned.
---
--- __Pre-condition:__ Decision
--- level must be zero.
---
--- __Post-condition:__ Propagation queue is empty.
-{-# INLINABLE simplifyDB #-}
-simplifyDB :: Solver -> IO Bool
-simplifyDB s@Solver{..} = do
-  p <- propagate s
-  if p /= NullClause
-    then return False
-    else do
-        let
-          for :: Int -> IO Bool
-          for ((< 2) -> False) = return True
-          for t = do
-            let ptr = if t == 0 then learnts else constrs
-            vec <- getClauseVector ptr
-            let
-              loopOnVector :: Int -> Int -> IO Bool
-              loopOnVector i n
-                | i == n = return True
-                | otherwise = do
-                    c <- getNthClause vec i
-                    r <- simplify c s
-                    if r then remove c i s >> loopOnVector i (n - 1) else loopOnVector (i + 1) n
-            loopOnVector 0 =<< numberOfClauses ptr
-        for 0
 
 -- | __Fig. 16. (p.20)__
 -- Main solve method.
