@@ -103,3 +103,4 @@ $ stack ghc app/sample.hs
 $ app/sample
 [1,-2,-3]
 ```
+Of cource, you can use mios in ghci similarly.
