@@ -266,7 +266,7 @@ cancelUntil s@Solver{..} lvl = do
 -- | __Fig. 10. (p.15)__
 -- #M22:
 --
--- analyze : (confl : Clause*) (out_learnt : vec<Lit>&) (out_btlevel :: int&) -> [void] 
+-- analyze : (confl : Clause*) (out_learnt : vec<Lit>&) (out_btlevel :: int&) -> [void]
 --
 -- __Description:_-
 --   Analzye confilct and produce a reason clause.
@@ -288,9 +288,10 @@ analyze s@Solver{..} confl = do
   clearStack litsLearnt
   pushToStack litsLearnt 0 -- reserve the first place for the unassigned literal
   setAll an_seen 0   -- FIXME: it should be done in a valid place; not here.
-  ti <- subtract 1 <$> sizeOfStack trail
   dl <- getInt decisionLevel
   let
+  let
+    litsVec = asVec litsLearnt
     trailVec = asVec trail
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
@@ -326,10 +327,10 @@ analyze s@Solver{..} confl = do
       setNth an_seen (lit2var nextP) 0
       if 1 < pathC'
         then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
-        else setNth (asVec litsLearnt) 0 (negateLit nextP) >> return b'
+        else setNth litsVec 0 (negateLit nextP) >> return b'
+  ti <- subtract 1 <$> sizeOfStack trail
   result <- loopOnClauseChain confl bottomLit ti 0 0
   -- Simplify phase
-  let litsVec = asVec litsLearnt
   n <- sizeOfStack litsLearnt
   clearStack an_stack           -- analyze_stack.clear();
   clearStack an_toClear         -- out_learnt.copyTo(analyze_toclear);
@@ -362,12 +363,13 @@ analyze s@Solver{..} confl = do
 -- | #M22
 -- Check if 'p' can be removed, 'abstract_levels' is used to abort early if the algorithm is
 -- visiting literals at levels that cannot be removed later.
--- 
+--
 -- Implementation memo:
 --
--- * @an_toClear@ is initialized by @ps@ in 'analyze' (a copy of 'learnt').
---   This is used only in this function and `analyze'.
+-- *  @an_toClear@ is initialized by @ps@ in 'analyze' (a copy of 'learnt').
+--   This is used only in this function and 'analyze'.
 --
+{-# INLINEABLE litRedundant #-}
 litRedundant :: Solver -> Lit -> Int -> IO Bool
 litRedundant Solver{..} p minLevel = do
   -- assert (reason[var(p)]!= NullCaulse);
@@ -375,21 +377,6 @@ litRedundant Solver{..} p minLevel = do
   pushToStack an_stack p   -- analyze_stack.push(p);
   top <- sizeOfStack an_toClear
   let
-    getRoot :: Lit -> IO Clause
-    getRoot l = do
-      (r :: Clause) <- getNthClause reason (lit2var l) -- GClause r = reason[var(analyze_stack.last())]
-      let cvec = asVec r
-      if r == NullClause
-        then return NullClause
-        else do
-            nl <- sizeOfClause r
-            if nl == 2
-              then do
-                  l1 <- getNth cvec 0
-                  l2 <- getNth cvec 1
-                  tmp <- getRoot $ if l1 /= l then l1 else l2
-                  return $ if tmp == NullClause then r else tmp
-              else return r
     loopOnStack :: IO Bool
     loopOnStack = do
       k <- sizeOfStack an_stack  -- int top = analyze_toclear.size();
@@ -402,43 +389,42 @@ litRedundant Solver{..} p minLevel = do
             nl <- sizeOfClause c
             let
               cvec = asVec c
-              for :: Int -> IO Bool -- for (int i = 1; i < c.size(); i++){
-              for ((< nl) -> False) = loopOnStack
-              for i = do
+              loopOnLit :: Int -> IO Bool -- loopOnLit (int i = 1; i < c.size(); i++){
+              loopOnLit ((< nl) -> False) = loopOnStack
+              loopOnLit i = do
                 p' <- getNth cvec i              -- valid range is [0 .. nl - 1]
                 let v' = lit2var p'
+                l' <- getNth level v'
                 c1 <- (1 /=) <$> getNth an_seen v'
-                c2 <- (0 <) <$> getNth level v'
-                if c1 && c2   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
+                if c1 && (0 /= l')   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
                   then do
                       c3 <- (NullClause /=) <$> getNthClause reason v'
-                      c4 <- testBit minLevel . flip mod 32 <$> getNth level v'
-                      if c3 && c4 -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
+                      if c3 && testBit minLevel (mod l' 32) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
                         then do
                             setNth an_seen v' 1        -- analyze_seen[var(p)] = 1;
                             pushToStack an_stack p'    -- analyze_stack.push(p);
                             pushToStack an_toClear p'  -- analyze_toclear.push(p);
-                            for $ i + 1
+                            loopOnLit $ i + 1
                         else do
-                            -- for (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
+                            -- loopOnLit (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
                             top' <- sizeOfStack an_toClear
                             let vec = asVec an_toClear
                             forM_ [top .. top' - 1] $ \j -> do x <- getNth vec j; setNth an_seen (lit2var x) 0
                             -- analyze_toclear.shrink(analyze_toclear.size() - top); note: shrink n == repeat n pop
                             shrinkStack an_toClear $ top' - top
                             return False
-                  else for (i + 1)
-            for 1
+                  else loopOnLit $ i + 1
+            loopOnLit 1
   loopOnStack
 
 -- | #M22
 -- propagate : [void] -> [Clause+]
 --
 -- __Description:__
---   Porpagates all enqueued facts. If a conflict arises, the cornflicting clause is returned.  
+--   Porpagates all enqueued facts. If a conflict arises, the cornflicting clause is returned.
 --   otherwise CRef_undef.
 --
--- __Post-conditions:__ 
+-- __Post-conditions:__
 --   * the propagation queue is empty, even if there was a conflict.
 --
 -- memo:`propagate` is invoked by `search`,`simpleDB` and `solve`
@@ -471,8 +457,8 @@ propagate s@Solver{..} = do
 
 -- | #M22
 -- reduceDB: () -> [void]
--- 
--- __Description:__ 
+--
+-- __Description:__
 --   Remove half of the learnt clauses, minus the clauses locked by the current assigmnent. Locked
 --   clauses are clauses that are reason to some assignment. Binary clauses are never removed.
 {-# INLINABLE reduceDB #-}
@@ -569,9 +555,9 @@ sortOnActivity cm = do
   -- checkClauseOrder cm
 
 -- | #M22
--- 
+--
 -- simplify : [void] -> [bool]
--- 
+--
 -- __Description:__
 --   Simplify the clause database according to the current top-level assigment. Currently, the only
 --   thing done here is the removal of satisfied clauses, but more things can be put here.
@@ -601,7 +587,7 @@ simplifyDB s@Solver{..} = do
         for 0
 
 -- | #M22
--- 
+--
 -- search : (nof_conflicts : int) (params : const SearchParams&) -> [lbool]
 --
 -- __Description:__
@@ -734,16 +720,6 @@ solve s@Solver{..} assumps = do
   nc <- fromIntegral <$> nConstraints s
   -- PUSH INCREMENTAL ASSUMPTIONS:
   let
-    for [] = return True
-    for (a : rest) = do
-      !b <- assume s a
-      if not b
-        then cancelUntil s 0 >> return False
-        else do
-            c <- propagate s
-            if c /= NullClause
-              then cancelUntil s 0 >> return False
-              else for rest
     injector :: Lit -> Bool -> IO Bool
     injector _ False = return False
     injector a True = do
