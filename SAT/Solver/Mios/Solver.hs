@@ -437,6 +437,7 @@ propagate s@Solver{..} = do
         then return NullClause        -- No conflict
         else do
             p <- dequeue propQ
+            let np = negateLit p
             let w = getNthWatchers watches p
             vec <- getClauseVector w
             let
@@ -445,13 +446,134 @@ propagate s@Solver{..} = do
                 | i == n = loopOnQueue
                 | otherwise = do
                     c <- getNthClause vec i
-                    x <- propagateLit c s p w -- c will be inserted into apropriate watchers in this function
+                    x <- propagateLit c s np
+                    -- This function inserts @c@ into an apropriate watchers here
                     case () of
                       _ | x == lTrue  {- still in -} -> loopOnWatcher (i + 1) n
                       _ | x == lFalse {- conflict -} -> clearQueue propQ >> return c
                       _               {- it moved -} -> removeNthClause w i >> loopOnWatcher i (n - 1)
             loopOnWatcher 0 =<< numberOfClauses w
   loopOnQueue
+
+-- | __Propagate.__ The 'propagateLit' method is called if the constraint is found
+-- in a watcher list during propagation of unit information /p/. The constraint
+-- is removed from the list and is required to insert itself into a new or
+-- the same watcher list. Any unit information derivable as a consequence of /p/
+-- should enqueued. If successful, @True@ is returned; if a conflict is detected,
+-- @False@ is returned. The constraint may add itself to the undo list of @var(p)@
+-- if it needs to be updated when /p/ becomes unbound.
+--
+-- | returns @True@ if no conflict occured
+-- this is invoked by 'propagate'
+{-# INLINABLE propagateLit #-}
+propagateLit :: Clause -> Solver -> Lit -> IO LBool
+propagateLit c@(asVec -> cv) s@Solver{..} !np = do
+  -- Make sure the false literal is cv[1] namely 2nd literal.
+  l' <- getNth cv 0
+  l1 <- if l' == np then swapBetween cv 0 1 >> getNth cv 0 else return l'
+  -- If 0th watch is True, then clause is already satisfied.
+  val <- valueLit s l1
+  if val == lTrue  -- this means the clause is satisfied, so we can return now
+    then return lTrue
+    else do
+        -- Look for a new literal to watch:
+        n <- sizeOfClause c
+        let
+          loopOnLits :: Int -> IO LBool
+          loopOnLits ((< n) -> False) = do
+            -- Clause is unit under assignment:
+            -- pushClause m c
+            noconf <- enqueue s l1 c
+            if noconf
+              then return lTrue  -- unit caluse should be in the original watcher list
+              else return lFalse -- A conflict occures
+          loopOnLits i = do
+            (l :: Lit) <- getNth cv i
+            val <- valueLit s l
+            if val /= lFalse    -- l is unassigned or satisfied already
+              then do
+                  swapBetween cv 1 i -- setNth 2 lits l >> setNth i lits np
+                  -- putStrLn "## from propagateLit"
+                  -- @removeClause m c@ will be done by propagate
+                  pushClause (getNthWatchers watches (negateLit l)) c -- insert clause into watcher list
+                  return lBottom -- this means the clause is moved to other watcher list
+              else loopOnLits $ i + 1
+        loopOnLits 2
+
+_propagateLit !c !s@Solver{..} !np = do -- this is slow
+  let cv = asVec c
+  -- Make sure the false literal is not at cv[0] but cv[1].
+  !l0 <- getNth cv 0
+  lit <-                   -- @lit@ is the literal at lits[0] or 0 for exception.
+    if l0 == np            -- the case that the false literal is at 0
+    then do                -- then swap watchers only if the 2nd watecher isn't satisfied.
+      l1 <- getNth cv 1
+      v1 <- valueLit s l1
+      if lTrue == v1 then return 0 else swapBetween cv 0 1 >> return l1
+    else                   -- then check the watcher's satisfiability and return it if needed
+      (\x -> if lTrue == x then 0 else l0) <$> valueLit s l0
+  if lit == 0 -- this means the clause is satisfied, so we keep it in the original watcher list
+    then return lTrue
+    else do
+        -- Look for a new literal to watch:
+        !n <- sizeOfClause c
+        let
+          loopOnLits :: Int -> IO LBool
+          loopOnLits ((< n) -> False) = do
+            -- Clause is unit under assignment:
+            -- pushClause m c
+            noconf <- enqueue s lit c
+            if noconf
+              then return lTrue  -- unit caluse should be in the original watcher list
+              else return lFalse -- A conflict occures
+          loopOnLits i = do
+            !(l :: Lit) <- getNth cv i
+            !val <- valueLit s l
+            if val /= lFalse    -- l is unassigned or satisfied already
+              then do
+                  swapBetween cv 1 i -- setNth 2 lits l >> setNth i lits np
+                  -- putStrLn "## from propagateLit"
+                  -- @removeClause m c@ will be done by propagate
+                  pushClause (getNthWatchers watches (negateLit l)) c -- insert clause into watcher list
+                  return lBottom -- this means the clause is moved to other watcher list
+              else loopOnLits $ i + 1
+        loopOnLits 2
+
+__propagateLit !c !s@Solver{..} !p = do
+  let cv = asVec c
+  -- Make sure the false literal is lits[1] = 2nd literal = 2nd watcher:
+  !l' <- getNth cv 0
+  when (l' == p) $ do
+    swapBetween cv 0 1    -- swap cv[0] and cv[1]
+  -- If 0th watch is True, then clause is already satisfied.
+  !l1 <- getNth cv 0
+  !val <- valueLit s l1
+  if val == lTrue
+    then return lTrue           -- this means the clause is satisfied, so we must keep it in the original watcher list
+    else do
+        -- Look for a new literal to watch:
+        !n <- sizeOfClause c
+        let
+          loopOnLits :: Int -> IO LBool
+          loopOnLits ((< n) -> False) = do
+            -- Clause is unit under assignment:
+            -- pushClause m c
+            noconf <- enqueue s l1 c
+            if noconf
+              then return lTrue  -- unit caluse should be in the original watcher list
+              else return lFalse -- A conflict occures
+          loopOnLits i = do
+            !(l :: Lit) <- getNth cv i
+            !val <- valueLit s l
+            if val /= lFalse    -- l is unassigned or satisfied already
+              then do
+                  swapBetween cv 1 i
+                  -- putStrLn "## from propagateLit"
+                  -- @removeClause m c@ will be done by propagate
+                  pushClause (getNthWatchers watches (negateLit l)) c -- insert clause into watcher list
+                  return lBottom -- this means the clause is moved to other watcher list
+              else loopOnLits $ i + 1
+        loopOnLits 2
 
 -- | #M22
 -- reduceDB: () -> [void]
@@ -794,54 +916,6 @@ simplify c@Clause{..} s@Solver{..} = do
              loop (i+1) (j+1)
        _ -> loop (i+1) j
   loop 0 0
-
--- | __Propagate.__ The 'propagateLit' method is called if the constraint is found
--- in a watcher list during propagation of unit information /p/. The constraint
--- is removed from the list and is required to insert itself into a new or
--- the same watcher list. Any unit information derivable as a consequence of /p/
--- should enqueued. If successful, @True@ is returned; if a conflict is detected,
--- @False@ is returned. The constraint may add itself to the undo list of @var(p)@
--- if it needs to be updated when /p/ becomes unbound.
---
--- | returns @True@ if no conflict occured
--- this is invoked by 'propagate'
-{-# INLINABLE propagateLit #-}
-propagateLit :: Clause -> Solver -> Lit -> ClauseManager -> IO LBool
-propagateLit !c@Clause{..} !s@Solver{..} !p !m = do
-  -- Make sure the false literal is lits[1] = 2nd literal = 2nd watcher:
-  !l' <- negateLit <$> getNth lits 1
-  when (l' == p) $ do
-    -- swap lits[0] and lits[1]
-    swapBetween lits 1 2
-  -- If 0th watch is True, then clause is already satisfied.
-  !l1 <- getNth lits 1
-  !val <- valueLit s l1
-  if val == lTrue
-    then return lTrue           -- this means the clause is satisfied, so we must keep it in the original watcher list
-    else do
-        -- Look for a new literal to watch:
-        !n <- sizeOfClause c
-        let
-          loopOnLits :: Int -> IO LBool
-          loopOnLits ((<= n) -> False) = do
-            -- Clause is unit under assignment:
-            -- pushClause m c
-            noconf <- enqueue s l1 c
-            if noconf
-              then return lTrue  -- unit caluse should be in the original watcher list
-              else return lFalse -- A conflict occures
-          loopOnLits i = do
-            !(l :: Lit) <- getNth lits i
-            !val <- valueLit s l
-            if val /= lFalse    -- l is unassigned or satisfied already
-              then do
-                  swapBetween lits 2 i -- setNth 2 lits l >> setNth i lits np
-                  -- putStrLn "## from propagateLit"
-                  -- @removeClause m c@ will be done by propagate
-                  pushClause (getNthWatchers watches (negateLit l)) c -- insert clause into watcher list
-                  return lBottom -- this means the clause is moved to other watcher list
-              else loopOnLits $ i + 1
-        loopOnLits 3
 
 -- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists
 -- Constructor function for clauses. Returns @False@ if top-level conflict is determined.
