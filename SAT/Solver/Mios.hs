@@ -131,13 +131,13 @@ buildDescription bs = if B.head bs == 'p' then (parseP l, B.tail bs') else build
 -- This returns the result @::[[Int]]@ for a given @(CNFDescription, [[Int]])@
 -- The first argument @target@ can be build by @Just target <- cnfFromFile targetfile@.
 -- The second part of the first argument is a list of vector, which 0th element is the number of its real elements
-solveSAT :: Traversable m => (CNFDescription, m [Int]) -> IO [Int]
+solveSAT :: Traversable m => CNFDescription -> m [Int] -> IO [Int]
 solveSAT = solveSATWithConfiguration defaultConfiguration
 
 -- | solves the problem (2rd arg) under the configuration (1st arg)
 -- and returns an assignment as list of literals :: Int
-solveSATWithConfiguration :: Traversable m => MiosConfiguration -> (CNFDescription, m [Int]) -> IO [Int]
-solveSATWithConfiguration conf (desc, clauses) = do
+solveSATWithConfiguration :: Traversable m => MiosConfiguration -> CNFDescription -> m [Int] -> IO [Int]
+solveSATWithConfiguration conf desc clauses = do
   s <- newSolver conf >>= (`setInternalState` desc)
   -- mapM_ (const (newVar s)) [0 .. _numberOfVariables desc - 1]
   mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . map int2lit)) clauses
@@ -185,8 +185,8 @@ runValidator _  = return ()
 -- | returns True if a given assignment (2nd arg) satisfies the problem (1st arg)
 -- if you want to check the @answer@ which a @slover@ returned, run @solver `validate` answer@,
 -- where 'validate' @ :: Traversable t => Solver -> t Lit -> IO Bool@
-validateAssignment :: (Traversable m, Traversable n) => (CNFDescription, m [Int]) -> n Int -> IO Bool
-validateAssignment (desc, clauses) asg = do
+validateAssignment :: (Traversable m, Traversable n) => CNFDescription -> m [Int] -> n Int -> IO Bool
+validateAssignment desc clauses asg = do
   s <- newSolver defaultConfiguration >>= (`setInternalState` desc)
   mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . map int2lit)) clauses
   s `validate` asg
