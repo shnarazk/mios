@@ -23,11 +23,14 @@ module SAT.Solver.Mios
        , runSolver
        , runValidatorOn
        , runValidator
+         -- * output
+       , dumpAssigmentAsCNF
        )
        where
 
 import Control.Monad ((<=<), unless, when)
 import qualified Data.ByteString.Char8 as B
+import Data.List
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as UM
 import System.Exit
@@ -190,3 +193,15 @@ validateAssignment desc clauses asg = do
   s <- newSolver defaultConfiguration >>= (`setInternalState` desc)
   mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . map int2lit)) clauses
   s `validate` asg
+
+-- | usage
+--
+-- @do y <- solve s ... ; dumpAssigmentAsCNF "result.cnf" y <$> model s @
+--
+dumpAssigmentAsCNF :: FilePath -> Bool -> [Int] -> IO ()
+dumpAssigmentAsCNF fname False _ = do
+  putStrLn "UNSAT"
+
+dumpAssigmentAsCNF fname True l = do
+  putStrLn "SAT"
+  putStrLn . intercalate " " $ map show l
