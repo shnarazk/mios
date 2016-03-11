@@ -51,25 +51,23 @@ library
   default-language:	Haskell2010
   -- Modules exported by the library.
   exposed-modules:
+                                         SAT.Solver.Mios
                                          SAT.Solver.Mios.Types
                                          SAT.Solver.Mios.Clause
                                          SAT.Solver.Mios.ClauseManager
                                          SAT.Solver.Mios.WatcherLists
+                                         SAT.Solver.Mios.Internal
+                                         SAT.Solver.Mios.Solver
+                                         SAT.Solver.Mios.Validator
                                          SAT.Solver.Mios.Data.FixedVecBool
                                          SAT.Solver.Mios.Data.FixedVecDouble
                                          SAT.Solver.Mios.Data.Vec
                                          SAT.Solver.Mios.Data.Queue
                                          SAT.Solver.Mios.Data.Singleton
                                          SAT.Solver.Mios.Data.Stack
-                                         SAT.Solver.Mios.Internal
                                          SAT.Solver.Mios.OptionParser
-                                         SAT.Solver.Mios.Solver
-                                         SAT.Solver.Mios.Validator
     -- Modules included in this library but not exported.
   other-modules:
-                                         SAT.Solver.Mios.Data.FixedUVecOf
-                                         SAT.Solver.Mios.Data.VecOf
-                                         SAT.Solver.Mios.Util.Graph
     -- Other library packages from which modules are imported.
   build-depends:       base ==4.8.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.4.*, bytestring ==0.10.*,
                           primitive ==0.6.*, random ==1.*
