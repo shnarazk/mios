@@ -27,7 +27,7 @@ module SAT.Solver.Mios.Solver
        )
         where
 
-import Control.Monad ((<=<), filterM, foldM, forM, forM_, unless, when)
+import Control.Monad ((<=<), forM_, unless, when)
 import Data.Bits
 import Data.Foldable (foldrM)
 import System.Random (mkStdGen, randomIO, setStdGen)
@@ -219,7 +219,7 @@ enqueue s@Solver{..} p from = do
 {-# INLINE record #-}
 record :: Solver -> Vec -> IO ()
 record s@Solver{..} v = do
-  c <- snd <$> clauseNew s v True -- will be set to created clause, or NULL if @clause[]@ is unit
+  c <- learntClauseNew s v -- will be set to created clause, or NULL if @clause[]@ is unit
   l <- getNth v 1
   enqueue s l c
   unless (c == NullClause) $ pushClause learnts c
@@ -1012,6 +1012,78 @@ clauseNew s@Solver{..} ps learnt = do
      l1 <- negateLit <$> getNth ps 2
      pushClause (getNthWatchers watches l1) c
      return (True, c)
+
+-- | This is a restricted version of 'clauseNew' for learnt clause.
+{-# INLINABLE learntClauseNew #-}
+learntClauseNew :: Solver -> Vec -> IO Clause
+learntClauseNew s@Solver{..} ps = do
+  -- now ps[0] is the number of living literals
+  -- Since this solver must generate only healthy learnt clauses, we need not to check then
+{-
+  exit <- do
+    let
+      handleIllSet :: Int -> Int -> Int -> IO Bool
+      handleIllSet j l n      -- removes duplicates, but returns @True@ if this clause is satisfied
+        | j > n = return False
+        | otherwise = do
+            y <- getNth ps j
+            case () of
+             _ | y == l -> do             -- finds a duplicate
+                   error "y == l"
+                   swapBetween ps j n
+                   modifyNth ps (subtract 1) 0
+                   handleIllSet j l (n - 1)
+             _ | - y == l -> error "y == l" >> setNth ps 0 0 >> return True -- p and negateLit p occurs in ps
+             _ -> handleIllSet (j + 1) l n
+      loopForLearnt :: Int -> IO Bool
+      loopForLearnt i = do
+        n <- getNth ps 0
+        if n < i
+          then return False
+          else do
+              l <- getNth ps i
+              sat <- handleIllSet (i + 1) l n
+              if sat
+                then return True
+                else loopForLearnt $ i + 1
+    loopForLearnt 1
+-}
+  k <- getNth ps 0
+  case k of
+   0 -> return NullClause
+   1 -> do
+     l <- getNth ps 1
+     enqueue s l NullClause
+     return NullClause
+   _ -> do
+     -- allocate clause:
+     c <- newClauseFromVec True ps
+     -- Pick a second literal to watch:
+     let
+       findMax :: Int -> Int -> Int -> IO Int
+       findMax ((<= k) -> False) j _ = return j
+       findMax i j val = do
+         v' <- lit2var <$> getNth ps i
+         a <- getNth assigns v'
+         b <- getNth level v'
+         if (a /= lBottom) && (val < b)
+           then findMax (i + 1) i b
+           else findMax (i + 1) j val
+     -- Let @max_i@ be the index of the literal with highest decision level
+     max_i <- findMax 1 1 0
+     swapBetween ps 2 max_i
+     -- check literals occurences
+     -- x <- asList c
+     -- unless (length x == length (nub x)) $ error "new clause contains a element doubly"
+     -- Bumping:
+     claBumpActivity s c -- newly learnt clauses should be considered active
+     forM_ [1 .. k] $ varBumpActivity s . lit2var <=< getNth ps -- variables in conflict clauses are bumped
+     -- Add clause to watcher lists:
+     l0 <- negateLit <$> getNth ps 1
+     pushClause (getNthWatchers watches l0) c
+     l1 <- negateLit <$> getNth ps 2
+     pushClause (getNthWatchers watches l1) c
+     return c
 
 -- | __Fig. 7. (p.11)__
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__
