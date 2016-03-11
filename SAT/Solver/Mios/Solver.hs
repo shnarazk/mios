@@ -467,7 +467,8 @@ propagate s@Solver{..} = do
 -- this is invoked by 'propagate'
 {-# INLINABLE propagateLit #-}
 propagateLit :: Clause -> Solver -> Lit -> IO LBool
-propagateLit c@(asVec -> cv) s@Solver{..} !np = do
+{-
+_propagateLit c@(asVec -> cv) s@Solver{..} !np = do
   -- Make sure the false literal is cv[1] namely 2nd literal.
   l' <- getNth cv 0
   l1 <- if l' == np then swapBetween cv 0 1 >> getNth cv 0 else return l'
@@ -493,17 +494,18 @@ propagateLit c@(asVec -> cv) s@Solver{..} !np = do
             if val /= lFalse    -- l is unassigned or satisfied already
               then do
                   swapBetween cv 1 i -- setNth 2 lits l >> setNth i lits np
-                  -- putStrLn "## from propagateLit"
                   -- @removeClause m c@ will be done by propagate
                   pushClause (getNthWatchers watches (negateLit l)) c -- insert clause into watcher list
                   return lBottom -- this means the clause is moved to other watcher list
               else loopOnLits $ i + 1
         loopOnLits 2
+-}
 
-_propagateLit !c !s@Solver{..} !np = do -- this is slow
-  let cv = asVec c
-  -- Make sure the false literal is not at cv[0] but cv[1].
-  !l0 <- getNth cv 0
+-- | This function checks clause satisfiabiliy eagerly as Minisat 2.2.
+-- But @blocker@ is not used (implemented).
+propagateLit c@(asVec -> cv) s@Solver{..} !np = do -- this is slow
+  -- Make sure the false literal is not at cv[0] but cv[1] AFTER CHECKING THE CLAUSE SATISFIABILITY
+  l0 <- getNth cv 0
   lit <-                   -- @lit@ is the literal at lits[0] or 0 for exception.
     if l0 == np            -- the case that the false literal is at 0
     then do                -- then swap watchers only if the 2nd watecher isn't satisfied.
@@ -512,7 +514,7 @@ _propagateLit !c !s@Solver{..} !np = do -- this is slow
       if lTrue == v1 then return 0 else swapBetween cv 0 1 >> return l1
     else                   -- then check the watcher's satisfiability and return it if needed
       (\x -> if lTrue == x then 0 else l0) <$> valueLit s l0
-  if lit == 0 -- this means the clause is satisfied, so we keep it in the original watcher list
+  if lit == 0 -- this means the clause is satisfied, so we keep @c@ in the original watcher list
     then return lTrue
     else do
         -- Look for a new literal to watch:
@@ -521,24 +523,23 @@ _propagateLit !c !s@Solver{..} !np = do -- this is slow
           loopOnLits :: Int -> IO LBool
           loopOnLits ((< n) -> False) = do
             -- Clause is unit under assignment:
-            -- pushClause m c
             noconf <- enqueue s lit c
             if noconf
-              then return lTrue  -- unit caluse should be in the original watcher list
+              then return lTrue  -- By returning lTrue, it remains in the original watcher list
               else return lFalse -- A conflict occures
           loopOnLits i = do
             !(l :: Lit) <- getNth cv i
             !val <- valueLit s l
-            if val /= lFalse    -- l is unassigned or satisfied already
+            if val /= lFalse    -- l is unassigned or satisfied already; a new wather
               then do
-                  swapBetween cv 1 i -- setNth 2 lits l >> setNth i lits np
-                  -- putStrLn "## from propagateLit"
+                  swapBetween cv 1 i
                   -- @removeClause m c@ will be done by propagate
-                  pushClause (getNthWatchers watches (negateLit l)) c -- insert clause into watcher list
-                  return lBottom -- this means the clause is moved to other watcher list
+                  pushClause (getNthWatchers watches (negateLit l)) c
+                  return lBottom
               else loopOnLits $ i + 1
         loopOnLits 2
 
+{- -- original
 __propagateLit !c !s@Solver{..} !p = do
   let cv = asVec c
   -- Make sure the false literal is lits[1] = 2nd literal = 2nd watcher:
@@ -574,6 +575,7 @@ __propagateLit !c !s@Solver{..} !p = do
                   return lBottom -- this means the clause is moved to other watcher list
               else loopOnLits $ i + 1
         loopOnLits 2
+-}
 
 -- | #M22
 -- reduceDB: () -> [void]
