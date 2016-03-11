@@ -187,7 +187,6 @@ addClause s@Solver{..} vecLits = do
 
 -- functions on "Solver"
 
-
 -- | __Fig. 9 (p.14)__
 -- Puts a new fact on the propagation queue, as well as immediately updating the variable's value
 -- in the assignment vector. If a conflict arises, @False@ is returned and the propagation queue is
@@ -211,7 +210,6 @@ enqueue s@Solver{..} p from = do
         pushToStack trail p
         insertQueue propQ p
         return True
-
 
 -- | __Fig. 11. (p.15)__
 -- Record a clause and drive backtracking.
@@ -606,19 +604,16 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
     loop :: Int -> IO LBool
     loop conflictC = do
       !confl <- propagate s
-      -- putStrLn $ "propagate done: " ++ show (confl /= NullClause)
       d <- getInt decisionLevel
       if confl /= NullClause
         then do
             -- CONFLICT
-            -- putStrLn . ("conf: " ++) =<< dump "" confl
             r <- getInt rootLevel
             if d == r
               then return lFalse
               else do
                   backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
                   (s `cancelUntil`) . max backtrackLevel =<< getInt rootLevel
-                  -- putStrLn =<< dump "BACKTRACK after search.analyze :: trail: " trail
                   record s =<< isoVec litsLearnt
                   decayActivities s
                   loop $ conflictC + 1
@@ -646,7 +641,6 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                v <- select s -- many have heuristic for polarity here
                -- << #phasesaving
                oldVal <- valueVar s v
-               -- putStrLn $ "search determines next decision var: " ++ show (v, var2lit v (0 < oldVal))
                assume s $ var2lit v (0 < oldVal) -- cannot return @False@
                -- >> #phasesaving
                loop conflictC
@@ -681,7 +675,7 @@ claBumpActivity s@Solver{..} Clause{..} = do
   a <- (+) <$> getDouble activity <*> getDouble claInc
   if 1e100 < a
     then claRescaleActivity s
-    else setDouble activity $! a
+    else setDouble activity a
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE claDecayActivity #-}
