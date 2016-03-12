@@ -3,7 +3,6 @@ module SAT.Solver.Mios.Internal
          versionId
        , module SAT.Solver.Mios.Data.FixedVecBool
        , module SAT.Solver.Mios.Data.FixedVecDouble
-       , module SAT.Solver.Mios.Data.Queue
        , module SAT.Solver.Mios.Data.Stack
        , MiosConfiguration (..)
        , defaultConfiguration
@@ -11,7 +10,6 @@ module SAT.Solver.Mios.Internal
        where
 import SAT.Solver.Mios.Data.FixedVecBool
 import SAT.Solver.Mios.Data.FixedVecDouble
-import SAT.Solver.Mios.Data.Queue
 import SAT.Solver.Mios.Data.Stack
 
 -- | version name

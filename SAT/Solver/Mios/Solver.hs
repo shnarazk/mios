@@ -55,11 +55,11 @@ data Solver = Solver
                                  -- A constraint will be inspected when 'p' becomes true.
 --            , undos         :: FixedVecOf ClauseManager -- ^ For each variable 'x', a list of constraints that need
                                  -- to update when 'x' becomes unbound by backtracking.
-              , propQ         :: Queue             -- ^ Propagation queue.
                 -- Assignments
               , assigns       :: Vec               -- ^ The current assignments indexed on variables; var-indexed
               , trail         :: Stack             -- ^ List of assignments in chronological order; var-indexed
               , trailLim      :: Stack             -- ^ Separator indices for different decision levels in 'trail'.
+              , qHead         :: IntSingleton      -- ^ 'trail' is divided at qHead; assignments and queue
               , decisionLevel :: IntSingleton
               , reason        :: ClauseVector      -- ^ For each variable, the constraint that implied its value; var-indexed
               , level         :: Vec               -- ^ For each variable, the decision level it was assigned; var-indexed
@@ -111,12 +111,11 @@ setInternalState s (CNFDescription nv nc _) = do
 --  u <- newVec 0 -- nv
   -- forM_ [0 .. nv - 1] $ \i -> setVecAt u i =<< newVec 0
   a <- newVecWith (nv + 1) lBottom
-  t <- newStack (2 * nv)
+  t <- newStack nv
   t' <- newStack nv
   r <- newClauseVector (nv + 1)
   l <- newVecWith (nv + 1) (-1)
   o <- newVarHeap nv
-  q <- newQueue nv
   n1 <- newVec (nv + 1)
   n2 <- newStack nv
   n3 <- newStack nv
@@ -135,7 +134,6 @@ setInternalState s (CNFDescription nv nc _) = do
            , reason = r
            , level = l
            , order = o
-           , propQ = q
            , an_seen = n1
            , an_toClear = n2
            , an_stack = n3
@@ -156,10 +154,10 @@ newSolver conf = Solver
             <*> newVarHeap 0        -- order
             <*> newWatcherLists 1 1 -- watches
 --            <*> newVec 0          -- undos
-            <*> newQueue 0          -- porqQ
             <*> newVec 0            -- assigns
             <*> newStack 0          -- trail
             <*> newStack 0          -- trailLim
+            <*> newInt 0            -- qHead
             <*> newInt 0            -- decisionLevel
             <*> newClauseVector 0   -- reason
             <*> newVec 0            -- level
@@ -208,7 +206,6 @@ enqueue s@Solver{..} p from = do
         setNth level v d
         setNthClause reason v from     -- NOTE: @from@ might be NULL!
         pushToStack trail p
-        insertQueue propQ p
         return True
 
 -- | __Fig. 11. (p.15)__
@@ -260,6 +257,7 @@ cancelUntil s@Solver{..} lvl = do
     loopOnLevel $ ts - 1
     shrinkStack trail (ts - lim)
     shrinkStack trailLim (ls - lvl)
+    setInt qHead =<< sizeOfStack trail
     setInt decisionLevel lvl
 
 -- | __Fig. 10. (p.15)__
@@ -431,13 +429,16 @@ litRedundant Solver{..} p minLevel = do
 propagate :: Solver -> IO Clause
 propagate s@Solver{..} = do
   let
+    queue = asVec trail
     loopOnQueue :: IO Clause
     loopOnQueue = do
-      k <- sizeOfQueue propQ
-      if k == 0
-        then return NullClause        -- No conflict
+      qi <- getInt qHead        -- queue index
+      k <- sizeOfStack trail
+      if k <= qi                -- trail contains literals to be propagated
+        then return NullClause  -- No conflict
         else do
-            p <- dequeue propQ
+            p <- getNth queue qi
+            modifyInt qHead (+ 1)
             let np = negateLit p
             let w = getNthWatchers watches p
             vec <- getClauseVector w
@@ -451,7 +452,7 @@ propagate s@Solver{..} = do
                     -- This function inserts @c@ into an apropriate watchers here
                     case x of
                       1  {- still in -} -> loopOnWatcher (i + 1) n
-                      -1 {- conflict -} -> clearQueue propQ >> return c
+                      -1 {- conflict -} -> (setInt qHead =<< sizeOfStack trail) >> return c
                       _  {- it moved -} -> removeNthClause w i >> loopOnWatcher i (n - 1)
             loopOnWatcher 0 =<< numberOfClauses w
   loopOnQueue
