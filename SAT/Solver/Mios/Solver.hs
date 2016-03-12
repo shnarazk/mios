@@ -252,6 +252,7 @@ cancelUntil s@Solver{..} lvl = do
       loopOnLevel c = do
         x <- lit2var <$> getNth tr c
         setNth assigns x lBottom
+        setNthClause reason x NullClause    -- Is this required? If unassigned var is detected by assigns anytime..
         -- FIXME: #polarity https://github.com/shnarazk/minisat/blob/master/core/Solver.cc#L212
         undo s x
         -- insertHeap s x              -- insertVerOrder
