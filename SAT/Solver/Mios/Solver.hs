@@ -89,14 +89,14 @@ nConstraints = numberOfClauses . constrs
 nLearnts :: Solver -> IO Int
 nLearnts = numberOfClauses . learnts
 
--- | returns the assignment (:: 'LBool' = @[-1, 0, -1]@) from 'Var'
+-- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Var'
 {-# INLINE valueVar #-}
 valueVar :: Solver -> Var -> IO Int
 valueVar !s !x = getNth (assigns s) x
 
--- | returns the assignment (:: 'LBool' = @[-1, 0, -1]@) from 'Lit'
+-- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit'
 {-# INLINE valueLit #-}
-valueLit :: Solver -> Lit -> IO LBool
+valueLit :: Solver -> Lit -> IO Int -- FIXME: LiftedBool
 valueLit !Solver{..} !p = if positiveLit p then getNth assigns (lit2var p) else negate <$> getNth assigns (lit2var p)
 
 -- | returns an everything-is-initialized solver from the argument
@@ -448,10 +448,10 @@ propagate s@Solver{..} = do
                     c <- getNthClause vec i
                     x <- propagateLit c s np
                     -- This function inserts @c@ into an apropriate watchers here
-                    case () of
-                      _ | x == lTrue  {- still in -} -> loopOnWatcher (i + 1) n
-                      _ | x == lFalse {- conflict -} -> clearQueue propQ >> return c
-                      _               {- it moved -} -> removeNthClause w i >> loopOnWatcher i (n - 1)
+                    case x of
+                      1  {- still in -} -> loopOnWatcher (i + 1) n
+                      -1 {- conflict -} -> clearQueue propQ >> return c
+                      _  {- it moved -} -> removeNthClause w i >> loopOnWatcher i (n - 1)
             loopOnWatcher 0 =<< numberOfClauses w
   loopOnQueue
 
@@ -480,7 +480,7 @@ _propagateLit c@(asVec -> cv) s@Solver{..} !np = do
         -- Look for a new literal to watch:
         n <- sizeOfClause c
         let
-          loopOnLits :: Int -> IO LBool
+          loopOnLits :: Int -> IO Int -- FIXME: LiftedBool
           loopOnLits ((< n) -> False) = do
             -- Clause is unit under assignment:
             -- pushClause m c
@@ -520,7 +520,7 @@ propagateLit c@(asVec -> cv) s@Solver{..} !np = do -- this is slow
         -- Look for a new literal to watch:
         !n <- sizeOfClause c
         let
-          loopOnLits :: Int -> IO LBool
+          loopOnLits :: Int -> IO Int -- FIXME: LiftedBool
           loopOnLits ((< n) -> False) = do
             -- Clause is unit under assignment:
             noconf <- enqueue s lit c
@@ -721,11 +721,11 @@ simplifyDB s@Solver{..} = do
 --   all variables are decision variables, that means that the clause set is satisfiable. 'l_False'
 --   if the clause set is unsatisfiable. 'l_Undef' if the bound on number of conflicts is reached.
 {-# INLINABLE search #-}
-search :: Solver -> Int -> Int -> IO LBool
+search :: Solver -> Int -> Int -> IO LiftedBool
 search s@Solver{..} nOfConflicts nOfLearnts = do
   -- clear model
   let
-    loop :: Int -> IO LBool
+    loop :: Int -> IO LiftedBool
     loop conflictC = do
       !confl <- propagate s
       d <- getInt decisionLevel
@@ -734,7 +734,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
             -- CONFLICT
             r <- getInt rootLevel
             if d == r
-              then return lFalse
+              then return LFalse
               else do
                   backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
                   (s `cancelUntil`) . max backtrackLevel =<< getInt rootLevel
@@ -755,11 +755,11 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                    -- nv <- nVars s
                    -- forM_ [1 .. nv] $ \i -> setAt model i =<< (lTrue ==) <$> assigns .! i
                    forM_ [0 .. nVars - 1] $ \i -> setNthBool model i . (lTrue ==) =<< getNth assigns (i + 1)
-                   return lTrue
+                   return LTrue
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
                    (s `cancelUntil`) =<< getInt rootLevel -- force a restart
-                   return lBottom
+                   return Bottom
              _ -> do
                -- New variable decision:
                v <- select s -- many have heuristic for polarity here
@@ -856,14 +856,14 @@ solve s@Solver{..} assumps = do
         setInt rootLevel =<< getInt decisionLevel
         -- SOLVE:
         let
-          while :: LBool -> Double -> Double -> IO Bool
-          while status@((lBottom ==) -> False) _ _ = do
-            cancelUntil s 0
-            return $ status == lTrue
-          while _ nOfConflicts nOfLearnts = do
+          while :: LiftedBool -> Double -> Double -> IO Bool
+          while Bottom nOfConflicts nOfLearnts = do
             status <- search s (floor nOfConflicts) (floor nOfLearnts)
             while status (1.5 * nOfConflicts) (1.1 * nOfLearnts)
-        while lBottom 100 (nc / 3.0)
+          while status _ _ = do
+            cancelUntil s 0
+            return $ status == LTrue
+        while Bottom 100 (nc / 3.0)
 
 ---- constraint interface
 
@@ -911,12 +911,10 @@ simplify c@Clause{..} s@Solver{..} = do
     loop i j = do
       l <- getNth lvec i
       v <- valueLit s l
-      case () of
-       _ | v == lTrue   -> return True
-       _ | v == lBottom -> do
-             when (i /= j) $ setNth lvec j l      -- false literals are not copied (only occur for i >= 2)
-             loop (i+1) (j+1)
-       _ -> loop (i+1) j
+      case v of
+       1  -> return True
+       -1 -> loop (i+1) j
+       _ -> when (i /= j) (setNth lvec j l) >> loop (i+1) (j+1)     -- false literals are not copied (only occur for i >= 2)
   loop 0 0
 
 -- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists
@@ -966,9 +964,9 @@ clauseNew s@Solver{..} ps learnt = do
           else do
               l <- getNth ps i     -- check the i-th literal's satisfiability
               sat <- valueLit s l                                      -- any literal in ps is true
-              case () of
-               _ | sat == lTrue -> setNth ps 0 0 >> return True
-               _ | sat == lFalse -> do
+              case sat of
+               1  -> setNth ps 0 0 >> return True
+               -1 -> do
                  swapBetween ps i n
                  modifyNth ps (subtract 1) 0
                  loop i

@@ -33,7 +33,7 @@ module SAT.Solver.Mios.Types
        , var2lit
        , negateLit
          -- Assignment
-       , LBool
+       , LiftedBool (..)
        , lbool
        , lFalse
        , lTrue
@@ -185,24 +185,36 @@ lit2int l = case divMod l 2 of
   (i, _) -> - i
 
 -- | Lifted Boolean domain (p.7) that extends 'Bool' with "⊥" means /undefined/
-type LBool = Int
+-- design note: _|_ should be null = 0; True literals are coded to even numbers. So it should be 2.
+data LiftedBool = Bottom | LFalse | LTrue
+  deriving (Bounded, Eq, Ord, Read, Show)
+
+instance Enum LiftedBool where
+  {-# SPECIALIZE INLINE toEnum :: Int -> LiftedBool #-}
+  toEnum        1 = LTrue
+  toEnum     (-1) = LFalse
+  toEnum        _ = Bottom
+  {-# SPECIALIZE INLINE fromEnum :: LiftedBool -> Int #-}
+  fromEnum Bottom = 0
+  fromEnum LFalse = 1
+  fromEnum LTrue  = 2
 
 -- | converts 'Bool' into 'LBool'
 {-# INLINE lbool #-}
-lbool :: Bool -> LBool
-lbool True = lTrue
-lbool False = lFalse
+lbool :: Bool -> LiftedBool
+lbool True = LTrue
+lbool False = LFalse
 
 -- | A contant representing False
-lFalse:: LBool
+lFalse:: Int
 lFalse = -1
 
 -- | A constant representing True
-lTrue :: LBool
+lTrue :: Int
 lTrue = 1
 
 -- | A constant for "undefined"
-lBottom :: LBool
+lBottom :: Int
 lBottom = 0
 
 -- | Assisting ADT for the dynamic variable ordering of the solver.
