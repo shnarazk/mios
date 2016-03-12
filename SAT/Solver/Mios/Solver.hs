@@ -320,8 +320,9 @@ analyze s@Solver{..} confl = do
           if x == 0 then nextUnseenLit $ i - 1 else return i
       ti' <- nextUnseenLit ti
       nextP <- getNth trailVec ti'
-      confl' <- getNthClause reason (lit2var nextP)
-      setNth an_seen (lit2var nextP) 0
+      let nextV = lit2var nextP
+      confl' <- getNthClause reason nextV
+      setNth an_seen nextV 0
       if 1 < pathC'
         then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
         else setNth litsVec 0 (negateLit nextP) >> return b'
