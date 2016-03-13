@@ -339,17 +339,20 @@ cancelUntil s@Solver{..} lvl = do
     ts <- sizeOfStack trail
     ls <- sizeOfStack trailLim
     let
-      loopOnLevel :: Int -> IO ()
-      loopOnLevel ((lim <=) -> False) = return ()
-      loopOnLevel c = do
+      loopOnTrail :: Int -> IO ()
+      loopOnTrail ((lim <=) -> False) = return ()
+      loopOnTrail c = do
         x <- lit2var <$> getNth tr c
         setNth assigns x lBottom
+        -- #reason to set reason Null
+        -- if we don't clear @reason[x] :: Clause@ here, @reason[x]@ remains as locked.
+        -- This means we can't reduce it from clause DB and affects the performance.
         setNthClause reason x NullClause -- 'analyze` uses reason without checking assigns
         -- FIXME: #polarity https://github.com/shnarazk/minisat/blosb/master/core/Solver.cc#L212
         undo s x
         -- insertHeap s x              -- insertVerOrder
-        loopOnLevel $ c - 1
-    loopOnLevel $ ts - 1
+        loopOnTrail $ c - 1
+    loopOnTrail $ ts - 1
     shrinkStack trail (ts - lim)
     shrinkStack trailLim (ls - lvl)
     setInt qHead =<< sizeOfStack trail
