@@ -45,17 +45,15 @@ import SAT.Solver.Mios.Solver
 --
 -- This is a restricted version of 'newClause' for learnt clause.
 {-# INLINABLE newLearntClause #-}
-newLearntClause :: Solver -> Vec -> IO Clause
+newLearntClause :: Solver -> Vec -> IO ()
 newLearntClause s@Solver{..} ps = do
   -- now ps[0] is the number of living literals
   -- Since this solver must generate only healthy learnt clauses, we need not to check then
   k <- getNth ps 0
   case k of
-   0 -> return NullClause
    1 -> do
      l <- getNth ps 1
-     enqueue s l NullClause
-     return NullClause
+     unsafeEnqueue s l NullClause
    _ -> do
      -- allocate clause:
      c <- newClauseFromVec True ps
@@ -71,20 +69,18 @@ newLearntClause s@Solver{..} ps = do
            then findMax (i + 1) i b
            else findMax (i + 1) j val
      -- Let @max_i@ be the index of the literal with highest decision level
-     max_i <- findMax 1 1 0
-     swapBetween ps 2 max_i
+     swapBetween ps 2 =<< findMax 1 1 0
      -- check literals occurences
-     -- x <- asList c
-     -- unless (length x == length (nub x)) $ error "new clause contains a element doubly"
      -- Bumping:
      claBumpActivity s c -- newly learnt clauses should be considered active
-     forM_ [1 .. k] $ varBumpActivity s . lit2var <=< getNth ps -- variables in conflict clauses are bumped
-     -- Add clause to watcher lists:
-     l0 <- negateLit <$> getNth ps 1
-     pushClause (getNthWatchers watches l0) c
+     -- Add clause to all managers
+     pushClause learnts c
+     l <- getNth ps 1
+     pushClause (getNthWatchers watches (negateLit l)) c
      l1 <- negateLit <$> getNth ps 2
      pushClause (getNthWatchers watches l1) c
-     return c
+     -- update the solver state by @l@
+     unsafeEnqueue s l c
 
 -- | __Remove.__ The 'remove' method supplants the destructor by receiving
 -- the solver state as a parameter. It should dispose the constraint and
@@ -548,7 +544,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
               else do
                   backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
                   (s `cancelUntil`) . max backtrackLevel =<< getInt rootLevel
-                  record s =<< isoVec litsLearnt
+                  newLearntClause s =<< isoVec litsLearnt
                   varDecayActivity s
                   claDecayActivity s
                   loop $ conflictC + 1
@@ -619,15 +615,11 @@ solve s@Solver{..} assumps = do
             return $ status == LTrue
         while Bottom 100 (nc / 3.0)
 
--- | __Fig. 11. (p.15)__
--- Record a clause and drive backtracking.
---
--- __Pre-Condition:__ "clause[0]" must contain
--- the asserting literal. In particular, 'clause[]' must not be empty.
-{-# INLINE record #-}
-record :: Solver -> Vec -> IO ()
-record s@Solver{..} v = do
-  c <- newLearntClause s v -- will be set to created clause, or NULL if @clause[]@ is unit
-  l <- getNth v 1
-  enqueue s l c
-  unless (c == NullClause) $ pushClause learnts c
+{-# INLINABLE unsafeEnqueue #-}
+unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
+unsafeEnqueue s@Solver{..} p from = do
+  let v = lit2var p
+  setNth assigns v $! if positiveLit p then lTrue else lFalse
+  setNth level v =<< getInt decisionLevel
+  setNthClause reason v from     -- NOTE: @from@ might be NULL!
+  pushToStack trail p
