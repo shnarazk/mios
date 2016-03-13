@@ -1,22 +1,20 @@
 module SAT.Solver.Mios.Internal
        (
          versionId
-       , module SAT.Solver.Mios.Data.FixedVecBool
-       , module SAT.Solver.Mios.Data.FixedVecDouble
-       , module SAT.Solver.Mios.Data.Stack
        , MiosConfiguration (..)
        , defaultConfiguration
+       , module Plumbing
        )
        where
-import SAT.Solver.Mios.Data.FixedVecBool
-import SAT.Solver.Mios.Data.FixedVecDouble
-import SAT.Solver.Mios.Data.Stack
+import SAT.Solver.Mios.Data.FixedVecBool as Plumbing
+import SAT.Solver.Mios.Data.FixedVecDouble as Plumbing
+import SAT.Solver.Mios.Data.Stack as Plumbing
 
 -- | version name
 versionId :: String
-versionId = "mios M22; bitencode, simple queue"
+versionId = "mios M22; bitEncode, singleStack, M114"
 
--- | solver configuration
+-- | solver's parameter configuration
 data MiosConfiguration = MiosConfiguration
                          {
                            variableDecayRate  :: Double
