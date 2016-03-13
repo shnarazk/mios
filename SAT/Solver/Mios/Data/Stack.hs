@@ -42,11 +42,12 @@ newtype Stack = Stack
                   }
 
 instance VectorFamily Stack Int where
-  dump str v = do
-    (n:l) <- asList v
-    return $ str ++ show (take n l)
+  dump str v = (str ++) . show <$> asList v
   {-# SPECIALIZE INLINE asVec :: Stack -> Vec #-}
   asVec Stack{..} = UV.unsafeTail ivec
+  asList x = do
+    (n : l) <- asList (ivec x)
+    return $ take n l
 
 {-# INLINE sizeOfStack #-}
 sizeOfStack :: Stack -> IO Int
