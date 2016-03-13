@@ -53,17 +53,18 @@ library
   exposed-modules:
                                          SAT.Solver.Mios
                                          SAT.Solver.Mios.Types
-                                         SAT.Solver.Mios.Clause
-                                         SAT.Solver.Mios.ClauseManager
-                                         SAT.Solver.Mios.WatcherLists
-                                         SAT.Solver.Mios.Internal
-                                         SAT.Solver.Mios.Solver
-                                         SAT.Solver.Mios.Validator
                                          SAT.Solver.Mios.Data.FixedVecBool
                                          SAT.Solver.Mios.Data.FixedVecDouble
                                          SAT.Solver.Mios.Data.Vec
                                          SAT.Solver.Mios.Data.Singleton
                                          SAT.Solver.Mios.Data.Stack
+                                         SAT.Solver.Mios.Clause
+                                         SAT.Solver.Mios.ClauseManager
+                                         SAT.Solver.Mios.WatcherLists
+                                         SAT.Solver.Mios.Internal
+                                         SAT.Solver.Mios.Solver
+                                         SAT.Solver.Mios.M114
+                                         SAT.Solver.Mios.Validator
                                          SAT.Solver.Mios.OptionParser
     -- Modules included in this library but not exported.
   other-modules:
@@ -94,6 +95,7 @@ executable mios
     SAT.Solver.Mios.Data.Singleton
     SAT.Solver.Mios.Data.Stack
     SAT.Solver.Mios.Internal
+    SAT.Solver.Mios.M114
     SAT.Solver.Mios.OptionParser
     SAT.Solver.Mios.Solver
     SAT.Solver.Mios.Types
@@ -123,6 +125,7 @@ executable mios-M22
     SAT.Solver.Mios.Data.Singleton
     SAT.Solver.Mios.Data.Stack
     SAT.Solver.Mios.Internal
+    SAT.Solver.Mios.M114
     SAT.Solver.Mios.OptionParser
     SAT.Solver.Mios.Solver
     SAT.Solver.Mios.Types
@@ -149,6 +152,7 @@ executable mios-M22-prof
     SAT.Solver.Mios.Data.Singleton
     SAT.Solver.Mios.Data.Stack
     SAT.Solver.Mios.Internal
+    SAT.Solver.Mios.M114
     SAT.Solver.Mios.OptionParser
     SAT.Solver.Mios.Solver
     SAT.Solver.Mios.Types
@@ -193,6 +197,7 @@ executable mios-M22-cr
     SAT.Solver.Mios.Data.Singleton
     SAT.Solver.Mios.Data.Stack
     SAT.Solver.Mios.Internal
+    SAT.Solver.Mios.M114
     SAT.Solver.Mios.OptionParser
     SAT.Solver.Mios.Solver
     SAT.Solver.Mios.Types

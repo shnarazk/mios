@@ -36,8 +36,9 @@ import qualified Data.Vector.Unboxed.Mutable as UM
 import System.Exit
 
 import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Solver
 import SAT.Solver.Mios.Internal (versionId)
+import SAT.Solver.Mios.Solver
+import SAT.Solver.Mios.M114
 import SAT.Solver.Mios.OptionParser
 import SAT.Solver.Mios.Validator
 
