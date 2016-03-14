@@ -6,9 +6,8 @@ project: 'Study on SAT solver Algorithms in Haskell.'
 
 #### > Features
 
-* based on
-  * [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip) for the detailed definition of clause activity and strategy to reduce learnt clauses.
-  * N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518.
+* fundamentally this is a *line-to-line* translation of [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip)
+(And it was based on  N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518 in the early stage of development.)
 * runs in `IO` monad, uses `Data.Vector` and *pointer-based equality* by `reallyUnsafePtrEquality`
 * faster (compared with SAT solvers written in Haskell); see below.
 
@@ -26,7 +25,7 @@ project: 'Study on SAT solver Algorithms in Haskell.'
 
 ##### 1.1.0
 
-* based on [MiniSat 1.14](https://github.com/shnarazk/minisat114/), but lacks the binary clause implementation.
+* based on [MiniSat 1.14](https://github.com/shnarazk/minisat114/), but lacks the binary clause implementation so far.
 * The arguments of `solveSAT`and `validateAssignment` were curried.
 
 ##### 1.0.3
@@ -61,7 +60,7 @@ It's an invalid assignment.
 * [Stack](http://www.haskellstack.org/) or `cabal-install`
 
 ```
-stack init --resolver lts-5.5
+stack init --resolver lts-5.5   # or upper
 stack install
 ```
 
