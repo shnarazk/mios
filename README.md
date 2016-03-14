@@ -7,21 +7,27 @@ project: 'Study on SAT solver Algorithms in Haskell.'
 #### > Features
 
 * based on
-  * N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518.
   * [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip) for the detailed definition of clause activity and strategy to reduce learnt clauses.
+  * N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518.
 * runs in `IO` monad, uses `Data.Vector` and *pointer-based equality* by `reallyUnsafePtrEquality`
 * faster (compared with SAT solvers written in Haskell); see below.
 
 ##### benchmark results
-* [The first 100 problems of uf250-1065 satisfiable set](http://www.cs.ubc.ca/~hoos/SATLIB/Benchmarks/SAT/RND3SAT/uf250-1065.tar.gz) on [SATLIB](http://www.cs.ubc.ca/~hoos/SATLIB/benchm.html)
 
-![](https://docs.google.com/spreadsheets/d/1OYaOTZccjCFrItEb6zOUpXOS9Wbq7Qn22ooWnk95iW4/pubchart?oid=1845809024&format=image)
+* On a subset of SAT-RACE 2015 Application Problems
+
+[under construction]
 
 * Performances on [various 3SAT problems (uf-* series)](http://www.cs.ubc.ca/~hoos/SATLIB/benchm.html)
 
 ![](https://docs.google.com/spreadsheets/d/1cNltZ4FIu_exSUQMcXe53w4fADr3sOUxpo3L7oM0H_Q/pubchart?oid=297581252&format=image)
 
 #### > Release Note
+
+##### 1.1.0
+
+* based on [MiniSat 1.14](https://github.com/shnarazk/minisat114/), but lacks the binary clause implementation.
+* The arguments of `solveSAT`and `validateAssignment` were curried.
 
 ##### 1.0.3
 
@@ -95,7 +101,7 @@ clauses = [[1, 2], [1, 3], [-1, -2], [1, -2, 3], [-3]]
 desc = CNFDescription 3 5 Nothing    -- #vars, #clauses, Just pathname or Nothing
 
 main = do
-  asg <- solveSAT (desc, clauses)    -- solveSAT :: Traversable m => (CNFDescription, m [Int]) -> IO [Int]
+  asg <- solveSAT desc clauses    -- solveSAT :: Traversable m => CNFDescription -> m [Int] -> IO [Int]
   putStrLn $ if null asg then "unsatisfiable" else show asg
 ```
 
