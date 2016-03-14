@@ -1,8 +1,8 @@
+-- | This is a line
 {-# LANGUAGE
     BangPatterns
   , FlexibleContexts
   , FlexibleInstances
-  , FunctionalDependencies
   , MagicHash
   , RecordWildCards
   , ScopedTypeVariables
@@ -18,7 +18,7 @@ module SAT.Solver.Mios.M114
        )
         where
 
-import Control.Monad ((<=<), forM_, unless, when)
+import Control.Monad ((<=<), forM_, unless, void, when)
 import Data.Bits
 import Data.Foldable (foldrM)
 import SAT.Solver.Mios.Types
@@ -28,27 +28,21 @@ import SAT.Solver.Mios.ClauseManager
 import SAT.Solver.Mios.WatcherLists
 import SAT.Solver.Mios.Solver
 
+--
+-- no 'removeWatch' in mios
+--
+
 --------------------------------------------------------------------------------
 -- Operations on 'Clause'
 --------------------------------------------------------------------------------
 
--- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists
--- Constructor function for clauses. Returns @False@ if top-level conflict is determined.
--- @outClause@ may be set to Null if the new clause is already satisfied under the current
--- top-level assignment.
---
--- __Post-condition:__ @ps@ is cleared. For learnt clauses, all
--- literals will be false except @lits[0]@ (this by design of the 'analyze' method).
--- For the propagation to work, the second watch must be put on the literal which will
--- first be unbound by backtracking. (Note that none of the learnt-clause specific things
--- needs to done for a user defined contraint type.)
---
--- This is a restricted version of 'newClause' for learnt clause.
+-- | __Fig. 8. (p.12)__ create a new LEARNT clause and adds it to watcher lists
+-- This is a strippped-down version of 'newClause' in Solver
 {-# INLINABLE newLearntClause #-}
 newLearntClause :: Solver -> Vec -> IO ()
 newLearntClause s@Solver{..} ps = do
-  -- now ps[0] is the number of living literals
-  -- Since this solver must generate only healthy learnt clauses, we need not to check then
+  -- ps is a 'SizedVectorInt'; ps[0] is the number of active literals
+  -- Since this solver must generate only healthy learnt clauses, we need not to run misc check in 'newClause'
   k <- getNth ps 0
   case k of
    1 -> do
@@ -68,10 +62,8 @@ newLearntClause s@Solver{..} ps = do
          if (a /= lBottom) && (val < b)
            then findMax (i + 1) i b
            else findMax (i + 1) j val
-     -- Let @max_i@ be the index of the literal with highest decision level
-     swapBetween ps 2 =<< findMax 1 1 0
-     -- check literals occurences
-     -- Bumping:
+     swapBetween ps 2 =<< findMax 1 1 0 -- Let @max_i@ be the index of the literal with highest decision level
+     -- Bump, enqueue, store clause:
      claBumpActivity s c -- newly learnt clauses should be considered active
      -- Add clause to all managers
      pushClause learnts c
@@ -82,25 +74,26 @@ newLearntClause s@Solver{..} ps = do
      -- update the solver state by @l@
      unsafeEnqueue s l c
 
--- | __Remove.__ The 'remove' method supplants the destructor by receiving
+-- | #114: __Remove.__ The 'remove' method supplants the destructor by receiving
 -- the solver state as a parameter. It should dispose the constraint and
 -- remove it from the watcher lists.
 {-# INLINABLE remove #-}
 remove :: Clause -> Int -> Solver -> IO ()
-remove !c@Clause{..} i Solver{..} = do
+remove c@Clause{..} i Solver{..} = do
   let lvec = asVec c
   l1 <- negateLit <$> getNth lvec 0
   removeClause (getNthWatchers watches l1) c
   l2 <- negateLit <$> getNth lvec 1
   removeClause (getNthWatchers watches l2) c
   removeNthClause (if learnt then learnts else constrs) i
-  return ()
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
 -- simplify its representation (returns @False@) or state that the constraint is
 -- satisfied under the current assignment and can be removed (returns @True@).
 -- A constraint must /not/ be simplifiable to produce unit information or to be
 -- conflicting; in that case the propagation has not been correctly defined.
+--
+-- MIOS NOTE: the original doesn't update watchers; only checks its satisfiabiliy.
 {-# INLINABLE simplify #-}
 simplify :: Clause -> Solver -> IO Bool
 simplify c@Clause{..} s@Solver{..} = do
@@ -133,11 +126,16 @@ simplify c@Clause{..} s@Solver{..} = do
   loop 0 0
 
 --------------------------------------------------------------------------------
--- Major methods
---------------------------------------------------------------------------------
+-- MIOS NOTE on  Minor methods:
+--
+-- * no (meaningful) 'newVar' in mios
+-- * 'assume' is defined in 'Solver'
+-- * `cancelUntil` is defined in 'Solver'
 
--- | __Fig. 10. (p.15)__
--- #M22:
+--------------------------------------------------------------------------------
+-- Major methods
+
+-- | M114: __Fig. 10. (p.15)__
 --
 -- analyze : (confl : Clause*) (out_learnt : vec<Lit>&) (out_btlevel :: int&) -> [void]
 --
@@ -202,8 +200,8 @@ analyze s@Solver{..} confl = do
         then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
         else setNth litsVec 0 (negateLit nextP) >> return b'
   ti <- subtract 1 <$> sizeOfStack trail
-  result <- loopOnClauseChain confl bottomLit ti 0 0
-  -- Simplify phase
+  levelToReturn <- loopOnClauseChain confl bottomLit ti 0 0
+  -- Simplify phase (implemented only @expensive_ccmin@ path)
   n <- sizeOfStack litsLearnt
   clearStack an_stack           -- analyze_stack.clear();
   clearStack an_toClear         -- out_learnt.copyTo(analyze_toclear);
@@ -216,7 +214,7 @@ analyze s@Solver{..} confl = do
       pushToStack an_toClear l
       -- restrict the search depth (range) to 32
       merger (i + 1) . setBit b . (31 .&.) =<< getNth level (lit2var l)
-  levels <-  merger 1 0
+  levels <- merger 1 0
   let
     loopOnLits :: Int -> Int -> IO ()
     loopOnLits ((< n) -> False) n' = shrinkStack litsLearnt $ n - n'
@@ -226,14 +224,14 @@ analyze s@Solver{..} confl = do
       if c1
         then setNth litsVec j l >> loopOnLits (i + 1) (j + 1)
         else do
-           c2 <- not <$> litRedundant s l levels
+           c2 <- not <$> analyzeRemovable s l levels
            if c2
              then setNth litsVec j l >> loopOnLits (i + 1) (j + 1)
              else loopOnLits (i + 1) j
   loopOnLits 1 1                -- the first literal is specail
-  return result
+  return levelToReturn
 
--- | #M22
+-- | #M114
 -- Check if 'p' can be removed, 'abstract_levels' is used to abort early if the algorithm is
 -- visiting literals at levels that cannot be removed later.
 --
@@ -242,9 +240,9 @@ analyze s@Solver{..} confl = do
 -- *  @an_toClear@ is initialized by @ps@ in 'analyze' (a copy of 'learnt').
 --   This is used only in this function and 'analyze'.
 --
-{-# INLINEABLE litRedundant #-}
-litRedundant :: Solver -> Lit -> Int -> IO Bool
-litRedundant Solver{..} p minLevel = do
+{-# INLINEABLE analyzeRemovable #-}
+analyzeRemovable :: Solver -> Lit -> Int -> IO Bool
+analyzeRemovable Solver{..} p minLevel = do
   -- assert (reason[var(p)]!= NullCaulse);
   clearStack an_stack      -- analyze_stack.clear()
   pushToStack an_stack p   -- analyze_stack.push(p);
@@ -290,7 +288,67 @@ litRedundant Solver{..} p minLevel = do
             loopOnLit 1
   loopOnStack
 
--- | #M22
+-- | #114
+-- analyzeFinal : (confl : Clause *) (skip_first : boot) -> [void]
+--
+-- __Description:__
+--   Specialized analysis proceduce to express the final conflict in terms of assumptions.
+--   'root_level' is allowed to point beyond end of trace (useful if called after conflict while
+--   making assumptions). If 'skip_first' is TRUE, the first literal of 'confl' is ignored (needed
+--   if conflict arose before search even started).
+--
+analyzeFinal :: Solver -> Clause -> Bool -> IO ()
+analyzeFinal Solver{..} confl skipFirst = do
+  clearStack conflict
+  rl <- getInt rootLevel
+  unless (rl == 0) $ do
+    n <- sizeOfClause confl
+    let
+      lvec = asVec confl
+      loopOnConfl :: Int -> IO ()
+      loopOnConfl ((< n) -> False) = return ()
+      loopOnConfl i = do
+        (x :: Var) <- lit2var <$> getNth lvec i
+        lvl <- getNth level x
+        when (0 < lvl) $ setNth an_seen x 1
+        loopOnConfl $ i + 1
+    loopOnConfl $ if skipFirst then 1 else 0
+    tls <- sizeOfStack trailLim
+    trs <- sizeOfStack trail
+    tlz <- getNth (asVec trailLim) 0
+    let
+      trailVec = asVec trail
+      loopOnTrail :: Int -> IO ()
+      loopOnTrail ((tlz <) -> False) = return ()
+      loopOnTrail i = do
+        (l :: Lit) <- getNth trailVec i
+        let (x :: Var) = lit2var l
+        saw <- getNth an_seen x
+        when (saw == 1) $ do
+          (r :: Clause) <- getNthClause reason x
+          if r == NullClause
+            then pushToStack conflict (negateLit l)
+            else do
+                k <- sizeOfClause r
+                let
+                  cvec = asVec r
+                  loopOnLits :: Int -> IO ()
+                  loopOnLits ((< k) -> False) = return ()
+                  loopOnLits j = do
+                    (v :: Var) <- lit2var <$> getNth cvec j
+                    lv <- getNth level v
+                    when (0 < lv) $ setNth an_seen v 1
+                    loopOnLits $ i + 1
+                loopOnLits 1
+        setNth an_seen x 0
+        loopOnTrail $ i - 1
+    loopOnTrail =<< if tls <= rl then return (trs - 1) else getNth (asVec trailLim) rl
+
+--
+-- 'enqueue' is defined in 'Solver' and functions in M114 use 'unsafeEnqueue'
+--
+
+-- | M114:
 -- propagate : [void] -> [Clause+]
 --
 -- __Description:__
@@ -435,12 +493,11 @@ reduceDB s@Solver{..} = do
   let
     half = div nL 2
     loopOn :: Int -> Int -> IO ()
-    loopOn i j
-      | i >= j = return ()
-      | otherwise = do
-          c <- getNthClause vec i
-          yes <- if i < half then isRequired c else isRequired' c
-          if yes then loopOn (i + 1) j else remove c i s >> loopOn i (j - 1)
+    loopOn i j =
+      when (i < j) $ do
+        c <- getNthClause vec i
+        yes <- if i < half then isRequired c else isRequired' c
+        if yes then loopOn (i + 1) j else remove c i s >> loopOn i (j - 1)
   sortOnActivity learnts
   loopOn 0 nL
 
@@ -454,7 +511,7 @@ sortOnActivity cm = do
     keyOf i = negate <$> (getDouble . activity =<< getNthClause vec i)
     sortOnRange :: Int -> Int -> IO ()
     sortOnRange left right
-      | not (left < right) = return ()
+      | left >= right = return ()
       | left + 1 == right = do
           a <- keyOf left
           b <- keyOf right
@@ -480,7 +537,6 @@ sortOnActivity cm = do
           sortOnRange left (m - 1)
           sortOnRange (m + 1) right
   sortOnRange 0 (n - 1)
-  -- checkClauseOrder cm
 
 -- | #M22
 --
@@ -540,7 +596,10 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
             -- CONFLICT
             r <- getInt rootLevel
             if d == r
-              then return LFalse
+              then do
+                  -- Contradiction found:
+                  analyzeFinal s confl False
+                  return LFalse
               else do
                   backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
                   (s `cancelUntil`) . max backtrackLevel =<< getInt rootLevel
@@ -550,11 +609,10 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
-            when (d == 0) $ simplifyDB s >> return () -- our simplifier cannot return @False@ here
+            when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
             k1 <- numberOfClauses learnts
             k2 <- nAssigns s
-            when (k1 - k2 >= nOfLearnts) $ do
-              reduceDB s -- Reduce the set of learnt clauses
+            when (k1 - k2 >= nOfLearnts) $ reduceDB s -- Reduce the set of learnt clauses
             case () of
              _ | k2 == nVars -> do
                    -- Model found:
@@ -593,11 +651,19 @@ solve s@Solver{..} assumps = do
     injector a True = do
       b <- assume s a
       if not b
-        then cancelUntil s 0 >> return False
+        then do                 -- conflict analyze
+            (confl :: Clause) <- getNthClause reason (lit2var a)
+            analyzeFinal s confl True
+            pushToStack conflict (negateLit a)
+            cancelUntil s 0
+            return False
         else do
-            c <- propagate s
-            if c /= NullClause
-              then cancelUntil s 0 >> return False
+            confl <- propagate s
+            if confl /= NullClause
+              then do
+                  analyzeFinal s confl True
+                  cancelUntil s 0
+                  return False
               else return True
   x <- foldrM injector True assumps
   if not x

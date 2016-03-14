@@ -75,10 +75,17 @@ runSolver opts@(_targetFile -> target@(Just cnfFile)) = do
      res <- simplifyDB s
      when (_confVerbose opts) $ putStrLn $ "`simplifyDB`: " ++ show res
      result <- solve s []
-     unless (_confNoAnswer opts) $
+     unless (_confNoAnswer opts) $ do
        if result
          then print . zipWith (\n b -> if b then n else negate n) [1 .. ] =<< asList (model s)
-         else putStrLn "[]"
+         else do
+             -- contradiction
+             -- FIXMEin future
+             {-
+             putStrLn "UNSAT"
+             print =<< map lit2int <$> asList (conflict s)
+             -}
+             putStrLn "[]"
      when (result && _confCheckAnswer opts) $ do
        asg <- zipWith (\n b -> if b then n else negate n) [1 .. ] <$> asList (model s)
        s' <- newSolver (toMiosConf opts) >>= (`setInternalState` desc)

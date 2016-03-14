@@ -49,7 +49,8 @@ import SAT.Solver.Mios.WatcherLists
 data Solver = Solver
               {
                 -- for public interface
-               model         :: FixedVecBool       -- ^ If found, this vector has the model
+                model        :: FixedVecBool       -- ^ If found, this vector has the model
+              , conflict     :: Stack              -- ^ set of literals in the case of conflicts
                 -- Contraint database
               , constrs       :: ClauseManager     -- ^ List of problem constraints.
               , learnts       :: ClauseManager     -- ^ List of learnt clauses.
@@ -120,6 +121,7 @@ setInternalState :: Solver -> CNFDescription -> IO Solver
 setInternalState s (CNFDescription nv nc _) = do
   setStdGen $ mkStdGen 91648253
   m <- newVecBool nv False
+  c <- newStack nv
   m1 <- newClauseManager nc
   m2 <- newClauseManager nc
   ac <- newVecDouble (nv + 1) 0.0
@@ -139,6 +141,7 @@ setInternalState s (CNFDescription nv nc _) = do
   let s' = s
            {
              model = m
+           , conflict = c
            , activities = ac
            , constrs = m1
            , learnts = m2
@@ -162,6 +165,7 @@ setInternalState s (CNFDescription nv nc _) = do
 newSolver :: MiosConfiguration -> IO Solver
 newSolver conf = Solver
             <$> newVecBool 0 False  -- model
+            <*> newStack 0          -- coflict
             <*> newClauseManager 1  -- constrs
             <*> newClauseManager 1  -- learnts
             <*> newDouble 1.0       -- claInc
@@ -478,10 +482,10 @@ claRescaleActivity Solver{..} = do
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
       c <- getNthClause vec i
-      modifyDouble (activity c) (* 1e-100)
+      modifyDouble (activity c) (* 1e-20) -- not 1e-100
       loopOnVector $ i + 1
   loopOnVector 0
-  modifyDouble claInc (* 1e-100)
+  modifyDouble claInc (* 1e-20)           -- not 1e-100
 
 -------------------------------------------------------------------------------- VarHeap
 
