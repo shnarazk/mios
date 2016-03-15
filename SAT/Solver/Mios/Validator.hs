@@ -16,8 +16,8 @@ import SAT.Solver.Mios.Solver
 validate :: Traversable t => Solver -> t Int -> IO Bool
 validate s (toList -> map int2lit -> lst) = do
   assignment <- newVec $ 1 + nVars s
-  vec <- getClauseVector (constrs s)
-  nc <- numberOfClauses (constrs s)
+  vec <- getClauseVector (clauses s)
+  nc <- numberOfClauses (clauses s)
   let
     inject :: Lit -> IO ()
     inject l = setNth assignment (lit2var l) $ if positiveLit l then lTrue else lFalse
@@ -32,7 +32,7 @@ validate s (toList -> map int2lit -> lst) = do
     satAny (l:ls) = do
       sat' <- satisfied l
       if sat' then return True else satAny ls
-    -- traverse all clauses in 'constrs'
+    -- traverse all clauses in 'clauses'
     loopOnVector :: Int -> IO Bool
     loopOnVector ((< nc) -> False) = return True
     loopOnVector i = do

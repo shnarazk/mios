@@ -20,6 +20,7 @@ module SAT.Solver.Mios.Solver
        , nAssigns
        , nConstraints
        , nLearnts
+       , decisionLevel
        , valueVar
        , valueLit
        , locked
@@ -48,40 +49,38 @@ import SAT.Solver.Mios.WatcherLists
 -- | __Fig. 2.(p.9)__ Internal State of the solver
 data Solver = Solver
               {
-                -- for public interface
-                model        :: FixedVecBool       -- ^ If found, this vector has the model
-              , conflict     :: Stack              -- ^ set of literals in the case of conflicts
-                -- Contraint database
-              , constrs       :: ClauseManager     -- ^ List of problem constraints.
-              , learnts       :: ClauseManager     -- ^ List of learnt clauses.
-              , claInc        :: DoubleSingleton   -- ^ Clause activity increment amount to bump with.
-                -- Variable order
-              , activities    :: FixedVecDouble    -- ^ Heuristic measurement of the activity of a variable; var-indexed
-              , varInc        :: DoubleSingleton   -- ^ Variable activity increment amount to bump with.
-              , order         :: VarHeap           -- ^ Keeps track of the dynamic variable order.
-                -- Propagation
-              , watches       :: WatcherLists      -- ^ For each literal 'p', a list of constraint wathing 'p'.
-                                 -- A constraint will be inspected when 'p' becomes true.
---            , undos         :: FixedVecOf ClauseManager -- ^ For each variable 'x', a list of constraints that need
-                                 -- to update when 'x' becomes unbound by backtracking.
-                -- Assignments
-              , assigns       :: Vec               -- ^ The current assignments indexed on variables; var-indexed
-              , trail         :: Stack             -- ^ List of assignments in chronological order; var-indexed
-              , trailLim      :: Stack             -- ^ Separator indices for different decision levels in 'trail'.
-              , qHead         :: IntSingleton      -- ^ 'trail' is divided at qHead; assignments and queue
-              , decisionLevel :: IntSingleton
-              , reason        :: ClauseVector      -- ^ For each variable, the constraint that implied its value; var-indexed
-              , level         :: Vec               -- ^ For each variable, the decision level it was assigned; var-indexed
-              , rootLevel     :: IntSingleton      -- ^ Separates incremental and search assumptions.
-              , an_seen       :: Vec               -- ^ scratch var for 'analyze'; var-indexed
-              , an_toClear    :: Stack             -- ^ ditto
-              , an_stack      :: Stack             -- ^ ditto
-              , nVars         :: Int               -- ^ number of variables
-                -- working memory
-              , litsLearnt    :: Stack             -- ^ used to create a learnt clause
+                -- Public Interface
+                model      :: FixedVecBool       -- ^ If found, this vector has the model
+              , conflict   :: Stack              -- ^ set of literals in the case of conflicts
+                -- Clause Database
+              , clauses    :: ClauseManager     -- ^ List of problem constraints.
+              , learnts    :: ClauseManager     -- ^ List of learnt clauses.
+              , watches    :: WatcherLists      -- ^ a list of constraint wathing 'p', literal-indexed
+                -- Assignment Management
+              , assigns    :: Vec               -- ^ The current assignments indexed on variables; var-indexed
+              , trail      :: Stack             -- ^ List of assignments in chronological order; var-indexed
+              , trailLim   :: Stack             -- ^ Separator indices for different decision levels in 'trail'.
+              , qHead      :: IntSingleton      -- ^ 'trail' is divided at qHead; assignments and queue
+              , reason     :: ClauseVector      -- ^ For each variable, the constraint that implied its value; var-indexed
+              , level      :: Vec               -- ^ For each variable, the decision level it was assigned; var-indexed
+                -- Variable Order
+              , activities :: FixedVecDouble    -- ^ Heuristic measurement of the activity of a variable; var-indexed
+              , order      :: VarHeap           -- ^ Keeps track of the dynamic variable order.
                 -- Configuration
-              , config        :: MiosConfiguration -- ^ search paramerters
+              , config     :: MiosConfiguration -- ^ search paramerters
+              , nVars      :: Int               -- ^ number of variables
+              , claInc     :: DoubleSingleton   -- ^ Clause activity increment amount to bump with.
+              , varInc     :: DoubleSingleton   -- ^ Variable activity increment amount to bump with.
+              , rootLevel  :: IntSingleton      -- ^ Separates incremental and search assumptions.
+                -- Working Memory
+              , an_seen    :: Vec               -- ^ scratch var for 'analyze'; var-indexed
+              , an_toClear :: Stack             -- ^ ditto
+              , an_stack   :: Stack             -- ^ ditto
+              , litsLearnt :: Stack             -- ^ used to create a learnt clause
               }
+
+--------------------------------------------------------------------------------
+-- Accessors
 
 -- | returns the number of current assigments
 {-# INLINE nAssigns #-}
@@ -91,12 +90,17 @@ nAssigns = sizeOfStack . trail
 -- | returns the number of constraints (clauses)
 {-# INLINE nConstraints #-}
 nConstraints  :: Solver -> IO Int
-nConstraints = numberOfClauses . constrs
+nConstraints = numberOfClauses . clauses
 
 -- | returns the number of learnt clauses
 {-# INLINE nLearnts #-}
 nLearnts :: Solver -> IO Int
 nLearnts = numberOfClauses . learnts
+
+-- | returns the current decision level
+{-# INLINE decisionLevel #-}
+decisionLevel :: Solver -> IO Int
+decisionLevel Solver{..} = sizeOfStack trailLim
 
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Var'
 {-# INLINE valueVar #-}
@@ -143,7 +147,7 @@ setInternalState s (CNFDescription nv nc _) = do
              model = m
            , conflict = c
            , activities = ac
-           , constrs = m1
+           , clauses = m1
            , learnts = m2
            , watches = w
 --           , undos = u
@@ -164,30 +168,34 @@ setInternalState s (CNFDescription nv nc _) = do
 -- | constructor
 newSolver :: MiosConfiguration -> IO Solver
 newSolver conf = Solver
+            -- Public Interface
             <$> newVecBool 0 False  -- model
             <*> newStack 0          -- coflict
-            <*> newClauseManager 1  -- constrs
+            -- Clause Database
+            <*> newClauseManager 1  -- clauses
             <*> newClauseManager 1  -- learnts
-            <*> newDouble 1.0       -- claInc
-            <*> newVecDouble 0 0    -- activities
-            <*> newDouble 1.0       -- varInc
-            <*> newVarHeap 0        -- order
             <*> newWatcherLists 1 1 -- watches
---            <*> newVec 0          -- undos
+            -- Assignment Management
             <*> newVec 0            -- assigns
             <*> newStack 0          -- trail
             <*> newStack 0          -- trailLim
             <*> newInt 0            -- qHead
-            <*> newInt 0            -- decisionLevel
             <*> newClauseVector 0   -- reason
             <*> newVec 0            -- level
+            -- Variable Order
+            <*> newVecDouble 0 0    -- activities
+            <*> newVarHeap 0        -- order
+            -- Configuration
+            <*> return conf         -- config
+            <*> return 0            -- nVars
+            <*> newDouble 1.0       -- claInc
+            <*> newDouble 1.0       -- varInc
             <*> newInt 0            -- rootLevel
+            -- Working Memory
             <*> newVec 0            -- an_seen
             <*> newStack 0          -- an_toClear
             <*> newStack 0          -- an_stack
-            <*> return 0            -- nVars
             <*> newStack 0          -- litsLearnt
-            <*> return conf         -- config
 
 -- | returns @False@ if a conflict has occured.
 -- This function is called only before the solving phase to register the given clauses.
@@ -198,7 +206,7 @@ addClause s@Solver{..} vecLits = do
   case result of
    (False, _) -> return False   -- Conflict occured
    (True, c)  -> do
-     unless (c == NullClause) $ pushClause constrs c
+     unless (c == NullClause) $ pushClause clauses c
      return True                -- No conflict
 
 -- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists
@@ -314,8 +322,7 @@ enqueue s@Solver{..} p from = do
     else do
         -- New fact, store it
         setNth assigns v $! signumP
-        d <- getInt decisionLevel
-        setNth level v d
+        setNth level v =<< decisionLevel s
         setNthClause reason v from     -- NOTE: @from@ might be NULL!
         pushToStack trail p
         return True
@@ -328,14 +335,13 @@ enqueue s@Solver{..} p from = do
 assume :: Solver -> Lit -> IO Bool
 assume s@Solver{..} p = do
   pushToStack trailLim =<< sizeOfStack trail
-  modifyInt decisionLevel (+ 1)
   enqueue s p NullClause
 
 -- | #M22: Revert to the states at given level (keeping all assignment at 'level' but not beyond).
 {-# INLINABLE cancelUntil #-}
 cancelUntil :: Solver -> Int -> IO ()
 cancelUntil s@Solver{..} lvl = do
-  dl <- getInt decisionLevel
+  dl <- decisionLevel s
   when (lvl < dl) $ do
     let tr = asVec trail
     let tl = asVec trailLim
@@ -360,7 +366,6 @@ cancelUntil s@Solver{..} lvl = do
     shrinkStack trail (ts - lim)
     shrinkStack trailLim (ls - lvl)
     setInt qHead =<< sizeOfStack trail
-    setInt decisionLevel lvl
 
 -------------------------------------------------------------------------------- VarOrder
 

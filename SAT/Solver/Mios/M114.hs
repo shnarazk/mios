@@ -85,7 +85,7 @@ remove c@Clause{..} i Solver{..} = do
   removeClause (getNthWatchers watches l1) c
   l2 <- negateLit <$> getNth lvec 1
   removeClause (getNthWatchers watches l2) c
-  removeNthClause (if learnt then learnts else constrs) i
+  removeNthClause (if learnt then learnts else clauses) i
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
 -- simplify its representation (returns @False@) or state that the constraint is
@@ -159,7 +159,7 @@ analyze s@Solver{..} confl = do
   clearStack litsLearnt
   pushToStack litsLearnt 0 -- reserve the first place for the unassigned literal
   setAll an_seen 0   -- FIXME: it should be done in a valid place; not here.
-  dl <- getInt decisionLevel
+  dl <- decisionLevel s
   let
     litsVec = asVec litsLearnt
     trailVec = asVec trail
@@ -557,7 +557,7 @@ simplifyDB s@Solver{..} = do
           for :: Int -> IO Bool
           for ((< 2) -> False) = return True
           for t = do
-            let ptr = if t == 0 then learnts else constrs
+            let ptr = if t == 0 then learnts else clauses
             vec <- getClauseVector ptr
             let
               loopOnVector :: Int -> Int -> IO Bool
@@ -590,7 +590,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
     loop :: Int -> IO LiftedBool
     loop conflictC = do
       !confl <- propagate s
-      d <- getInt decisionLevel
+      d <- decisionLevel s
       if confl /= NullClause
         then do
             -- CONFLICT
@@ -669,7 +669,7 @@ solve s@Solver{..} assumps = do
   if not x
     then return False
     else do
-        setInt rootLevel =<< getInt decisionLevel
+        setInt rootLevel =<< decisionLevel s
         -- SOLVE:
         let
           while :: LiftedBool -> Double -> Double -> IO Bool
@@ -686,6 +686,6 @@ unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
 unsafeEnqueue s@Solver{..} p from = do
   let v = lit2var p
   setNth assigns v $! if positiveLit p then lTrue else lFalse
-  setNth level v =<< getInt decisionLevel
+  setNth level v =<< decisionLevel s
   setNthClause reason v from     -- NOTE: @from@ might be NULL!
   pushToStack trail p
