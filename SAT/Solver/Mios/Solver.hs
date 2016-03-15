@@ -369,14 +369,6 @@ cancelUntil s@Solver{..} lvl = do
 
 -------------------------------------------------------------------------------- VarOrder
 
-
--- | For small-sized problems, heap may not be a good choice.
-useHeap :: Int
-useHeap = 100 -- 0000
--- | For small-sized problems, randomess may lead to worse results.
-useRand :: Int
-useRand = 100
-
 -- | Interfate to select a decision var based on variable activity.
 instance VarOrder Solver where
   -- | __Fig. 6. (p.10)__
@@ -394,9 +386,9 @@ instance VarOrder Solver where
     -- growQueueSized (i + 1) propQ
     -- return i
   {-# SPECIALIZE INLINE update :: Solver -> Var -> IO () #-}
-  update s v = when (useHeap < nVars s) $ increase s v
+  update = increaseHeap
   {-# SPECIALIZE INLINE undo :: Solver -> Var -> IO () #-}
-  undo s v = when (useHeap < nVars s) $ inHeap s v >>= (`unless` insertHeap s v)
+  undo s v = inHeap s v >>= (`unless` insertHeap s v)
   {-# SPECIALIZE INLINE select :: Solver -> IO Var #-}
   select s = do
     let
@@ -412,18 +404,6 @@ instance VarOrder Solver where
               v <- getHeapRoot s
               val <- getNth asg v
               if val == lBottom then return v else loop
-      -- | O(n) implementation on vector: loop2 1 0 (-1)
-      loop2 :: Int -> Int -> Double -> IO Var
-      loop2 ((<= nv) -> False) j _ = return j
-      loop2 i j best = do
-        x <- getNth asg i
-        if x == lBottom
-          then do
-              actv <- getNthDouble i $ activities s
-              if best < actv
-                then loop2 (i + 1) i actv
-                else loop2 (i + 1) j best
-          else loop2 (i + 1) j best
     -- the threshold used in MiniSat 1.14 is 0.02, namely 20/1000
     -- But it is 0 in MiniSat 2.20
     let rd = randomDecisionRate (config s)
@@ -434,9 +414,9 @@ instance VarOrder Solver where
             then do
                 !i <- (+ 1) . flip mod nv <$> randomIO
                 x <- getNth asg i
-                if x == lBottom then return i else if useHeap < nv then loop else loop2 1 0 (-1)
-            else if useHeap < nv then loop else loop2 1 0 (-1)
-      else if useHeap < nv then loop else loop2 1 0 (-1)
+                if x == lBottom then return i else loop
+            else loop
+      else loop
 
 -------------------------------------------------------------------------------- Activities
 
@@ -517,9 +497,9 @@ numElementsInHeap (order -> heap -> h) = getNth h 0
 inHeap :: Solver -> Var -> IO Bool
 inHeap (order -> idxs -> at) n = (/= 0) <$> getNth at n
 
-{-# INLINE increase #-}
-increase :: Solver -> Int -> IO ()
-increase s@(order -> idxs -> at) n = inHeap s n >>= (`when` (percolateUp s =<< getNth at n))
+{-# INLINE increaseHeap #-}
+increaseHeap :: Solver -> Int -> IO ()
+increaseHeap s@(order -> idxs -> at) n = inHeap s n >>= (`when` (percolateUp s =<< getNth at n))
 
 {-# INLINABLE percolateUp #-}
 percolateUp :: Solver -> Int -> IO ()

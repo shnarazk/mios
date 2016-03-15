@@ -18,7 +18,7 @@ module SAT.Solver.Mios.M114
        )
         where
 
-import Control.Monad ((<=<), forM_, unless, void, when)
+import Control.Monad (forM_, unless, void, when)
 import Data.Bits
 import Data.Foldable (foldrM)
 import SAT.Solver.Mios.Types
