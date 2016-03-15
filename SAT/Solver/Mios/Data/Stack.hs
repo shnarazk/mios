@@ -2,21 +2,15 @@
 {-# LANGUAGE
     BangPatterns
   , FlexibleInstances
-  , FunctionalDependencies
   , MagicHash
   , MultiParamTypeClasses
   , RecordWildCards
   , TupleSections
   , TypeFamilies
   , UndecidableInstances
-  , ViewPatterns
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | This is the implementation pack __version 0.8 #diveIntoCore
---
--- * __ListOfInt__  @:: Data.Vector.Unboxed.IOVector INT@ -- vector for a bounded number of Ints
---
 module SAT.Solver.Mios.Data.Stack
        (
          Stack
@@ -34,8 +28,6 @@ module SAT.Solver.Mios.Data.Stack
 import qualified Data.Vector.Unboxed.Mutable as UV
 import SAT.Solver.Mios.Types
 
--- | __version 0.1__ : pointing a list by IORef
---
 newtype Stack = Stack
                   {
                     ivec :: UV.IOVector Int

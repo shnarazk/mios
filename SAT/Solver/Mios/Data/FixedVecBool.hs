@@ -1,14 +1,10 @@
 {-# LANGUAGE
-    BangPatterns
-  , FlexibleInstances
-  , FunctionalDependencies
+   FlexibleInstances
   , MagicHash
   , MultiParamTypeClasses
-  , RecordWildCards
   , TupleSections
   , TypeFamilies
   , UndecidableInstances
-  , ViewPatterns
   #-}
 {-# LANGUAGE Trustworthy #-}
 
@@ -27,13 +23,9 @@ module SAT.Solver.Mios.Data.FixedVecBool
        where
 
 import Control.Monad (forM)
-import Data.List ()
 import qualified Data.Vector.Unboxed.Mutable as UV
 import SAT.Solver.Mios.Types (VectorFamily(..))
 
--- | __version 0.3__
---
--- Costs of all operations are /O/(/1/)
 type FixedVecBool = UV.IOVector Bool
 
 -- | provides 'clear' and 'size'

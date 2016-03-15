@@ -1,21 +1,15 @@
 {-# LANGUAGE
     BangPatterns
   , FlexibleInstances
-  , FunctionalDependencies
   , MagicHash
   , MultiParamTypeClasses
   , RecordWildCards
   , TupleSections
   , TypeFamilies
   , UndecidableInstances
-  , ViewPatterns
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | This is the implementation pack __version 0.6 #activityEstimation
---
--- * __FixedVecDouble@::UV.IOVector Double@ -- data type that contains a mutable list of elements
---
 module SAT.Solver.Mios.Data.FixedVecDouble
        (
          FixedVecDouble
@@ -31,15 +25,11 @@ import Data.List ()
 import qualified Data.Vector.Unboxed.Mutable as UV
 import SAT.Solver.Mios.Types (VectorFamily(..))
 
--- | __version 0.3__
---
--- Costs of all operations are /O/(/1/)
 newtype FixedVecDouble = FixedVecDouble
                           {
                             doubleVec :: UV.IOVector Double
                           }
 
--- | provides 'clear' and 'size'
 instance VectorFamily FixedVecDouble Double where
   clear FixedVecDouble{..} = error "FixedVecDouble.clear"
   asList FixedVecDouble{..} = forM [0 .. UV.length doubleVec - 1] $ UV.unsafeRead doubleVec
@@ -54,12 +44,12 @@ newVecDouble n x = do
 
 {-# INLINE getNthDouble #-}
 getNthDouble :: Int -> FixedVecDouble -> IO Double
-getNthDouble !n !(FixedVecDouble doubleVec) = UV.unsafeRead doubleVec n
+getNthDouble !n (FixedVecDouble doubleVec) = UV.unsafeRead doubleVec n
 
 {-# INLINE setNthDouble #-}
 setNthDouble :: Int -> FixedVecDouble -> Double -> IO ()
-setNthDouble !n !(FixedVecDouble doubleVec) !x = UV.unsafeWrite doubleVec n x
+setNthDouble !n (FixedVecDouble doubleVec) !x = UV.unsafeWrite doubleVec n x
 
 {-# INLINE modifyNthDouble #-}
 modifyNthDouble :: Int -> FixedVecDouble -> (Double -> Double) -> IO ()
-modifyNthDouble !n !(FixedVecDouble doubleVec) !f = UV.unsafeModify doubleVec f n
+modifyNthDouble !n (FixedVecDouble doubleVec) !f = UV.unsafeModify doubleVec f n

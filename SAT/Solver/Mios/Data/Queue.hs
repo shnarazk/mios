@@ -1,15 +1,11 @@
--- | This is stack of Int, not a list!
+-- | This is stack of Int, not in use since 1.1
 {-# LANGUAGE
     BangPatterns
   , FlexibleInstances
-  , FunctionalDependencies
-  , MagicHash
   , MultiParamTypeClasses
-  , RecordWildCards
   , TupleSections
   , TypeFamilies
   , UndecidableInstances
-  , ViewPatterns
   #-}
 {-# LANGUAGE Trustworthy #-}
 
@@ -25,12 +21,8 @@ module SAT.Solver.Mios.Data.Queue
        )
        where
 
-import Control.Monad (when)
 import qualified Data.Vector.Unboxed.Mutable as UV
-import SAT.Solver.Mios.Types
 
--- | __version 1.1__ : Unboxed.Mutable.IOVector
---
 type Queue = UV.IOVector Int
 
 {-# INLINABLE newQueue #-}
