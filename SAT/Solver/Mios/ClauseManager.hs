@@ -85,12 +85,13 @@ newClauseManager initialSize = do
 numberOfClauses :: ClauseManager -> IO Int
 numberOfClauses ClauseManager{..} = getInt _nActives
 
+{-# INLINE clearClauseManager #-}
 clearClauseManager :: ClauseManager -> IO ()
 clearClauseManager ClauseManager{..} = setInt _nActives 0
 
 {-# INLINE shrinkClauseManager #-}
 shrinkClauseManager :: ClauseManager -> Int -> IO ()
-shrinkClauseManager ClauseManager{..} = setInt _nActives
+shrinkClauseManager ClauseManager{..} k = modifyInt _nActives (subtract k)
 
 {-# INLINE getClauseVector #-}
 getClauseVector :: ClauseManager -> IO ClauseVector
@@ -149,6 +150,7 @@ instance VectorFamily ClauseManager C.Clause where
           sts <- mapM (dump ",") (l :: [C.Clause])
           return $ mes ++ "[" ++ show n ++ "]" ++ tail (concat sts)
 
+-- | for debug
 checkConsistency :: ClauseManager -> C.Clause -> IO ()
 checkConsistency ClauseManager{..} c = do
   nc <- getInt _nActives
