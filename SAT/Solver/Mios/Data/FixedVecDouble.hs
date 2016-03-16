@@ -25,31 +25,28 @@ import Data.List ()
 import qualified Data.Vector.Unboxed.Mutable as UV
 import SAT.Solver.Mios.Types (VectorFamily(..))
 
-newtype FixedVecDouble = FixedVecDouble
-                          {
-                            doubleVec :: UV.IOVector Double
-                          }
+type FixedVecDouble = UV.IOVector Double
 
 instance VectorFamily FixedVecDouble Double where
-  clear FixedVecDouble{..} = error "FixedVecDouble.clear"
-  asList FixedVecDouble{..} = forM [0 .. UV.length doubleVec - 1] $ UV.unsafeRead doubleVec
+  clear _ = error "FixedVecDouble.clear"
+  asList v = forM [0 .. UV.length v - 1] $ UV.unsafeRead v
   dump str v = (str ++) . show <$> asList v
 
 newVecDouble :: Int -> Double -> IO FixedVecDouble
-newVecDouble n 0 = FixedVecDouble <$> UV.new n
+newVecDouble n 0 = UV.new n
 newVecDouble n x = do
   v <- UV.new n
   UV.set v x
-  return $ FixedVecDouble v
+  return v
 
 {-# INLINE getNthDouble #-}
 getNthDouble :: Int -> FixedVecDouble -> IO Double
-getNthDouble !n (FixedVecDouble doubleVec) = UV.unsafeRead doubleVec n
+getNthDouble !n v = UV.unsafeRead v n
 
 {-# INLINE setNthDouble #-}
 setNthDouble :: Int -> FixedVecDouble -> Double -> IO ()
-setNthDouble !n (FixedVecDouble doubleVec) !x = UV.unsafeWrite doubleVec n x
+setNthDouble !n v !x = UV.unsafeWrite v n x
 
 {-# INLINE modifyNthDouble #-}
 modifyNthDouble :: Int -> FixedVecDouble -> (Double -> Double) -> IO ()
-modifyNthDouble !n (FixedVecDouble doubleVec) !f = UV.unsafeModify doubleVec f n
+modifyNthDouble !n v !f = UV.unsafeModify v f n
