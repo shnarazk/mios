@@ -630,7 +630,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                v <- select s -- many have heuristic for polarity here
                -- << #phasesaving
                oldVal <- valueVar s v
-               assume s $ var2lit v (0 < oldVal) -- cannot return @False@
+               unsafeAssume s $ var2lit v (0 < oldVal) -- cannot return @False@
                -- >> #phasesaving
                loop conflictC
   loop 0
@@ -689,3 +689,10 @@ unsafeEnqueue s@Solver{..} p from = do
   setNth level v =<< decisionLevel s
   setNthClause reason v from     -- NOTE: @from@ might be NULL!
   pushToStack trail p
+
+-- __Pre-condition:__ propagation queue is empty
+{-# INLINE unsafeAssume #-}
+unsafeAssume :: Solver -> Lit -> IO ()
+unsafeAssume s@Solver{..} p = do
+  pushToStack trailLim =<< sizeOfStack trail
+  unsafeEnqueue s p NullClause
