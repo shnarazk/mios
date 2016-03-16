@@ -105,12 +105,12 @@ decisionLevel Solver{..} = sizeOfStack trailLim
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Var'
 {-# INLINE valueVar #-}
 valueVar :: Solver -> Var -> IO Int
-valueVar !s !x = getNth (assigns s) x
+valueVar s !x = getNth (assigns s) x
 
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit'
 {-# INLINE valueLit #-}
 valueLit :: Solver -> Lit -> IO Int -- FIXME: LiftedBool
-valueLit !Solver{..} !p = if positiveLit p then getNth assigns (lit2var p) else negate <$> getNth assigns (lit2var p)
+valueLit Solver{..} !p = if positiveLit p then getNth assigns (lit2var p) else negate <$> getNth assigns (lit2var p)
 
 -- | __Fig. 7. (p.11)__
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__
@@ -130,8 +130,6 @@ setInternalState s (CNFDescription nv nc _) = do
   m2 <- newClauseManager nc
   ac <- newVecDouble (nv + 1) 0.0
   w <- newWatcherLists nv (div (2 * nc) nv)
---  u <- newVec 0 -- nv
-  -- forM_ [0 .. nv - 1] $ \i -> setVecAt u i =<< newVec 0
   a <- newVecWith (nv + 1) lBottom
   t <- newStack nv
   t' <- newStack nv
@@ -150,7 +148,6 @@ setInternalState s (CNFDescription nv nc _) = do
            , clauses = m1
            , learnts = m2
            , watches = w
---           , undos = u
            , assigns = a
            , trail = t
            , trailLim = t'
