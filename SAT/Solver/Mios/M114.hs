@@ -438,21 +438,23 @@ propagateLit c@(asVec -> cv) s@Solver{..} !np = do -- this is slow
 {-# INLINABLE reduceDB #-}
 reduceDB :: Solver -> IO ()
 reduceDB s@Solver{..} = do
-  ci <- getDouble claInc
   nL <- nLearnts s
-  let lim = ci / fromIntegral nL
-  let bePurged c = do
-        l <- sizeOfClause c
-        if l == 2 then return False else not <$> locked c s
-  let bePurged' c = do        -- the purge condition is less severe
-        l <- sizeOfClause c
-        if l == 2
-          then return False
-          else do
-              l' <- locked c s
-              if l'
-                then return False
-                else (< lim) <$> getDouble (activity c)
+  extraLim <- (/ fromIntegral nL) <$> getDouble claInc
+  let
+    bePurged :: Clause -> IO Bool
+    bePurged c = do
+      l <- sizeOfClause c
+      if l == 2 then return False else not <$> locked c s
+    bePurged' :: Clause -> IO Bool
+    bePurged' c = do        -- the purge condition is less severe
+      l <- sizeOfClause c
+      if l == 2
+        then return False
+        else do
+            l' <- locked c s
+            if l'
+              then return False
+              else (< extraLim) <$> getDouble (activity c)
   vec <- getClauseVector learnts
   let
     half = div nL 2
@@ -474,7 +476,10 @@ sortOnActivity cm = do
   vec <- getClauseVector cm
   let
     keyOf :: Int -> IO Double
-    keyOf i = negate <$> (getDouble . activity =<< getNthClause vec i)
+    keyOf i = do
+      c <- getNthClause vec i
+      k <- sizeOfClause c
+      if k == 2 then return (-1e100) else negate <$> getDouble (activity c)
     sortOnRange :: Int -> Int -> IO ()
     sortOnRange left right
       | left >= right = return ()
