@@ -616,9 +616,6 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
             case () of
              _ | k2 == nVars -> do
                    -- Model found:
-                   -- (model `growTo`) nv
-                   -- nv <- nVars s
-                   -- forM_ [1 .. nv] $ \i -> setAt model i =<< (lTrue ==) <$> assigns .! i
                    forM_ [0 .. nVars - 1] $ \i -> setNthBool model i . (lTrue ==) =<< getNth assigns (i + 1)
                    return LTrue
              _ | conflictC >= nOfConflicts -> do
