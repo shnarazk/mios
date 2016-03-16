@@ -38,7 +38,7 @@ module SAT.Solver.Mios.Solver
        )
         where
 
-import Control.Monad ((<=<), forM_, unless, when)
+import Control.Monad ((<=<), forM_, unless, void, when)
 import System.Random (mkStdGen, randomIO, setStdGen)
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Internal
@@ -512,13 +512,13 @@ percolateUp Solver{..} start = do
     loop i = do
       let iP = div i 2          -- parent
       if iP == 0
-        then setNth to i v >> setNth at v i >> return () -- end
+        then setNth to i v >> setNth at v i -- end
         else do
             v' <- getNth to iP
             acP <- getNthDouble v' activities
             if ac > acP
               then setNth to i v' >> setNth at v' i >> loop iP -- loop
-              else setNth to i v >> setNth at v i >> return () -- end
+              else setNth to i v >> setNth at v i              -- end
   loop start
 
 {-# INLINABLE percolateDown #-}
@@ -542,8 +542,8 @@ percolateDown Solver{..} start = do
             let (ci, child, ac') = if iR <= n && acL < acR then (iR, r, acR) else (iL, l, acL)
             if ac' > ac
               then setNth to i child >> setNth at child i >> loop ci
-              else setNth to i v >> setNth at v i >> return () -- end
-        else setNth to i v >> setNth at v i >> return ()       -- end
+              else setNth to i v >> setNth at v i -- end
+        else setNth to i v >> setNth at v i       -- end
   loop start
 
 {-# INLINE insertHeap #-}
