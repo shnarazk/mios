@@ -28,9 +28,15 @@ import SAT.Solver.Mios.ClauseManager
 import SAT.Solver.Mios.WatcherLists
 import SAT.Solver.Mios.Solver
 
---
--- no 'removeWatch' in mios
---
+-- | #114: __RemoveWatch__
+{-# INLINABLE removeWatch #-}
+removeWatch :: Solver -> Clause -> IO ()
+removeWatch Solver{..} c  = do
+  let lvec = asVec c
+  l1 <- negateLit <$> getNth lvec 0
+  removeClause (getNthWatchers watches l1) c
+  l2 <- negateLit <$> getNth lvec 1
+  removeClause (getNthWatchers watches l2) c
 
 --------------------------------------------------------------------------------
 -- Operations on 'Clause'
@@ -73,19 +79,6 @@ newLearntClause s@Solver{..} ps = do
      pushClause (getNthWatchers watches l1) c
      -- update the solver state by @l@
      unsafeEnqueue s l c
-
--- | #114: __Remove.__ The 'remove' method supplants the destructor by receiving
--- the solver state as a parameter. It should dispose the constraint and
--- remove it from the watcher lists.
-{-# INLINABLE remove #-}
-remove :: Clause -> Int -> Solver -> IO ()
-remove c@Clause{..} i Solver{..} = do
-  let lvec = asVec c
-  l1 <- negateLit <$> getNth lvec 0
-  removeClause (getNthWatchers watches l1) c
-  l2 <- negateLit <$> getNth lvec 1
-  removeClause (getNthWatchers watches l2) c
-  removeNthClause (if learnt then learnts else clauses) i
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
 -- simplify its representation (returns @False@) or state that the constraint is
@@ -448,53 +441,31 @@ reduceDB s@Solver{..} = do
   ci <- getDouble claInc
   nL <- nLearnts s
   let lim = ci / fromIntegral nL
-  -- new engine 0.8
-  let isRequired c = do
+  let bePurged c = do
+        l <- sizeOfClause c
+        if l == 2 then return False else not <$> locked c s
+  let bePurged' c = do        -- the purge condition is less severe
         l <- sizeOfClause c
         if l == 2
-          then return True
+          then return False
           else do
-              l <- locked c s
-              if l
-                then return True
-                else (lim <=) <$> getDouble (activity c)
-  let isRequired' c = do
-        l <- sizeOfClause c
-        if l == 2 then return True else locked c s
-{-
-  let isRequired c = do
-        l <- sizeOfClause c
-        if l == 2
-          then putStr "B" >> return True
-          else do
-              l <- locked c s
-              if l
-                then putStr "L" >> return True
-                else do
-                    r <- (lim <=) <$> getDouble (activity c)
-                    putStr $ if r then "U" else "_"
-                    return r
-  let isRequired' c = do
-        l <- sizeOfClause c
-        if l == 2
-          then putStr "B" >> return True
-          else do
-              l <- locked c s
-              if l
-                then putStr "L" >> return True
-                else putStr "_" >> return False
--}
+              l' <- locked c s
+              if l'
+                then return False
+                else (< lim) <$> getDouble (activity c)
   vec <- getClauseVector learnts
   let
     half = div nL 2
     loopOn :: Int -> Int -> IO ()
-    loopOn i j =
-      when (i < j) $ do
-        c <- getNthClause vec i
-        yes <- if i < half then isRequired c else isRequired' c
-        if yes then loopOn (i + 1) j else remove c i s >> loopOn i (j - 1)
-  sortOnActivity learnts
-  loopOn 0 nL
+    loopOn ((< nL) -> False) j = shrinkClauseManager learnts (nL - j)
+    loopOn i j = do
+      c <- getNthClause vec i
+      noneed <- if i < half then bePurged' c else bePurged c -- better is former
+      if noneed
+        then removeWatch s c >> loopOn (i + 1) j
+        else setNthClause vec j c >> loopOn (i + 1) (j + 1)
+  sortOnActivity learnts        -- CAVEAT: the order is reversed, compared with MiniSat 1.14
+  loopOn 0 0
 
 -- | (Big to small) Quick sort on a clause vector based on their activities
 sortOnActivity :: ClauseManager -> IO ()
@@ -554,15 +525,17 @@ simplifyDB s@Solver{..} = do
           for t = do
             let ptr = if t == 0 then learnts else clauses
             vec <- getClauseVector ptr
+            n <- numberOfClauses ptr
             let
               loopOnVector :: Int -> Int -> IO Bool
-              loopOnVector i n
-                | i == n = return True
-                | otherwise = do
+              loopOnVector ((< n) -> False) j = shrinkClauseManager ptr (n - j) >> return True
+              loopOnVector i j = do
                     c <- getNthClause vec i
                     r <- simplify c s
-                    if r then remove c i s >> loopOnVector i (n - 1) else loopOnVector (i + 1) n
-            loopOnVector 0 =<< numberOfClauses ptr
+                    if r
+                      then removeWatch s c >> loopOnVector (i + 1) j
+                      else setNthClause vec j c >> loopOnVector (i + 1) (j + 1)
+            loopOnVector 0 0
         for 0
 
 -- | #M22
