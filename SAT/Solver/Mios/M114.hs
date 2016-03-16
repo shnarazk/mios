@@ -383,11 +383,11 @@ propagate s@Solver{..} = do
                 | otherwise = do
                     c <- getNthClause vec i
                     x <- propagateLit c s np
-                    -- This function inserts @c@ into an apropriate watchers here
+                    -- @c@ will be inserted into an apropriate watchers here
                     case x of
-                      1  {- still in -} -> loopOnWatcher (i + 1) n
-                      -1 {- conflict -} -> (setInt qHead =<< sizeOfStack trail) >> return c
-                      _  {- it moved -} -> removeNthClause w i >> loopOnWatcher i (n - 1)
+                      LTrue  {- satisfied -} -> loopOnWatcher (i + 1) n
+                      LFalse {- conflict  -} -> (setInt qHead =<< sizeOfStack trail) >> return c
+                      Bottom {- it moved  -} -> removeNthClause w i >> loopOnWatcher i (n - 1)
             loopOnWatcher 0 =<< numberOfClauses w
   loopOnQueue
 
@@ -402,7 +402,7 @@ propagate s@Solver{..} = do
 -- | returns @True@ if no conflict occured
 -- this is invoked by 'propagate'
 {-# INLINABLE propagateLit #-}
-propagateLit :: Clause -> Solver -> Lit -> IO Int -- FIXME: LiftedBool
+propagateLit :: Clause -> Solver -> Lit -> IO LiftedBool
 -- | This function checks clause satisfiabiliy eagerly as Minisat 2.2.
 -- But @blocker@ is not used (implemented).
 propagateLit c@(asVec -> cv) s@Solver{..} !np = do -- this is slow
@@ -417,18 +417,13 @@ propagateLit c@(asVec -> cv) s@Solver{..} !np = do -- this is slow
     else                   -- then check the watcher's satisfiability and return it if needed
       (\x -> if lTrue == x then 0 else l0) <$> valueLit s l0
   if lit == 0 -- this means the clause is satisfied, so we keep @c@ in the original watcher list
-    then return lTrue
+    then return LTrue
     else do
         -- Look for a new literal to watch:
         !n <- sizeOfClause c
         let
-          loopOnLits :: Int -> IO Int -- FIXME: LiftedBool
-          loopOnLits ((< n) -> False) = do
-            -- Clause is unit under assignment:
-            noconf <- enqueue s lit c
-            if noconf
-              then return lTrue  -- By returning lTrue, it remains in the original watcher list
-              else return lFalse -- A conflict occures
+          loopOnLits :: Int -> IO LiftedBool
+          loopOnLits ((< n) -> False) = lbool <$> enqueue s lit c -- Clause is unit under assignment:
           loopOnLits i = do
             !(l :: Lit) <- getNth cv i
             !val <- valueLit s l
@@ -437,7 +432,7 @@ propagateLit c@(asVec -> cv) s@Solver{..} !np = do -- this is slow
                   swapBetween cv 1 i
                   -- @removeClause m c@ will be done by propagate
                   pushClause (getNthWatchers watches (negateLit l)) c
-                  return lBottom
+                  return Bottom
               else loopOnLits $ i + 1
         loopOnLits 2
 
