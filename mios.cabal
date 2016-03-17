@@ -102,7 +102,7 @@ executable mios
     SAT.Solver.Mios.Validator
     SAT.Solver.Mios.WatcherLists
 
-executable mios-M11
+executable mios-1.0.99
   main-is:            app/mios.hs
   if flag(devel)
     buildable:	       True
@@ -132,7 +132,7 @@ executable mios-M11
     SAT.Solver.Mios.Validator
     SAT.Solver.Mios.WatcherLists
 
-executable mios-M11-prof
+executable mios-1.0.99-prof
   main-is:            app/mios.hs
   if flag(profile) && flag(devel)
     buildable:	       True
@@ -167,7 +167,7 @@ Test-Suite doctest
   main-Is:              doctest.hs
   build-depends:        base, doctest >= 0.9.3
 
-Benchmark mios-M11-benchmark
+Benchmark mios-1.0.99-benchmark
   type:    exitcode-stdio-1.0
   main-is: test/mios-criterion.hs
   default-language:	Haskell2010
@@ -176,7 +176,7 @@ Benchmark mios-M11-benchmark
                           primitive ==0.6.*, random ==1.*,
                           criterion == 1.*
 
-executable mios-M11-cr
+executable mios-1.0.99-cr
   main-is: test/mios-criterion.hs
   default-language:	Haskell2010
   if flag(criterion) && flag(devel)

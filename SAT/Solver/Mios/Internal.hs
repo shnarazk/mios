@@ -12,7 +12,7 @@ import SAT.Solver.Mios.Data.Stack as Plumbing
 
 -- | version name
 versionId :: String
-versionId = "mios M114; bitEncode, singleStack"
+versionId = "mios 1.0.99 #M114" -- bitEncode, singleStack
 
 -- | solver's parameter configuration
 data MiosConfiguration = MiosConfiguration
