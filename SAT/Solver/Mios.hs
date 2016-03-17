@@ -7,6 +7,7 @@ module SAT.Solver.Mios
          versionId
        , CNFDescription (..)
        , module SAT.Solver.Mios.OptionParser
+       , runSolver
        , solveSAT
        , solveSATWithConfiguration
 --       , cnfFromFile
@@ -19,10 +20,10 @@ module SAT.Solver.Mios
        , validateAssignment
        , validate
          -- * For standalone programs
-       , runSolverOn
-       , runSolver
-       , runValidatorOn
-       , runValidator
+       , executeSolverOn
+       , executeSolver
+       , executeValidatorOn
+       , executeValidator
          -- * output
        , dumpAssigmentAsCNF
        )
@@ -49,15 +50,15 @@ import SAT.Solver.Mios.Validator
 -- v[v[0] + 1] ..    == allocated but not-in-use elements
 type SizedVectorInt = U.Vector Int
 
--- | runs a solver on the given CNF file 
+-- | executes a solver on the given CNF file
 -- This is the simplest entry to standalone programs; not for Haskell programs
-runSolverOn :: FilePath -> IO ()
-runSolverOn path = runSolver (miosDefaultOption { _targetFile = Just path })
+executeSolverOn :: FilePath -> IO ()
+executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just path })
 
--- | runs a solver on the given 'arg :: MiosConfiguration'
+-- | executes a solver on the given 'arg :: MiosConfiguration'
 -- | This is another entry point for standalone programs.
-runSolver :: MiosProgramOption -> IO ()
-runSolver opts@(_targetFile -> target@(Just cnfFile)) = do
+executeSolver :: MiosProgramOption -> IO ()
+executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
   str <- B.readFile cnfFile
   let ((n, m), clauses) = buildDescription str
   let desc = CNFDescription n m target
@@ -95,7 +96,7 @@ runSolver opts@(_targetFile -> target@(Just cnfFile)) = do
          then putStrLn $ if ok then "a vaild answer" else "mios returns a wrong answer"
          else unless ok $ error "mios returns a wrong answer"
 
-runSolver _ = return ()
+executeSolver _ = return ()
 
 {-# INLINE injectClauses #-}
 injectClauses :: Solver -> Int -> Int -> B.ByteString -> IO ()
@@ -138,6 +139,25 @@ buildDescription bs = if B.head bs == 'p' then (parseP l, B.tail bs') else build
         _ -> (0, 0)
       _ -> (0, 0)
 
+-- | new top-level interface that returns
+--
+-- * conflicting literal set :: Left [Int]
+-- * satisfiable assignment :: Right [Int]
+--
+runSolver :: Traversable t => MiosConfiguration -> CNFDescription -> t [Int] -> IO (Either [Int] [Int])
+runSolver m d c = do
+  s <- newSolver m >>= (`setInternalState` d)
+  mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . map int2lit)) c
+  noConf <- simplifyDB s
+  if noConf
+    then do
+        x <- solve s []
+        if x
+            then Right . zipWith (\n b -> if b then n else negate n) [1 .. ] <$> asList (model s)
+            else Left .  map lit2int <$> asList (conflict s)
+    else return $ Left []
+
+
 -- | the easiest interface for Haskell programs
 -- This returns the result @::[[Int]]@ for a given @(CNFDescription, [[Int]])@
 -- The first argument @target@ can be build by @Just target <- cnfFromFile targetfile@.
@@ -163,13 +183,13 @@ solveSATWithConfiguration conf desc clauses = do
 
 -- | validates a given assignment from STDIN for the CNF file (2nd arg)
 -- this is the entry point for standalone programs
-runValidatorOn :: FilePath -> IO ()
-runValidatorOn path = runValidator (miosDefaultOption { _targetFile = Just path })
+executeValidatorOn :: FilePath -> IO ()
+executeValidatorOn path = executeValidator (miosDefaultOption { _targetFile = Just path })
 
 -- | validates a given assignment for the problem (2nd arg)
 -- this is another entry point for standalone programs; see app/mios.hs
-runValidator :: MiosProgramOption -> IO ()
-runValidator opts@(_targetFile -> target@(Just cnfFile)) = do
+executeValidator :: MiosProgramOption -> IO ()
+executeValidator opts@(_targetFile -> target@(Just cnfFile)) = do
   str <- B.readFile cnfFile
   let ((n, m), clauses) = buildDescription str
   let desc = CNFDescription n m target
@@ -191,7 +211,7 @@ runValidator opts@(_targetFile -> target@(Just cnfFile)) = do
        then putStrLn "It's a valid assignment." >> exitSuccess
        else putStrLn "It's an invalid assignment." >> exitFailure
 
-runValidator _  = return ()
+executeValidator _  = return ()
 
 -- | returns True if a given assignment (2nd arg) satisfies the problem (1st arg)
 -- if you want to check the @answer@ which a @slover@ returned, run @solver `validate` answer@,
