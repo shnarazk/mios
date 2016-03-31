@@ -4,7 +4,7 @@ module SAT.Solver.Mios.OptionParser
        (
          MiosConfiguration (..)
        , defaultConfiguration
-       , MiosConfigurationOption (..)
+       , MiosProgramOption (..)
        , miosDefaultOption
        , miosOptions
        , miosUsage
@@ -19,14 +19,17 @@ import System.Environment (getArgs)
 import SAT.Solver.Mios.Internal (MiosConfiguration (..), defaultConfiguration)
 
 -- | configuration swithces
-data MiosConfigurationOption = MiosConfigurationOption
+data MiosProgramOption = MiosProgramOption
                      {
                        _targetFile :: Maybe String
+                     , _outputFile :: Maybe String
                      , _confVariableDecayRate :: Double
                      , _confClauseDecayRate :: Double
                      , _confRandomDecisionRate :: Int
                      , _confCheckAnswer :: Bool
                      , _confVerbose :: Bool
+                     , _confTimeProbe :: Bool
+                     , _confStatProbe :: Bool
                      , _confNoAnswer :: Bool
                      , _validateAssignment :: Bool
                      , _displayHelp :: Bool
@@ -34,15 +37,18 @@ data MiosConfigurationOption = MiosConfigurationOption
                      }
 
 -- | default option settings
-miosDefaultOption :: MiosConfigurationOption
-miosDefaultOption = MiosConfigurationOption
+miosDefaultOption :: MiosProgramOption
+miosDefaultOption = MiosProgramOption
   {
     _targetFile = Just ""
+  , _outputFile = Nothing
   , _confVariableDecayRate = variableDecayRate defaultConfiguration
   , _confClauseDecayRate = clauseDecayRate defaultConfiguration
   , _confRandomDecisionRate = randomDecisionRate defaultConfiguration
   , _confCheckAnswer = False
   , _confVerbose = False
+  , _confTimeProbe = False
+  , _confStatProbe = collectStats defaultConfiguration
   , _confNoAnswer = False
   , _validateAssignment = False
   , _displayHelp = False
@@ -50,7 +56,7 @@ miosDefaultOption = MiosConfigurationOption
   }
 
 -- | definition of mios option
-miosOptions :: [OptDescr (MiosConfigurationOption -> MiosConfigurationOption)]
+miosOptions :: [OptDescr (MiosProgramOption -> MiosProgramOption)]
 miosOptions =
   [
     Option ['d'] ["variable-decay-rate"]
@@ -62,23 +68,32 @@ miosOptions =
   , Option ['r'] ["random-decision-rate"]
     (ReqArg (\v c -> c { _confRandomDecisionRate = read v }) (show (_confRandomDecisionRate miosDefaultOption)))
     "[solver] random selection rate (0 - 1000)"
+  , Option [':'] ["validate-assignment"]
+    (NoArg (\c -> c { _validateAssignment = True }))
+    "[solver] read an assignment from STDIN and validate it"
+  , Option [] ["validate"]
+    (NoArg (\c -> c { _confCheckAnswer = True }))
+    "[solver] self-check the (satisfied) answer"
+  , Option ['o'] ["output"]
+    (ReqArg (\v c -> c { _outputFile = Just v })"file")
+    "[option] filename to store the result"
 {-
   , Option [] ["stdin"]
     (NoArg (\c -> c { _targetFile = Nothing }))
     "[option] read a CNF from STDIN instead of a file"
 -}
-  , Option [] ["validate"]
-    (NoArg (\c -> c { _confCheckAnswer = True }))
-    "[option] self-check the (satisfied) answer"
   , Option ['v'] ["verbose"]
     (NoArg (\c -> c { _confVerbose = True }))
     "[option] display misc information"
   , Option ['X'] ["hide-solution"]
     (NoArg (\c -> c { _confNoAnswer = True }))
     "[option] hide the solution"
-  , Option [':'] ["validate-assignment"]
-    (NoArg (\c -> c { _validateAssignment = True }))
-    "[option] read an assignment from STDIN and validate it"
+  , Option [] ["time"]
+    (NoArg (\c -> c { _confTimeProbe = True }))
+    "[option] display execution time"
+  , Option [] ["stat"]
+    (NoArg (\c -> c { _confStatProbe = True }))
+    "[option] display statistics information"
   , Option ['h'] ["help"]
     (NoArg (\c -> c { _displayHelp = True }))
     "[misc] display this help message"
@@ -91,8 +106,8 @@ miosOptions =
 miosUsage :: String -> String
 miosUsage mes = usageInfo mes miosOptions
 
--- | builds "MiosConfigurationOption" from string given as command option
-miosParseOptions :: String -> [String] -> IO MiosConfigurationOption
+-- | builds "MiosProgramOption" from string given as command option
+miosParseOptions :: String -> [String] -> IO MiosProgramOption
 miosParseOptions mes argv =
     case getOpt Permute miosOptions argv of
       (o, [], []) -> do
@@ -102,15 +117,16 @@ miosParseOptions mes argv =
         return $ conf { _targetFile = Just n }
       (_, _, errs) -> ioError (userError (concat errs ++ miosUsage mes))
 
--- | builds "MiosConfigurationOption" from a String
-miosParseOptionsFromArgs :: String -> IO MiosConfigurationOption
+-- | builds "MiosProgramOption" from a String
+miosParseOptionsFromArgs :: String -> IO MiosProgramOption
 miosParseOptionsFromArgs mes = miosParseOptions mes =<< getArgs
 
--- | converts "MiosConfigurationOption" into "SIHConfiguration"
-toMiosConf :: MiosConfigurationOption -> MiosConfiguration
+-- | converts "MiosProgramOption" into "SIHConfiguration"
+toMiosConf :: MiosProgramOption -> MiosConfiguration
 toMiosConf opts = MiosConfiguration
                  {
                    variableDecayRate = _confVariableDecayRate opts
                  , clauseDecayRate = _confClauseDecayRate opts
                  , randomDecisionRate = _confRandomDecisionRate opts
+                 , collectStats = _confStatProbe opts
                  }

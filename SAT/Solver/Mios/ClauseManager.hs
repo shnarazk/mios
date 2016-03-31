@@ -38,16 +38,15 @@ import Control.Monad (forM_, unless, when)
 import qualified Data.IORef as IORef
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
-import SAT.Solver.Mios.Types (ContainerLike (..))
+import SAT.Solver.Mios.Types
 import qualified SAT.Solver.Mios.Clause as C
-import SAT.Solver.Mios.Data.Singleton
 
 type ClauseVector = MV.IOVector C.Clause
 
-instance ContainerLike ClauseVector C.Clause where
+instance VectorFamily ClauseVector C.Clause where
   asList cv = V.toList <$> V.freeze cv
   dump mes cv = do
-    l <- take 10 <$> asList cv
+    l <- asList cv
     sts <- mapM (dump ",") (l :: [C.Clause])
     return $ mes ++ tail (concat sts)
 
@@ -86,12 +85,13 @@ newClauseManager initialSize = do
 numberOfClauses :: ClauseManager -> IO Int
 numberOfClauses ClauseManager{..} = getInt _nActives
 
+{-# INLINE clearClauseManager #-}
 clearClauseManager :: ClauseManager -> IO ()
 clearClauseManager ClauseManager{..} = setInt _nActives 0
 
 {-# INLINE shrinkClauseManager #-}
 shrinkClauseManager :: ClauseManager -> Int -> IO ()
-shrinkClauseManager ClauseManager{..} = setInt _nActives
+shrinkClauseManager ClauseManager{..} k = modifyInt _nActives (subtract k)
 
 {-# INLINE getClauseVector #-}
 getClauseVector :: ClauseManager -> IO ClauseVector
@@ -123,6 +123,7 @@ removeNthClause ClauseManager{..} i = do
   setInt _nActives n
 
 -- | O(n) but lightweight remove-and-compact function
+-- __Pre-conditions:__ the clause manager is empty or the clause is stored in it.
 {-# INLINE removeClause #-}
 removeClause :: ClauseManager -> C.Clause -> IO ()
 removeClause ClauseManager{..} c = do
@@ -136,11 +137,12 @@ removeClause ClauseManager{..} c = do
     seekIndex k = do
       c' <- MV.unsafeRead v k
       if c' == c then return k else seekIndex $ k + 1
-  !i <- seekIndex 0
-  MV.unsafeWrite v i =<< MV.unsafeRead v n
-  setInt _nActives n
+  unless (n == -1) $ do
+    !i <- seekIndex 0
+    MV.unsafeWrite v i =<< MV.unsafeRead v n
+    setInt _nActives n
 
-instance ContainerLike ClauseManager C.Clause where
+instance VectorFamily ClauseManager C.Clause where
   dump mes ClauseManager{..} = do
     n <- getInt _nActives
     if n == 0
@@ -150,6 +152,7 @@ instance ContainerLike ClauseManager C.Clause where
           sts <- mapM (dump ",") (l :: [C.Clause])
           return $ mes ++ "[" ++ show n ++ "]" ++ tail (concat sts)
 
+-- | for debug
 checkConsistency :: ClauseManager -> C.Clause -> IO ()
 checkConsistency ClauseManager{..} c = do
   nc <- getInt _nActives

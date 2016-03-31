@@ -10,15 +10,14 @@ import Control.Monad
 import Data.IORef
 import Data.List (sortBy)
 import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Data.FixedVecInt
 
 -- | Heap is an alias to 'FixedVecInt'
 -- This implementation is identical wtih that in Minisat 1.14
 -- But the zero-th element is used for holding the number of elements
 data VarOrderHeap = VarOrderHeap
                 {
-                  heap     :: FixedVecInt -- index to var
-                , idxs     :: FixedVecInt -- var's index
+                  heap     :: Vec -- index to var
+                , idxs     :: Vec -- var's index
                 }
 
 left :: Int -> Int

@@ -6,22 +6,33 @@ project: 'Study on SAT solver Algorithms in Haskell.'
 
 #### > Features
 
-* based on
-  * N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518.
-  * [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip) for the detailed definition of clause activity and strategy to reduce learnt clauses.
+* fundamentally this is a *line-to-line* translation of [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip)
+(And,  in the early stage of development, it was based on  N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518.)
 * runs in `IO` monad, uses `Data.Vector` and *pointer-based equality* by `reallyUnsafePtrEquality`
 * faster (compared with SAT solvers written in Haskell); see below.
 
 ##### benchmark results
-* [The first 100 problems of uf250-1065 satisfiable set](http://www.cs.ubc.ca/~hoos/SATLIB/Benchmarks/SAT/RND3SAT/uf250-1065.tar.gz) on [SATLIB](http://www.cs.ubc.ca/~hoos/SATLIB/benchm.html)
 
-![](https://docs.google.com/spreadsheets/d/1OYaOTZccjCFrItEb6zOUpXOS9Wbq7Qn22ooWnk95iW4/pubchart?oid=1845809024&format=image)
+* On a subset of SAT-RACE 2015 Application Problems
+
+![screenshot at 2016-03-29 23-08-15](https://cloud.githubusercontent.com/assets/997855/14110850/421dc6d0-f603-11e5-80b6-893746083f95.png)
 
 * Performances on [various 3SAT problems (uf-* series)](http://www.cs.ubc.ca/~hoos/SATLIB/benchm.html)
 
 ![](https://docs.google.com/spreadsheets/d/1cNltZ4FIu_exSUQMcXe53w4fADr3sOUxpo3L7oM0H_Q/pubchart?oid=297581252&format=image)
 
 #### > Release Note
+
+##### 1.1.0
+
+* Based on [MiniSat 1.14](https://github.com/shnarazk/minisat114/), but lacks the binary clause implementation so far.
+* The arguments of `solveSAT`and `validateAssignment` were curried.
+* `Solver` holds a literal set internally in the case of contradiction.
+* literals are encoded  to positive integers
+* no more queue; `propQ` was merged to `trail`
+* added a simple pre-processor
+* a new CNF DIMACS parser
+* solutions can be saved to a file with `--output` option
 
 ##### 1.0.3
 
@@ -33,7 +44,7 @@ This is the last version based on *“An extensible SAT-solver [extended version
 
 ##### 1.0.2
 
-* fixs a bug on CNF reader at 1.0.1
+* fixes a bug on CNF reader at 1.0.1
 
 ##### 1.0.1 => canceled by a bug on CNF reader
 
@@ -55,7 +66,7 @@ It's an invalid assignment.
 * [Stack](http://www.haskellstack.org/) or `cabal-install`
 
 ```
-stack init --resolver lts-5.5
+stack init --resolver lts-5.5   # or upper
 stack install
 ```
 
@@ -72,15 +83,18 @@ $ mios a.cnf
 dumps an assignment :: [Int]
 
 $ mios --help
-mios 1.0.3
+mios 1.1.0 #M114
 Usage: mios [OPTIONS] target.cnf
   -d 0.95   --variable-decay-rate=0.95  [solver] variable activity decay rate (0.0 - 1.0)
   -c 0.999  --clause-decay-rate=0.999   [solver] clause activity decay rate (0.0 - 1.0)
   -r 0      --random-decision-rate=0    [solver] random selection rate (0 - 1000)
-            --validate                  [option] self-check the (satisfied) answer
+  -:        --validate-assignment       [solver] read an assignment from STDIN and validate it
+            --validate                  [solver] self-check the (satisfied) answer
+  -o file   --output=file               [option] filename to store the result
   -v        --verbose                   [option] display misc information
   -X        --hide-solution             [option] hide the solution
-  -:        --validate-assignment       [option] read an assignment from STDIN and validate it
+            --time                      [option] display execution time
+            --stat                      [option] display statistics information
   -h        --help                      [misc] display this help message
             --version                   [misc] display program ID
 ```
@@ -95,7 +109,7 @@ clauses = [[1, 2], [1, 3], [-1, -2], [1, -2, 3], [-3]]
 desc = CNFDescription 3 5 Nothing    -- #vars, #clauses, Just pathname or Nothing
 
 main = do
-  asg <- solveSAT (desc, clauses)    -- solveSAT :: Traversable m => (CNFDescription, m [Int]) -> IO [Int]
+  asg <- solveSAT desc clauses    -- solveSAT :: Traversable m => CNFDescription -> m [Int] -> IO [Int]
   putStrLn $ if null asg then "unsatisfiable" else show asg
 ```
 
@@ -103,4 +117,10 @@ main = do
 $ stack ghc app/sample.hs
 $ app/sample
 [1,-2,-3]
+```
+Of course, you can use mios in ghci similarly.
+
+```
+$ stack ghci
+...>
 ```

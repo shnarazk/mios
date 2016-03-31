@@ -1,47 +1,30 @@
 module SAT.Solver.Mios.Internal
        (
          versionId
--- <<<<
-       , module SAT.Solver.Mios.Data.FixedVecDouble
-       , module SAT.Solver.Mios.Data.FixedVecInt
--- ----
---       , module SAT.Solver.Mios.Data.FixedUVecOf
--- >>>>
---       , module SAT.Solver.Mios.Data.FixedVecOf
-       , module SAT.Solver.Mios.Data.ListOf
-       , module SAT.Solver.Mios.Data.QueueOfBoundedInt
-       , module SAT.Solver.Mios.Data.Singleton
-       , module SAT.Solver.Mios.Data.StackOfInt
        , MiosConfiguration (..)
        , defaultConfiguration
+       , module Plumbing
        )
        where
--- <<<<
-import SAT.Solver.Mios.Data.FixedVecDouble
-import SAT.Solver.Mios.Data.FixedVecInt
--- ----
--- import SAT.Solver.Mios.Data.FixedUVecOf
--- >>>>
--- import SAT.Solver.Mios.Data.FixedVecOf
-import SAT.Solver.Mios.Data.ListOf
-import SAT.Solver.Mios.Data.QueueOfBoundedInt
-import SAT.Solver.Mios.Data.Singleton
-import SAT.Solver.Mios.Data.StackOfInt
+import SAT.Solver.Mios.Data.FixedVecBool as Plumbing
+import SAT.Solver.Mios.Data.FixedVecDouble as Plumbing
+import SAT.Solver.Mios.Data.Stack as Plumbing
 
 -- | version name
 versionId :: String
-versionId = "mios 1.0.3"
+versionId = "mios 1.1.0 #M114" -- bitEncode, singleStack, accumulativeWatcher, new parser
 
--- | solver configuration
+-- | solver's parameter configuration
 data MiosConfiguration = MiosConfiguration
                          {
                            variableDecayRate  :: Double
                          , clauseDecayRate    :: Double
                          , randomDecisionRate :: Int -- used in Solver.select
+                         , collectStats       :: Bool
                          }
 
 -- | dafault configuration
 -- Minisat-1.14 uses (0.95, 0.999, 0.2 = 20 / 1000).
 -- Minisat-2.20 uses (0.95, 0.999, 0).
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 0.999 0
+defaultConfiguration = MiosConfiguration 0.95 0.999 0 False

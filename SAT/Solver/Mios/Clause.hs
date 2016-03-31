@@ -5,42 +5,43 @@
   , MultiParamTypeClasses
   , RecordWildCards
   , TupleSections
-  , UnboxedTuples
   , UndecidableInstances
   , ViewPatterns
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- |
+-- | Clause
 module SAT.Solver.Mios.Clause
        (
          Clause (..)
-       , getNthLiteral
-       , setNthLiteral
+       , isLit
+       , getLit
        , shrinkClause
        , newClauseFromVec
        , sizeOfClause
        )
        where
 
+import Control.Monad (forM_)
 import GHC.Prim (tagToEnum#, reallyUnsafePtrEquality#)
+import qualified Data.Vector.Unboxed.Mutable as UV
 import Data.List (intercalate)
-import SAT.Solver.Mios.Types (ContainerLike(..), VectorLike(..), Lit)
-import SAT.Solver.Mios.Internal (FixedVecInt, getNthInt, setNthInt, DoubleSingleton, getDouble, newDouble)
+import SAT.Solver.Mios.Types
 
 -- | __Fig. 7.(p.11)__
--- Clause
+-- clause, null, binary clause.
+-- This matches both of @Clause@ and @GClause@ in MiniSat
+-- TODO: GADTs is better?
 data Clause = Clause
               {
-                learnt     :: Bool            -- ^ whether this is a learnt clause
-              , activity   :: DoubleSingleton -- ^ activity of this clause
-              , lits       :: FixedVecInt     -- ^ which this clause consists of
+                learnt   :: !Bool            -- ^ whether this is a learnt clause
+              , activity :: !DoubleSingleton -- ^ activity of this clause
+              , lits     :: !Vec             -- ^ which this clause consists of
               }
-            | NullClause
+  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
+  | NullClause                              -- as null pointer
 
--- | __Version 0.6__
---
--- The equality on 'Clause' is defined by pointer equivalencce.
+-- | The equality on 'Clause' is defined by pointer equivalence.
 instance Eq Clause where
   {-# SPECIALIZE INLINE (==) :: Clause -> Clause -> Bool #-}
   (==) x y = x `seq` y `seq` tagToEnum# (reallyUnsafePtrEquality# x y)
@@ -49,35 +50,52 @@ instance Show Clause where
   show NullClause = "NullClause"
   show _ = "a clause"
 
--- | supports a restricted set of 'ContainerLike' methods
-instance ContainerLike Clause Lit where
-  dump mes NullClause = return $ "NullClause" ++ if mes == "" then "" else "(" ++ mes ++ ")"
+-- | supports a restricted set of 'VectorFamily' methods
+instance VectorFamily Clause Lit where
+  dump mes NullClause = return $ mes ++ "Null"
   dump mes Clause{..} = do
     a <- show <$> getDouble activity
     (len:ls) <- asList lits
-    return $ mes ++ "C" ++ show len ++ "{" ++ intercalate "," [show learnt, a, show (take len ls)] ++ "}"
+    return $ mes ++ "C" ++ show len ++ "{" ++ intercalate "," [show learnt, a, show . map lit2int . take len $ ls] ++ "}"
+  {-# SPECIALIZE INLINE asVec :: Clause -> Vec #-}
+  asVec Clause{..} = UV.unsafeTail lits
   {-# SPECIALIZE INLINE asList :: Clause -> IO [Int] #-}
   asList NullClause = return []
   asList Clause{..} = do
     (n : ls)  <- asList lits
     return $ take n ls
 
-{-# INLINE getNthLiteral #-}
-getNthLiteral :: Int -> Clause -> IO Int
-getNthLiteral !i Clause{..} = getNthInt (1 + i) lits
+-- | returns True if it is a 'BinaryClause'
+-- FIXME: this might be discarded in minisat 2.2
+isLit :: Clause -> Bool
+isLit (BinaryClause _) = True
+isLit _ = False
 
-{-# INLINE setNthLiteral #-}
-setNthLiteral :: Int -> Clause -> Int -> IO ()
-setNthLiteral !i Clause{..} x = setNthInt (1 + i) lits x
+-- | returns the literal in a BinaryClause
+-- FIXME: this might be discarded in minisat 2.2
+getLit :: Clause -> Lit
+getLit (BinaryClause x) = x
+
+-- | coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes
+liftToClause :: Clause -> Clause
+liftToClause (BinaryClause _) = error "So far I use generic function approach instead of lifting"
 
 {-# INLINABLE shrinkClause #-}
 shrinkClause :: Int -> Clause -> IO ()
-shrinkClause !n Clause{..} = setNthInt 0 lits . subtract n =<< getNthInt 0 lits
+shrinkClause !n Clause{..} = setNth lits 0 . subtract n =<< getNth lits 0
 
+-- | copies /vec/ and return a new 'Clause'
+-- Since 1.0.100 DIMACS reader should use a scratch buffer allocated statically.
 {-# INLINE newClauseFromVec #-}
-newClauseFromVec :: Bool -> FixedVecInt -> IO Clause
-newClauseFromVec l vec = Clause l <$> newDouble 0 <*> return vec
+newClauseFromVec :: Bool -> Vec -> IO Clause
+newClauseFromVec l vec = do
+  n <- getNth vec 0
+  v <- newVec $ n + 1
+  forM_ [0 .. n] $ \i -> setNth v i =<< getNth vec i
+  Clause l <$> newDouble 0 <*> return v
 
+-- | returns the number of literals in a clause, even if the given clause is a binary clause
 {-# INLINE sizeOfClause #-}
 sizeOfClause :: Clause -> IO Int
-sizeOfClause !c = getNthInt 0 (lits c)
+sizeOfClause (BinaryClause _) = return 1
+sizeOfClause !c = getNth (lits c) 0

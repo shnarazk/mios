@@ -12,11 +12,11 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | This is the implementation pack __version 0.6 #activityEstimation
+-- | FIXME: this is a too heavy implementation that enables peeking
 --
 -- * __FixedQueueOf Lit__ @:: UV.IOVector Int@
 --
-module SAT.Solver.Mios.Data.QueueOfBoundedInt
+module SAT.Solver.Mios.Util.QueueOfBoundedInt
        (
          QueueOfBoundedInt
        , newQueue
@@ -29,9 +29,9 @@ module SAT.Solver.Mios.Data.QueueOfBoundedInt
 
 import Control.Monad (when)
 import qualified Data.Vector.Unboxed.Mutable as UV
-import SAT.Solver.Mios.Types (index)
+import SAT.Solver.Mios.Types
 
--- | __version 0.5__
+-- | __version 1.1__
 --
 -- a shrinked version of 'MutableRings' (a single-linked memory chunk)
 --
@@ -45,13 +45,13 @@ import SAT.Solver.Mios.Types (index)
 --
 -- * ring[2] is the last (latest) assigned literal
 --
--- * ring[index(n)+2] == the literal assigned after Literl /n/
+-- * ring[n+2] == the literal assigned after Literl /n/
 --
 -- __Definition__ (an empty case is eliminated)
 --
--- * insert x = @do x' <- ring .! 2; setAt ring (index x' + 2) x; setAt ring 2 x@
+-- * insert x = @do x' <- ring .! 2; setAt ring (x' + 2) x; setAt ring 2 x@
 --
--- * dequeue = @do x <- ring .! 1; x' <- ring .! (index x + 2); setAt ring 1 x'; return x@
+-- * dequeue = @do x <- ring .! 1; x' <- ring .! (x + 2); setAt ring 1 x'; return x@
 --
 -- * initialization = @setAt ring 0 0; setAt ring 1 0; setAt ring 2 0@
 --
@@ -71,7 +71,7 @@ clearQueue QueueOfBoundedInt{..} = UV.set ring 0
 {-# INLINE insertQueue #-}
 insertQueue :: QueueOfBoundedInt -> Int -> IO ()
 insertQueue QueueOfBoundedInt{..} !x = do
-  let !k = index x + 3
+  let !k = x + 3
   !exists <- UV.unsafeRead ring k
   when (0 == exists) $ do
     !n <- UV.unsafeRead ring 0
@@ -79,7 +79,7 @@ insertQueue QueueOfBoundedInt{..} !x = do
       then do
           UV.unsafeWrite ring 1 x
       else do
-          !i <- (3 +) .index <$> UV.unsafeRead ring 2 -- the slot for the current last element
+          !i <- (3 +) <$> UV.unsafeRead ring 2 -- the slot for the current last element
           UV.unsafeWrite ring i x                    -- points 'x` now
     UV.unsafeWrite ring 2 x                    -- and the pointer points 'x'
     UV.unsafeWrite ring k 0
@@ -90,7 +90,7 @@ dequeue :: QueueOfBoundedInt -> IO Int
 dequeue QueueOfBoundedInt{..} = do
   n <- UV.unsafeRead ring 0
   x <- UV.unsafeRead ring 1
-  let !x' = index x + 3
+  let !x' = x + 3
   if 1 == n
     then do
         UV.unsafeWrite ring x' 0
@@ -103,9 +103,10 @@ dequeue QueueOfBoundedInt{..} = do
   UV.unsafeWrite ring 0 $! n - 1
   return x
 
+-- | /n/ is the number of Literals
 newQueue :: Int -> IO QueueOfBoundedInt
 newQueue n = do
-   q <- UV.new $ 3 + n
+   q <- UV.new $ 3 + int2lit (negate n) + 1
    UV.unsafeWrite q 0 0
    UV.unsafeWrite q 1 0
    UV.unsafeWrite q 2 0
@@ -115,5 +116,5 @@ traverseQueue :: QueueOfBoundedInt -> IO [Int]
 traverseQueue QueueOfBoundedInt{..} = do
   let
     loop l 0 = return $ reverse l
-    loop l x = loop (x:l) =<< UV.unsafeRead ring (index x + 3)
+    loop l x = loop (x:l) =<< UV.unsafeRead ring (x + 3)
   loop [] =<< UV.unsafeRead ring 1

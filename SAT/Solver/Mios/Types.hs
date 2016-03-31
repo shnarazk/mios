@@ -3,31 +3,37 @@
   , FlexibleContexts
   , FlexibleInstances
   , FunctionalDependencies
-  , MagicHash
   , MultiParamTypeClasses
   , TypeFamilies
-  , UnboxedTuples
   , UndecidableInstances
-  , ViewPatterns
   #-}
 {-# LANGUAGE Trustworthy #-}
 
 -- | Basic abstract data types used throughout the code.
 module SAT.Solver.Mios.Types
        (
+         -- Singleton
+         module SAT.Solver.Mios.Data.Singleton
+         -- Fixed Unboxed Mutable Int Vector
+       , module SAT.Solver.Mios.Data.Vec
          -- Abstract interfaces
-         ContainerLike (..)
-       , VectorLike (..)
+       , VectorFamily (..)
          -- * misc function
        , Var
        , bottomVar
+       , int2var
+         -- * Internal encoded Literal
        , Lit
+       , lit2int
+       , int2lit
        , bottomLit
        , newLit
-       , var
-       , index
-       , index2lit
-       , LBool
+       , positiveLit
+       , lit2var
+       , var2lit
+       , negateLit
+         -- Assignment
+       , LiftedBool (..)
        , lbool
        , lFalse
        , lTrue
@@ -38,11 +44,14 @@ module SAT.Solver.Mios.Types
        )
        where
 
-import GHC.Exts (Int(..))
-import GHC.Prim
+import Control.Monad (forM)
+import Data.Bits
+import qualified Data.Vector.Unboxed.Mutable as UV
+import SAT.Solver.Mios.Data.Singleton
+import SAT.Solver.Mios.Data.Vec
 
 -- | Public interface as /Container/
-class ContainerLike s t | s -> t where
+class VectorFamily s t | s -> t where
   -- * Size operations
   -- | erases all elements in it
   clear :: s -> IO ()
@@ -51,58 +60,32 @@ class ContainerLike s t | s -> t where
   -- | dump the contents
   dump :: Show t => String -> s -> IO String
   dump msg _ = error $ msg ++ ": no defalut method for dump"
+  -- | get a raw data
+  asVec :: s -> UV.IOVector Int
+  asVec = error "asVector undefined"
   -- | converts into a list
   asList :: s -> IO [t]
   asList = error "asList undefined"
   {-# MINIMAL dump #-}
 
--- | The vector data type can push a default constructed element by the 'push` method
--- with no argument. The 'moveTo' method will move the contents of a vector to another
--- vector in constant time, crearing the source vector.
-class ContainerLike v t => VectorLike v t | v -> t where
-  -- * Constructors
-  -- | returns a /n/ length uninitialized new vector
-  newVec :: Int -> IO v
-  newVec = error "newVecSized undefined"
-  -- | returns a /n/ length nev vector whose elements are set to the 2nd arg
-  newVecWith :: Int -> t -> IO v
-  newVecWith = error "newVecWith undefined"
-  -- * Conversion
-  -- | converts from @list :: [t]@ in a monadic context
-  newFromList :: [t] -> IO v
-  newFromList = error "newFromList undefined"
-  -- * Vector interface
-  -- | get the value at /n/-th field of the vector
-  getAt :: Int -> v -> IO t
-  getAt _ _ = error "getAt undefined"
-  -- | set an value to the /n/-th field of the vector
-  setAt :: Int -> v -> t -> IO ()
-  setAt _ _ _ = error "setAt undefined"
-  -- | update the /n/-th field of the vector
-  modifyAt :: Int -> v -> (t -> t) -> IO ()
-  modifyAt _ _ _ = error "modifyAt undefined"
-  {-# MINIMAL newVec #-}
-
--- | Pointer-based implementation of "equality"
---
--- __Note:__ this requires strict evaluation; use @BangPatterns@
---
--- >>> let x = [2,3]
--- >>> let y = [2,3]
--- >>> let z = x
--- >>> let z' = z in print =<< sequence [x <==> x, x <==> y, x <==> z, x <==> z']
--- [True, False, True, True]
---
--- (<==>) :: a -> a -> IO Bool
--- (<==>) !a !b = (==) <$> makeStableName a <*> makeStableName b
--- (<==>) !x !y = return $! x `seq` y `seq` tagToEnum# (reallyUnsafePtrEquality# x y)
+-- | provides 'clear' and 'size'
+instance VectorFamily Vec Int where
+  clear = error "Vec.clear"
+  {-# SPECIALIZE INLINE asList :: Vec -> IO [Int] #-}
+  asList v = forM [0 .. UV.length v - 1] $ UV.unsafeRead v
+  dump str v = (str ++) . show <$> asList v
+  {-# SPECIALIZE INLINE asVec :: Vec -> Vec #-}
+  asVec = id
 
 -- | represents "Var"
 type Var = Int
 
 -- | Special constant in 'Var' (p.7)
 bottomVar :: Var
-bottomVar = I# 0#
+bottomVar = 0
+
+{-# INLINE int2var #-}
+int2var = abs
 
 -- | The literal data has an 'index' method which converts the literal to
 -- a "small" integer suitable for array indexing. The 'var'  method returns
@@ -112,56 +95,127 @@ type Lit = Int
 
 -- | Special constant in 'Lit' (p.7)
 bottomLit :: Lit
-bottomLit = I# 0#
+bottomLit = 0
 
 -- | converts "Var" into 'Lit'
 newLit :: Var -> Lit
 newLit = error "newLit undefined"
 
--- sign :: l -> Bool
+-- | returns @True@ if the literal is positive
+{-# INLINE positiveLit #-}
+positiveLit :: Lit -> Bool
+positiveLit = even
+
+-- | negates literal
+-- >>> negateLit 2
+-- 3
+-- >>> negateLit 3
+-- 2
+-- >>> negateLit 4
+-- 5
+-- >>> negateLit 5
+-- 4
+{-# INLINE negateLit #-}
+negateLit :: Lit -> Lit
+negateLit !l = complementBit l 0 -- if even l then l + 1 else l - 1
+
+----------------------------------------
+----------------- Var
+----------------------------------------
 
 -- | converts 'Lit' into 'Var'
-{-# INLINE var #-}
-var :: Lit -> Var
-var = abs
+-- >>> lit2var 2  -- 1
+-- 1
+-- >>> lit2var 3  -- -1
+-- 1
+-- >>> lit2var 4 -- 2
+-- 2
+-- >>> lit2var 5 -- -2
+-- 2
+{-# INLINE lit2var #-}
+lit2var :: Lit -> Var
+lit2var !n = shiftR n 1
 
--- | converts 'Lit' into valid 'Int'
--- folding @Lit = [ -N, -N + 1  .. -1] ++ [1 .. N]@,
--- to @[0 .. 2N - 1]
-{-# INLINE index #-}
-index :: Lit -> Int
-index (I# l#) = if tagToEnum# (0# <# l#) then I# (2# *# (l# -# 1#)) else I# (-2# *# l# -# 1#)
+-- >>> var2lit 1 True
+-- 2
+-- >>> var2lit 1 False
+-- 3
+-- >>> var2lit 2 True
+-- 4
+-- >>> var2lit 2 False
+-- 5
+{-# INLINE var2lit #-}
+var2lit :: Var -> Bool -> Lit
+var2lit !v True = shiftL v 1
+var2lit !v _ = shiftL v 1 + 1
 
--- | revese convert to 'Lit' from index
-{-# INLINE index2lit #-}
-index2lit :: Int -> Int
-index2lit (I# n#) =
-  case quotRemInt# n# 2# of
-   (# q#, 0# #) -> I# (q# +# 1#)
-   (# q#, _ #) -> I# (negateInt# (q# +# 1#))
+----------------------------------------
+----------------- Int
+----------------------------------------
 
--- index2lit (I# n#) = (div n 2 + 1) * if odd n then -1 else 1
+-- | convert 'Int' into 'Lit'   -- lit2int . int2lit == id
+--
+-- >>> int2lit 1
+-- 2
+-- >>> int2lit (-1)
+-- 3
+-- >>> int2lit 2
+-- 4
+-- >>> int2lit (-2)
+-- 5
+--
+{-# INLINE int2lit #-}
+int2lit :: Int -> Lit
+int2lit n
+  | 0 < n = 2 * n
+  | otherwise = -2 * n + 1
+
+-- | converts `Lit' into 'Int'   -- int2lit . lit2int == id
+-- >>> lit2int 2
+-- 1
+-- >>> lit2int 3
+-- -1
+-- >>> lit2int 4
+-- 2
+-- >>> lit2int 5
+-- -2
+{-# INLINE lit2int #-}
+lit2int l = case divMod l 2 of
+  (i, 0) -> i
+  (i, _) -> - i
 
 -- | Lifted Boolean domain (p.7) that extends 'Bool' with "⊥" means /undefined/
-type LBool = Int
+-- design note: _|_ should be null = 0; True literals are coded to even numbers. So it should be 2.
+data LiftedBool = Bottom | LFalse | LTrue
+  deriving (Bounded, Eq, Ord, Read, Show)
+
+instance Enum LiftedBool where
+  {-# SPECIALIZE INLINE toEnum :: Int -> LiftedBool #-}
+  toEnum        1 = LTrue
+  toEnum     (-1) = LFalse
+  toEnum        _ = Bottom
+  {-# SPECIALIZE INLINE fromEnum :: LiftedBool -> Int #-}
+  fromEnum Bottom = 0
+  fromEnum LFalse = 1
+  fromEnum LTrue  = 2
 
 -- | converts 'Bool' into 'LBool'
 {-# INLINE lbool #-}
-lbool :: Bool -> LBool
-lbool True = lTrue
-lbool False = lFalse
+lbool :: Bool -> LiftedBool
+lbool True = LTrue
+lbool False = LFalse
 
 -- | A contant representing False
-lFalse:: LBool
-lFalse = I# -1#
+lFalse:: Int
+lFalse = -1
 
 -- | A constant representing True
-lTrue :: LBool
-lTrue = I# 1#
+lTrue :: Int
+lTrue = 1
 
 -- | A constant for "undefined"
-lBottom :: LBool
-lBottom = I# 0#
+lBottom :: Int
+lBottom = 0
 
 -- | Assisting ADT for the dynamic variable ordering of the solver.
 -- The constructor takes references to the assignment vector and the activity
@@ -169,7 +223,7 @@ lBottom = I# 0#
 -- with the highest activity.
 class VarOrder o where
   -- | constructor
-  newVarOrder :: (VectorLike v1 Bool, VectorLike v2 Double) => v1 -> v2 -> IO o
+  newVarOrder :: (VectorFamily v1 Bool, VectorFamily v2 Double) => v1 -> v2 -> IO o
   newVarOrder _ _ = error "newVarOrder undefined"
 
   -- | Called when a new variable is created.

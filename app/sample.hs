@@ -21,6 +21,6 @@ desc = CNFDescription           -- :: Int -> Int -> Maybe String -> CNFDescripti
 
 main :: IO ()
 main = do
-  -- solveSAT :: Traversable m => (CNFDescription, m [Int]) -> IO [Int]
-  asg <- solveSAT (desc, clauses)
+  -- solveSAT :: Traversable m => CNFDescription -> m [Int] -> IO [Int]
+  asg <- solveSAT desc clauses
   putStrLn $ if null asg then "unsatisfiable" else show asg

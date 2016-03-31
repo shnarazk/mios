@@ -9,30 +9,30 @@ module SAT.Solver.Mios.Validator
 
 import Data.Foldable (toList)
 import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.ClauseManager
-import SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Solver
 
 -- | validate the assignment even if the implementation of 'Solver' is wrong; we re-implement some functions here.
-validate :: Traversable t => Solver -> t Lit -> IO Bool
-validate s (toList -> lst) = do
+validate :: Traversable t => Solver -> t Int -> IO Bool
+validate s (toList -> map int2lit -> lst) = do
   assignment <- newVec $ 1 + nVars s
-  vec <- getClauseVector (constrs s)
-  nc <- numberOfClauses (constrs s)
+  vec <- getClauseVector (clauses s)
+  nc <- numberOfClauses (clauses s)
   let
     inject :: Lit -> IO ()
-    inject l = setNthInt (abs l) assignment (signum l)
+    inject l = setNth assignment (lit2var l) $ if positiveLit l then lTrue else lFalse
     -- return True if the literal is satisfied under the assignment
     satisfied :: Lit -> IO Bool
-    satisfied n = (signum n ==) . signum <$> getNthInt (abs n) assignment  
+    satisfied l
+      | positiveLit l = (lTrue ==) <$> getNth assignment (lit2var l)
+      | otherwise     = (lFalse ==) <$> getNth assignment (lit2var l)
     -- return True is any literal in the given list
     satAny :: [Lit] -> IO Bool
     satAny [] = return False
     satAny (l:ls) = do
       sat' <- satisfied l
       if sat' then return True else satAny ls
-    -- traverse all clauses in 'constrs'
+    -- traverse all clauses in 'clauses'
     loopOnVector :: Int -> IO Bool
     loopOnVector ((< nc) -> False) = return True
     loopOnVector i = do
