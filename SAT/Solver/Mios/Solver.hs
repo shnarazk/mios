@@ -380,6 +380,7 @@ instance VarOrder Solver where
     let
       nv = nVars s
       asg = assigns s
+      rd = randomDecisionRate (config s)
       -- | returns the most active var (heap-based implementation)
       loop :: IO Var
       loop = do
@@ -388,19 +389,18 @@ instance VarOrder Solver where
           then return 0
           else do
               v <- getHeapRoot s
-              val <- getNth asg v
-              if val == lBottom then return v else loop
+              x <- getNth asg v
+              if x == lBottom then return v else loop
     -- the threshold used in MiniSat 1.14 is 0.02, namely 20/1000
     -- But it is 0 in MiniSat 2.20
-    let rd = randomDecisionRate (config s)
     if 0 < rd
       then do
-          !r <- flip mod 1001 <$> randomIO :: IO Int
+          r <- flip mod 1000 <$> randomIO :: IO Int
           if r < rd
             then do
-                !i <- (+ 1) . flip mod nv <$> randomIO
-                x <- getNth asg i
-                if x == lBottom then return i else loop
+                v <- (+ 1) . flip mod nv <$> randomIO
+                x <- getNth asg v
+                if x == lBottom then return v else loop
             else loop
       else loop
 
