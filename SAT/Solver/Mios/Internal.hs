@@ -12,7 +12,7 @@ import SAT.Solver.Mios.Data.Stack as Plumbing
 
 -- | version name
 versionId :: String
-versionId = "mios 1.1.0 #M114" -- bitEncode, singleStack, accumulativeWatcher, new parser
+versionId = "mios 1.1.1 #M114" -- bitEncode, singleStack, accumulativeWatcher, new parser
 
 -- | solver's parameter configuration
 data MiosConfiguration = MiosConfiguration
@@ -27,4 +27,4 @@ data MiosConfiguration = MiosConfiguration
 -- Minisat-1.14 uses (0.95, 0.999, 0.2 = 20 / 1000).
 -- Minisat-2.20 uses (0.95, 0.999, 0).
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 0.999 0 False
+defaultConfiguration = MiosConfiguration 0.95 0.999 20 False
