@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:           mios
-version:        1.1.0
+version:        1.1.1
 synopsis:       Minisat-based Implementation and Optimization Study on SAT solver
 description:
 
@@ -102,7 +102,7 @@ executable mios
     SAT.Solver.Mios.Validator
     SAT.Solver.Mios.WatcherLists
 
-executable mios-1.1.0
+executable mios-1.1.1
   main-is:            app/mios.hs
   if flag(devel)
     buildable:	       True
@@ -132,7 +132,7 @@ executable mios-1.1.0
     SAT.Solver.Mios.Validator
     SAT.Solver.Mios.WatcherLists
 
-executable mios-1.1.0-prof
+executable mios-1.1.1-prof
   main-is:            app/mios.hs
   if flag(profile) && flag(devel)
     buildable:	       True
@@ -167,7 +167,7 @@ Test-Suite doctest
   main-Is:              doctest.hs
   build-depends:        base, doctest >= 0.9.3
 
-Benchmark mios-1.1.0-benchmark
+Benchmark mios-1.1.1-benchmark
   type:    exitcode-stdio-1.0
   main-is: test/mios-criterion.hs
   default-language:	Haskell2010
@@ -176,7 +176,7 @@ Benchmark mios-1.1.0-benchmark
                           primitive ==0.6.*, random ==1.*,
                           criterion == 1.*
 
-executable mios-1.1.0-cr
+executable mios-1.1.1-cr
   main-is: test/mios-criterion.hs
   default-language:	Haskell2010
   if flag(criterion) && flag(devel)
