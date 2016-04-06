@@ -16,11 +16,10 @@ a part of my research theme.
 * On a subset of SAT-RACE 2015 Application Problems (timeout: 1200 sec)
 
 This is a result on a subset the problems of which MiniSat-2.2.0 can solve
-in 1000 secs. `Minisat * 3.4` is the line scaled the result of MiniSat-1.14
+in 1000 secs. `3.4 * minisat` is the line scaled the result of MiniSat-1.14
 by 3.4. This means that mios-1.1.1 is *3.4 times* slower than MiniSat-1.14.
 
 ![scatter plot](https://cloud.githubusercontent.com/assets/997855/14322605/746d2652-fc58-11e5-9fdc-588c7dc02508.png)
-
 
 * Performances on [various 3SAT problems (uf-* series)](http://www.cs.ubc.ca/~hoos/SATLIB/benchm.html)
 
@@ -32,6 +31,8 @@ by 3.4. This means that mios-1.1.1 is *3.4 times* slower than MiniSat-1.14.
 
 * tiny changes on the output format
 * tiny changes on random variable decision rate
+* use a figure on a benchmark run sequentially; the old ones were multi-threaded and got very
+inaccurate numbers.
 
 ##### 1.1.0
 
