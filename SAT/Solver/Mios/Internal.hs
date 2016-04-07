@@ -12,7 +12,7 @@ import SAT.Solver.Mios.Data.Stack as Plumbing
 
 -- | version name
 versionId :: String
-versionId = "mios 1.1.0 #M114" -- bitEncode, singleStack, accumulativeWatcher, new parser
+versionId = "mios 1.1.1 #3.4*1.14" -- 3.4 times slower than MiniSat 1.14
 
 -- | solver's parameter configuration
 data MiosConfiguration = MiosConfiguration

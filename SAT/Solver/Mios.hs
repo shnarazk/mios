@@ -66,12 +66,12 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
   when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
   s <- newSolver (toMiosConf opts) desc
   parseClauses s desc cls
-  t1 <- reportElapsedTime (_confTimeProbe opts) ("## [" ++ cnfFile ++ "] Parse: ") t0
+  t1 <- reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
   when (_confVerbose opts) $ do
     nc <- nClauses s
     hPutStrLn stderr $ cnfFile ++ " was loaded: #v = " ++ show (nVars s, _numberOfVariables desc) ++ " #c = " ++ show (nc, _numberOfClauses desc)
   res <- simplifyDB s
-  when (_confVerbose opts) $ hPutStrLn stderr $ "`simplifyDB`: " ++ show res
+  -- when (_confVerbose opts) $ hPutStrLn stderr $ "`simplifyDB`: " ++ show res
   result <- solve s []
   case result of
     True  | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "SATISFIABLE"
@@ -85,7 +85,7 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
   case _outputFile opts of
     Just fname -> dumpAssigmentAsCNF fname result =<< getModel s
     Nothing -> return ()
-  t2 <- reportElapsedTime (_confTimeProbe opts) ("## [" ++ cnfFile ++ "] Solve: ") t1
+  t2 <- reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Solve: ") t1
   when (result && _confCheckAnswer opts) $ do
     asg <- getModel s
     s' <- newSolver (toMiosConf opts) desc
@@ -94,10 +94,10 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
     if _confVerbose opts
       then hPutStrLn stderr $ if good then "A vaild answer" else "Internal error: mios returns a wrong answer"
       else unless good $ hPutStrLn stderr "Internal error: mios returns a wrong answer"
-    void $ reportElapsedTime (_confTimeProbe opts) ("## [" ++ cnfFile ++ "] Validate: ") t2
-  void $ reportElapsedTime (_confTimeProbe opts) ("## [" ++ cnfFile ++ "] Total: ") t0
+    void $ reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Validate: ") t2
+  void $ reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
   when (_confStatProbe opts) $ do
-    hPutStr stderr $ "## [" ++ cnfFile ++ "] "
+    hPutStr stderr $ "## [" ++ showPath cnfFile ++ "] "
     hPutStrLn stderr . intercalate ", " . map (\(k, v) -> show k ++ ": " ++ show v) =<< getStats s
 
 executeSolver _ = return ()
@@ -280,3 +280,13 @@ readClause s buffer pvec stream = do
             setNthBool pvec l True
             loop (i + 1) b'
   loop 1 . skipComments . skipWhitespace $ stream
+
+
+showPath :: FilePath -> String
+showPath str
+  | elem '/' str =  take (len - length basename) (repeat ' ') ++ basename
+  |  otherwise = take (len - length basename') (repeat ' ') ++ basename'
+  where
+    len = 50
+    basename = reverse . takeWhile (/= '/') . reverse $ str
+    basename' = take len str

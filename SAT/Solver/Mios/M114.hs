@@ -445,7 +445,7 @@ reduceDB s@Solver{..} = do
       noneed <- if i < half then bePurged' c else bePurged c -- better is former
       if noneed
         then removeWatch s c >> loopOn (i + 1) j
-        else setNthClause vec j c >> loopOn (i + 1) (j + 1)
+        else unless (i == j) (setNthClause vec j c) >> loopOn (i + 1) (j + 1)
   sortOnActivity learnts        -- CAVEAT: the order is reversed, compared with MiniSat 1.14
   loopOn 0 0
 

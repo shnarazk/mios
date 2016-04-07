@@ -1,27 +1,39 @@
 # mios -- Minisat-based Implementation and Optimization Study
 ----
 
-`mios` is yet another minisat-based SAT solver implementation in Haskell, as a part of my research
-project: 'Study on SAT solver Algorithms in Haskell.'
+`mios` is yet another minisat-based SAT solver implementation in Haskell, as
+a part of my research theme.
 
 #### > Features
 
 * fundamentally this is a *line-to-line* translation of [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip)
 (And,  in the early stage of development, it was based on  N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518.)
 * runs in `IO` monad, uses `Data.Vector` and *pointer-based equality* by `reallyUnsafePtrEquality`
-* faster (compared with SAT solvers written in Haskell); see below.
+* very fast, compared with SAT solvers written in Haskell; see below.
 
 ##### benchmark results
 
-* On a subset of SAT-RACE 2015 Application Problems
+* On a subset of SAT-RACE 2015 Application Problems (timeout: 1200 sec)
 
-![screenshot at 2016-03-29 23-08-15](https://cloud.githubusercontent.com/assets/997855/14110850/421dc6d0-f603-11e5-80b6-893746083f95.png)
+This is a result on a subset the problems of which MiniSat-2.2.0 can solve
+in 1000 secs. `3.4 * minisat` is the line scaled the result of MiniSat-1.14
+by 3.4. This means that *mios-1.1.1 is 3.4 times slower than MiniSat-1.14*.
+
+![scatter plot](https://cloud.githubusercontent.com/assets/997855/14322605/746d2652-fc58-11e5-9fdc-588c7dc02508.png)
 
 * Performances on [various 3SAT problems (uf-* series)](http://www.cs.ubc.ca/~hoos/SATLIB/benchm.html)
 
 ![](https://docs.google.com/spreadsheets/d/1cNltZ4FIu_exSUQMcXe53w4fADr3sOUxpo3L7oM0H_Q/pubchart?oid=297581252&format=image)
 
 #### > Release Note
+
+##### 1.1.1
+
+* tiny changes on the output format
+* tiny changes on random variable decision rate
+* update REDAME.md with a figure on a benchmark run sequentially; the old ones were multi-threaded and got very inaccurate numbers.
+
+This would be the last version based on [MiniSat 1.14](https://github.com/shnarazk/minisat114/).
 
 ##### 1.1.0
 
@@ -83,7 +95,8 @@ $ mios a.cnf
 dumps an assignment :: [Int]
 
 $ mios --help
-mios 1.1.0 #M114
+mios* WIP-for-1.1.1$ mios
+mios 1.1.1 #3.4*1.14
 Usage: mios [OPTIONS] target.cnf
   -d 0.95   --variable-decay-rate=0.95  [solver] variable activity decay rate (0.0 - 1.0)
   -c 0.999  --clause-decay-rate=0.999   [solver] clause activity decay rate (0.0 - 1.0)
