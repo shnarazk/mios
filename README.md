@@ -17,7 +17,7 @@ a part of my research theme.
 
 This is a result on a subset the problems of which MiniSat-2.2.0 can solve
 in 1000 secs. `3.4 * minisat` is the line scaled the result of MiniSat-1.14
-by 3.4. This means that mios-1.1.1 is *3.4 times* slower than MiniSat-1.14.
+by 3.4. This means that *mios-1.1.1 is 3.4 times slower than MiniSat-1.14*.
 
 ![scatter plot](https://cloud.githubusercontent.com/assets/997855/14322605/746d2652-fc58-11e5-9fdc-588c7dc02508.png)
 
