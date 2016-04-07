@@ -95,7 +95,8 @@ $ mios a.cnf
 dumps an assignment :: [Int]
 
 $ mios --help
-mios 1.1.0 #M114
+mios* WIP-for-1.1.1$ mios
+mios 1.1.1 #3.4*1.14
 Usage: mios [OPTIONS] target.cnf
   -d 0.95   --variable-decay-rate=0.95  [solver] variable activity decay rate (0.0 - 1.0)
   -c 0.999  --clause-decay-rate=0.999   [solver] clause activity decay rate (0.0 - 1.0)
