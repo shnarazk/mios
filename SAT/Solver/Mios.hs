@@ -267,7 +267,7 @@ readClause s buffer pvec stream = do
   let
     loop :: Int -> B.ByteString -> IO B.ByteString
     loop i b = do
-      let (k, b') = parseInt b
+      let (k, b') = parseInt $ skipWhitespace b
       if k == 0
         then do
             -- putStrLn . ("clause: " ++) . show . map lit2int =<< asList stack
