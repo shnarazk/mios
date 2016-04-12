@@ -27,13 +27,17 @@ by 3.4. This means that *mios-1.1.1 is 3.4 times slower than MiniSat-1.14*.
 
 #### > Release Note
 
+##### 1.1.2
+
+* fix a bug in DIMACS CNF parser; only single space between literals were accepted
+
+This would be the last version based on [MiniSat 1.14](https://github.com/shnarazk/minisat114/).
+
 ##### 1.1.1
 
 * tiny changes on the output format
 * tiny changes on random variable decision rate
 * update REDAME.md with a figure on a benchmark run sequentially; the old ones were multi-threaded and got very inaccurate numbers.
-
-This would be the last version based on [MiniSat 1.14](https://github.com/shnarazk/minisat114/).
 
 ##### 1.1.0
 
