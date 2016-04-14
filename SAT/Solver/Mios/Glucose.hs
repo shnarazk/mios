@@ -27,16 +27,16 @@ import SAT.Solver.Mios.Solver
 lbdOf :: Solver -> Vec -> IO Int
 lbdOf s@Solver{..} vec = do
   seen <- newVec . (1 +) =<< decisionLevel s
-  nv <- getNth vec 0
+  nv <- sizeOfVector vec
   let
-    loop ((<= nv) -> False) n = return n
+    loop ((< nv) -> False) n = return n
     loop k n = do
       l <- getNth level . lit2var =<< getNth vec k
       x <- getNth seen l
       if x == 0
         then setNth seen l 1 >> loop (k + 1) (n + 1)
         else loop (k + 1) n
-  loop 1 0
+  loop 0 0
 
 -- | update the lbd field of /c/
 {-# INLINE updateLBD #-}
@@ -64,4 +64,3 @@ updateLBD s c@Clause{..} = do
 nextReduction :: Int -> Int -> Int
 -- nextReduction _ n = 30000 + 10000 * n
 nextReduction b n = b {- * (n + 1) -} + 300 * n {- * (n + 1) -}
-
