@@ -15,7 +15,7 @@ module SAT.Solver.Mios.Clause
        (
          Clause (..)
        , isLit
-       , getLit
+--       , getLit
        , shrinkClause
        , newClauseFromVec
        , sizeOfClause
@@ -36,10 +36,10 @@ data Clause = Clause
               {
                 learnt   :: !Bool            -- ^ whether this is a learnt clause
               , activity :: !DoubleSingleton -- ^ activity of this clause
-              , lbd    :: !IntSingleton      -- ^ storing the LBD; values are computed in Solver
+              , lbd      :: !IntSingleton    -- ^ storing the LBD; values are computed in Solver
               , lits     :: !Vec             -- ^ which this clause consists of
               }
-  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
+--  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
   | NullClause                              -- as null pointer
 
 -- | The equality on 'Clause' is defined by pointer equivalence.
@@ -69,17 +69,17 @@ instance VectorFamily Clause Lit where
 -- | returns True if it is a 'BinaryClause'
 -- FIXME: this might be discarded in minisat 2.2
 isLit :: Clause -> Bool
-isLit (BinaryClause _) = True
+-- isLit (BinaryClause _) = True
 isLit _ = False
 
 -- | returns the literal in a BinaryClause
 -- FIXME: this might be discarded in minisat 2.2
-getLit :: Clause -> Lit
-getLit (BinaryClause x) = x
+-- getLit :: Clause -> Lit
+-- getLit (BinaryClause x) = x
 
 -- | coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes
-liftToClause :: Clause -> Clause
-liftToClause (BinaryClause _) = error "So far I use generic function approach instead of lifting"
+-- liftToClause :: Clause -> Clause
+-- liftToClause (BinaryClause _) = error "So far I use generic function approach instead of lifting"
 
 {-# INLINABLE shrinkClause #-}
 shrinkClause :: Int -> Clause -> IO ()
@@ -98,5 +98,5 @@ newClauseFromVec l vec = do
 -- | returns the number of literals in a clause, even if the given clause is a binary clause
 {-# INLINE sizeOfClause #-}
 sizeOfClause :: Clause -> IO Int
-sizeOfClause (BinaryClause _) = return 1
+-- sizeOfClause (BinaryClause _) = return 1
 sizeOfClause !c = getNth (lits c) 0
