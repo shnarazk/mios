@@ -18,7 +18,7 @@ module SAT.Solver.Mios.M114
        )
         where
 
-import Control.Monad (forM_, unless, void, when)
+import Control.Monad ((<=<), forM_, unless, void, when)
 import Data.Bits
 import Data.Foldable (foldrM)
 import SAT.Solver.Mios.Types
@@ -27,6 +27,7 @@ import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.ClauseManager
 import SAT.Solver.Mios.WatcherLists
 import SAT.Solver.Mios.Solver
+import SAT.Solver.Mios.Glucose
 
 -- | #114: __RemoveWatch__
 {-# INLINABLE removeWatch #-}
@@ -80,6 +81,8 @@ newLearntClause s@Solver{..} ps = do
        pushClause (getNthWatchers watches (negateLit l)) c
        l1 <- negateLit <$> getNth vec 1
        pushClause (getNthWatchers watches l1) c
+       -- set LBD
+       setInt (lbd c) =<< lbdOf s vec
        -- update the solver state by @l@
        unsafeEnqueue s l c
 
@@ -449,17 +452,26 @@ reduceDB s@Solver{..} = do
   sortOnActivity learnts        -- CAVEAT: the order is reversed, compared with MiniSat 1.14
   loopOn 0 0
 
--- | (Big to small) Quick sort on a clause vector based on their activities
+-- | (Good to bad) Quick sort on a clause vector based on their activities
 sortOnActivity :: ClauseManager -> IO ()
 sortOnActivity cm = do
   n <- numberOfClauses cm
   vec <- getClauseVector cm
   let
+    -- use the same metrix as reduceDB_lt in glucose 4.0
+    -- 1. binary clause
+    -- 2. smaller lbd
+    -- 3. lager activity defined in MiniSat
     keyOf :: Int -> IO Double
     keyOf i = do
       c <- getNthClause vec i
       k <- sizeOfClause c
-      if k == 2 then return (-1e100) else negate <$> getDouble (activity c)
+      -- if k == 2 then return (-1e100) else negate <$> getDouble (activity c)
+      if k == 2
+        then return 0
+        else do
+            a <- getDouble (activity c)
+            (+ 1 / (a + 1.1)) . fromIntegral <$> getInt (lbd c)
     sortOnRange :: Int -> Int -> IO ()
     sortOnRange left right
       | left >= right = return ()

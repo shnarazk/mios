@@ -12,7 +12,7 @@ import SAT.Solver.Mios.Data.Stack as Plumbing
 
 -- | version name
 versionId :: String
-versionId = "mios 1.1.2 #3.4*1.14" -- 3.4 times slower than MiniSat 1.14
+versionId = "mios WIP#minisat+lbd on 1.1.2" -- 3.4 times slower than MiniSat 1.14
 
 -- | solver's parameter configuration
 data MiosConfiguration = MiosConfiguration

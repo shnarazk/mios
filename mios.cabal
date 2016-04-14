@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:           mios
-version:        1.1.2
+version:        1.1.98
 synopsis:       Minisat-based Implementation and Optimization Study on SAT solver
 description:
 
@@ -63,6 +63,7 @@ library
                                          SAT.Solver.Mios.WatcherLists
                                          SAT.Solver.Mios.Internal
                                          SAT.Solver.Mios.Solver
+                                         SAT.Solver.Mios.Glucose
                                          SAT.Solver.Mios.M114
                                          SAT.Solver.Mios.Validator
                                          SAT.Solver.Mios.OptionParser
@@ -95,6 +96,7 @@ executable mios
     SAT.Solver.Mios.Data.Singleton
     SAT.Solver.Mios.Data.Stack
     SAT.Solver.Mios.Internal
+    SAT.Solver.Mios.Glucose
     SAT.Solver.Mios.M114
     SAT.Solver.Mios.OptionParser
     SAT.Solver.Mios.Solver
@@ -102,7 +104,7 @@ executable mios
     SAT.Solver.Mios.Validator
     SAT.Solver.Mios.WatcherLists
 
-executable mios-1.1.2
+executable mios-1.1.98
   main-is:            app/mios.hs
   if flag(devel)
     buildable:	       True
@@ -125,6 +127,7 @@ executable mios-1.1.2
     SAT.Solver.Mios.Data.Singleton
     SAT.Solver.Mios.Data.Stack
     SAT.Solver.Mios.Internal
+    SAT.Solver.Mios.Glucose
     SAT.Solver.Mios.M114
     SAT.Solver.Mios.OptionParser
     SAT.Solver.Mios.Solver
@@ -132,7 +135,7 @@ executable mios-1.1.2
     SAT.Solver.Mios.Validator
     SAT.Solver.Mios.WatcherLists
 
-executable mios-1.1.2-prof
+executable mios-1.1.98-prof
   main-is:            app/mios.hs
   if flag(profile) && flag(devel)
     buildable:	       True
@@ -152,6 +155,7 @@ executable mios-1.1.2-prof
     SAT.Solver.Mios.Data.Singleton
     SAT.Solver.Mios.Data.Stack
     SAT.Solver.Mios.Internal
+    SAT.Solver.Mios.Glucose
     SAT.Solver.Mios.M114
     SAT.Solver.Mios.OptionParser
     SAT.Solver.Mios.Solver
@@ -167,7 +171,7 @@ Test-Suite doctest
   main-Is:              doctest.hs
   build-depends:        base, doctest >= 0.9.3
 
-Benchmark mios-1.1.2-benchmark
+Benchmark mios-1.1.98-benchmark
   type:    exitcode-stdio-1.0
   main-is: test/mios-criterion.hs
   default-language:	Haskell2010
@@ -176,7 +180,7 @@ Benchmark mios-1.1.2-benchmark
                           primitive ==0.6.*, random ==1.*,
                           criterion == 1.*
 
-executable mios-1.1.2-cr
+executable mios-1.1.98-cr
   main-is: test/mios-criterion.hs
   default-language:	Haskell2010
   if flag(criterion) && flag(devel)
@@ -197,6 +201,7 @@ executable mios-1.1.2-cr
     SAT.Solver.Mios.Data.Singleton
     SAT.Solver.Mios.Data.Stack
     SAT.Solver.Mios.Internal
+    SAT.Solver.Mios.Glucose
     SAT.Solver.Mios.M114
     SAT.Solver.Mios.OptionParser
     SAT.Solver.Mios.Solver
