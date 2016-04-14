@@ -444,8 +444,9 @@ reduceDB s@Solver{..} = do
     loopOn ((< nL) -> False) j = shrinkClauseManager learnts (nL - j)
     loopOn i j = do
       c <- getNthClause vec i
-      noneed <- if i < half then bePurged' c else bePurged c -- better is former
-      if noneed
+      -- noneed <- if i < half then bePurged' c else bePurged c -- better is former
+      noneed <- not <$> locked s c
+      if half < i && noneed
         then removeWatch s c >> loopOn (i + 1) j
         else unless (i == j) (setNthClause vec j c) >> loopOn (i + 1) (j + 1)
   sortOnActivity learnts        -- CAVEAT: the order is reversed, compared with MiniSat 1.14
