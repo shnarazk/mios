@@ -81,8 +81,7 @@ newLearntClause s@Solver{..} ps = do
        pushClause (getNthWatchers watches (negateLit l)) c
        l1 <- negateLit <$> getNth vec 1
        pushClause (getNthWatchers watches l1) c
-       -- set LBD
-       setInt (lbd c) =<< lbdOf s vec
+       setLBD s c
        -- update the solver state by @l@
        unsafeEnqueue s l c
 

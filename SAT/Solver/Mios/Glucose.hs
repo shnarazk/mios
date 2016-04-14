@@ -14,7 +14,8 @@
 module SAT.Solver.Mios.Glucose
        (
          lbdOf
-       , updateLBD
+       , setLBD
+--       , updateLBD
        , nextReduction
        )
         where
@@ -24,19 +25,24 @@ import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.Solver
 
-lbdOf :: Solver -> Vec -> IO Int
-lbdOf s@Solver{..} vec = do
-  seen <- newVec . (1 +) =<< decisionLevel s
-  nv <- sizeOfVector vec
+lbdOf :: Solver -> Clause -> IO Int
+lbdOf s@Solver{..} c = do
+  setAll lbd_seen 0
+  nv <- sizeOfClause c
   let
+    vec = asVec c
     loop ((< nv) -> False) n = return n
     loop k n = do
       l <- getNth level . lit2var =<< getNth vec k
-      x <- getNth seen l
+      x <- getNth lbd_seen l
       if x == 0
-        then setNth seen l 1 >> loop (k + 1) (n + 1)
+        then setNth lbd_seen l 1 >> loop (k + 1) (n + 1)
         else loop (k + 1) n
   loop 0 0
+
+{-# INLINE setLBD #-}
+setLBD :: Solver -> Clause -> IO ()
+setLBD s c = setInt (lbd c) =<< lbdOf s c
 
 -- | update the lbd field of /c/
 {-# INLINE updateLBD #-}
@@ -45,7 +51,7 @@ updateLBD s NullClause = error "LBD71"
 updateLBD s c@Clause{..} = do
   k <- sizeOfClause c
 --  o <- getInt lbd
-  n <- lbdOf s lits
+  n <- lbdOf s c
   case () of
     _ | n == 1 -> setInt lbd (k - 1)
     -- _ | n < o -> setInt lbd n
