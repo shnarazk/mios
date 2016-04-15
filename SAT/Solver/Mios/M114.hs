@@ -661,7 +661,7 @@ solve s@Solver{..} assumps = do
           while :: LiftedBool -> Double -> Double -> IO Bool
           while Bottom nOfConflicts nOfLearnts = do
             status <- search s (floor nOfConflicts) (floor nOfLearnts)
-            while status (1.5 * nOfConflicts) (1.1 * nOfLearnts)
+            while status (1.5 * nOfConflicts) (1.05 * nOfLearnts)
           while status _ _ = do
             cancelUntil s 0
             return $ status == LTrue
