@@ -666,7 +666,7 @@ solve s@Solver{..} assumps = do
             cancelUntil s 0
             return $ status == LTrue
         nc <- fromIntegral <$> nClauses s
-        while Bottom 100 (nc / 3.0)
+        while Bottom 100 (nc / 4.0)
 
 {-# INLINABLE unsafeEnqueue #-}
 unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
