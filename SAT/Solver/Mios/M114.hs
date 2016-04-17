@@ -159,8 +159,13 @@ analyze s@Solver{..} confl = do
             then do
                 varBumpActivity s v
                 setNth an_seen v 1
-                if l == dl
-                  then loopOnLiterals (j + 1) b (pc + 1)
+                if dl <= l
+                  then do
+                      -- gulcose heuristics
+                      r <- getNthClause reason v
+                      unless (r == NullClause) $ when (learnt r) $ pushToStack lastDL q
+                      -- end of gulcose heuristics
+                      loopOnLiterals (j + 1) b (pc + 1)
                   else pushToStack litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
             else loopOnLiterals (j + 1) b pc
       (b', pathC') <- loopOnLiterals (if p == bottomLit then 0 else 1) bl pathC
@@ -208,6 +213,19 @@ analyze s@Solver{..} confl = do
              then setNth litsVec j l >> loopOnLits (i + 1) (j + 1)
              else loopOnLits (i + 1) j
   loopOnLits 1 1                -- the first literal is specail
+  -- glucose heuristics
+  nld <- sizeOfStack lastDL
+  let
+    vec = asVec lastDL
+    loopOnLastDL :: Int -> IO ()
+    loopOnLastDL ((<= nld) -> False) = clearStack lastDL
+    loopOnLastDL i = do
+      l <- getNth vec i
+      let v = lit2var l
+      -- a <- getDouble . activity <$> getNthClause reason v
+      varBumpActivity s v
+      loopOnLastDL $ i + 1
+  loopOnLastDL 1
   -- Clear seen
   k <- sizeOfStack an_toClear
   let
@@ -461,7 +479,7 @@ sortOnActivity cm = do
     -- use the same metrix as reduceDB_lt in glucose 4.0
     -- 1. binary clause
     -- 2. smaller lbd
-    -- 3. lager activity defined in MiniSat
+    -- 3. larger activity defined in MiniSat
     keyOf :: Int -> IO Double
     keyOf i = do
       c <- getNthClause vec i
@@ -661,12 +679,12 @@ solve s@Solver{..} assumps = do
           while :: LiftedBool -> Double -> Double -> IO Bool
           while Bottom nOfConflicts nOfLearnts = do
             status <- search s (floor nOfConflicts) (floor nOfLearnts)
-            while status (1.5 * nOfConflicts) (1.05 * nOfLearnts)
+            while status (1.5 * nOfConflicts) (1.1 * nOfLearnts)
           while status _ _ = do
             cancelUntil s 0
             return $ status == LTrue
         nc <- fromIntegral <$> nClauses s
-        while Bottom 100 (nc / 4.0)
+        while Bottom 100 (nc / 3.0)
 
 {-# INLINABLE unsafeEnqueue #-}
 unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
