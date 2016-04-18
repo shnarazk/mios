@@ -406,6 +406,7 @@ propagate s@Solver{..} = do
                     -- Did not find watch; clause is unit under assignment:
                     setNthClause cvec j c
                     result <- enqueue s first c
+                    updateLBD s c
                     if not result
                       then do
                           ((== 0) <$> decisionLevel s) >>= (`when` setBool ok False)

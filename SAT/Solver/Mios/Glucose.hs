@@ -15,7 +15,7 @@ module SAT.Solver.Mios.Glucose
        (
          lbdOf
        , setLBD
---       , updateLBD
+       , updateLBD
        , nextReduction
        )
         where
@@ -47,15 +47,9 @@ setLBD s c = setInt (lbd c) =<< lbdOf s c
 -- | update the lbd field of /c/
 {-# INLINE updateLBD #-}
 updateLBD :: Solver -> Clause -> IO ()
-updateLBD s NullClause = error "LBD71"
-updateLBD s c@Clause{..} = do
-  k <- sizeOfClause c
---  o <- getInt lbd
-  n <- lbdOf s c
-  case () of
-    _ | n == 1 -> setInt lbd (k - 1)
-    -- _ | n < o -> setInt lbd n
-    _ -> return ()
+updateLBD _ NullClause = error "LBD71"
+updateLBD _ (learnt -> False) = return ()
+updateLBD s c@Clause{..} = setInt lbd =<< lbdOf s c
 
 -- | 0 based
 -- >>> nextReduction 0
