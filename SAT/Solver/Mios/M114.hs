@@ -159,11 +159,11 @@ analyze s@Solver{..} confl = do
             then do
                 varBumpActivity s v
                 setNth an_seen v 1
-                if dl <= l
+                if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
                   then do
                       -- gulcose heuristics
                       r <- getNthClause reason v
-                      unless (r == NullClause) $ when (learnt r) $ pushToStack lastDL q
+                      when (r /= NullClause && learnt r) $ pushToStack lastDL q
                       -- end of gulcose heuristics
                       loopOnLiterals (j + 1) b (pc + 1)
                   else pushToStack litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
@@ -171,11 +171,11 @@ analyze s@Solver{..} confl = do
       (b', pathC') <- loopOnLiterals (if p == bottomLit then 0 else 1) bl pathC
       let
         -- select next clause to look at
-        nextUnseenLit :: Int -> IO Int
-        nextUnseenLit i = do
+        nextPickedUpLit :: Int -> IO Int
+        nextPickedUpLit i = do
           x <- getNth an_seen . lit2var =<< getNth trailVec i
-          if x == 0 then nextUnseenLit $ i - 1 else return i
-      ti' <- nextUnseenLit ti
+          if x == 0 then nextPickedUpLit $ i - 1 else return i
+      ti' <- nextPickedUpLit ti
       nextP <- getNth trailVec ti'
       let nextV = lit2var nextP
       confl' <- getNthClause reason nextV
@@ -406,7 +406,6 @@ propagate s@Solver{..} = do
                     -- Did not find watch; clause is unit under assignment:
                     setNthClause cvec j c
                     result <- enqueue s first c
-                    updateLBD s c
                     if not result
                       then do
                           ((== 0) <$> decisionLevel s) >>= (`when` setBool ok False)
@@ -415,8 +414,8 @@ propagate s@Solver{..} = do
                           let
                             copy i'@((< end) -> False) j' = forClause c i' j'
                             copy i' j' = (setNthClause cvec j' =<< getNthClause cvec i') >> copy (i' + 1) (j' + 1)
-                          copy (i + 1)  (j + 1)
-                      else forClause confl (i + 1) (j + 1)
+                          copy (i + 1) (j + 1)
+                      else updateLBD s c >> forClause confl (i + 1) (j + 1)
                   forLit k = do
                     (l :: Lit) <- getNth lits k
                     lv <- valueLit s l
