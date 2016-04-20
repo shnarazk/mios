@@ -385,7 +385,7 @@ propagate s@Solver{..} = do
       loop 1
     trailVec = asVec trail
     while :: Clause -> Bool -> IO Clause
-    while confl False = bumpAllVar >> return confl
+    while confl False = {- bumpAllVar >> -} return confl
     while confl True = do
       (p :: Lit) <- getNth trailVec =<< getInt qHead
       modifyInt qHead (+ 1)
@@ -413,7 +413,7 @@ propagate s@Solver{..} = do
           while confl =<< ((<) <$> getInt qHead <*> sizeOfStack trail)
         forClause confl i j = do
           (c :: Clause) <- getNthClause cvec i
-          checkAllLiteralsIn c
+          -- checkAllLiteralsIn c
           let
             lits = asVec c
             falseLit = negateLit p
