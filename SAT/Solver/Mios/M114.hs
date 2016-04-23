@@ -161,10 +161,10 @@ analyze s@Solver{..} confl = do
                 setNth an_seen v 1
                 if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
                   then do
-                      -- gulcose heuristics
+                      -- glucose heuristics
                       r <- getNthClause reason v
                       when (r /= NullClause && learnt r) $ pushToStack lastDL q
-                      -- end of gulcose heuristics
+                      -- end of glucose heuristics
                       loopOnLiterals (j + 1) b (pc + 1)
                   else pushToStack litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
             else loopOnLiterals (j + 1) b pc
