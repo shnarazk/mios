@@ -144,7 +144,19 @@ analyze s@Solver{..} confl = do
     trailVec = asVec trail
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
-      when (learnt c) $ claBumpActivity s c
+      when (learnt c) $ do
+        claBumpActivity s c
+        -- update LBD
+        -- #Glucose4.0
+        -- unsigned int nblevels = computeLBD(c);
+        -- if (nblevels + 1 < c.lbd()) { // improve the LBD
+        -- if (c.lbd( <= lbLBDFrozenClause) {
+        --    c.setCanBeDel(false);
+        -- }
+        -- // seems to be interesting: keep it fro the next round
+        -- c.setLBD(nblevels); // Update it
+        -- d <- getInt $ lbd c
+        -- when (2 < d) $ updateLBD s c
       sc <- sizeOfClause c
       let
         lvec = asVec c
@@ -373,6 +385,7 @@ propagate s@Solver{..} = do
   let seen = asSizedVec lastDL
   setAll seen 0
   let
+{-
     bumpAllVar :: IO ()
     bumpAllVar = do
       let
@@ -383,6 +396,7 @@ propagate s@Solver{..} = do
           when (c == 1) (varBumpActivity s i)
           loop $ i + 1
       loop 1
+-}
     trailVec = asVec trail
     while :: Clause -> Bool -> IO Clause
     while confl False = {- bumpAllVar >> -} return confl
@@ -392,9 +406,10 @@ propagate s@Solver{..} = do
       let (ws :: ClauseManager) = getNthWatchers watches p
       end <- numberOfClauses ws
       cvec <- getClauseVector ws
-      rc <- getNthClause reason $ lit2var p
-      byGlue <- if (rc /= NullClause) && learnt rc then (== 2) <$> getInt (lbd rc) else return False
+--      rc <- getNthClause reason $ lit2var p
+--      byGlue <- if (rc /= NullClause) && learnt rc then (== 2) <$> getInt (lbd rc) else return False
       let
+{-
         checkAllLiteralsIn :: Clause -> IO ()
         checkAllLiteralsIn c = do
           nc <- sizeOfClause c
@@ -407,6 +422,7 @@ propagate s@Solver{..} = do
               setNth seen v 1
               loop $ i + 1
           loop 0
+-}
         forClause :: Clause -> Int -> Int -> IO Clause
         forClause confl i@((< end) -> False) j = do
           shrinkClauseManager ws (i - j)
