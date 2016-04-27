@@ -155,8 +155,8 @@ analyze s@Solver{..} confl = do
         -- }
         -- // seems to be interesting: keep it fro the next round
         -- c.setLBD(nblevels); // Update it
-        -- d <- getInt $ lbd c
-        -- when (2 < d) $ updateLBD s c
+        d <- getInt $ lbd c
+        when (2 < d) $ updateLBD s c
       sc <- sizeOfClause c
       let
         lvec = asVec c
@@ -382,24 +382,21 @@ analyzeFinal Solver{..} confl skipFirst = do
 {-# INLINABLE propagate #-}
 propagate :: Solver -> IO Clause
 propagate s@Solver{..} = do
-  -- let seen = asSizedVec lastDL
-  -- setAll seen 0
+  setAll pr'seen 0
   let
-{-
     bumpAllVar :: IO ()
     bumpAllVar = do
       let
         loop :: Int -> IO ()
-        loop ((<= nVars) -> False) = setAll seen 0
+        loop ((<= nVars) -> False) = setAll pr'seen 0
         loop i = do
-          c <- getNth seen i
+          c <- getNth pr'seen i
           when (c == 1) (varBumpActivity s i)
           loop $ i + 1
       loop 1
--}
     trailVec = asVec trail
     while :: Clause -> Bool -> IO Clause
-    while confl False = {- bumpAllVar >> -} return confl
+    while confl False = bumpAllVar >> return confl
     while confl True = do
       (p :: Lit) <- getNth trailVec =<< getInt qHead
       modifyInt qHead (+ 1)
@@ -409,7 +406,6 @@ propagate s@Solver{..} = do
 --      rc <- getNthClause reason $ lit2var p
 --      byGlue <- if (rc /= NullClause) && learnt rc then (== 2) <$> getInt (lbd rc) else return False
       let
-{-
         checkAllLiteralsIn :: Clause -> IO ()
         checkAllLiteralsIn c = do
           nc <- sizeOfClause c
@@ -419,17 +415,16 @@ propagate s@Solver{..} = do
             loop((< nc) -> False) = return ()
             loop i = do
               (v :: Var) <- lit2var <$> getNth vec i
-              setNth seen v 1
+              setNth pr'seen v 1
               loop $ i + 1
           loop 0
--}
         forClause :: Clause -> Int -> Int -> IO Clause
         forClause confl i@((< end) -> False) j = do
           shrinkClauseManager ws (i - j)
           while confl =<< ((<) <$> getInt qHead <*> sizeOfStack trail)
         forClause confl i j = do
           (c :: Clause) <- getNthClause cvec i
-          -- checkAllLiteralsIn c
+          checkAllLiteralsIn c
           let
             lits = asVec c
             falseLit = negateLit p

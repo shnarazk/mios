@@ -15,7 +15,7 @@ module SAT.Solver.Mios.Glucose
        (
          lbdOf
        , setLBD
---       , updateLBD
+       , updateLBD
        , nextReduction
        )
         where
