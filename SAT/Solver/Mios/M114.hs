@@ -382,8 +382,8 @@ analyzeFinal Solver{..} confl skipFirst = do
 {-# INLINABLE propagate #-}
 propagate :: Solver -> IO Clause
 propagate s@Solver{..} = do
-  let seen = asSizedVec lastDL
-  setAll seen 0
+  -- let seen = asSizedVec lastDL
+  -- setAll seen 0
   let
 {-
     bumpAllVar :: IO ()
