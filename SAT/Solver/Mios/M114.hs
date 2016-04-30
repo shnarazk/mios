@@ -526,8 +526,9 @@ sortOnActivity cm = do
       if k == 2
         then return 0
         else do
-            a <- getDouble (activity c)
-            (+ 1 / (a + 1.1)) . fromIntegral <$> getInt (lbd c)
+            -- a <- getDouble (activity c)
+            a <- fromIntegral <$> sizeOfClause c
+            (+ 1 / a) . fromIntegral <$> getInt (lbd c)
     sortOnRange :: Int -> Int -> IO ()
     sortOnRange left right
       | left >= right = return ()
