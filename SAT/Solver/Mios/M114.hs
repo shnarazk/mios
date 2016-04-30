@@ -453,7 +453,7 @@ propagate s@Solver{..} = do
                             copy i'@((< end) -> False) j' = forClause c i' j'
                             copy i' j' = (setNthClause cvec j' =<< getNthClause cvec i') >> copy (i' + 1) (j' + 1)
                           copy (i + 1) (j + 1)
-                      else updateLBD s c >> forClause confl (i + 1) (j + 1)
+                      else forClause confl (i + 1) (j + 1)
                   forLit k = do
                     (l :: Lit) <- getNth lits k
                     lv <- valueLit s l
