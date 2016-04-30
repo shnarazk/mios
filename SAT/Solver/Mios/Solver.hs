@@ -77,7 +77,7 @@ data Solver = Solver
               , varInc     :: !DoubleSingleton   -- ^ Variable activity increment amount to bump with.
               , rootLevel  :: !IntSingleton      -- ^ Separates incremental and search assumptions.
                 -- Working Memory
-              , ok         :: !BoolSingleton     -- ^ return vaule holdher
+              , ok         :: !BoolSingleton     -- ^ return value holder
               , an'seen    :: !Vec               -- ^ scratch var for 'analyze'; var-indexed
               , an'toClear :: !Stack             -- ^ ditto
               , an'stack   :: !Stack             -- ^ ditto
