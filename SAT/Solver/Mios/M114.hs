@@ -165,12 +165,12 @@ analyze s@Solver{..} confl = do
         loopOnLiterals j b pc = do
           (q :: Lit) <- getNth lvec j
           let v = lit2var q
-          sn <- getNth an_seen v
+          sn <- getNth an'seen v
           l <- getNth level v
           if sn == 0 && 0 < l
             then do
                 varBumpActivity s v
-                setNth an_seen v 1
+                setNth an'seen v 1
                 if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
                   then do
                       -- glucose heuristics
@@ -185,13 +185,13 @@ analyze s@Solver{..} confl = do
         -- select next clause to look at
         nextPickedUpLit :: Int -> IO Int
         nextPickedUpLit i = do
-          x <- getNth an_seen . lit2var =<< getNth trailVec i
+          x <- getNth an'seen . lit2var =<< getNth trailVec i
           if x == 0 then nextPickedUpLit $ i - 1 else return i
       ti' <- nextPickedUpLit ti
       nextP <- getNth trailVec ti'
       let nextV = lit2var nextP
       confl' <- getNthClause reason nextV
-      setNth an_seen nextV 0
+      setNth an'seen nextV 0
       if 1 < pathC'
         then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
         else setNth litsVec 0 (negateLit nextP) >> return b'
@@ -199,15 +199,15 @@ analyze s@Solver{..} confl = do
   levelToReturn <- loopOnClauseChain confl bottomLit ti 0 0
   -- Simplify phase (implemented only @expensive_ccmin@ path)
   n <- sizeOfStack litsLearnt
-  clearStack an_stack           -- analyze_stack.clear();
-  clearStack an_toClear         -- out_learnt.copyTo(analyze_toclear);
-  pushToStack an_toClear =<< getNth litsVec 0
+  clearStack an'stack           -- analyze_stack.clear();
+  clearStack an'toClear         -- out_learnt.copyTo(analyze_toclear);
+  pushToStack an'toClear =<< getNth litsVec 0
   let
     merger :: Int -> Int -> IO Int
     merger ((< n) -> False) b = return b
     merger i b = do
       l <- getNth litsVec i
-      pushToStack an_toClear l
+      pushToStack an'toClear l
       -- restrict the search depth (range) to 32
       merger (i + 1) . setBit b . (31 .&.) =<< getNth level (lit2var l)
   levels <- merger 1 0
@@ -239,14 +239,14 @@ analyze s@Solver{..} confl = do
       loopOnLastDL $ i + 1
   loopOnLastDL 1
   -- Clear seen
-  k <- sizeOfStack an_toClear
+  k <- sizeOfStack an'toClear
   let
-    vec = asVec an_toClear
+    vec = asVec an'toClear
     cleaner :: Int -> IO ()
     cleaner ((< k) -> False) = return ()
     cleaner i = do
       v <- lit2var <$> getNth vec i
-      setNth an_seen v 0
+      setNth an'seen v 0
       cleaner $ i + 1
   cleaner 0
   return levelToReturn
@@ -257,25 +257,25 @@ analyze s@Solver{..} confl = do
 --
 -- Implementation memo:
 --
--- *  @an_toClear@ is initialized by @ps@ in 'analyze' (a copy of 'learnt').
+-- *  @an'toClear@ is initialized by @ps@ in 'analyze' (a copy of 'learnt').
 --   This is used only in this function and 'analyze'.
 --
 {-# INLINEABLE analyzeRemovable #-}
 analyzeRemovable :: Solver -> Lit -> Int -> IO Bool
 analyzeRemovable Solver{..} p minLevel = do
   -- assert (reason[var(p)]!= NullCaulse);
-  clearStack an_stack      -- analyze_stack.clear()
-  pushToStack an_stack p   -- analyze_stack.push(p);
-  top <- sizeOfStack an_toClear
+  clearStack an'stack      -- analyze_stack.clear()
+  pushToStack an'stack p   -- analyze_stack.push(p);
+  top <- sizeOfStack an'toClear
   let
     loopOnStack :: IO Bool
     loopOnStack = do
-      k <- sizeOfStack an_stack  -- int top = analyze_toclear.size();
+      k <- sizeOfStack an'stack  -- int top = analyze_toclear.size();
       if 0 == k
         then return True
         else do -- assert(reason[var(analyze_stack.last())] != GClause_NULL);
-            sl <- lastOfStack an_stack
-            popFromStack an_stack             -- analyze_stack.pop();
+            sl <- lastOfStack an'stack
+            popFromStack an'stack             -- analyze_stack.pop();
             c <- getNthClause reason (lit2var sl) -- getRoot sl
             nl <- sizeOfClause c
             let
@@ -286,23 +286,23 @@ analyzeRemovable Solver{..} p minLevel = do
                 p' <- getNth cvec i              -- valid range is [0 .. nl - 1]
                 let v' = lit2var p'
                 l' <- getNth level v'
-                c1 <- (1 /=) <$> getNth an_seen v'
+                c1 <- (1 /=) <$> getNth an'seen v'
                 if c1 && (0 /= l')   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
                   then do
                       c3 <- (NullClause /=) <$> getNthClause reason v'
                       if c3 && testBit minLevel (l' .&. 31) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
                         then do
-                            setNth an_seen v' 1        -- analyze_seen[var(p)] = 1;
-                            pushToStack an_stack p'    -- analyze_stack.push(p);
-                            pushToStack an_toClear p'  -- analyze_toclear.push(p);
+                            setNth an'seen v' 1        -- analyze_seen[var(p)] = 1;
+                            pushToStack an'stack p'    -- analyze_stack.push(p);
+                            pushToStack an'toClear p'  -- analyze_toclear.push(p);
                             loopOnLit $ i + 1
                         else do
                             -- loopOnLit (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
-                            top' <- sizeOfStack an_toClear
-                            let vec = asVec an_toClear
-                            forM_ [top .. top' - 1] $ \j -> do x <- getNth vec j; setNth an_seen (lit2var x) 0
+                            top' <- sizeOfStack an'toClear
+                            let vec = asVec an'toClear
+                            forM_ [top .. top' - 1] $ \j -> do x <- getNth vec j; setNth an'seen (lit2var x) 0
                             -- analyze_toclear.shrink(analyze_toclear.size() - top); note: shrink n == repeat n pop
-                            shrinkStack an_toClear $ top' - top
+                            shrinkStack an'toClear $ top' - top
                             return False
                   else loopOnLit $ i + 1
             loopOnLit 1
@@ -330,7 +330,7 @@ analyzeFinal Solver{..} confl skipFirst = do
       loopOnConfl i = do
         (x :: Var) <- lit2var <$> getNth lvec i
         lvl <- getNth level x
-        when (0 < lvl) $ setNth an_seen x 1
+        when (0 < lvl) $ setNth an'seen x 1
         loopOnConfl $ i + 1
     loopOnConfl $ if skipFirst then 1 else 0
     tls <- sizeOfStack trailLim
@@ -343,7 +343,7 @@ analyzeFinal Solver{..} confl skipFirst = do
       loopOnTrail i = do
         (l :: Lit) <- getNth trailVec i
         let (x :: Var) = lit2var l
-        saw <- getNth an_seen x
+        saw <- getNth an'seen x
         when (saw == 1) $ do
           (r :: Clause) <- getNthClause reason x
           if r == NullClause
@@ -357,10 +357,10 @@ analyzeFinal Solver{..} confl skipFirst = do
                   loopOnLits j = do
                     (v :: Var) <- lit2var <$> getNth cvec j
                     lv <- getNth level v
-                    when (0 < lv) $ setNth an_seen v 1
+                    when (0 < lv) $ setNth an'seen v 1
                     loopOnLits $ i + 1
                 loopOnLits 1
-        setNth an_seen x 0
+        setNth an'seen x 0
         loopOnTrail $ i - 1
     loopOnTrail =<< if tls <= rl then return (trs - 1) else getNth (asVec trailLim) rl
 
