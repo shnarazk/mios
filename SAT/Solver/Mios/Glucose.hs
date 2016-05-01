@@ -17,6 +17,7 @@ module SAT.Solver.Mios.Glucose
        , setLBD
        , updateLBD
        , nextReduction
+       , skipReduce
        )
         where
 
@@ -64,3 +65,10 @@ updateLBD s c@Clause{..} = setInt lbd =<< lbdOf s c
 nextReduction :: Int -> Int -> Int
 -- nextReduction _ n = 30000 + 10000 * n
 nextReduction b n = b {- * (n + 1) -} + 300 * n {- * (n + 1) -}
+
+-- | 'skipReduce' is a variant of 'canBeDel' in Glucose 4.0
+skipReduce :: Clause -> IO ()
+skipReduce Clause{..} = do
+  a <- getDouble $ activity
+  when (a < 0) $ error "bad value to skipReduce"
+  setDouble activity $ negate a
