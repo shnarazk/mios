@@ -70,5 +70,4 @@ nextReduction b n = b {- * (n + 1) -} + 300 * n {- * (n + 1) -}
 skipReduce :: Clause -> IO ()
 skipReduce Clause{..} = do
   a <- getDouble $ activity
-  when (a < 0) $ error "bad value to skipReduce"
-  setDouble activity $ negate a
+  when (0 < a) $ setDouble activity $ negate a
