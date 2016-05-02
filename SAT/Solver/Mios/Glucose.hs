@@ -69,5 +69,5 @@ nextReduction b n = b {- * (n + 1) -} + 300 * n {- * (n + 1) -}
 -- | 'skipReduce' is a variant of 'canBeDel' in Glucose 4.0
 skipReduce :: Clause -> IO ()
 skipReduce Clause{..} = do
-  a <- getDouble $ activity
-  when (0 < a) $ setDouble activity $ negate a
+  a <- getInt $ lbd
+  when (0 < a) $ setInt lbd $ negate a

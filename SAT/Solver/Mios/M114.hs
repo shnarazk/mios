@@ -155,7 +155,7 @@ analyze s@Solver{..} confl = do
         -- }
         -- // seems to be interesting: keep it fro the next round
         -- c.setLBD(nblevels); // Update it
-        d <- getInt $ lbd c
+        d <- abs <$> getInt (lbd c)
         when (2 < d) $ do
           updateLBD s c
           when (d < 30) $ skipReduce c
@@ -504,8 +504,8 @@ reduceDB s@Solver{..} = do
       c <- getNthClause vec i
       -- noneed <- if i < half then bePurged' c else bePurged c -- better is former
       noneed <- not <$> locked s c
-      a <- getDouble $ activity c
-      protected <- if 0 < a then return False else modifyDouble (activity c) negate >> return True
+      a <- getInt $ lbd c
+      protected <- if 0 < a then return False else modifyInt (lbd c) negate >> return True
       if half < i && noneed && not protected
         then removeWatch s c >> loopOn (i + 1) j
         else unless (i == j) (setNthClause vec j c) >> loopOn (i + 1) (j + 1)
@@ -531,7 +531,7 @@ sortOnActivity cm = do
         then return 0
         else do
             a <- getDouble (activity c)
-            (+ 1 / (abs a + 1.1)) . fromIntegral <$> getInt (lbd c)
+            (+ 1 / (a + 1.1)) . abs . fromIntegral <$> getInt (lbd c)
     sortOnRange :: Int -> Int -> IO ()
     sortOnRange left right
       | left >= right = return ()
