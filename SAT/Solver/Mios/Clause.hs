@@ -34,10 +34,11 @@ import SAT.Solver.Mios.Types
 -- TODO: GADTs is better?
 data Clause = Clause
               {
-                learnt   :: !Bool            -- ^ whether this is a learnt clause
-              , activity :: !DoubleSingleton -- ^ activity of this clause
-              , lbd      :: !IntSingleton    -- ^ storing the LBD; values are computed in Solver
-              , lits     :: !Vec             -- ^ which this clause consists of
+                learnt     :: !Bool            -- ^ whether this is a learnt clause
+              , activity   :: !DoubleSingleton -- ^ activity of this clause
+              , protected  :: !BoolSingleton   -- ^ protected from reduce
+              , lbd        :: !IntSingleton    -- ^ storing the LBD; values are computed in Solver
+              , lits       :: !Vec             -- ^ which this clause consists of
               }
 --  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
   | NullClause                              -- as null pointer
@@ -93,7 +94,7 @@ newClauseFromVec l vec = do
   n <- getNth vec 0
   v <- newVec $ n + 1
   forM_ [0 .. n] $ \i -> setNth v i =<< getNth vec i
-  Clause l <$> newDouble 0 <*> newInt n <*> return v
+  Clause l <$> newDouble 0 <*> newBool False <*> newInt n <*> return v
 
 -- | returns the number of literals in a clause, even if the given clause is a binary clause
 {-# INLINE sizeOfClause #-}
