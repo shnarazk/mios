@@ -27,7 +27,8 @@ import SAT.Solver.Mios.Solver
 
 lbdOf :: Solver -> Clause -> IO Int
 lbdOf s@Solver{..} c = do
-  setAll lbd'seen 0
+  k <- (1 +) <$> getInt lbd'key
+  setInt lbd'key k
   nv <- sizeOfClause c
   let
     vec = asVec c
@@ -35,8 +36,8 @@ lbdOf s@Solver{..} c = do
     loop k n = do
       l <- getNth level . lit2var =<< getNth vec k
       x <- getNth lbd'seen l
-      if x == 0
-        then setNth lbd'seen l 1 >> loop (k + 1) (n + 1)
+      if x == k
+        then setNth lbd'seen l k >> loop (k + 1) (n + 1)
         else loop (k + 1) n
   loop 0 0
 

@@ -83,6 +83,7 @@ data Solver = Solver
               , an'stack   :: !Stack             -- ^ ditto
               , pr'seen    :: !Vec               -- ^ used in propagate
               , lbd'seen   :: !Vec               -- ^ used in lbd computation
+              , lbd'key    :: !IntSingleton      -- ^ used in lbd computation
               , litsLearnt :: !Stack             -- ^ used to create a learnt clause
               , lastDL     :: !Stack             -- ^ last decision level used in analyze
               , stats      :: !Vec               -- ^ statistics information holder
@@ -182,6 +183,7 @@ newSolver conf desc@(CNFDescription nv nc _) = do
     <*> newStack nv                 -- an'stack
     <*> newVecWith (nv + 1) (-1)    -- pr'seen
     <*> newVec nv                   -- lbd'seen; can you compute the maximum decision level for a given CNF?
+    <*> newInt 0                    -- lbd'key
     <*> newStack nv                 -- litsLearnt
     <*> newStack nv                 -- lastDL
     <*> newVec (1 + fromEnum (maxBound :: StatIndex)) -- stats
