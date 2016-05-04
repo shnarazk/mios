@@ -180,7 +180,7 @@ newSolver conf desc@(CNFDescription nv nc _) = do
     <*> newVec (nv + 1)             -- an'seen
     <*> newStack nv                 -- an'toClear
     <*> newStack nv                 -- an'stack
-    <*> newVec (nv + 1)             -- pr'seen
+    <*> newVecWith (nv + 1) (-1)    -- pr'seen
     <*> newVec nv                   -- lbd'seen; can you compute the maximum decision level for a given CNF?
     <*> newStack nv                 -- litsLearnt
     <*> newStack nv                 -- lastDL

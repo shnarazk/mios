@@ -379,16 +379,17 @@ analyzeFinal Solver{..} confl skipFirst = do
 {-# INLINABLE propagate #-}
 propagate :: Solver -> IO Clause
 propagate s@Solver{..} = do
-  setAll pr'seen 0
+  -- myVal <- getNth stats (fromEnum NumOfBackjump)
   let
-    bumpAllVar :: IO ()
+    myVal = 0
+    bumpAllVar :: IO ()         -- not in use
     bumpAllVar = do
       let
         loop :: Int -> IO ()
-        loop ((<= nVars) -> False) = setAll pr'seen 0
+        loop ((<= nVars) -> False) = return ()
         loop i = do
           c <- getNth pr'seen i
-          when (c == 1) (varBumpActivity s i)
+          when (c == myVal) $ varBumpActivity s i
           loop $ i + 1
       loop 1
     trailVec = asVec trail
@@ -403,7 +404,7 @@ propagate s@Solver{..} = do
 --      rc <- getNthClause reason $ lit2var p
 --      byGlue <- if (rc /= NullClause) && learnt rc then (== 2) <$> getInt (lbd rc) else return False
       let
-        checkAllLiteralsIn :: Clause -> IO ()
+        checkAllLiteralsIn :: Clause -> IO () -- not in use
         checkAllLiteralsIn c = do
           nc <- sizeOfClause c
           let
@@ -412,7 +413,7 @@ propagate s@Solver{..} = do
             loop((< nc) -> False) = return ()
             loop i = do
               (v :: Var) <- lit2var <$> getNth vec i
-              setNth pr'seen v 1
+              setNth pr'seen v myVal
               loop $ i + 1
           loop 0
         forClause :: Clause -> Int -> Int -> IO Clause
