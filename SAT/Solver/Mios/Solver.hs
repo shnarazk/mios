@@ -74,6 +74,7 @@ data Solver = Solver
               , config     :: !MiosConfiguration -- ^ search paramerters
               , nVars      :: !Int               -- ^ number of variables
               , claInc     :: !DoubleSingleton   -- ^ Clause activity increment amount to bump with.
+              , varDecay   :: !DoubleSingleton   -- ^ used to set 'varInc'
               , varInc     :: !DoubleSingleton   -- ^ Variable activity increment amount to bump with.
               , rootLevel  :: !IntSingleton      -- ^ Separates incremental and search assumptions.
                 -- Working Memory
@@ -88,6 +89,47 @@ data Solver = Solver
               , lastDL     :: !Stack             -- ^ last decision level used in analyze
               , stats      :: !Vec               -- ^ statistics information holder
               }
+
+-- | returns an everything-is-initialized solver from the arguments
+newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
+newSolver conf desc@(CNFDescription nv nc _) = do
+  setStdGen $ mkStdGen 91648253
+  Solver
+    -- Public Interface
+    <$> newVecBool nv False                           -- model
+    <*> newStack nv                                   -- coflict
+    -- Clause Database
+    <*> newClauseManager nc                           -- clauses
+    <*> newClauseManager nc                           -- learnts
+    <*> newWatcherLists nv 2                          -- watches
+    -- Assignment Management
+    <*> newVecWith (nv + 1) lBottom                   -- assigns
+    <*> newStack nv                                   -- trail
+    <*> newStack nv                                   -- trailLim
+    <*> newInt 0                                      -- qHead
+    <*> newClauseVector (nv + 1)                      -- reason
+    <*> newVecWith (nv + 1) (-1)                      -- level
+    -- Variable Order
+    <*> newVecDouble (nv + 1) 0                       -- activities
+    <*> newVarHeap nv                                 -- order
+    -- Configuration
+    <*> return conf                                   -- config
+    <*> return nv                                     -- nVars
+    <*> newDouble 1.0                                 -- claInc
+    <*> newDouble (variableDecayRate conf)            -- varDecay
+    <*> newDouble 1.0                                 -- varInc
+    <*> newInt 0                                      -- rootLevel
+    -- Working Memory
+    <*> newBool True                                  -- ok
+    <*> newVec (nv + 1)                               -- an'seen
+    <*> newStack nv                                   -- an'toClear
+    <*> newStack nv                                   -- an'stack
+    <*> newVecWith (nv + 1) (-1)                      -- pr'seen
+    <*> newVec nv                                     -- lbd'seen
+    <*> newInt 0                                      -- lbd'key
+    <*> newStack nv                                   -- litsLearnt
+    <*> newStack nv                                   -- lastDL
+    <*> newVec (1 + fromEnum (maxBound :: StatIndex)) -- stats
 
 --------------------------------------------------------------------------------
 -- Accessors
@@ -147,46 +189,6 @@ getStats (config -> collectStats -> False) = return []
 getStats (stats -> v) = mapM (\i -> (i, ) <$> getNth v (fromEnum i)) [minBound .. maxBound :: StatIndex]
 
 -------------------------------------------------------------------------------- State Modifiers
-
--- | returns an everything-is-initialized solver from the arguments
-newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
-newSolver conf desc@(CNFDescription nv nc _) = do
-  setStdGen $ mkStdGen 91648253
-  Solver
-    -- Public Interface
-    <$> newVecBool nv False         -- model
-    <*> newStack nv                 -- coflict
-    -- Clause Database
-    <*> newClauseManager nc         -- clauses
-    <*> newClauseManager nc         -- learnts
-    <*> newWatcherLists nv 2        -- watches
-    -- Assignment Management
-    <*> newVecWith (nv + 1) lBottom -- assigns
-    <*> newStack nv                 -- trail
-    <*> newStack nv                 -- trailLim
-    <*> newInt 0                    -- qHead
-    <*> newClauseVector (nv + 1)    -- reason
-    <*> newVecWith (nv + 1) (-1)    -- level
-    -- Variable Order
-    <*> newVecDouble (nv + 1) 0     -- activities
-    <*> newVarHeap nv               -- order
-    -- Configuration
-    <*> return conf                 -- config
-    <*> return nv                   -- nVars
-    <*> newDouble 1.0               -- claInc
-    <*> newDouble 1.0               -- varInc
-    <*> newInt 0                    -- rootLevel
-    -- Working Memory
-    <*> newBool True                -- ok
-    <*> newVec (nv + 1)             -- an'seen
-    <*> newStack nv                 -- an'toClear
-    <*> newStack nv                 -- an'stack
-    <*> newVecWith (nv + 1) (-1)    -- pr'seen
-    <*> newVec nv                   -- lbd'seen; can you compute the maximum decision level for a given CNF?
-    <*> newInt 0                    -- lbd'key
-    <*> newStack nv                 -- litsLearnt
-    <*> newStack nv                 -- lastDL
-    <*> newVec (1 + fromEnum (maxBound :: StatIndex)) -- stats
 
 -- | returns @False@ if a conflict has occured.
 -- This function is called only before the solving phase to register the given clauses.
@@ -427,7 +429,7 @@ varBumpActivity s@Solver{..} !x = do
 -- | __Fig. 14 (p.19)__
 {-# INLINE varDecayActivity #-}
 varDecayActivity :: Solver -> IO ()
-varDecayActivity Solver{..} = modifyDouble varInc (/ variableDecayRate config)
+varDecayActivity Solver{..} = modifyDouble varInc . (flip (/)) =<< getDouble varDecay
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE varRescaleActivity #-}
