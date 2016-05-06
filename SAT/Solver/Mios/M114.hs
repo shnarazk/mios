@@ -640,7 +640,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                   analyzeFinal s confl False
                   return LFalse
               else do
-                  u <- (== 0) . (flip mod 5000) <$> getNth stats (fromEnum NumOfBackjump)
+                  u <- (== 0) . (`mod` 5000) <$> getNth stats (fromEnum NumOfBackjump)
                   when u $ do
                     d <- getDouble varDecay
                     when (d < 0.95) $ modifyDouble varDecay (+ 0.01)
