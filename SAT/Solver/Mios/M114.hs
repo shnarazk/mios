@@ -154,6 +154,14 @@ analyze s@Solver{..} confl = do
             when (d <= 30) $ setBool (protected c) True -- 30 is `lbLBDFrozenClause`
             -- seems to be interesting: keep it fro the next round
             setInt (lbd c) nblevels    -- Update it
+      when (not (learnt c)) $ do       -- why LBD value of not-learnt is fixed?
+        -- update LBD like #Glucose4.0
+        d <- getInt (lbd c)
+        when (2 < d) $ do
+          nblevels <- lbdOf s c
+          when (nblevels + 1 < d) $ do -- improve the LBD
+            -- seems to be interesting: keep it fro the next round
+            setInt (lbd c) nblevels    -- Update it
       sc <- sizeOfClause c
       let
         lvec = asVec c
