@@ -429,7 +429,8 @@ varBumpActivity s@Solver{..} !x = do
 -- | __Fig. 14 (p.19)__
 {-# INLINE varDecayActivity #-}
 varDecayActivity :: Solver -> IO ()
-varDecayActivity Solver{..} = modifyDouble varInc . (flip (/)) =<< getDouble varDecay
+varDecayActivity Solver{..} = modifyDouble varInc (/ 0.95)
+-- varDecayActivity Solver{..} = modifyDouble varInc . (flip (/)) =<< getDouble varDecay
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE varRescaleActivity #-}
