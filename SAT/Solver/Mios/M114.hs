@@ -154,14 +154,14 @@ analyze s@Solver{..} confl = do
             when (d <= 30) $ setBool (protected c) True -- 30 is `lbLBDFrozenClause`
             -- seems to be interesting: keep it fro the next round
             setInt (lbd c) nblevels    -- Update it
-      when (not (learnt c)) $ do       -- why LBD value of not-learnt is fixed?
-        -- update LBD like #Glucose4.0
-        d <- getInt (lbd c)
-        when (2 < d) $ do
-          nblevels <- lbdOf s c
-          when (nblevels + 1 < d) $ do -- improve the LBD
-            -- seems to be interesting: keep it fro the next round
-            setInt (lbd c) nblevels    -- Update it
+--      when (not (learnt c)) $ do       -- why LBD value of not-learnt is fixed?
+--        -- update LBD like #Glucose4.0
+--        d <- getInt (lbd c)
+--        when (2 < d) $ do
+--          nblevels <- lbdOf s c
+--          when (nblevels + 1 < d) $ do -- improve the LBD
+--            -- seems to be interesting: keep it fro the next round
+--            setInt (lbd c) nblevels    -- Update it
       sc <- sizeOfClause c
       let
         lvec = asVec c
@@ -232,7 +232,7 @@ analyze s@Solver{..} confl = do
   loopOnLits 1 1                -- the first literal is specail
   -- glucose heuristics
   nld <- sizeOfStack lastDL
-  lbd' <- computeLBD s $ asSizedVec litsLearnt
+--  lbd' <- computeLBD s $ asSizedVec litsLearnt
   let
     vec = asVec lastDL
     loopOnLastDL :: Int -> IO ()
@@ -240,7 +240,8 @@ analyze s@Solver{..} confl = do
     loopOnLastDL i = do
       v <- lit2var <$> getNth vec i
       d' <- getInt . lbd =<< getNthClause reason v
-      when (d' < lbd') $ varBumpActivity s v
+--      when (d' < lbd') $ varBumpActivity s v
+      varBumpActivity s v
       loopOnLastDL $ i + 1
   loopOnLastDL 0
   -- Clear seen
