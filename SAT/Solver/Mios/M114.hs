@@ -239,11 +239,11 @@ analyze s@Solver{..} confl = do
     loopOnLastDL ((< nld) -> False) = clearStack lastDL
     loopOnLastDL i = do
       v <- lit2var <$> getNth vec i
-      d' <- getInt . lbd =<< getNthClause reason v
+--      d' <- getInt . lbd =<< getNthClause reason v
 --      when (d' < lbd') $ varBumpActivity s v
       varBumpActivity s v
       loopOnLastDL $ i + 1
-  loopOnLastDL 0
+--  loopOnLastDL 0
   -- Clear seen
   k <- sizeOfStack an'toClear
   let
