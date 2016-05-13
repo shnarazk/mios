@@ -235,7 +235,7 @@ analyze s@Solver{..} confl = do
       -- d' <- getInt . lbd =<< getNthClause reason v
       varBumpActivity s v
       loopOnLastDL $ i + 1
-  loopOnLastDL 0
+  loopOnLastDL 1 -- irrational value!
   clearStack lastDL
   -- Clear seen
   k <- sizeOfStack an'toClear
