@@ -74,7 +74,6 @@ data Solver = Solver
               , config     :: !MiosConfiguration -- ^ search paramerters
               , nVars      :: !Int               -- ^ number of variables
               , claInc     :: !DoubleSingleton   -- ^ Clause activity increment amount to bump with.
-              , varDecay   :: !DoubleSingleton   -- ^ used to set 'varInc'
               , varInc     :: !DoubleSingleton   -- ^ Variable activity increment amount to bump with.
               , rootLevel  :: !IntSingleton      -- ^ Separates incremental and search assumptions.
                 -- Working Memory
@@ -84,7 +83,6 @@ data Solver = Solver
               , an'stack   :: !Stack             -- ^ ditto
               , pr'seen    :: !Vec               -- ^ used in propagate
               , lbd'seen   :: !Vec               -- ^ used in lbd computation
-              , lbd'key    :: !IntSingleton      -- ^ used in lbd computation
               , litsLearnt :: !Stack             -- ^ used to create a learnt clause
               , lastDL     :: !Stack             -- ^ last decision level used in analyze
               , stats      :: !Vec               -- ^ statistics information holder
@@ -116,7 +114,6 @@ newSolver conf desc@(CNFDescription nv nc _) = do
     <*> return conf                                   -- config
     <*> return nv                                     -- nVars
     <*> newDouble 1.0                                 -- claInc
-    <*> newDouble (variableDecayRate conf)            -- varDecay
     <*> newDouble 1.0                                 -- varInc
     <*> newInt 0                                      -- rootLevel
     -- Working Memory
@@ -126,7 +123,6 @@ newSolver conf desc@(CNFDescription nv nc _) = do
     <*> newStack nv                                   -- an'stack
     <*> newVecWith (nv + 1) (-1)                      -- pr'seen
     <*> newVec nv                                     -- lbd'seen
-    <*> newInt 0                                      -- lbd'key
     <*> newStack nv                                   -- litsLearnt
     <*> newStack nv                                   -- lastDL
     <*> newVec (1 + fromEnum (maxBound :: StatIndex)) -- stats
@@ -429,8 +425,7 @@ varBumpActivity s@Solver{..} !x = do
 -- | __Fig. 14 (p.19)__
 {-# INLINE varDecayActivity #-}
 varDecayActivity :: Solver -> IO ()
-varDecayActivity Solver{..} = modifyDouble varInc (/ 0.95)
--- varDecayActivity Solver{..} = modifyDouble varInc . (flip (/)) =<< getDouble varDecay
+varDecayActivity Solver{..} = modifyDouble varInc (/ variableDecayRate config)
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE varRescaleActivity #-}
