@@ -79,12 +79,13 @@ newLearntClause s@Solver{..} ps = do
        pushClause learnts c
        l <- getNth vec 0
        pushClause (getNthWatchers watches (negateLit l)) c
+
        l1 <- negateLit <$> getNth vec 1
+       -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
+       setLBD s c
        pushClause (getNthWatchers watches l1) c
        -- update the solver state by @l@
        unsafeEnqueue s l c
-       -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
-       setLBD s c
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
 -- simplify its representation (returns @False@) or state that the constraint is
