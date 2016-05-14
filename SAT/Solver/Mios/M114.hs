@@ -79,11 +79,10 @@ newLearntClause s@Solver{..} ps = do
        pushClause learnts c
        l <- getNth vec 0
        pushClause (getNthWatchers watches (negateLit l)) c
-
        l1 <- negateLit <$> getNth vec 1
+       pushClause (getNthWatchers watches l1) c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
        setLBD s c
-       pushClause (getNthWatchers watches l1) c
        -- update the solver state by @l@
        unsafeEnqueue s l c
 
@@ -229,7 +228,7 @@ analyze s@Solver{..} confl = do
   let
     vec = asVec lastDL
     loopOnLastDL :: Int -> IO ()
-    loopOnLastDL ((< nld) -> False) = return ()
+    loopOnLastDL ((<= nld) -> False) = return ()
     loopOnLastDL i = do
       l <- getNth vec i
       let v = lit2var l
