@@ -13,7 +13,8 @@
 
 module SAT.Solver.Mios.Glucose
        (
-         lbdOf
+         computeLBD
+       , lbdOf
        , setLBD
        , updateLBD
        , nextReduction
@@ -25,20 +26,26 @@ import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.Solver
 
-lbdOf :: Solver -> Clause -> IO Int
-lbdOf s@Solver{..} c = do
-  setAll lbd'seen 0
-  nv <- sizeOfClause c
+computeLBD :: Solver -> Vec -> IO Int
+computeLBD Solver{..} vec = do
+  key <- (1 +) <$> getInt lbd'key
+  setInt lbd'key key
+  nv <- getNth vec 0
   let
-    vec = asVec c
-    loop ((< nv) -> False) n = return n
-    loop k n = do
-      l <- getNth level . lit2var =<< getNth vec k
-      x <- getNth lbd'seen l
-      if x == 0
-        then setNth lbd'seen l 1 >> loop (k + 1) (n + 1)
-        else loop (k + 1) n
-  loop 0 0
+    loop :: Int -> Int -> IO Int
+    loop ((<= nv) -> False) n = return n
+    loop !i !n = do
+      l <- getNth level . lit2var =<< getNth vec i
+      -- seen <- if l == 0 then return True else (key ==) <$> getNth lbd'seen l
+      seen <- (key ==) <$> getNth lbd'seen l
+      if seen
+        then loop (i + 1) n
+        else setNth lbd'seen l key >> loop (i + 1) (n + 1)
+  loop 1 0
+
+{-# INLINE lbdOf #-}
+lbdOf :: Solver -> Clause -> IO Int
+lbdOf s (lits -> v) = computeLBD s v
 
 {-# INLINE setLBD #-}
 setLBD :: Solver -> Clause -> IO ()
