@@ -642,10 +642,10 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                   analyzeFinal s confl False
                   return LFalse
               else do
-                  u <- (== 0) . (flip mod 5000) <$> getNth stats (fromEnum NumOfBackjump)
-                  when u $ do
-                    d <- getDouble varDecay
-                    when (d < 0.95) $ modifyDouble varDecay (+ 0.01)
+--                  u <- (== 0) . (flip mod 5000) <$> getNth stats (fromEnum NumOfBackjump)
+--                  when u $ do
+--                    d <- getDouble varDecay
+--                    when (d < 0.95) $ modifyDouble varDecay (+ 0.01)
                   backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
                   (s `cancelUntil`) . max backtrackLevel =<< getInt rootLevel
                   newLearntClause s $ asSizedVec litsLearnt

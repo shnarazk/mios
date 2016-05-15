@@ -74,7 +74,7 @@ data Solver = Solver
               , config     :: !MiosConfiguration -- ^ search paramerters
               , nVars      :: !Int               -- ^ number of variables
               , claInc     :: !DoubleSingleton   -- ^ Clause activity increment amount to bump with.
-              , varDecay   :: !DoubleSingleton   -- ^ used to set 'varInc'
+--            , varDecay   :: !DoubleSingleton   -- ^ used to set 'varInc'
               , varInc     :: !DoubleSingleton   -- ^ Variable activity increment amount to bump with.
               , rootLevel  :: !IntSingleton      -- ^ Separates incremental and search assumptions.
                 -- Working Memory
@@ -116,7 +116,7 @@ newSolver conf desc@(CNFDescription nv nc _) = do
     <*> return conf                                   -- config
     <*> return nv                                     -- nVars
     <*> newDouble 1.0                                 -- claInc
-    <*> newDouble (variableDecayRate conf)            -- varDecay
+--  <*> newDouble (variableDecayRate conf)            -- varDecay
     <*> newDouble 1.0                                 -- varInc
     <*> newInt 0                                      -- rootLevel
     -- Working Memory
@@ -429,7 +429,8 @@ varBumpActivity s@Solver{..} !x = do
 -- | __Fig. 14 (p.19)__
 {-# INLINE varDecayActivity #-}
 varDecayActivity :: Solver -> IO ()
-varDecayActivity Solver{..} = modifyDouble varInc . (flip (/)) =<< getDouble varDecay
+varDecayActivity Solver{..} = modifyDouble varInc (/ variableDecayRate config)
+-- varDecayActivity Solver{..} = modifyDouble varInc . (flip (/)) =<< getDouble varDecay
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE varRescaleActivity #-}
