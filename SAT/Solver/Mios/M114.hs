@@ -477,42 +477,59 @@ propagate s@Solver{..} = do
 reduceDB :: Solver -> IO ()
 reduceDB s@Solver{..} = do
   nL <- nLearnts s
-  extraLim <- (/ fromIntegral nL) <$> getDouble claInc
+  -- extraLim <- (/ fromIntegral nL) <$> getDouble claInc
   let
     bePurged :: Clause -> IO Bool
     bePurged c = do
-      l <- sizeOfClause c
-      if l == 2 then return False else not <$> locked s c
-    bePurged' :: Clause -> IO Bool
-    bePurged' c = do        -- the purge condition is less severe
-      l <- sizeOfClause c
-      if l == 2
-        then return False
-        else do
-            l' <- locked s c
-            if l'
-              then return False
-              else (< extraLim) <$> getDouble (activity c)
+      d <- getInt $ lbd c
+      k <- sizeOfClause c
+      p <- getBool $ protected c
+      l <- locked s c
+      return $ 2 < d && 2 < k && not p && not l
   vec <- getClauseVector learnts
   let
-    half = div nL 2
-    loopOn :: Int -> Int -> IO ()
-    loopOn ((< nL) -> False) j = shrinkClauseManager learnts (nL - j)
-    loopOn i j = do
+    loopOn :: Int -> Int -> Int -> IO ()
+    loopOn ((< nL) -> False) j _ = shrinkClauseManager learnts (nL - j)
+    loopOn i j limit = do
       c <- getNthClause vec i
-      -- noneed <- if i < half then bePurged' c else bePurged c -- better is former
-      noneed <- not <$> locked s c
-      p <- getBool (protected c)
-      when p $ setBool (protected c) False
-      if half < i && noneed && not p
-        then removeWatch s c >> loopOn (i + 1) j
-        else unless (i == j) (setNthClause vec j c) >> loopOn (i + 1) (j + 1)
+      p <- if i < limit then bePurged c else return False
+      if p
+        then removeWatch s c >> loopOn (i + 1) j limit
+        else do
+            unless (i == j) (setNthClause vec j c)
+            p <- getBool $ protected c
+            if p
+              then do
+                  setBool (protected c) False
+                  loopOn (i + 1) (j + 1) (limit + 1)
+              else
+                  loopOn (i + 1) (j + 1) limit
   sortOnActivity learnts        -- CAVEAT: the order is reversed, compared with MiniSat 1.14
-  loopOn 0 0
+  loopOn 0 0 $ div nL 2
 
--- | (Good to bad) Quick sort on a clause vector based on their activities
+setSortKeys :: ClauseManager -> IO ()
+setSortKeys cm = do
+  n <- numberOfClauses cm
+  vec <- getClauseVector cm
+  let
+    updateNth :: Int -> IO ()
+    updateNth ((< n) -> False) = return ()
+    updateNth i = do
+      c <- getNthClause vec i
+      k <- sizeOfClause c
+      if k == 2
+        then setDouble (sortKey c) 0
+        else do
+            a <- getDouble (activity c)
+            x <- negate . (+ 1 / (a + 1.1)) . fromIntegral <$> getInt (lbd c)
+            setDouble (sortKey c) x
+      updateNth $ i + 1
+  updateNth 0
+
+-- | (Bad to Good) Quick sort on a clause vector based on their activities
 sortOnActivity :: ClauseManager -> IO ()
 sortOnActivity cm = do
+  setSortKeys cm
   n <- numberOfClauses cm
   vec <- getClauseVector cm
   let
@@ -521,15 +538,7 @@ sortOnActivity cm = do
     -- 2. smaller lbd
     -- 3. larger activity defined in MiniSat
     keyOf :: Int -> IO Double
-    keyOf i = do
-      c <- getNthClause vec i
-      k <- sizeOfClause c
-      -- if k == 2 then return (-1e100) else negate <$> getDouble (activity c)
-      if k == 2
-        then return 0
-        else do
-            a <- getDouble (activity c)
-            (+ 1 / (a + 1.1)) . fromIntegral <$> getInt (lbd c)
+    keyOf i = getDouble . sortKey =<< getNthClause vec i
     sortOnRange :: Int -> Int -> IO ()
     sortOnRange left right
       | left >= right = return ()
