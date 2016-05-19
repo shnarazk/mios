@@ -225,17 +225,18 @@ analyze s@Solver{..} confl = do
   loopOnLits 1 1                -- the first literal is specail
   -- glucose heuristics
   nld <- sizeOfStack lastDL
+--  lbd' <- computeLBD s $ asSizedVec litsLearnt -- this is not the right value
   let
     vec = asVec lastDL
     loopOnLastDL :: Int -> IO ()
-    loopOnLastDL ((<= nld) -> False) = return ()
+    loopOnLastDL ((< nld) -> False) = return ()
     loopOnLastDL i = do
       l <- getNth vec i
       let v = lit2var l
-      -- d' <- getInt . lbd =<< getNthClause reason v
-      varBumpActivity s v
+      d' <- getInt . lbd =<< getNthClause reason v
+      -- when (d' < lbd') $ varBumpActivity s v
       loopOnLastDL $ i + 1
-  loopOnLastDL 1 -- irrational value!
+--  loopOnLastDL 0
   clearStack lastDL
   -- Clear seen
   k <- sizeOfStack an'toClear
@@ -482,10 +483,16 @@ reduceDB s@Solver{..} = do
     bePurged :: Clause -> IO Bool
     bePurged c = do
       d <- getInt $ lbd c
-      k <- sizeOfClause c
-      p <- getBool $ protected c
-      l <- locked s c
-      return $ 2 < d && 2 < k && not p && not l
+      if d == 2
+        then return False
+        else do
+            k <- sizeOfClause c
+            if k == 2
+              then return False
+              else do
+                  p <- getBool $ protected c
+                  l <- locked s c
+                  return $ not p && not l
   vec <- getClauseVector learnts
   let
     loopOn :: Int -> Int -> Int -> IO ()
@@ -496,17 +503,18 @@ reduceDB s@Solver{..} = do
       if p
         then removeWatch s c >> loopOn (i + 1) j limit
         else do
-            unless (i == j) (setNthClause vec j c)
+            unless (i == j) $ setNthClause vec j c
             p <- getBool $ protected c
             if p
-              then do
-                  setBool (protected c) False
-                  loopOn (i + 1) (j + 1) (limit + 1)
-              else
-                  loopOn (i + 1) (j + 1) limit
-  sortOnActivity learnts        -- CAVEAT: the order is reversed, compared with MiniSat 1.14
+              then setBool (protected c) False >> loopOn (i + 1) (j + 1) (limit + 1)
+              else loopOn (i + 1) (j + 1) limit
+  sortOnActivity learnts
   loopOn 0 0 $ div nL 2
 
+-- | use the same metrix as reduceDB_lt in glucose 4.0
+-- 1. binary clause
+-- 2. smaller lbd
+-- 3. larger activity defined in MiniSat
 setSortKeys :: ClauseManager -> IO ()
 setSortKeys cm = do
   n <- numberOfClauses cm
@@ -533,10 +541,6 @@ sortOnActivity cm = do
   n <- numberOfClauses cm
   vec <- getClauseVector cm
   let
-    -- use the same metrix as reduceDB_lt in glucose 4.0
-    -- 1. binary clause
-    -- 2. smaller lbd
-    -- 3. larger activity defined in MiniSat
     keyOf :: Int -> IO Double
     keyOf i = getDouble . sortKey =<< getNthClause vec i
     sortOnRange :: Int -> Int -> IO ()
