@@ -32,7 +32,7 @@ import SAT.Solver.Mios.Glucose
 -- | #114: __RemoveWatch__
 {-# INLINABLE removeWatch #-}
 removeWatch :: Solver -> Clause -> IO ()
-removeWatch Solver{..} c  = do
+removeWatch Solver{..} c = do
   let lvec = asVec c
   l1 <- negateLit <$> getNth lvec 0
   removeClause (getNthWatchers watches l1) c
@@ -107,7 +107,7 @@ simplify s c = do
   loop 0
 
 --------------------------------------------------------------------------------
--- MIOS NOTE on  Minor methods:
+-- MIOS NOTE on Minor methods:
 --
 -- * no (meaningful) 'newVar' in mios
 -- * 'assume' is defined in 'Solver'
