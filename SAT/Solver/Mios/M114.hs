@@ -225,7 +225,7 @@ analyze s@Solver{..} confl = do
   loopOnLits 1 1                -- the first literal is specail
   -- glucose heuristics
   nld <- sizeOfStack lastDL
---  lbd' <- computeLBD s $ asSizedVec litsLearnt -- this is not the right value
+  lbd' <- computeLBD s $ asSizedVec litsLearnt -- this is not the right value
   let
     vec = asVec lastDL
     loopOnLastDL :: Int -> IO ()
@@ -234,7 +234,7 @@ analyze s@Solver{..} confl = do
       l <- getNth vec i
       let v = lit2var l
       d' <- getInt . lbd =<< getNthClause reason v
-      -- when (d' < lbd') $ varBumpActivity s v
+      when (lbd' < d') $ varBumpActivity s v
       loopOnLastDL $ i + 1
 --  loopOnLastDL 0
   clearStack lastDL
@@ -478,66 +478,51 @@ propagate s@Solver{..} = do
 reduceDB :: Solver -> IO ()
 reduceDB s@Solver{..} = do
   nL <- nLearnts s
+  vec <- getClauseVector learnts
   -- extraLim <- (/ fromIntegral nL) <$> getDouble claInc
   let
-    bePurged :: Clause -> IO Bool
-    bePurged c = do
-      d <- getInt $ lbd c
-      if d == 2
-        then return False
-        else do
-            k <- sizeOfClause c
-            if k == 2
-              then return False
-              else do
-                  p <- getBool $ protected c
-                  l <- locked s c
-                  return $ not p && not l
-  vec <- getClauseVector learnts
-  let
-    loopOn :: Int -> Int -> Int -> IO ()
-    loopOn ((< nL) -> False) j _ = shrinkClauseManager learnts (nL - j)
-    loopOn i j limit = do
-      c <- getNthClause vec i
-      p <- if i < limit then bePurged c else return False
-      if p
-        then removeWatch s c >> loopOn (i + 1) j limit
-        else do
-            unless (i == j) $ setNthClause vec j c
-            p <- getBool $ protected c
-            if p
-              then setBool (protected c) False >> loopOn (i + 1) (j + 1) (limit + 1)
-              else loopOn (i + 1) (j + 1) limit
+    loop :: Int -> IO ()
+    loop ((< nL) -> False) = return ()
+    loop i = (removeWatch s =<< getNthClause vec i) >> loop (i + 1)
+  k <- max (div nL 2) <$> setClauseKeys s learnts -- k is the number of clauses not to be purged
   sortOnActivity learnts
-  loopOn 0 0 $ div nL 2
+  loop $ k + 1
+  shrinkClauseManager learnts (nL - k)
 
--- | use the same metrix as reduceDB_lt in glucose 4.0
+-- | sets valid key to all clauses in ClauseManager and returns number of privileged clauses.
+-- this uses the same metrix as reduceDB_lt in glucose 4.0:
 -- 1. binary clause
 -- 2. smaller lbd
 -- 3. larger activity defined in MiniSat
-setSortKeys :: ClauseManager -> IO ()
-setSortKeys cm = do
+-- smaller value is better
+setClauseKeys :: Solver -> ClauseManager -> IO Int
+setClauseKeys s cm = do
   n <- numberOfClauses cm
   vec <- getClauseVector cm
   let
-    updateNth :: Int -> IO ()
-    updateNth ((< n) -> False) = return ()
-    updateNth i = do
+    updateNth :: Int -> Int -> IO Int
+    updateNth ((< n) -> False) m = return m
+    updateNth i m = do
       c <- getNthClause vec i
       k <- sizeOfClause c
-      if k == 2
-        then setDouble (sortKey c) 0
+      d <- getInt $ lbd c
+      p <- getBool $ protected c
+      setBool (protected c) False
+      if k == 2 || d == 2 || p
+        then setDouble (sortKey c) 0 >> updateNth (i + 1) (m + 1)
         else do
-            a <- getDouble (activity c)
-            x <- negate . (+ 1 / (a + 1.1)) . fromIntegral <$> getInt (lbd c)
-            setDouble (sortKey c) x
-      updateNth $ i + 1
-  updateNth 0
+            l <- locked s c
+            if l
+              then setDouble (sortKey c) 0 >> updateNth (i + 1) (m + 1)
+              else do
+                  a <- getDouble (activity c)
+                  setDouble (sortKey c) (fromIntegral d + 1 / (a + 1.1))
+                  updateNth (i + 1) m
+  updateNth 0 0
 
--- | (Bad to Good) Quick sort on a clause vector based on their activities
+-- | (Good to Bad) Quick sort on a clause vector based on their activities
 sortOnActivity :: ClauseManager -> IO ()
 sortOnActivity cm = do
-  setSortKeys cm
   n <- numberOfClauses cm
   vec <- getClauseVector cm
   let
