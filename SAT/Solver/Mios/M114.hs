@@ -236,7 +236,7 @@ analyze s@Solver{..} confl = do
       d' <- getInt . lbd =<< getNthClause reason v
       when (lbd' < d') $ varBumpActivity s v
       loopOnLastDL $ i + 1
---  loopOnLastDL 0
+  loopOnLastDL 0
   clearStack lastDL
   -- Clear seen
   k <- sizeOfStack an'toClear

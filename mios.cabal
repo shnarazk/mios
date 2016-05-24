@@ -44,9 +44,9 @@ executable mios-1.1.98
   buildable:	       True
   default-language:	Haskell2010
   if flag(llvm)
-    ghc-options:	-fstrictness -fno-state-hack -funbox-strict-fields -msse4.2 -O2 -ignore-asserts -fllvm -optlo-O3 -fno-warn-tabs -funfolding-use-threshold=200 -fno-full-laziness
+    ghc-options:	-Wall-missed-specialisations -XStrict -fstrictness -fno-state-hack -funbox-strict-fields -O2 -ignore-asserts -fllvm -optlo-O3 -fno-warn-tabs -funfolding-use-threshold=200 -fno-full-laziness
   else
-    ghc-options:	-XStrict -fstrictness -fno-state-hack -funbox-strict-fields -msse4.2 -O2 -fignore-asserts -fno-warn-tabs -funfolding-use-threshold=200 -fno-full-laziness
+    ghc-options:	-Wall-missed-specialisations -XStrict -fstrictness -fno-state-hack -funbox-strict-fields -msse4.2 -O2 -fignore-asserts -fno-warn-tabs -funfolding-use-threshold=200 -fno-full-laziness
   build-depends:       base ==4.9.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.5.*, bytestring ==0.10.*,
                           primitive ==0.6.*, random ==1.*
   other-modules:

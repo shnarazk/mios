@@ -180,6 +180,7 @@ int2lit n
 -- >>> lit2int 5
 -- -2
 {-# INLINE lit2int #-}
+lit2int :: Lit -> Int
 lit2int l = case divMod l 2 of
   (i, 0) -> i
   (i, _) -> - i
