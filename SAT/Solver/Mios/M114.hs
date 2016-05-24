@@ -508,16 +508,16 @@ setClauseKeys s cm = do
       d <- getInt $ lbd c
       p <- getBool $ protected c
       setBool (protected c) False
-      if k == 2 || d == 2 || p
-        then setDouble (sortKey c) 0 >> updateNth (i + 1) (m + 1)
-        else do
-            l <- locked s c
-            if l
-              then setDouble (sortKey c) 0 >> updateNth (i + 1) (m + 1)
-              else do
-                  a <- getDouble (activity c)
-                  setDouble (sortKey c) (fromIntegral d + 1 / (a + 1.1))
-                  updateNth (i + 1) m
+      l <- locked s c
+      case () of
+        _ | k == 2 -> setDouble (sortKey c) (-3) >> updateNth (i + 1) (m + 1)
+        _ | d <= 2 -> setDouble (sortKey c) (-2) >> updateNth (i + 1) (m + 1)
+        _ | l      -> setDouble (sortKey c) (-1) >> updateNth (i + 1) (m + 1)
+        _ | p      -> setDouble (sortKey c)    0 >> updateNth (i + 1) (m + 1)
+        _ -> do
+          a <- getDouble (activity c)
+          setDouble (sortKey c) (fromIntegral d + 1 / (a + 1.1))
+          updateNth (i + 1) m
   updateNth 0 0
 
 -- | (Good to Bad) Quick sort on a clause vector based on their activities
