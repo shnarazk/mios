@@ -229,7 +229,7 @@ analyze s@Solver{..} confl = do
   let
     vec = asVec lastDL
     loopOnLastDL :: Int -> IO ()
-    loopOnLastDL ((< nld) -> False) = return ()
+    loopOnLastDL ((<= nld) -> False) = return ()
     loopOnLastDL i = do
       -- l <- getNth vec i
       -- let v = lit2var l
@@ -237,7 +237,7 @@ analyze s@Solver{..} confl = do
       -- when (lbd' < d') $ varBumpActivity s v
       varBumpActivity s . lit2var =<< getNth vec i
       loopOnLastDL $ i + 1
-  loopOnLastDL 0
+  loopOnLastDL 1
   clearStack lastDL
   -- Clear seen
   k <- sizeOfStack an'toClear
