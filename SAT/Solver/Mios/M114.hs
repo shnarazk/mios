@@ -487,6 +487,17 @@ reduceDB s@Solver{..} = do
     loop i = (removeWatch s =<< getNthClause vec i) >> loop (i + 1)
   k <- max (div nL 2) <$> setClauseKeys s learnts -- k is the number of clauses not to be purged
   sortOnActivity learnts
+  let
+    check i n = do
+      if n <= i
+        then putStrLn ""
+        else do
+            c <- getNthClause vec i
+            x <- getDouble (sortKey c)
+            putStr $ ", " ++ show x
+            check (i + 1) n
+--  check 0 k
+--  check (k+1) nL
   loop $ k + 1
   shrinkClauseManager learnts (nL - k)
 
@@ -514,7 +525,10 @@ setClauseKeys s cm = do
         _ | k == 2 -> setDouble (sortKey c) (-3) >> updateNth (i + 1) (m + 1)
         _ | d <= 2 -> setDouble (sortKey c) (-2) >> updateNth (i + 1) (m + 1)
         _ | l      -> setDouble (sortKey c) (-1) >> updateNth (i + 1) (m + 1)
-        _ | p      -> setDouble (sortKey c)    0 >> updateNth (i + 1) (m + 1)
+        _ | p -> do
+          a <- getDouble (activity c)
+          setDouble (sortKey c) (fromIntegral (div d 2) + 1 / (a + 1.1))
+          updateNth (i + 1) m
         _ -> do
           a <- getDouble (activity c)
           setDouble (sortKey c) (fromIntegral d + 1 / (a + 1.1))
