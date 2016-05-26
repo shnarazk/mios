@@ -229,7 +229,7 @@ analyze s@Solver{..} confl = do
   let
     vec = asVec lastDL
     loopOnLastDL :: Int -> IO ()
-    loopOnLastDL ((<= nld) -> False) = return ()
+    loopOnLastDL ((< nld) -> False) = return ()
     loopOnLastDL i = do
       -- l <- getNth vec i
       -- let v = lit2var l
@@ -237,7 +237,7 @@ analyze s@Solver{..} confl = do
       -- when (lbd' < d') $ varBumpActivity s v
       varBumpActivity s . lit2var =<< getNth vec i
       loopOnLastDL $ i + 1
-  loopOnLastDL 1
+  loopOnLastDL 0
   clearStack lastDL
   -- Clear seen
   k <- sizeOfStack an'toClear
@@ -525,14 +525,8 @@ setClauseKeys s cm = do
         _ | k == 2 -> setDouble (sortKey c) (-3) >> updateNth (i + 1) (m + 1)
         _ | d <= 2 -> setDouble (sortKey c) (-2) >> updateNth (i + 1) (m + 1)
         _ | l      -> setDouble (sortKey c) (-1) >> updateNth (i + 1) (m + 1)
-        _ | p -> do
-          a <- getDouble (activity c)
-          setDouble (sortKey c) (fromIntegral (div d 2) + 1 / (a + 1.1))
-          updateNth (i + 1) m
-        _ -> do
-          a <- getDouble (activity c)
-          setDouble (sortKey c) (fromIntegral d + 1 / (a + 1.1))
-          updateNth (i + 1) m
+        _ | p      -> setDouble (sortKey c)   0  >> updateNth (i + 1) m
+        _ -> setDouble (sortKey c) (fromIntegral d) >> updateNth (i + 1) m
   updateNth 0 0
 
 -- | (Good to Bad) Quick sort on a clause vector based on their activities
@@ -741,7 +735,7 @@ solve s@Solver{..} assumps = do
             cancelUntil s 0
             return $ status == LTrue
         nc <- fromIntegral <$> nClauses s
-        while Bottom 100 (nc / 3.0)
+        while Bottom 100 (nc / 2.0)
 
 {-# INLINABLE unsafeEnqueue #-}
 unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
