@@ -241,11 +241,11 @@ analyze s@Solver{..} confl = do
   -- Clear seen
   k <- sizeOfStack an'toClear
   let
-    vec = asVec an'toClear
+    vec' = asVec an'toClear
     cleaner :: Int -> IO ()
     cleaner ((< k) -> False) = return ()
     cleaner i = do
-      v <- lit2var <$> getNth vec i
+      v <- lit2var <$> getNth vec' i
       setNth an'seen v 0
       cleaner $ i + 1
   cleaner 0
@@ -479,25 +479,13 @@ reduceDB :: Solver -> IO ()
 reduceDB s@Solver{..} = do
   nL <- nLearnts s
   vec <- getClauseVector learnts
-  -- extraLim <- (/ fromIntegral nL) <$> getDouble claInc
   let
     loop :: Int -> IO ()
     loop ((< nL) -> False) = return ()
     loop i = (removeWatch s =<< getNthClause vec i) >> loop (i + 1)
   k <- max (div nL 2) <$> setClauseKeys s learnts -- k is the number of clauses not to be purged
   sortOnActivity learnts
-  let
-    check i n = do
-      if n <= i
-        then putStrLn ""
-        else do
-            c <- getNthClause vec i
-            x <- getDouble (sortKey c)
-            putStr $ ", " ++ show x
-            check (i + 1) n
---  check 0 k
---  check (k+1) nL
-  loop $ k + 1
+  loop $ k                      -- CAVEAT: `vec` is a zero-based vector
   shrinkClauseManager learnts (nL - k)
 
 -- | sets valid key to all clauses in ClauseManager and returns number of privileged clauses.
@@ -506,6 +494,7 @@ reduceDB s@Solver{..} = do
 -- 2. smaller lbd
 -- 3. larger activity defined in MiniSat
 -- smaller value is better
+{-# INLINABLE setClauseKeys #-}
 setClauseKeys :: Solver -> ClauseManager -> IO Int
 setClauseKeys s cm = do
   n <- numberOfClauses cm
