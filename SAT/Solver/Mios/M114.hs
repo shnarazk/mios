@@ -225,18 +225,20 @@ analyze s@Solver{..} confl = do
   loopOnLits 1 1                -- the first literal is specail
   -- glucose heuristics
   nld <- sizeOfStack lastDL
-  lbd' <- computeLBD s $ asSizedVec litsLearnt -- this is not the right value
+  -- lbd' <- computeLBD s $ asSizedVec litsLearnt -- this is not the right value
   let
     vec = asVec lastDL
     loopOnLastDL :: Int -> IO ()
     loopOnLastDL ((< nld) -> False) = return ()
     loopOnLastDL i = do
+      {-
       v <- lit2var <$> getNth vec i
       d' <- getInt . lbd =<< getNthClause reason v
       when (lbd' < d') $ varBumpActivity s v
-      -- varBumpActivity s . lit2var =<< getNth vec i
+      -}
+      varBumpActivity s . lit2var =<< getNth vec i
       loopOnLastDL $ i + 1
-  loopOnLastDL 0
+  loopOnLastDL 1
   clearStack lastDL
   -- Clear seen
   k <- sizeOfStack an'toClear
