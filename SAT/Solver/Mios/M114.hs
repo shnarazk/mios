@@ -720,7 +720,7 @@ solve s@Solver{..} assumps = do
           while nOfConflicts nOfLearnts = do
             status <- search s (floor nOfConflicts) (floor nOfLearnts)
             if status == Bottom
-              then while (1.5 * nOfConflicts) (nc / 3.0 + nOfLearnts)
+              then while (1.5 * nOfConflicts) (500 + nOfLearnts)
               else cancelUntil s 0 >> return (status == LTrue)
         while 100 nc
 
