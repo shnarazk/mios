@@ -714,16 +714,15 @@ solve s@Solver{..} assumps = do
     else do
         setInt rootLevel =<< decisionLevel s
         -- SOLVE:
-        let
-          while :: LiftedBool -> Double -> Double -> IO Bool
-          while Bottom nOfConflicts nOfLearnts = do
-            status <- search s (floor nOfConflicts) (floor nOfLearnts)
-            while status (1.5 * nOfConflicts) (1.1 * nOfLearnts)
-          while status _ _ = do
-            cancelUntil s 0
-            return $ status == LTrue
         nc <- fromIntegral <$> nClauses s
-        while Bottom 100 (nc / 2.0)
+        let
+          while :: Double -> Double -> IO Bool
+          while nOfConflicts nOfLearnts = do
+            status <- search s (floor nOfConflicts) (floor nOfLearnts)
+            if status == Bottom
+              then while (1.5 * nOfConflicts) (nc / 3.0 + nOfLearnts)
+              else cancelUntil s 0 >> return (status == LTrue)
+        while 100 nc
 
 {-# INLINABLE unsafeEnqueue #-}
 unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
