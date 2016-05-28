@@ -516,7 +516,17 @@ setClauseKeys s cm = do
         _ | d <= 2 -> setDouble (sortKey c) (-2) >> updateNth (i + 1) (m + 1)
         _ | l      -> setDouble (sortKey c) (-1) >> updateNth (i + 1) (m + 1)
         _ | p      -> setDouble (sortKey c)   0  >> updateNth (i + 1) m
-        _ -> setDouble (sortKey c) (fromIntegral d) >> updateNth (i + 1) m
+--        _ -> setDouble (sortKey c) (fromIntegral d) >> updateNth (i + 1) m
+--        _ | p -> do
+--          a <- getDouble (activity c)
+--          let d' = div d 2
+--          setDouble (sortKey c) (fromIntegral d' + 1 / (a + 1.1))
+--          updateNth (i + 1) m
+        _ -> do
+          a <- getDouble (activity c)
+          setDouble (sortKey c) (fromIntegral d + 1 / (a + 1.1))
+          updateNth (i + 1) m
+
   updateNth 0 0
 
 -- | (Good to Bad) Quick sort on a clause vector based on their activities
