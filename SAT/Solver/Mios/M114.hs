@@ -229,7 +229,7 @@ analyze s@Solver{..} confl = do
   let
     vec = asVec lastDL
     loopOnLastDL :: Int -> IO ()
-    loopOnLastDL ((< nld) -> False) = return ()
+    loopOnLastDL ((<= nld) -> False) = return ()
     loopOnLastDL i = do
       {-
       v <- lit2var <$> getNth vec i
@@ -238,7 +238,7 @@ analyze s@Solver{..} confl = do
       -}
       varBumpActivity s . lit2var =<< getNth vec i
       loopOnLastDL $ i + 1
-  loopOnLastDL 1
+  loopOnLastDL 1  -- irrational value
   clearStack lastDL
   -- Clear seen
   k <- sizeOfStack an'toClear
@@ -512,10 +512,10 @@ setClauseKeys s cm = do
       when p $ setBool (protected c) False
       l <- locked s c
       case () of
-        _ | k == 2 -> setDouble (sortKey c) (-3) >> updateNth (i + 1) (m + 1)
-        _ | d <= 2 -> setDouble (sortKey c) (-2) >> updateNth (i + 1) (m + 1)
-        _ | l      -> setDouble (sortKey c) (-1) >> updateNth (i + 1) (m + 1)
-        _ | p      -> setDouble (sortKey c)   0  >> updateNth (i + 1) (m + 1)
+        _ | k == 2 -> setDouble (sortKey c) (-4) >> updateNth (i + 1) (m + 1)
+        _ | l      -> setDouble (sortKey c) (-3) >> updateNth (i + 1) (m + 1)
+        _ | p      -> setDouble (sortKey c) (-2) >> updateNth (i + 1) (m + 1)
+--      _ | d <= 2 -> setDouble (sortKey c) (-1) >> updateNth (i + 1) m
 --        _ -> setDouble (sortKey c) (fromIntegral d) >> updateNth (i + 1) m
 --        _ | p -> do
 --          a <- getDouble (activity c)
