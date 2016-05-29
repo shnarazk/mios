@@ -229,7 +229,7 @@ analyze s@Solver{..} confl = do
   let
     vec = asVec lastDL
     loopOnLastDL :: Int -> IO ()
-    loopOnLastDL ((<= nld) -> False) = return ()
+    loopOnLastDL ((< nld) -> False) = return ()
     loopOnLastDL i = do
       {-
       v <- lit2var <$> getNth vec i
@@ -731,7 +731,7 @@ solve s@Solver{..} assumps = do
           while nOfConflicts nOfLearnts = do
             status <- search s (floor nOfConflicts) (floor nOfLearnts)
             if status == Bottom
-              then while (1.5 * nOfConflicts) (500 + nOfLearnts)
+              then while (1.5 * nOfConflicts) (400 + nOfLearnts)
               else cancelUntil s 0 >> return (status == LTrue)
         while 100 nc
 
