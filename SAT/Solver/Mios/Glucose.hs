@@ -36,8 +36,7 @@ computeLBD Solver{..} vec = do
     loop ((<= nv) -> False) n = return n
     loop !i !n = do
       l <- getNth level . lit2var =<< getNth vec i
-      -- seen <- if l == 0 then return True else (key ==) <$> getNth lbd'seen l
-      seen <- (key ==) <$> getNth lbd'seen l
+      seen <- if l == 0 then return True else (key ==) <$> getNth lbd'seen l
       if seen
         then loop (i + 1) n
         else setNth lbd'seen l key >> loop (i + 1) (n + 1)
