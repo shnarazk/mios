@@ -229,7 +229,7 @@ analyze s@Solver{..} confl = do
   let
     vec = asVec lastDL
     loopOnLastDL :: Int -> IO ()
-    loopOnLastDL ((< nld) -> False) = return ()
+    loopOnLastDL ((<= nld) -> False) = return ()
     loopOnLastDL i = do
       {-
       v <- lit2var <$> getNth vec i
@@ -238,7 +238,7 @@ analyze s@Solver{..} confl = do
       -}
       varBumpActivity s . lit2var =<< getNth vec i
       loopOnLastDL $ i + 1
-  loopOnLastDL 0  -- irrational value
+  loopOnLastDL 0
   clearStack lastDL
   -- Clear seen
   k <- sizeOfStack an'toClear
@@ -733,7 +733,7 @@ solve s@Solver{..} assumps = do
             if status == Bottom
               then while (1.5 * nOfConflicts) (300 + nOfLearnts)
               else cancelUntil s 0 >> return (status == LTrue)
-        while 500 3000
+        while 500 nc
 
 {-# INLINABLE unsafeEnqueue #-}
 unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
