@@ -341,7 +341,7 @@ analyzeFinal Solver{..} confl skipFirst = do
     let
       trailVec = asVec trail
       loopOnTrail :: Int -> IO ()
-      loopOnTrail ((tlz <) -> False) = return ()
+      loopOnTrail ((tlz <=) -> False) = return ()
       loopOnTrail i = do
         (l :: Lit) <- getNth trailVec i
         let (x :: Var) = lit2var l
