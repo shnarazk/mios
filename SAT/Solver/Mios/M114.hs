@@ -229,7 +229,7 @@ analyze s@Solver{..} confl = do
   let
     vec = asVec lastDL
     loopOnLastDL :: Int -> IO ()
-    loopOnLastDL ((<= nld + 1) -> False) = return ()
+    loopOnLastDL ((< nld) -> False) = return ()
     loopOnLastDL i = do
       {-
       v <- lit2var <$> getNth vec i
@@ -238,7 +238,7 @@ analyze s@Solver{..} confl = do
       -}
       varBumpActivity s . lit2var =<< getNth vec i
       loopOnLastDL $ i + 1
-  loopOnLastDL 1                -- irrational value
+  loopOnLastDL 0
   clearStack lastDL
   -- Clear seen
   k <- sizeOfStack an'toClear
