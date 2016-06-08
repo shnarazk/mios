@@ -733,7 +733,7 @@ solve s@Solver{..} assumps = do
             if status == Bottom
               then while (1.5 * nOfConflicts) (400 + nOfLearnts)
               else cancelUntil s 0 >> return (status == LTrue)
-        while 100 nc
+        while 500 nc
 
 {-# INLINABLE unsafeEnqueue #-}
 unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
