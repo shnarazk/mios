@@ -62,6 +62,7 @@ data Solver = Solver
               , watches    :: !WatcherLists      -- ^ a list of constraint wathing 'p', literal-indexed
                 -- Assignment Management
               , assigns    :: !Vec               -- ^ The current assignments indexed on variables; var-indexed
+              , phases     :: !Vec               -- ^ The last assignments indexed on variables; var-indexed
               , trail      :: !Stack             -- ^ List of assignments in chronological order; var-indexed
               , trailLim   :: !Stack             -- ^ Separator indices for different decision levels in 'trail'.
               , qHead      :: !IntSingleton      -- ^ 'trail' is divided at qHead; assignments and queue
@@ -104,6 +105,7 @@ newSolver conf desc@(CNFDescription nv nc _) = do
     <*> newWatcherLists nv 2                          -- watches
     -- Assignment Management
     <*> newVecWith (nv + 1) lBottom                   -- assigns
+    <*> newVecWith (nv + 1) lBottom                   -- phases
     <*> newStack nv                                   -- trail
     <*> newStack nv                                   -- trailLim
     <*> newInt 0                                      -- qHead
@@ -349,6 +351,7 @@ cancelUntil s@Solver{..} lvl = do
       loopOnTrail ((lim <=) -> False) = return ()
       loopOnTrail c = do
         x <- lit2var <$> getNth tr c
+        setNth phases x =<< getNth assigns x
         setNth assigns x lBottom
         -- #reason to set reason Null
         -- if we don't clear @reason[x] :: Clause@ here, @reason[x]@ remains as locked.

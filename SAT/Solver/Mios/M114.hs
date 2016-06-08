@@ -682,7 +682,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                -- New variable decision:
                v <- select s -- many have heuristic for polarity here
                -- << #phasesaving
-               oldVal <- valueVar s v
+               oldVal <- getNth phases v
                unsafeAssume s $ var2lit v (0 < oldVal) -- cannot return @False@
                -- >> #phasesaving
                loop conflictC
