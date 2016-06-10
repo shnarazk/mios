@@ -406,6 +406,7 @@ propagate s@Solver{..} = do
       let (ws :: ClauseManager) = getNthWatchers watches p
       end <- numberOfClauses ws
       cvec <- getClauseVector ws
+      bvec <- getBlockerVector ws
 --      rc <- getNthClause reason $ lit2var p
 --      byGlue <- if (rc /= NullClause) && learnt rc then (== 2) <$> getInt (lbd rc) else return False
       let
@@ -426,47 +427,61 @@ propagate s@Solver{..} = do
           shrinkClauseManager ws (i - j)
           while confl =<< ((<) <$> getInt qHead <*> sizeOfStack trail)
         forClause confl i j = do
-          (c :: Clause) <- getNthClause cvec i
-          -- checkAllLiteralsIn c
-          let
-            lits = asVec c
-            falseLit = negateLit p
-          -- Make sure the false literal is data[1]
-          ((falseLit ==) <$> getNth lits 0) >>= (`when` swapBetween lits 0 1)
-          -- if 0th watch is true, then clause is already satisfied.
-          (first :: Lit) <- getNth lits 0
-          val <- valueLit s first
-          if val == lTrue
-            then setNthClause cvec j c >> forClause confl (i + 1) (j + 1)
+          (l :: Lit) <- getNth bvec i
+          bv <- if l == 0 then return lFalse else valueLit s l
+          if bv == lTrue
+            then do
+                 unless (i == j) $ do -- NOTE: if i == j, the path doesn't require accesses to cvec!
+                   (c :: Clause) <- getNthClause cvec i
+                   setNthClause cvec j c
+                   setNth bvec j l
+                 forClause confl (i + 1) (j + 1)
             else do
-                -- Look for new watch
-                cs <- sizeOfClause c
+                -- checkAllLiteralsIn c
+                (c :: Clause) <- getNthClause cvec i
                 let
-                  forLit :: Int -> IO Clause
-                  forLit ((< cs) -> False) = do
-                    -- Did not find watch; clause is unit under assignment:
-                    setNthClause cvec j c
-                    result <- enqueue s first c
-                    if not result
-                      then do
-                          ((== 0) <$> decisionLevel s) >>= (`when` setBool ok False)
-                          setInt qHead =<< sizeOfStack trail
-                          -- Copy the remaining watches:
-                          let
-                            copy i'@((< end) -> False) j' = forClause c i' j'
-                            copy i' j' = (setNthClause cvec j' =<< getNthClause cvec i') >> copy (i' + 1) (j' + 1)
-                          copy (i + 1) (j + 1)
-                      else forClause confl (i + 1) (j + 1)
-                  forLit k = do
-                    (l :: Lit) <- getNth lits k
-                    lv <- valueLit s l
-                    if lv /= lFalse
-                      then do
-                          swapBetween lits 1 k
-                          pushClause (getNthWatchers watches (negateLit l)) c 0
-                          forClause confl (i + 1) j
-                      else forLit $ k + 1
-                forLit 2
+                  lits = asVec c
+                  falseLit = negateLit p
+                -- Make sure the false literal is data[1]
+                ((falseLit ==) <$> getNth lits 0) >>= (`when` swapBetween lits 0 1)
+                -- if 0th watch is true, then clause is already satisfied.
+                (first :: Lit) <- getNth lits 0
+                val <- valueLit s first
+                if val == lTrue
+                  then setNthClause cvec j c >> setNth bvec j first >> forClause confl (i + 1) (j + 1)
+                  else do
+                      -- Look for new watch
+                      cs <- sizeOfClause c
+                      let
+                        forLit :: Int -> IO Clause
+                        forLit ((< cs) -> False) = do
+                          -- Did not find watch; clause is unit under assignment:
+                          setNthClause cvec j c
+                          setNth bvec j 0
+                          result <- enqueue s first c
+                          if not result
+                            then do
+                                ((== 0) <$> decisionLevel s) >>= (`when` setBool ok False)
+                                setInt qHead =<< sizeOfStack trail
+                                -- Copy the remaining watches:
+                                let
+                                  copy i'@((< end) -> False) j' = forClause c i' j'
+                                  copy i' j' = do
+                                    setNthClause cvec j' =<< getNthClause cvec i'
+                                    setNth bvec j' =<< getNth bvec i'
+                                    copy (i' + 1) (j' + 1)
+                                copy (i + 1) (j + 1)
+                            else forClause confl (i + 1) (j + 1)
+                        forLit k = do
+                          (l :: Lit) <- getNth lits k
+                          lv <- valueLit s l
+                          if lv /= lFalse
+                            then do
+                                swapBetween lits 1 k
+                                pushClause (getNthWatchers watches (negateLit l)) c l
+                                forClause confl (i + 1) j
+                            else forLit $ k + 1
+                      forLit 2
       forClause confl 0 0
   while NullClause =<< ((<) <$> getInt qHead <*> sizeOfStack trail)
 

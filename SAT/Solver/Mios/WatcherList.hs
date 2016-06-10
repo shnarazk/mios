@@ -26,6 +26,7 @@ module SAT.Solver.Mios.WatcherList
        , clearClauseManager
        , shrinkClauseManager
        , getClauseVector
+       , getBlockerVector
        , pushClause
        , removeClause
          -- * Debug
