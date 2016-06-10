@@ -731,9 +731,9 @@ solve s@Solver{..} assumps = do
           while nOfConflicts nOfLearnts = do
             status <- search s (floor nOfConflicts) (floor nOfLearnts)
             if status == Bottom
-              then while (1.5 * nOfConflicts) (400 + nOfLearnts)
+              then while (1.5 * nOfConflicts) (1.1 * nOfLearnts)
               else cancelUntil s 0 >> return (status == LTrue)
-        while 500 nc
+        while 100 (nc / 3.0)
 
 {-# INLINABLE unsafeEnqueue #-}
 unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
