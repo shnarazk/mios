@@ -20,7 +20,7 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 import SAT.Solver.Mios.Types
 import qualified SAT.Solver.Mios.Clause as C
-import SAT.Solver.Mios.ClauseManager
+import SAT.Solver.Mios.WatcherList
 
 type WatcherLists = V.Vector ClauseManager
 

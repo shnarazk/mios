@@ -24,7 +24,7 @@ import Data.Foldable (foldrM)
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Clause
-import SAT.Solver.Mios.ClauseManager
+import SAT.Solver.Mios.WatcherList
 import SAT.Solver.Mios.WatcherLists
 import SAT.Solver.Mios.Solver
 import SAT.Solver.Mios.Glucose
@@ -76,11 +76,11 @@ newLearntClause s@Solver{..} ps = do
        -- Bump, enqueue, store clause:
        claBumpActivity s c -- newly learnt clauses should be considered active
        -- Add clause to all managers
-       pushClause learnts c
+       pushClause learnts c 0
        l <- getNth vec 0
-       pushClause (getNthWatchers watches (negateLit l)) c
+       pushClause (getNthWatchers watches (negateLit l)) c 0
        l1 <- negateLit <$> getNth vec 1
-       pushClause (getNthWatchers watches l1) c
+       pushClause (getNthWatchers watches l1) c 0
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
        setLBD s c
        -- update the solver state by @l@
@@ -463,7 +463,7 @@ propagate s@Solver{..} = do
                     if lv /= lFalse
                       then do
                           swapBetween lits 1 k
-                          pushClause (getNthWatchers watches (negateLit l)) c
+                          pushClause (getNthWatchers watches (negateLit l)) c 0
                           forClause confl (i + 1) j
                       else forLit $ k + 1
                 forLit 2

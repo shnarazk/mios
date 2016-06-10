@@ -47,7 +47,7 @@ import System.Random (mkStdGen, randomIO, setStdGen)
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Clause
-import SAT.Solver.Mios.ClauseManager
+import SAT.Solver.Mios.WatcherList
 import SAT.Solver.Mios.WatcherLists
 
 -- | __Fig. 2.(p.9)__ Internal State of the solver
@@ -201,7 +201,7 @@ addClause s@Solver{..} vecLits = do
   case result of
    (False, _) -> return False   -- Conflict occured
    (True, c)  -> do
-     unless (c == NullClause) $ pushClause clauses c
+     unless (c == NullClause) $ pushClause clauses c 0
      return True                -- No conflict
 
 -- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists
@@ -296,9 +296,9 @@ clauseNew s@Solver{..} ps isLearnt = do
        forM_ [0 .. k -1] $ varBumpActivity s . lit2var <=< getNth vec -- variables in conflict clauses are bumped
      -- Add clause to watcher lists:
      l0 <- negateLit <$> getNth vec 0
-     pushClause (getNthWatchers watches l0) c
+     pushClause (getNthWatchers watches l0) c 0
      l1 <- negateLit <$> getNth vec 1
-     pushClause (getNthWatchers watches l1) c
+     pushClause (getNthWatchers watches l1) c 0
      return (True, c)
 
 -- | __Fig. 9 (p.14)__

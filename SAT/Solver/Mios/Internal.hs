@@ -12,7 +12,7 @@ import SAT.Solver.Mios.Data.Stack as Plumbing
 
 -- | version name
 versionId :: String
-versionId = "mios WIP#minisat+lbd by ghc-8.0.1 + llvm-3.8"
+versionId = "mios WIP#blocker"
 
 -- | solver's parameter configuration
 data MiosConfiguration = MiosConfiguration

@@ -9,7 +9,7 @@ module SAT.Solver.Mios.Validator
 
 import Data.Foldable (toList)
 import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.ClauseManager
+import SAT.Solver.Mios.WatcherList
 import SAT.Solver.Mios.Solver
 
 -- | validate the assignment even if the implementation of 'Solver' is wrong; we re-implement some functions here.

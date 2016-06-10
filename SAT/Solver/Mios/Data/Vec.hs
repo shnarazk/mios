@@ -23,6 +23,7 @@ module SAT.Solver.Mios.Data.Vec
        , newVecWith
        , newSizedVecIntFromList
        , newSizedVecIntFromUVector
+       , vecGrow
        )
        where
 
@@ -74,3 +75,6 @@ newSizedVecIntFromList !l = U.unsafeThaw $ U.fromList (length l : l)
 {-# INLINE newSizedVecIntFromUVector #-}
 newSizedVecIntFromUVector :: U.Vector Int -> IO Vec
 newSizedVecIntFromUVector = U.unsafeThaw
+
+vecGrow :: Vec -> Int -> IO Vec
+vecGrow = UV.unsafeGrow
