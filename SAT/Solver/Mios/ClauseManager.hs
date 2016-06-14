@@ -13,18 +13,12 @@
 -- | Both of watchlists and @learnt@ are implemented by this.
 module SAT.Solver.Mios.ClauseManager
        (
-         -- * Vector of Clause
-         ClauseVector
-       , newClauseVector
-       , getNthClause
-       , setNthClause
-       , swapClauses
          -- * higher level interface for ClauseVector
-       , ClauseManager (..)
-       , newClauseManager
+         ClauseManager
+       , newManager
        , numberOfClauses
-       , clearClauseManager
-       , shrinkClauseManager
+       , clearManager
+       , shrinkManager
        , getClauseVector
        , pushClause
        , removeClause
@@ -36,65 +30,37 @@ module SAT.Solver.Mios.ClauseManager
 
 import Control.Monad (forM_, unless, when)
 import qualified Data.IORef as IORef
-import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
 import SAT.Solver.Mios.Types
 import qualified SAT.Solver.Mios.Clause as C
 
-type ClauseVector = MV.IOVector C.Clause
-
-instance VectorFamily ClauseVector C.Clause where
-  asList cv = V.toList <$> V.freeze cv
-  dump mes cv = do
-    l <- asList cv
-    sts <- mapM (dump ",") (l :: [C.Clause])
-    return $ mes ++ tail (concat sts)
-
-newClauseVector  :: Int -> IO ClauseVector
-newClauseVector n = do
-  v <- MV.new (max 4 n)
-  MV.set v C.NullClause
-  return v
-
-{-# INLINE getNthClause #-}
-getNthClause :: ClauseVector -> Int -> IO C.Clause
-getNthClause = MV.unsafeRead
-
-{-# INLINE setNthClause #-}
-setNthClause :: ClauseVector -> Int -> C.Clause -> IO ()
-setNthClause = MV.unsafeWrite
-
-{-# INLINE swapClauses #-}
-swapClauses :: ClauseVector -> Int -> Int -> IO ()
-swapClauses = MV.unsafeSwap
-
 -- | The Clause Container
 data ClauseManager = ClauseManager
   {
-    _nActives     :: IntSingleton -- number of active clause
-  , _clauseVector :: IORef.IORef ClauseVector -- clause list
+    _nActives     :: IntSingleton               -- number of active clause
+  , _clauseVector :: IORef.IORef C.ClauseVector -- clause list
   }
 
-newClauseManager :: Int -> IO ClauseManager
-newClauseManager initialSize = do
+newManager :: Int -> IO ClauseManager
+newManager initialSize = do
   i <- newInt 0
-  v <- newClauseVector initialSize
+  v <- C.newClauseVector initialSize
   ClauseManager i <$> IORef.newIORef v
 
 {-# INLINE numberOfClauses #-}
 numberOfClauses :: ClauseManager -> IO Int
 numberOfClauses ClauseManager{..} = getInt _nActives
 
-{-# INLINE clearClauseManager #-}
-clearClauseManager :: ClauseManager -> IO ()
-clearClauseManager ClauseManager{..} = setInt _nActives 0
+{-# INLINE clearManager #-}
+clearManager :: ClauseManager -> IO ()
+clearManager ClauseManager{..} = setInt _nActives 0
 
-{-# INLINE shrinkClauseManager #-}
-shrinkClauseManager :: ClauseManager -> Int -> IO ()
-shrinkClauseManager ClauseManager{..} k = modifyInt _nActives (subtract k)
+{-# INLINE shrinkManager #-}
+shrinkManager :: ClauseManager -> Int -> IO ()
+shrinkManager ClauseManager{..} k = modifyInt _nActives (subtract k)
 
 {-# INLINE getClauseVector #-}
-getClauseVector :: ClauseManager -> IO ClauseVector
+getClauseVector :: ClauseManager -> IO C.ClauseVector
 getClauseVector ClauseManager{..} = IORef.readIORef _clauseVector
 
 -- | O(1) inserter

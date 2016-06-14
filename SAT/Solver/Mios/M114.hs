@@ -18,14 +18,16 @@ module SAT.Solver.Mios.M114
        )
         where
 
-import Control.Monad ((<=<), forM_, unless, void, when)
+import Control.Monad (forM_, unless, void, when)
 import Data.Bits
 import Data.Foldable (foldrM)
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Clause
-import SAT.Solver.Mios.WatcherList
-import SAT.Solver.Mios.WatcherLists
+import SAT.Solver.Mios.ClauseManager (ClauseManager)
+import qualified SAT.Solver.Mios.ClauseManager as CM
+import SAT.Solver.Mios.WatcherManager (WatcherManager, getNthWatchers)
+import qualified SAT.Solver.Mios.WatcherManager as WM
 import SAT.Solver.Mios.Solver
 import SAT.Solver.Mios.Glucose
 
@@ -35,9 +37,9 @@ removeWatch :: Solver -> Clause -> IO ()
 removeWatch Solver{..} c = do
   let lvec = asVec c
   l1 <- negateLit <$> getNth lvec 0
-  removeClause (getNthWatchers watches l1) c
+  WM.removeClause (WM.getNthWatchers watches l1) c
   l2 <- negateLit <$> getNth lvec 1
-  removeClause (getNthWatchers watches l2) c
+  WM.removeClause (WM.getNthWatchers watches l2) c
 
 --------------------------------------------------------------------------------
 -- Operations on 'Clause'
@@ -76,11 +78,11 @@ newLearntClause s@Solver{..} ps = do
        -- Bump, enqueue, store clause:
        claBumpActivity s c -- newly learnt clauses should be considered active
        -- Add clause to all managers
-       pushClause learnts c 0
+       CM.pushClause learnts c
        l <- getNth vec 0
-       pushClause (getNthWatchers watches (negateLit l)) c 0
+       WM.pushClause (WM.getNthWatchers watches (negateLit l)) c 0
        l1 <- negateLit <$> getNth vec 1
-       pushClause (getNthWatchers watches l1) c 0
+       WM.pushClause (WM.getNthWatchers watches l1) c 0
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
        setLBD s c
        -- update the solver state by @l@
@@ -403,10 +405,10 @@ propagate s@Solver{..} = do
     while confl True = do
       (p :: Lit) <- getNth trailVec =<< getInt qHead
       modifyInt qHead (+ 1)
-      let (ws :: ClauseManager) = getNthWatchers watches p
-      end <- numberOfClauses ws
-      cvec <- getClauseVector ws
-      bvec <- getBlockerVector ws
+      let (ws :: WatcherManager) = getNthWatchers watches p
+      end <- WM.numberOfClauses ws
+      cvec <- WM.getClauseVector ws
+      bvec <- WM.getBlockerVector ws
 --      rc <- getNthClause reason $ lit2var p
 --      byGlue <- if (rc /= NullClause) && learnt rc then (== 2) <$> getInt (lbd rc) else return False
       let
@@ -424,7 +426,7 @@ propagate s@Solver{..} = do
           loop 0
         forClause :: Clause -> Int -> Int -> IO Clause
         forClause confl i@((< end) -> False) j = do
-          shrinkClauseManager ws (i - j)
+          WM.shrinkManager ws (i - j)
           while confl =<< ((<) <$> getInt qHead <*> sizeOfStack trail)
         forClause confl i j = do
           (l :: Lit) <- getNth bvec i
@@ -478,7 +480,7 @@ propagate s@Solver{..} = do
                           if lv /= lFalse
                             then do
                                 swapBetween lits 1 k
-                                pushClause (getNthWatchers watches (negateLit l)) c l
+                                WM.pushClause (WM.getNthWatchers watches (negateLit l)) c l
                                 forClause confl (i + 1) j
                             else forLit $ k + 1
                       forLit 2
@@ -495,7 +497,7 @@ propagate s@Solver{..} = do
 reduceDB :: Solver -> IO ()
 reduceDB s@Solver{..} = do
   nL <- nLearnts s
-  vec <- getClauseVector learnts
+  vec <- CM.getClauseVector learnts
   let
     loop :: Int -> IO ()
     loop ((< nL) -> False) = return ()
@@ -503,7 +505,7 @@ reduceDB s@Solver{..} = do
   k <- max (div nL 2) <$> setClauseKeys s learnts -- k is the number of clauses not to be purged
   sortOnActivity learnts
   loop $ k                      -- CAVEAT: `vec` is a zero-based vector
-  shrinkClauseManager learnts (nL - k)
+  CM.shrinkManager learnts (nL - k)
 
 -- | sets valid key to all clauses in ClauseManager and returns number of privileged clauses.
 -- this uses the same metrix as reduceDB_lt in glucose 4.0:
@@ -514,8 +516,8 @@ reduceDB s@Solver{..} = do
 {-# INLINABLE setClauseKeys #-}
 setClauseKeys :: Solver -> ClauseManager -> IO Int
 setClauseKeys s cm = do
-  n <- numberOfClauses cm
-  vec <- getClauseVector cm
+  n <- CM.numberOfClauses cm
+  vec <- CM.getClauseVector cm
   let
     updateNth :: Int -> Int -> IO Int
     updateNth ((< n) -> False) m = return m
@@ -546,8 +548,8 @@ setClauseKeys s cm = do
 -- | (Good to Bad) Quick sort on a clause vector based on their activities
 sortOnActivity :: ClauseManager -> IO ()
 sortOnActivity cm = do
-  n <- numberOfClauses cm
-  vec <- getClauseVector cm
+  n <- CM.numberOfClauses cm
+  vec <- CM.getClauseVector cm
   let
     keyOf :: Int -> IO Double
     keyOf i = getDouble . sortKey =<< getNthClause vec i
@@ -605,8 +607,8 @@ simplifyDB s@Solver{..} = do
               loopOnLit ((< n) -> False) = return ()
               loopOnLit i = do
                 l <- getNth vec i
-                clearClauseManager . getNthWatchers watches $ l
-                clearClauseManager . getNthWatchers watches $ negateLit l
+                WM.clearManager . getNthWatchers watches $ l
+                WM.clearManager . getNthWatchers watches $ negateLit l
                 loopOnLit $ i + 1
             loopOnLit 0
             -- Remove satisfied clauses:
@@ -615,11 +617,11 @@ simplifyDB s@Solver{..} = do
               for ((< 2) -> False) = return True
               for t = do
                 let ptr = if t == 0 then learnts else clauses
-                vec' <- getClauseVector ptr
-                n' <- numberOfClauses ptr
+                vec' <- CM.getClauseVector ptr
+                n' <- CM.numberOfClauses ptr
                 let
                   loopOnVector :: Int -> Int -> IO Bool
-                  loopOnVector ((< n') -> False) j = shrinkClauseManager ptr (n' - j) >> return True
+                  loopOnVector ((< n') -> False) j = CM.shrinkManager ptr (n' - j) >> return True
                   loopOnVector i j = do
                         c <- getNthClause vec' i
                         l <- locked s c
@@ -680,7 +682,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
             when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
-            k1 <- numberOfClauses learnts
+            k1 <- CM.numberOfClauses learnts
             k2 <- nAssigns s
             when (k1 - k2 >= nOfLearnts) $ reduceDB s -- Reduce the set of learnt clauses
             case () of

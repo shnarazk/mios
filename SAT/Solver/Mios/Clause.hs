@@ -19,11 +19,19 @@ module SAT.Solver.Mios.Clause
        , shrinkClause
        , newClauseFromVec
        , sizeOfClause
+         -- * Vector of Clause
+       , ClauseVector
+       , newClauseVector
+       , getNthClause
+       , setNthClause
+       , swapClauses
        )
        where
 
 import Control.Monad (forM_)
 import GHC.Prim (tagToEnum#, reallyUnsafePtrEquality#)
+import qualified Data.Vector as V
+import qualified Data.Vector.Mutable as MV
 import qualified Data.Vector.Unboxed.Mutable as UV
 import Data.List (intercalate)
 import SAT.Solver.Mios.Types
@@ -102,3 +110,32 @@ newClauseFromVec l vec = do
 sizeOfClause :: Clause -> IO Int
 -- sizeOfClause (BinaryClause _) = return 1
 sizeOfClause !c = getNth (lits c) 0
+
+--------------------------------------------------------------------------------
+
+type ClauseVector = MV.IOVector Clause
+
+instance VectorFamily ClauseVector Clause where
+  asList cv = V.toList <$> V.freeze cv
+  dump mes cv = do
+    l <- asList cv
+    sts <- mapM (dump ",") (l :: [Clause])
+    return $ mes ++ tail (concat sts)
+
+newClauseVector  :: Int -> IO ClauseVector
+newClauseVector n = do
+  v <- MV.new (max 4 n)
+  MV.set v NullClause
+  return v
+
+{-# INLINE getNthClause #-}
+getNthClause :: ClauseVector -> Int -> IO Clause
+getNthClause = MV.unsafeRead
+
+{-# INLINE setNthClause #-}
+setNthClause :: ClauseVector -> Int -> Clause -> IO ()
+setNthClause = MV.unsafeWrite
+
+{-# INLINE swapClauses #-}
+swapClauses :: ClauseVector -> Int -> Int -> IO ()
+swapClauses = MV.unsafeSwap

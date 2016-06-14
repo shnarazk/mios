@@ -52,6 +52,7 @@ executable mios-1.1.97
   other-modules:
     SAT.Solver.Mios
     SAT.Solver.Mios.Clause
+    SAT.Solver.Mios.ClauseManager
     SAT.Solver.Mios.Data.FixedVecBool
     SAT.Solver.Mios.Data.FixedVecDouble
     SAT.Solver.Mios.Data.Vec
@@ -64,5 +65,4 @@ executable mios-1.1.97
     SAT.Solver.Mios.Solver
     SAT.Solver.Mios.Types
     SAT.Solver.Mios.Validator
-    SAT.Solver.Mios.WatcherList
-    SAT.Solver.Mios.WatcherLists
+    SAT.Solver.Mios.WatcherManager

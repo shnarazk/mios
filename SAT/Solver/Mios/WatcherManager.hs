@@ -11,102 +11,74 @@
 
 -- | Universal data structure for Clauses
 -- | Both of watchlists and @learnt@ are implemented by this.
-module SAT.Solver.Mios.WatcherList
+module SAT.Solver.Mios.WatcherManager
        (
-         -- * Vector of Clause
-         ClauseVector
-       , newClauseVector
-       , getNthClause
-       , setNthClause
-       , swapClauses
-         -- * higher level interface for ClauseVector
-       , ClauseManager (..)
-       , newClauseManager
+         WatcherManager
+       , newManager
        , numberOfClauses
-       , clearClauseManager
-       , shrinkClauseManager
+       , clearManager
+       , shrinkManager
        , getClauseVector
        , getBlockerVector
        , pushClause
        , removeClause
          -- * Debug
        , checkClauseOrder
+         -- * WatcherList (vector of WatcherManager) 
+       , WatcherList
+       , newWatcherList
+       , getNthWatchers
+       , numberOfRegisteredClauses
        )
        where
 
-import Control.Monad (forM_, unless, when)
+import Control.Monad (forM, forM_, unless, when)
 import qualified Data.IORef as IORef
+import qualified Data.List as L
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
 import SAT.Solver.Mios.Types
 import qualified SAT.Solver.Mios.Clause as C
 
-type ClauseVector = MV.IOVector C.Clause
-
-instance VectorFamily ClauseVector C.Clause where
-  asList cv = V.toList <$> V.freeze cv
-  dump mes cv = do
-    l <- asList cv
-    sts <- mapM (dump ",") (l :: [C.Clause])
-    return $ mes ++ tail (concat sts)
-
-newClauseVector  :: Int -> IO ClauseVector
-newClauseVector n = do
-  v <- MV.new (max 4 n)
-  MV.set v C.NullClause
-  return v
-
-{-# INLINE getNthClause #-}
-getNthClause :: ClauseVector -> Int -> IO C.Clause
-getNthClause = MV.unsafeRead
-
-{-# INLINE setNthClause #-}
-setNthClause :: ClauseVector -> Int -> C.Clause -> IO ()
-setNthClause = MV.unsafeWrite
-
-{-# INLINE swapClauses #-}
-swapClauses :: ClauseVector -> Int -> Int -> IO ()
-swapClauses = MV.unsafeSwap
-
 -- | The Clause Container
-data WatcherList = WatcherList
+data WatcherManager = WatcherManager
   {
-    _nActives      :: IntSingleton             -- number of active clause
-  , _clauseVector  :: IORef.IORef ClauseVector -- clause list
-  , _blockerVector :: IORef.IORef Vec          -- blocker as minisat-2.2
+    _nActives      :: IntSingleton               -- number of active clause
+  , _clauseVector  :: IORef.IORef C.ClauseVector -- clause list
+  , _blockerVector :: IORef.IORef Vec            -- blocker as minisat-2.2
   }
 
-newWatcherList :: Int -> IO WatcherList
-newWatcherList initialSize = do
+newManager :: Int -> IO WatcherManager
+newManager initialSize = do
   i <- newInt 0
-  v <- newClauseVector initialSize
+  v <- C.newClauseVector initialSize
   b <- newVec (MV.length v)
-  WatcherList i <$> IORef.newIORef v <*> IORef.newIORef b
+  WatcherManager i <$> IORef.newIORef v <*> IORef.newIORef b
 
 {-# INLINE numberOfClauses #-}
-numberOfClauses :: WatcherList -> IO Int
-numberOfClauses WatcherList{..} = getInt _nActives
+numberOfClauses :: WatcherManager -> IO Int
+numberOfClauses WatcherManager{..} = getInt _nActives
 
-{-# INLINE clearWatcherList #-}
-clearWatcherList :: WatcherList -> IO ()
-clearWatcherList WatcherList{..} = setInt _nActives 0
+{-# INLINE clearManager #-}
+clearManager :: WatcherManager -> IO ()
+clearManager WatcherManager{..} = setInt _nActives 0
 
-{-# INLINE shrinkWatcherList #-}
-shrinkWatcherList :: WatcherList -> Int -> IO ()
-shrinkWatcherList WatcherList{..} k = modifyInt _nActives (subtract k)
+{-# INLINE shrinkManager #-}
+shrinkManager :: WatcherManager -> Int -> IO ()
+shrinkManager WatcherManager{..} k = modifyInt _nActives (subtract k)
 
 {-# INLINE getClauseVector #-}
-getClauseVector :: WatcherList -> IO ClauseVector
-getClauseVector WatcherList{..} = IORef.readIORef _clauseVector
+getClauseVector :: WatcherManager -> IO C.ClauseVector
+getClauseVector WatcherManager{..} = IORef.readIORef _clauseVector
 
 {-# INLINE getBlockerVector #-}
-getBlockerVector :: WatcherList -> IO Vec
-getBlockerVector WatcherList{..} = IORef.readIORef _blockerVector
+getBlockerVector :: WatcherManager -> IO Vec
+getBlockerVector WatcherManager{..} = IORef.readIORef _blockerVector
 
 -- | O(1) inserter
 {-# INLINE pushClause #-}
-pushClause :: WatcherList -> C.Clause -> Lit -> IO ()
-pushClause !WatcherList{..} !c k = do
+pushClause :: WatcherManager -> C.Clause -> Lit -> IO ()
+pushClause !WatcherManager{..} !c k = do
   -- checkConsistency m c
   !n <- getInt _nActives
   !v <- IORef.readIORef _clauseVector
@@ -124,22 +96,11 @@ pushClause !WatcherList{..} !c k = do
     else MV.unsafeWrite v n c >> setNth b n k
   modifyInt _nActives (1 +)
 
--- | O(1) remove-and-compact function
-{-# INLINE removeNthClause #-}
-removeNthClause :: WatcherList -> Int -> IO ()
-removeNthClause WatcherList{..} i = do
-  !n <- subtract 1 <$> getInt _nActives
-  !v <- IORef.readIORef _clauseVector
-  !b <- IORef.readIORef _blockerVector
-  MV.unsafeWrite v i =<< MV.unsafeRead v n
-  setNth b i =<< getNth b i
-  setInt _nActives n
-
 -- | O(n) but lightweight remove-and-compact function
 -- __Pre-conditions:__ the clause manager is empty or the clause is stored in it.
 {-# INLINE removeClause #-}
-removeClause :: WatcherList -> C.Clause -> IO ()
-removeClause WatcherList{..} c = do
+removeClause :: WatcherManager -> C.Clause -> IO ()
+removeClause WatcherManager{..} c = do
   -- putStrLn =<< dump "@removeClause| remove " c
   -- putStrLn =<< dump "@removeClause| from " m
   !n <- subtract 1 <$> getInt _nActives
@@ -157,8 +118,8 @@ removeClause WatcherList{..} c = do
     setNth b i =<< getNth b n
     setInt _nActives n
 
-instance VectorFamily WatcherList C.Clause where
-  dump mes WatcherList{..} = do
+instance VectorFamily WatcherManager C.Clause where
+  dump mes WatcherManager{..} = do
     n <- getInt _nActives
     if n == 0
       then return $ mes ++ "empty clausemanager"
@@ -168,8 +129,8 @@ instance VectorFamily WatcherList C.Clause where
           return $ mes ++ "[" ++ show n ++ "]" ++ tail (concat sts)
 
 -- | for debug
-checkConsistency :: WatcherList -> C.Clause -> IO ()
-checkConsistency WatcherList{..} c = do
+checkConsistency :: WatcherManager -> C.Clause -> IO ()
+checkConsistency WatcherManager{..} c = do
   nc <- getInt _nActives
   vec <- IORef.readIORef _clauseVector
   let
@@ -182,7 +143,7 @@ checkConsistency WatcherList{..} c = do
   loop 0
 
 -- | for debug
-checkClauseOrder :: WatcherList -> IO ()
+checkClauseOrder :: WatcherManager -> IO ()
 checkClauseOrder cm = do
   putStr "checking..."
   nc <- numberOfClauses cm
@@ -203,8 +164,37 @@ checkClauseOrder cm = do
   loop 0 =<< nthActivity 0
   putStrLn "done"
 
--- | exported interface
-type ClauseManager  = WatcherList
-newClauseManager    = newWatcherList
-clearClauseManager  = clearWatcherList
-shrinkClauseManager = shrinkWatcherList
+-------------------------------------------------------------------------------- WatcherManagers
+
+type WatcherList = V.Vector WatcherManager
+
+-- | /n/ is the number of 'Var', /m/ is default size of each watcher list
+-- | For /n/ vars, we need [0 .. 2 + 2 * n - 1] slots, namely /2 * (n + 1)/-length vector
+newWatcherList :: Int -> Int -> IO WatcherList
+newWatcherList n m = V.fromList <$> (forM [0 .. int2lit (negate n) + 1] $ \_ -> newManager m)
+
+-- | returns the watcher List :: "ClauseManager" for "Literal" /l/
+{-# INLINE getNthWatchers #-}
+getNthWatchers :: WatcherList -> Lit-> WatcherManager
+getNthWatchers = V.unsafeIndex
+
+instance VectorFamily WatcherList C.Clause where
+  dump mes wl = (mes ++) . L.concat <$> (forM [1 .. V.length wl - 1] $ \i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatchers wl i))
+
+numberOfRegisteredClauses :: WatcherList -> IO Int
+numberOfRegisteredClauses ws = sum <$> V.mapM numberOfClauses ws
+
+{-
+-- | for debug
+checkConsistency :: WatcherManagers -> IO ()
+checkConsistency wl = do
+  forM_ [2 .. V.length wl - 1] $ \i -> do
+    let cm = getNthWatchers wl i
+    vec <- getClauseVector cm
+    n <- numberOfClauses cm
+    forM_ [0 .. n - 1] $ \k -> do
+      c <- getNthClause vec k
+      when (c == C.NullClause) $ error "checkConsistency failed"
+  l <- forM [2 .. V.length wl - 1] (numberOfClauses . getNthWatchers wl)
+  putStrLn $ "checkConsistency passed: " ++ show l
+-}

@@ -47,8 +47,10 @@ import System.Random (mkStdGen, randomIO, setStdGen)
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Clause
-import SAT.Solver.Mios.WatcherList
-import SAT.Solver.Mios.WatcherLists
+import SAT.Solver.Mios.ClauseManager (ClauseManager, newManager)
+import qualified SAT.Solver.Mios.ClauseManager as CM
+import SAT.Solver.Mios.WatcherManager (newWatcherList, WatcherList)
+import qualified SAT.Solver.Mios.WatcherManager as WM
 
 -- | __Fig. 2.(p.9)__ Internal State of the solver
 data Solver = Solver
@@ -59,7 +61,7 @@ data Solver = Solver
                 -- Clause Database
               , clauses    :: !ClauseManager     -- ^ List of problem constraints.
               , learnts    :: !ClauseManager     -- ^ List of learnt clauses.
-              , watches    :: !WatcherLists      -- ^ a list of constraint wathing 'p', literal-indexed
+              , watches    :: !WatcherList       -- ^ a list of constraint wathing 'p', literal-indexed
                 -- Assignment Management
               , assigns    :: !Vec               -- ^ The current assignments indexed on variables; var-indexed
               , phases     :: !Vec               -- ^ The last assignments indexed on variables; var-indexed
@@ -100,9 +102,9 @@ newSolver conf desc@(CNFDescription nv nc _) = do
     <$> newVecBool nv False                           -- model
     <*> newStack nv                                   -- coflict
     -- Clause Database
-    <*> newClauseManager nc                           -- clauses
-    <*> newClauseManager nc                           -- learnts
-    <*> newWatcherLists nv 2                          -- watches
+    <*> newManager nc                                 -- clauses
+    <*> newManager nc                                 -- learnts
+    <*> newWatcherList nv 2                           -- watches
     -- Assignment Management
     <*> newVecWith (nv + 1) lBottom                   -- assigns
     <*> newVecWith (nv + 1) lBottom                   -- phases
@@ -144,12 +146,12 @@ nAssigns = sizeOfStack . trail
 -- | returns the number of constraints (clauses)
 {-# INLINE nClauses #-}
 nClauses  :: Solver -> IO Int
-nClauses = numberOfClauses . clauses
+nClauses = CM.numberOfClauses . clauses
 
 -- | returns the number of learnt clauses
 {-# INLINE nLearnts #-}
 nLearnts :: Solver -> IO Int
-nLearnts = numberOfClauses . learnts
+nLearnts = CM.numberOfClauses . learnts
 
 -- | return the model as a list of literal
 getModel :: Solver -> IO [Int]
@@ -201,7 +203,7 @@ addClause s@Solver{..} vecLits = do
   case result of
    (False, _) -> return False   -- Conflict occured
    (True, c)  -> do
-     unless (c == NullClause) $ pushClause clauses c 0
+     unless (c == NullClause) $ CM.pushClause clauses c
      return True                -- No conflict
 
 -- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists
@@ -296,9 +298,9 @@ clauseNew s@Solver{..} ps isLearnt = do
        forM_ [0 .. k -1] $ varBumpActivity s . lit2var <=< getNth vec -- variables in conflict clauses are bumped
      -- Add clause to watcher lists:
      l0 <- negateLit <$> getNth vec 0
-     pushClause (getNthWatchers watches l0) c 0
+     WM.pushClause (WM.getNthWatchers watches l0) c 0
      l1 <- negateLit <$> getNth vec 1
-     pushClause (getNthWatchers watches l1) c 0
+     WM.pushClause (WM.getNthWatchers watches l1) c 0
      return (True, c)
 
 -- | __Fig. 9 (p.14)__
@@ -460,8 +462,8 @@ claDecayActivity Solver{..} = modifyDouble claInc (/ clauseDecayRate config)
 {-# INLINE claRescaleActivity #-}
 claRescaleActivity :: Solver -> IO ()
 claRescaleActivity Solver{..} = do
-  vec <- getClauseVector learnts
-  n <- numberOfClauses learnts
+  vec <- CM.getClauseVector learnts
+  n <- CM.numberOfClauses learnts
   let
     loopOnVector :: Int -> IO ()
     loopOnVector ((< n) -> False) = return ()
