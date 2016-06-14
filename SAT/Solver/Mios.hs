@@ -167,8 +167,8 @@ executeValidator opts@(_targetFile -> target@(Just cnfFile)) = do
   unless (_confNoAnswer opts) $ print asg
   result <- s `validate` (asg :: [Int])
   if result
-    then putStrLn "It's a valid assignment." >> exitSuccess
-    else putStrLn "It's an invalid assignment." >> exitFailure
+    then putStrLn ("It's a valid assignment for " ++ cnfFile ++ ".") >> exitSuccess
+    else putStrLn ("It's an invalid assignment for " ++ cnfFile ++ ".") >> exitFailure
 
 executeValidator _  = return ()
 
