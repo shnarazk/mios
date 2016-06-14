@@ -47,10 +47,7 @@ import System.Random (mkStdGen, randomIO, setStdGen)
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Clause
-import SAT.Solver.Mios.ClauseManager (ClauseManager, newManager)
-import qualified SAT.Solver.Mios.ClauseManager as CM
-import SAT.Solver.Mios.WatcherManager (newWatcherList, WatcherList)
-import qualified SAT.Solver.Mios.WatcherManager as WM
+import SAT.Solver.Mios.Manager
 
 -- | __Fig. 2.(p.9)__ Internal State of the solver
 data Solver = Solver
@@ -59,8 +56,8 @@ data Solver = Solver
                 model      :: !FixedVecBool       -- ^ If found, this vector has the model
               , conflict   :: !Stack              -- ^ set of literals in the case of conflicts
                 -- Clause Database
-              , clauses    :: !ClauseManager     -- ^ List of problem constraints.
-              , learnts    :: !ClauseManager     -- ^ List of learnt clauses.
+              , clauses    :: !SimpleManager     -- ^ List of problem constraints.
+              , learnts    :: !SimpleManager     -- ^ List of learnt clauses.
               , watches    :: !WatcherList       -- ^ a list of constraint wathing 'p', literal-indexed
                 -- Assignment Management
               , assigns    :: !Vec               -- ^ The current assignments indexed on variables; var-indexed
@@ -146,12 +143,12 @@ nAssigns = sizeOfStack . trail
 -- | returns the number of constraints (clauses)
 {-# INLINE nClauses #-}
 nClauses  :: Solver -> IO Int
-nClauses = CM.numberOfClauses . clauses
+nClauses = numberOfClauses . clauses
 
 -- | returns the number of learnt clauses
 {-# INLINE nLearnts #-}
 nLearnts :: Solver -> IO Int
-nLearnts = CM.numberOfClauses . learnts
+nLearnts = numberOfClauses . learnts
 
 -- | return the model as a list of literal
 getModel :: Solver -> IO [Int]
@@ -203,7 +200,7 @@ addClause s@Solver{..} vecLits = do
   case result of
    (False, _) -> return False   -- Conflict occured
    (True, c)  -> do
-     unless (c == NullClause) $ CM.pushClause clauses c
+     unless (c == NullClause) $ pushClause clauses c
      return True                -- No conflict
 
 -- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists
@@ -298,9 +295,9 @@ clauseNew s@Solver{..} ps isLearnt = do
        forM_ [0 .. k -1] $ varBumpActivity s . lit2var <=< getNth vec -- variables in conflict clauses are bumped
      -- Add clause to watcher lists:
      l0 <- negateLit <$> getNth vec 0
-     WM.pushClause (WM.getNthWatchers watches l0) c 0
+     pushWatcher (getNthWatchers watches l0) c 0
      l1 <- negateLit <$> getNth vec 1
-     WM.pushClause (WM.getNthWatchers watches l1) c 0
+     pushWatcher (getNthWatchers watches l1) c 0
      return (True, c)
 
 -- | __Fig. 9 (p.14)__
@@ -462,8 +459,8 @@ claDecayActivity Solver{..} = modifyDouble claInc (/ clauseDecayRate config)
 {-# INLINE claRescaleActivity #-}
 claRescaleActivity :: Solver -> IO ()
 claRescaleActivity Solver{..} = do
-  vec <- CM.getClauseVector learnts
-  n <- CM.numberOfClauses learnts
+  vec <- getClauseVector learnts
+  n <- numberOfClauses learnts
   let
     loopOnVector :: Int -> IO ()
     loopOnVector ((< n) -> False) = return ()
