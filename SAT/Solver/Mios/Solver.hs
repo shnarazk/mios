@@ -47,7 +47,7 @@ import System.Random (mkStdGen, randomIO, setStdGen)
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Clause
-import SAT.Solver.Mios.Manager
+import SAT.Solver.Mios.ClauseManager
 
 -- | __Fig. 2.(p.9)__ Internal State of the solver
 data Solver = Solver

@@ -65,4 +65,3 @@ executable mios-1.1.97
     SAT.Solver.Mios.Solver
     SAT.Solver.Mios.Types
     SAT.Solver.Mios.Validator
-    SAT.Solver.Mios.WatcherManager

@@ -24,7 +24,7 @@ import Data.Foldable (foldrM)
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Clause
-import SAT.Solver.Mios.Manager
+import SAT.Solver.Mios.ClauseManager
 import SAT.Solver.Mios.Solver
 import SAT.Solver.Mios.Glucose
 
