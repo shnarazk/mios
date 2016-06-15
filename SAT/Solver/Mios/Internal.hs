@@ -12,7 +12,7 @@ import SAT.Solver.Mios.Data.Stack as Plumbing
 
 -- | version name
 versionId :: String
-versionId = "mios 1.2 RC1" -- blocking literal + lbd + phase-saving
+versionId = "mios 1.2" -- blocking literal + lbd + phase-saving
 
 -- | solver's parameter configuration
 data MiosConfiguration = MiosConfiguration
