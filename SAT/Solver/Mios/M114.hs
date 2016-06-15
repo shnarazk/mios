@@ -230,12 +230,9 @@ analyze s@Solver{..} confl = do
     loopOnLastDL :: Int -> IO ()
     loopOnLastDL ((< nld) -> False) = return ()
     loopOnLastDL i = do
---      {-
       v <- lit2var <$> getNth vec i
       d' <- getInt . lbd =<< getNthClause reason v
       when (lbd' < d') $ varBumpActivity s v
---      -}
---      varBumpActivity s . lit2var =<< getNth vec i
       loopOnLastDL $ i + 1
   loopOnLastDL 0
   clearStack lastDL
