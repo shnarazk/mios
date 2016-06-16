@@ -523,7 +523,7 @@ setClauseKeys s cm = do
         _ | k == 2 -> setNth keys i (-4) >> updateNth (i + 1) (m + 1)
         _ | l      -> setNth keys i (-3) >> updateNth (i + 1) (m + 1)
         _ | p      -> setNth keys i (-2) >> updateNth (i + 1) (m + 1)
---      _ | d <= 2 -> setNth keys i (-1) >> updateNth (i + 1) m
+--        _ | d <= 2 -> setNth keys i (-1) >> updateNth (i + 1) (m + 1)
 --        _ -> setNth keys i (fromIntegral d) >> updateNth (i + 1) m
 --        _ | p -> do
 --          a <- getDouble (activity c)
@@ -532,7 +532,7 @@ setClauseKeys s cm = do
 --          updateNth (i + 1) m
         _ -> do
           a <- getDouble (activity c)
-          setNth keys i . ceiling $ 100000000000 * (fromIntegral d + 1 / (a + 1.1)) -- assuming 64bit CPU
+          setNth keys i . floor $ (10000000000.0 :: Double) * (fromIntegral d + 1 / (a + 1.1)) -- assuming 64bit CPU
           updateNth (i + 1) m
   updateNth 0 0
 
