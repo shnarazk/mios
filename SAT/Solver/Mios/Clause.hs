@@ -12,7 +12,7 @@
 module SAT.Solver.Mios.Clause
        (
          Clause (..)
-       , isLit
+--       , isLit
 --       , getLit
        , shrinkClause
        , newClauseFromVec
@@ -75,9 +75,9 @@ instance VectorFamily Clause Lit where
 
 -- | returns True if it is a 'BinaryClause'
 -- FIXME: this might be discarded in minisat 2.2
-isLit :: Clause -> Bool
+-- isLit :: Clause -> Bool
 -- isLit (BinaryClause _) = True
-isLit _ = False
+-- isLit _ = False
 
 -- | returns the literal in a BinaryClause
 -- FIXME: this might be discarded in minisat 2.2

@@ -44,6 +44,7 @@ class ClauseManager a where
   removeClause    :: a -> C.Clause -> IO ()
   removeNthClause :: a -> Int -> IO ()
 
+{-
 -- | The Clause Container
 data SimpleManager = SimpleManager
   {
@@ -113,6 +114,7 @@ instance VectorFamily SimpleManager C.Clause where
           l <- take n <$> (asList =<< IORef.readIORef _clauseVector)
           sts <- mapM (dump ",") (l :: [C.Clause])
           return $ mes ++ "[" ++ show n ++ "]" ++ tail (concat sts)
+-}
 
 --------------------------------------------------------------------------------
 
@@ -231,6 +233,7 @@ instance VectorFamily WatcherList C.Clause where
 numberOfRegisteredClauses :: WatcherList -> IO Int
 numberOfRegisteredClauses ws = sum <$> V.mapM numberOfClauses ws
 
+{-
 -------------------------------------------------------------------------------- debugging stuff
 
 checkConsistency :: ClauseManager a => a -> C.Clause -> IO ()
@@ -266,3 +269,4 @@ checkClauseOrder manager = do
         loop (i + 1) a
   loop 0 =<< nthActivity 0
   putStrLn "done"
+-}

@@ -762,6 +762,7 @@ unsafeAssume s@Solver{..} p = do
   pushToStack trailLim =<< sizeOfStack trail
   unsafeEnqueue s p NullClause
 
+{-
 -- | for debug
 fromAssigns :: Vec -> IO [Int]
 fromAssigns as = zipWith f [1 .. ] . tail <$> asList as
@@ -774,3 +775,4 @@ fromAssigns as = zipWith f [1 .. ] . tail <$> asList as
 -- | for debug
 dumpAssignment :: String -> Vec -> IO String
 dumpAssignment mes v = (mes ++) . show <$> fromAssigns v
+-}
