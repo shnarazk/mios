@@ -77,9 +77,9 @@ newLearntClause s@Solver{..} ps = do
        -- Add clause to all managers
        pushClause learnts c
        l <- getNth vec 0
-       pushWatcher (getNthWatchers watches (negateLit l)) c 0
+       pushClauseWithKey (getNthWatchers watches (negateLit l)) c 0
        l1 <- negateLit <$> getNth vec 1
-       pushWatcher (getNthWatchers watches l1) c 0
+       pushClauseWithKey (getNthWatchers watches l1) c 0
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
        setLBD s c
        -- update the solver state by @l@
@@ -399,10 +399,10 @@ propagate s@Solver{..} = do
     while confl True = do
       (p :: Lit) <- getNth trailVec =<< getInt qHead
       modifyInt qHead (+ 1)
-      let (ws :: WatcherManager) = getNthWatchers watches p
+      let (ws :: ClauseKeyManager) = getNthWatchers watches p
       end <- numberOfClauses ws
       cvec <- getClauseVector ws
-      bvec <- getBlockerVector ws
+      bvec <- getKeyVector ws
 --      rc <- getNthClause reason $ lit2var p
 --      byGlue <- if (rc /= NullClause) && learnt rc then (== 2) <$> getInt (lbd rc) else return False
       let
@@ -474,7 +474,7 @@ propagate s@Solver{..} = do
                           if lv /= lFalse
                             then do
                                 swapBetween lits 1 k
-                                pushWatcher (getNthWatchers watches (negateLit l)) c l
+                                pushClauseWithKey (getNthWatchers watches (negateLit l)) c l
                                 forClause confl (i + 1) j
                             else forLit $ k + 1
                       forLit 2
@@ -508,10 +508,11 @@ reduceDB s@Solver{..} = do
 -- 3. larger activity defined in MiniSat
 -- smaller value is better
 {-# INLINABLE setClauseKeys #-}
-setClauseKeys :: Solver -> SimpleManager -> IO Int
+setClauseKeys :: Solver -> ClauseKeyManager -> IO Int
 setClauseKeys s cm = do
   n <- numberOfClauses cm
   vec <- getClauseVector cm
+  keys <- getKeyVector cm
   let
     updateNth :: Int -> Int -> IO Int
     updateNth ((< n) -> False) m = return m

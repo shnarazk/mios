@@ -16,13 +16,12 @@ module SAT.Solver.Mios.ClauseManager
          -- * higher level interface for ClauseVector
          ClauseManager (..)
          -- * vector of clauses
-       , SimpleManager
-       , pushClause
-         -- * vector of caluses and their blocking literals
-       , WatcherManager
-       , pushWatcher
-       , getBlockerVector
-         -- * WatcherList (vector of WatcherManager)
+--       , SimpleManager
+         -- * vector of caluses and their extra Int value (used for sort key or blocking literal)
+       , ClauseKeyManager
+       , pushClauseWithKey
+       , getKeyVector
+         -- * WatcherList (vector of ClauseKeyManager)
        , WatcherList
        , newWatcherList
        , getNthWatchers
@@ -44,6 +43,7 @@ class ClauseManager a where
   clearManager    :: a -> IO ()
   shrinkManager   :: a -> Int -> IO ()
   getClauseVector :: a -> IO C.ClauseVector
+  pushClause      :: a -> C.Clause -> IO ()
   removeClause    :: a -> C.Clause -> IO ()
   removeNthClause :: a -> Int -> IO ()
 
@@ -68,6 +68,19 @@ instance ClauseManager SimpleManager where
   shrinkManager SimpleManager{..} k = modifyInt _nActives (subtract k)
   {-# SPECIALIZE INLINE getClauseVector :: SimpleManager -> IO C.ClauseVector #-}
   getClauseVector SimpleManager{..} = IORef.readIORef _clauseVector
+  -- | O(1) inserter
+  {-# SPECIALIZE INLINE pushClause :: SimpleManager -> C.Clause -> IO () #-}
+  pushClause !SimpleManager{..} !c = do
+    !n <- getInt _nActives
+    !v <- IORef.readIORef _clauseVector
+    if MV.length v - 1 <= n
+      then do
+          v' <- MV.unsafeGrow v (max 8 (MV.length v))
+          -- forM_ [n  .. MV.length v' - 1] $ \i -> MV.unsafeWrite v' i C.NullClause
+          MV.unsafeWrite v' n c
+          IORef.writeIORef _clauseVector v'
+      else MV.unsafeWrite v n c
+    modifyInt _nActives (1 +)
   -- | O(1) remove-and-compact function
   {-# SPECIALIZE INLINE removeNthClause :: SimpleManager -> Int -> IO () #-}
   removeNthClause SimpleManager{..} i = do
@@ -94,20 +107,6 @@ instance ClauseManager SimpleManager where
       MV.unsafeWrite v i =<< MV.unsafeRead v n
       setInt _nActives n
 
--- | O(1) inserter
-{-# INLINE pushClause #-}
-pushClause :: SimpleManager -> C.Clause -> IO ()
-pushClause !SimpleManager{..} !c = do
-  !n <- getInt _nActives
-  !v <- IORef.readIORef _clauseVector
-  if MV.length v - 1 <= n
-    then do
-        v' <- MV.unsafeGrow v (max 8 (MV.length v))
-        -- forM_ [n  .. MV.length v' - 1] $ \i -> MV.unsafeWrite v' i C.NullClause
-        MV.unsafeWrite v' n c
-        IORef.writeIORef _clauseVector v'
-    else MV.unsafeWrite v n c
-  modifyInt _nActives (1 +)
 
 instance VectorFamily SimpleManager C.Clause where
   dump mes SimpleManager{..} = do
@@ -122,38 +121,57 @@ instance VectorFamily SimpleManager C.Clause where
 --------------------------------------------------------------------------------
 
 -- | Clause + Blocking Literal
-data WatcherManager = WatcherManager
+data ClauseKeyManager = ClauseKeyManager
   {
     _nActives      :: IntSingleton               -- number of active clause
   , _clauseVector  :: IORef.IORef C.ClauseVector -- clause list
-  , _blockerVector :: IORef.IORef Vec            -- blocker as minisat-2.2
+  , _keyVector :: IORef.IORef Vec                -- Int list
   }
 
-instance ClauseManager WatcherManager where
-  {-# SPECIALIZE INLINE newManager :: Int -> IO WatcherManager #-}
+instance ClauseManager ClauseKeyManager where
+  {-# SPECIALIZE INLINE newManager :: Int -> IO ClauseKeyManager #-}
   newManager initialSize = do
     i <- newInt 0
     v <- C.newClauseVector initialSize
     b <- newVec (MV.length v)
-    WatcherManager i <$> IORef.newIORef v <*> IORef.newIORef b
-  {-# SPECIALIZE INLINE numberOfClauses :: WatcherManager -> IO Int #-}
-  numberOfClauses WatcherManager{..} = getInt _nActives
-  {-# SPECIALIZE INLINE clearManager :: WatcherManager -> IO () #-}
-  clearManager WatcherManager{..} = setInt _nActives 0
-  {-# SPECIALIZE INLINE shrinkManager :: WatcherManager -> Int -> IO () #-}
-  shrinkManager WatcherManager{..} k = modifyInt _nActives (subtract k)
-  {-# SPECIALIZE INLINE getClauseVector :: WatcherManager -> IO C.ClauseVector #-}
-  getClauseVector WatcherManager{..} = IORef.readIORef _clauseVector
+    ClauseKeyManager i <$> IORef.newIORef v <*> IORef.newIORef b
+  {-# SPECIALIZE INLINE numberOfClauses :: ClauseKeyManager -> IO Int #-}
+  numberOfClauses ClauseKeyManager{..} = getInt _nActives
+  {-# SPECIALIZE INLINE clearManager :: ClauseKeyManager -> IO () #-}
+  clearManager ClauseKeyManager{..} = setInt _nActives 0
+  {-# SPECIALIZE INLINE shrinkManager :: ClauseKeyManager -> Int -> IO () #-}
+  shrinkManager ClauseKeyManager{..} k = modifyInt _nActives (subtract k)
+  {-# SPECIALIZE INLINE getClauseVector :: ClauseKeyManager -> IO C.ClauseVector #-}
+  getClauseVector ClauseKeyManager{..} = IORef.readIORef _clauseVector
+  -- | O(1) inserter
+  {-# SPECIALIZE INLINE pushClause :: ClauseKeyManager -> C.Clause -> IO () #-}
+  pushClause !ClauseKeyManager{..} !c = do
+    -- checkConsistency m c
+    !n <- getInt _nActives
+    !v <- IORef.readIORef _clauseVector
+    !b <- IORef.readIORef _keyVector
+    if MV.length v - 1 <= n
+      then do
+          let len = max 8 $ MV.length v
+          v' <- MV.unsafeGrow v len
+          b' <- vecGrow b len
+          -- forM_ [n  .. MV.length v' - 1] $ \i -> MV.unsafeWrite v' i C.NullClause
+          MV.unsafeWrite v' n c
+          setNth b' n 0
+          IORef.writeIORef _clauseVector v'
+          IORef.writeIORef _keyVector b'
+      else MV.unsafeWrite v n c >> setNth b n 0
+    modifyInt _nActives (1 +)
   -- | O(n) but lightweight remove-and-compact function
   -- __Pre-conditions:__ the clause manager is empty or the clause is stored in it.
-  {-# SPECIALIZE INLINE removeClause :: WatcherManager -> C.Clause -> IO () #-}
-  removeClause WatcherManager{..} c = do
+  {-# SPECIALIZE INLINE removeClause :: ClauseKeyManager -> C.Clause -> IO () #-}
+  removeClause ClauseKeyManager{..} c = do
     -- putStrLn =<< dump "@removeClause| remove " c
     -- putStrLn =<< dump "@removeClause| from " m
     !n <- subtract 1 <$> getInt _nActives
     -- unless (0 <= n) $ error $ "removeClause catches " ++ show n
     !v <- IORef.readIORef _clauseVector
-    !b <- IORef.readIORef _blockerVector
+    !b <- IORef.readIORef _keyVector
     let
       seekIndex :: Int -> IO Int
       seekIndex k = do
@@ -164,20 +182,20 @@ instance ClauseManager WatcherManager where
       MV.unsafeWrite v i =<< MV.unsafeRead v n
       setNth b i =<< getNth b n
       setInt _nActives n
-  removeNthClause = error "removeNthClause is not implemented on WatcherManager"
+  removeNthClause = error "removeNthClause is not implemented on ClauseKeyManager"
 
-{-# INLINE getBlockerVector #-}
-getBlockerVector :: WatcherManager -> IO Vec
-getBlockerVector WatcherManager{..} = IORef.readIORef _blockerVector
+{-# INLINE getKeyVector #-}
+getKeyVector :: ClauseKeyManager -> IO Vec
+getKeyVector ClauseKeyManager{..} = IORef.readIORef _keyVector
 
 -- | O(1) inserter
-{-# INLINE pushWatcher #-}
-pushWatcher :: WatcherManager -> C.Clause -> Lit -> IO ()
-pushWatcher !WatcherManager{..} !c k = do
+{-# INLINE pushClauseWithKey #-}
+pushClauseWithKey :: ClauseKeyManager -> C.Clause -> Lit -> IO ()
+pushClauseWithKey !ClauseKeyManager{..} !c k = do
   -- checkConsistency m c
   !n <- getInt _nActives
   !v <- IORef.readIORef _clauseVector
-  !b <- IORef.readIORef _blockerVector
+  !b <- IORef.readIORef _keyVector
   if MV.length v - 1 <= n
     then do
         let len = max 8 $ MV.length v
@@ -187,12 +205,12 @@ pushWatcher !WatcherManager{..} !c k = do
         MV.unsafeWrite v' n c
         setNth b' n k
         IORef.writeIORef _clauseVector v'
-        IORef.writeIORef _blockerVector b'
+        IORef.writeIORef _keyVector b'
     else MV.unsafeWrite v n c >> setNth b n k
   modifyInt _nActives (1 +)
 
-instance VectorFamily WatcherManager C.Clause where
-  dump mes WatcherManager{..} = do
+instance VectorFamily ClauseKeyManager C.Clause where
+  dump mes ClauseKeyManager{..} = do
     n <- getInt _nActives
     if n == 0
       then return $ mes ++ "empty clausemanager"
@@ -201,9 +219,9 @@ instance VectorFamily WatcherManager C.Clause where
           sts <- mapM (dump ",") (l :: [C.Clause])
           return $ mes ++ "[" ++ show n ++ "]" ++ tail (concat sts)
 
--------------------------------------------------------------------------------- WatcherManagers
+-------------------------------------------------------------------------------- ClauseKeyManagers
 
-type WatcherList = V.Vector WatcherManager
+type WatcherList = V.Vector ClauseKeyManager
 
 -- | /n/ is the number of 'Var', /m/ is default size of each watcher list
 -- | For /n/ vars, we need [0 .. 2 + 2 * n - 1] slots, namely /2 * (n + 1)/-length vector
@@ -212,7 +230,7 @@ newWatcherList n m = V.fromList <$> (forM [0 .. int2lit (negate n) + 1] $ \_ -> 
 
 -- | returns the watcher List :: "ClauseManager" for "Literal" /l/
 {-# INLINE getNthWatchers #-}
-getNthWatchers :: WatcherList -> Lit-> WatcherManager
+getNthWatchers :: WatcherList -> Lit-> ClauseKeyManager
 getNthWatchers = V.unsafeIndex
 
 instance VectorFamily WatcherList C.Clause where
