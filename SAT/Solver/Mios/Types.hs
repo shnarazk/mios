@@ -4,8 +4,6 @@
   , FlexibleInstances
   , FunctionalDependencies
   , MultiParamTypeClasses
-  , TypeFamilies
-  , UndecidableInstances
   #-}
 {-# LANGUAGE Trustworthy #-}
 

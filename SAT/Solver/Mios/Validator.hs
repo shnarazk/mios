@@ -1,6 +1,7 @@
 {-# LANGUAGE
     ViewPatterns
   #-}
+{-# LANGUAGE Safe #-}
 module SAT.Solver.Mios.Validator
        (
          validate

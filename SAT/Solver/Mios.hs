@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE Trustworthy #-}
 -- | Minisat-based Implementation and Optimization Study
 
 module SAT.Solver.Mios

@@ -1,12 +1,8 @@
--- | This is an implementaion of MiniSat 1.14 in Haskell
+-- | This is a part of MIOS
 {-# LANGUAGE
     BangPatterns
-  , FlexibleContexts
-  , FlexibleInstances
-  , MagicHash
   , RecordWildCards
   , ScopedTypeVariables
-  , TupleSections
   , ViewPatterns
   #-}
 {-# LANGUAGE Safe #-}

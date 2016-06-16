@@ -4,8 +4,6 @@
   , MagicHash
   , MultiParamTypeClasses
   , RecordWildCards
-  , TupleSections
-  , UndecidableInstances
   , ViewPatterns
   #-}
 {-# LANGUAGE Trustworthy #-}

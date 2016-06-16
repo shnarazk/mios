@@ -1,12 +1,7 @@
 {-# LANGUAGE
     BangPatterns
   , FlexibleInstances
-  , MagicHash
   , MultiParamTypeClasses
-  , RecordWildCards
-  , TupleSections
-  , TypeFamilies
-  , UndecidableInstances
   #-}
 {-# LANGUAGE Trustworthy #-}
 

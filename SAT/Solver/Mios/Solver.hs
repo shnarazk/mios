@@ -1,9 +1,6 @@
+-- | This is a part of MIOS
 {-# LANGUAGE
     BangPatterns
-  , FlexibleContexts
-  , FlexibleInstances
-  , FunctionalDependencies
-  , MagicHash
   , RecordWildCards
   , ScopedTypeVariables
   , TupleSections

@@ -2,12 +2,7 @@
 {-# LANGUAGE
     BangPatterns
   , FlexibleInstances
-  , MagicHash
   , MultiParamTypeClasses
-  , RecordWildCards
-  , TupleSections
-  , TypeFamilies
-  , UndecidableInstances
   #-}
 {-# LANGUAGE Trustworthy #-}
 
@@ -37,7 +32,7 @@ newtype Stack = Stack
 instance VectorFamily Stack Int where
   dump str v = (str ++) . show <$> asList v
   {-# SPECIALIZE INLINE asVec :: Stack -> Vec #-}
-  asVec Stack{..} = UV.unsafeTail ivec
+  asVec (Stack ivec) = UV.unsafeTail ivec
   asList x = do
     (n : l) <- asList (ivec x)
     return $ take n l
