@@ -524,41 +524,44 @@ setClauseKeys s cm = do
       when p $ setBool (protected c) False
       l <- locked s c
       case () of
-        _ | k == 2 -> setDouble (sortKey c) (-4) >> updateNth (i + 1) (m + 1)
-        _ | l      -> setDouble (sortKey c) (-3) >> updateNth (i + 1) (m + 1)
-        _ | p      -> setDouble (sortKey c) (-2) >> updateNth (i + 1) (m + 1)
---      _ | d <= 2 -> setDouble (sortKey c) (-1) >> updateNth (i + 1) m
---        _ -> setDouble (sortKey c) (fromIntegral d) >> updateNth (i + 1) m
+        _ | k == 2 -> setNth keys i (-4) >> updateNth (i + 1) (m + 1)
+        _ | l      -> setNth keys i (-3) >> updateNth (i + 1) (m + 1)
+        _ | p      -> setNth keys i (-2) >> updateNth (i + 1) (m + 1)
+--      _ | d <= 2 -> setNth keys i (-1) >> updateNth (i + 1) m
+--        _ -> setNth keys i (fromIntegral d) >> updateNth (i + 1) m
 --        _ | p -> do
 --          a <- getDouble (activity c)
 --          let d' = div d 2
---          setDouble (sortKey c) (fromIntegral d' + 1 / (a + 1.1))
+--          setNth keys i $ ceiling (fromIntegral d' + 1 / (a + 1.1))
 --          updateNth (i + 1) m
         _ -> do
           a <- getDouble (activity c)
-          setDouble (sortKey c) (fromIntegral d + 1 / (a + 1.1))
+          setNth keys i . ceiling $ 100000000000 * (fromIntegral d + 1 / (a + 1.1)) -- assuming 64bit CPU
           updateNth (i + 1) m
   updateNth 0 0
 
 -- | (Good to Bad) Quick sort on a clause vector based on their activities
-sortOnActivity :: SimpleManager -> IO ()
+sortOnActivity :: ClauseKeyManager -> IO ()
 sortOnActivity cm = do
   n <- numberOfClauses cm
   vec <- getClauseVector cm
+  keys <- getKeyVector cm
   let
-    keyOf :: Int -> IO Double
-    keyOf i = getDouble . sortKey =<< getNthClause vec i
+    keyOf :: Int -> IO Int
+    keyOf i = getNth keys i
+    swap :: Int -> Int -> IO ()
+    swap i j = swapClauses vec i j >> swapBetween keys i j
     sortOnRange :: Int -> Int -> IO ()
     sortOnRange left right
       | left >= right = return ()
       | left + 1 == right = do
           a <- keyOf left
           b <- keyOf right
-          unless (a < b) $ swapClauses vec left right
+          unless (a < b) $ swap left right
       | otherwise = do
           let p = div (left + right) 2
           pivot <- keyOf p
-          swapClauses vec p left -- set a sentinel for r'
+          swap p left -- set a sentinel for r'
           let
             nextL :: Int -> IO Int
             nextL i@((<= right) -> False) = return i
@@ -570,9 +573,9 @@ sortOnActivity cm = do
             divide l r = do
               l' <- nextL l
               r' <- nextR r
-              if l' < r' then swapClauses vec l' r' >> divide (l' + 1) (r' - 1) else return r'
+              if l' < r' then swap l' r' >> divide (l' + 1) (r' - 1) else return r'
           m <- divide (left + 1) right
-          swapClauses vec left m
+          swap left m
           sortOnRange left (m - 1)
           sortOnRange (m + 1) right
   sortOnRange 0 (n - 1)
