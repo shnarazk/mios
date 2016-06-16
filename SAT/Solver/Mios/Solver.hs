@@ -53,11 +53,11 @@ import SAT.Solver.Mios.ClauseManager
 data Solver = Solver
               {
                 -- Public Interface
-                model      :: !FixedVecBool       -- ^ If found, this vector has the model
-              , conflict   :: !Stack              -- ^ set of literals in the case of conflicts
+                model      :: !FixedVecBool      -- ^ If found, this vector has the model
+              , conflict   :: !Stack             -- ^ set of literals in the case of conflicts
                 -- Clause Database
-              , clauses    :: !ClauseKeyManager  -- ^ List of problem constraints.
-              , learnts    :: !ClauseKeyManager  -- ^ List of learnt clauses.
+              , clauses    :: !ClauseExtManager  -- ^ List of problem constraints.
+              , learnts    :: !ClauseExtManager  -- ^ List of learnt clauses.
               , watches    :: !WatcherList       -- ^ a list of constraint wathing 'p', literal-indexed
                 -- Assignment Management
               , assigns    :: !Vec               -- ^ The current assignments indexed on variables; var-indexed
@@ -295,9 +295,9 @@ clauseNew s@Solver{..} ps isLearnt = do
        forM_ [0 .. k -1] $ varBumpActivity s . lit2var <=< getNth vec -- variables in conflict clauses are bumped
      -- Add clause to watcher lists:
      l0 <- negateLit <$> getNth vec 0
-     pushClauseWithKey (getNthWatchers watches l0) c 0
+     pushClauseWithKey (getNthWatcher watches l0) c 0
      l1 <- negateLit <$> getNth vec 1
-     pushClauseWithKey (getNthWatchers watches l1) c 0
+     pushClauseWithKey (getNthWatcher watches l1) c 0
      return (True, c)
 
 -- | __Fig. 9 (p.14)__

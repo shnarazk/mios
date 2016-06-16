@@ -34,9 +34,9 @@ removeWatch :: Solver -> Clause -> IO ()
 removeWatch Solver{..} c = do
   let lvec = asVec c
   l1 <- negateLit <$> getNth lvec 0
-  removeClause (getNthWatchers watches l1) c
+  removeClause (getNthWatcher watches l1) c
   l2 <- negateLit <$> getNth lvec 1
-  removeClause (getNthWatchers watches l2) c
+  removeClause (getNthWatcher watches l2) c
 
 --------------------------------------------------------------------------------
 -- Operations on 'Clause'
@@ -77,9 +77,9 @@ newLearntClause s@Solver{..} ps = do
        -- Add clause to all managers
        pushClause learnts c
        l <- getNth vec 0
-       pushClauseWithKey (getNthWatchers watches (negateLit l)) c 0
+       pushClauseWithKey (getNthWatcher watches (negateLit l)) c 0
        l1 <- negateLit <$> getNth vec 1
-       pushClauseWithKey (getNthWatchers watches l1) c 0
+       pushClauseWithKey (getNthWatcher watches l1) c 0
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
        setLBD s c
        -- update the solver state by @l@
@@ -399,7 +399,7 @@ propagate s@Solver{..} = do
     while confl True = do
       (p :: Lit) <- getNth trailVec =<< getInt qHead
       modifyInt qHead (+ 1)
-      let (ws :: ClauseKeyManager) = getNthWatchers watches p
+      let (ws :: ClauseExtManager) = getNthWatcher watches p
       end <- numberOfClauses ws
       cvec <- getClauseVector ws
       bvec <- getKeyVector ws
@@ -474,7 +474,7 @@ propagate s@Solver{..} = do
                           if lv /= lFalse
                             then do
                                 swapBetween lits 1 k
-                                pushClauseWithKey (getNthWatchers watches (negateLit l)) c l
+                                pushClauseWithKey (getNthWatcher watches (negateLit l)) c l
                                 forClause confl (i + 1) j
                             else forLit $ k + 1
                       forLit 2
@@ -508,7 +508,7 @@ reduceDB s@Solver{..} = do
 -- 3. larger activity defined in MiniSat
 -- smaller value is better
 {-# INLINABLE setClauseKeys #-}
-setClauseKeys :: Solver -> ClauseKeyManager -> IO Int
+setClauseKeys :: Solver -> ClauseExtManager -> IO Int
 setClauseKeys s cm = do
   n <- numberOfClauses cm
   vec <- getClauseVector cm
@@ -541,7 +541,7 @@ setClauseKeys s cm = do
   updateNth 0 0
 
 -- | (Good to Bad) Quick sort on a clause vector based on their activities
-sortOnActivity :: ClauseKeyManager -> IO ()
+sortOnActivity :: ClauseExtManager -> IO ()
 sortOnActivity cm = do
   n <- numberOfClauses cm
   vec <- getClauseVector cm
@@ -605,8 +605,8 @@ simplifyDB s@Solver{..} = do
               loopOnLit ((< n) -> False) = return ()
               loopOnLit i = do
                 l <- getNth vec i
-                clearManager . getNthWatchers watches $ l
-                clearManager . getNthWatchers watches $ negateLit l
+                clearManager . getNthWatcher watches $ l
+                clearManager . getNthWatcher watches $ negateLit l
                 loopOnLit $ i + 1
             loopOnLit 0
             -- Remove satisfied clauses:

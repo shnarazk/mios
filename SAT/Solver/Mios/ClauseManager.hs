@@ -2,11 +2,8 @@
     BangPatterns
   , DuplicateRecordFields
   , FlexibleInstances
-  , MagicHash
   , MultiParamTypeClasses
   , RecordWildCards
-  , TupleSections
-  , UndecidableInstances
   #-}
 {-# LANGUAGE Trustworthy #-}
 
@@ -17,14 +14,14 @@ module SAT.Solver.Mios.ClauseManager
          ClauseManager (..)
          -- * vector of clauses
 --       , SimpleManager
-         -- * vector of caluses and their extra Int value (used for sort key or blocking literal)
-       , ClauseKeyManager
+         -- * vector of caluse and its extra Int value (used for sort key or blocking literal)
+       , ClauseExtManager
        , pushClauseWithKey
        , getKeyVector
-         -- * WatcherList (vector of ClauseKeyManager)
+         -- * WatcherList (vector of ClauseExtManager)
        , WatcherList
        , newWatcherList
-       , getNthWatchers
+       , getNthWatcher
        , numberOfRegisteredClauses
        )
        where
@@ -107,7 +104,6 @@ instance ClauseManager SimpleManager where
       MV.unsafeWrite v i =<< MV.unsafeRead v n
       setInt _nActives n
 
-
 instance VectorFamily SimpleManager C.Clause where
   dump mes SimpleManager{..} = do
     n <- getInt _nActives
@@ -121,31 +117,31 @@ instance VectorFamily SimpleManager C.Clause where
 --------------------------------------------------------------------------------
 
 -- | Clause + Blocking Literal
-data ClauseKeyManager = ClauseKeyManager
+data ClauseExtManager = ClauseExtManager
   {
     _nActives      :: IntSingleton               -- number of active clause
   , _clauseVector  :: IORef.IORef C.ClauseVector -- clause list
   , _keyVector :: IORef.IORef Vec                -- Int list
   }
 
-instance ClauseManager ClauseKeyManager where
-  {-# SPECIALIZE INLINE newManager :: Int -> IO ClauseKeyManager #-}
+instance ClauseManager ClauseExtManager where
+  {-# SPECIALIZE INLINE newManager :: Int -> IO ClauseExtManager #-}
   newManager initialSize = do
     i <- newInt 0
     v <- C.newClauseVector initialSize
     b <- newVec (MV.length v)
-    ClauseKeyManager i <$> IORef.newIORef v <*> IORef.newIORef b
-  {-# SPECIALIZE INLINE numberOfClauses :: ClauseKeyManager -> IO Int #-}
-  numberOfClauses ClauseKeyManager{..} = getInt _nActives
-  {-# SPECIALIZE INLINE clearManager :: ClauseKeyManager -> IO () #-}
-  clearManager ClauseKeyManager{..} = setInt _nActives 0
-  {-# SPECIALIZE INLINE shrinkManager :: ClauseKeyManager -> Int -> IO () #-}
-  shrinkManager ClauseKeyManager{..} k = modifyInt _nActives (subtract k)
-  {-# SPECIALIZE INLINE getClauseVector :: ClauseKeyManager -> IO C.ClauseVector #-}
-  getClauseVector ClauseKeyManager{..} = IORef.readIORef _clauseVector
+    ClauseExtManager i <$> IORef.newIORef v <*> IORef.newIORef b
+  {-# SPECIALIZE INLINE numberOfClauses :: ClauseExtManager -> IO Int #-}
+  numberOfClauses ClauseExtManager{..} = getInt _nActives
+  {-# SPECIALIZE INLINE clearManager :: ClauseExtManager -> IO () #-}
+  clearManager ClauseExtManager{..} = setInt _nActives 0
+  {-# SPECIALIZE INLINE shrinkManager :: ClauseExtManager -> Int -> IO () #-}
+  shrinkManager ClauseExtManager{..} k = modifyInt _nActives (subtract k)
+  {-# SPECIALIZE INLINE getClauseVector :: ClauseExtManager -> IO C.ClauseVector #-}
+  getClauseVector ClauseExtManager{..} = IORef.readIORef _clauseVector
   -- | O(1) inserter
-  {-# SPECIALIZE INLINE pushClause :: ClauseKeyManager -> C.Clause -> IO () #-}
-  pushClause !ClauseKeyManager{..} !c = do
+  {-# SPECIALIZE INLINE pushClause :: ClauseExtManager -> C.Clause -> IO () #-}
+  pushClause !ClauseExtManager{..} !c = do
     -- checkConsistency m c
     !n <- getInt _nActives
     !v <- IORef.readIORef _clauseVector
@@ -155,7 +151,6 @@ instance ClauseManager ClauseKeyManager where
           let len = max 8 $ MV.length v
           v' <- MV.unsafeGrow v len
           b' <- vecGrow b len
-          -- forM_ [n  .. MV.length v' - 1] $ \i -> MV.unsafeWrite v' i C.NullClause
           MV.unsafeWrite v' n c
           setNth b' n 0
           IORef.writeIORef _clauseVector v'
@@ -164,12 +159,9 @@ instance ClauseManager ClauseKeyManager where
     modifyInt _nActives (1 +)
   -- | O(n) but lightweight remove-and-compact function
   -- __Pre-conditions:__ the clause manager is empty or the clause is stored in it.
-  {-# SPECIALIZE INLINE removeClause :: ClauseKeyManager -> C.Clause -> IO () #-}
-  removeClause ClauseKeyManager{..} c = do
-    -- putStrLn =<< dump "@removeClause| remove " c
-    -- putStrLn =<< dump "@removeClause| from " m
+  {-# SPECIALIZE INLINE removeClause :: ClauseExtManager -> C.Clause -> IO () #-}
+  removeClause ClauseExtManager{..} c = do
     !n <- subtract 1 <$> getInt _nActives
-    -- unless (0 <= n) $ error $ "removeClause catches " ++ show n
     !v <- IORef.readIORef _clauseVector
     !b <- IORef.readIORef _keyVector
     let
@@ -182,16 +174,16 @@ instance ClauseManager ClauseKeyManager where
       MV.unsafeWrite v i =<< MV.unsafeRead v n
       setNth b i =<< getNth b n
       setInt _nActives n
-  removeNthClause = error "removeNthClause is not implemented on ClauseKeyManager"
+  removeNthClause = error "removeNthClause is not implemented on ClauseExtManager"
 
 {-# INLINE getKeyVector #-}
-getKeyVector :: ClauseKeyManager -> IO Vec
-getKeyVector ClauseKeyManager{..} = IORef.readIORef _keyVector
+getKeyVector :: ClauseExtManager -> IO Vec
+getKeyVector ClauseExtManager{..} = IORef.readIORef _keyVector
 
 -- | O(1) inserter
 {-# INLINE pushClauseWithKey #-}
-pushClauseWithKey :: ClauseKeyManager -> C.Clause -> Lit -> IO ()
-pushClauseWithKey !ClauseKeyManager{..} !c k = do
+pushClauseWithKey :: ClauseExtManager -> C.Clause -> Lit -> IO ()
+pushClauseWithKey !ClauseExtManager{..} !c k = do
   -- checkConsistency m c
   !n <- getInt _nActives
   !v <- IORef.readIORef _clauseVector
@@ -209,8 +201,8 @@ pushClauseWithKey !ClauseKeyManager{..} !c k = do
     else MV.unsafeWrite v n c >> setNth b n k
   modifyInt _nActives (1 +)
 
-instance VectorFamily ClauseKeyManager C.Clause where
-  dump mes ClauseKeyManager{..} = do
+instance VectorFamily ClauseExtManager C.Clause where
+  dump mes ClauseExtManager{..} = do
     n <- getInt _nActives
     if n == 0
       then return $ mes ++ "empty clausemanager"
@@ -219,22 +211,22 @@ instance VectorFamily ClauseKeyManager C.Clause where
           sts <- mapM (dump ",") (l :: [C.Clause])
           return $ mes ++ "[" ++ show n ++ "]" ++ tail (concat sts)
 
--------------------------------------------------------------------------------- ClauseKeyManagers
+-------------------------------------------------------------------------------- ClauseExtManagers
 
-type WatcherList = V.Vector ClauseKeyManager
+type WatcherList = V.Vector ClauseExtManager
 
 -- | /n/ is the number of 'Var', /m/ is default size of each watcher list
 -- | For /n/ vars, we need [0 .. 2 + 2 * n - 1] slots, namely /2 * (n + 1)/-length vector
 newWatcherList :: Int -> Int -> IO WatcherList
-newWatcherList n m = V.fromList <$> (forM [0 .. int2lit (negate n) + 1] $ \_ -> newManager m)
+newWatcherList n m = V.fromList <$> forM [0 .. int2lit (negate n) + 1] (\_ -> newManager m)
 
 -- | returns the watcher List :: "ClauseManager" for "Literal" /l/
-{-# INLINE getNthWatchers #-}
-getNthWatchers :: WatcherList -> Lit-> ClauseKeyManager
-getNthWatchers = V.unsafeIndex
+{-# INLINE getNthWatcher #-}
+getNthWatcher :: WatcherList -> Lit-> ClauseExtManager
+getNthWatcher = V.unsafeIndex
 
 instance VectorFamily WatcherList C.Clause where
-  dump mes wl = (mes ++) . L.concat <$> (forM [1 .. V.length wl - 1] $ \i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatchers wl i))
+  dump mes wl = (mes ++) . L.concat <$> forM [1 .. V.length wl - 1] (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i))
 
 numberOfRegisteredClauses :: WatcherList -> IO Int
 numberOfRegisteredClauses ws = sum <$> V.mapM numberOfClauses ws
