@@ -531,8 +531,8 @@ setClauseKeys s cm = do
 --          setNth keys i $ ceiling (fromIntegral d' + 1 / (a + 1.1))
 --          updateNth (i + 1) m
         _ -> do
-          a <- max 0 . logBase 1e1 <$> getDouble (activity c) -- activity's upper bound is 1e100; so a's is 100
-          setNth keys i $! (100 * 1000) * d - floor (a * 1000)
+          a <- getDouble (activity c) -- activity's upper bound is 1e100; so a's is 100
+          setNth keys i . floor . (1000000 *) $ (fromIntegral d + 1 / (a + 1.1))
           updateNth (i + 1) m
   updateNth 0 0
 
