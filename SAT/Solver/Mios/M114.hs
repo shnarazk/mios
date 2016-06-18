@@ -503,32 +503,36 @@ reduceDB s@Solver{..} = do
 -- 3. larger activity defined in MiniSat
 -- , where smaller value is better.
 --
--- they are coded into less-than-64bit Int as the following layout
+-- they are coded into an Int as the following layout:
 --
--- *  4bit: unused
--- * 12bit: LBD or 0 for preserved clauses
--- * 24bit: converted activity
--- * 24bit: clauseVector index
+-- * 14 bit: LBD or 0 for preserved clauses
+-- * 19 bit: converted activity
+-- * remain: clauseVector index
 --
-lbdWidth :: Int
-lbdWidth = 12
-lbdMax :: Int
-lbdMax = 2 ^ lbdWidth - 1
-activityWidth :: Int
-activityWidth = 20
-activityMax :: Int
-activityMax = 2 ^ activityWidth - 1
-activityScale :: Double
-activityScale = fromIntegral activityMax / 2
-indexWidth :: Int
-indexWidth = 26
-indexMask :: Int
-indexMask = (2 ^ indexWidth - 1) -- 16777215 for 24
+(lbdWidth :: Int, activityWidth :: Int, indexWidth :: Int) = (l, a, w - (l + a + 1))
+  where
+    w = finiteBitSize (0:: Int)
+    (l, a) = case () of
+      _ | 64 <= w -> (16, 19)   -- 28 bit => 256M clauses
+      _ | 60 <= w -> (14, 19)   -- 26 bit =>  32M clauses
+      _ | 32 <= w -> ( 7,  6)   -- 18 bit => 256K clauses
+      _ | 29 <= w -> ( 6,  5)   -- 17 bit => 128K clauses
+      _ -> error "Int on your CPU doesn't have sufficient bit width."
 
 sortClauses :: Solver -> ClauseExtManager -> IO Int
 sortClauses s cm = do
+  -- constants
+  let
+    lbdMax :: Int
+    lbdMax = 2 ^ lbdWidth - 1
+    activityMax :: Int
+    activityMax = 2 ^ activityWidth - 1
+    activityScale :: Double
+    activityScale = fromIntegral activityMax
+    indexMax :: Int
+    indexMax = (2 ^ indexWidth - 1) -- 67,108,863 for 26
   n <- numberOfClauses cm
-  when (indexMask < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds mios's " ++ show indexWidth ++" bit manage capacity"
+  when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds mios's " ++ show indexWidth ++" bit manage capacity"
   vec <- getClauseVector cm
   keys <- getKeyVector cm
   -- 1: assign keys
@@ -588,11 +592,11 @@ sortClauses s cm = do
     seek ((< n) -> False) = return ()
     seek i = do
       bits <- getNth keys i
-      when (indexMask < bits) $ do
+      when (indexMax < bits) $ do
         c <- getNthClause vec i
         let
           sweep k = do
-            k' <- (indexMask .&.) <$> getNth keys k
+            k' <- (indexMax .&.) <$> getNth keys k
             setNth keys k k
             if k' == i
               then setNthClause vec k c
