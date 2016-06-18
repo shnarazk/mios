@@ -492,27 +492,50 @@ reduceDB s@Solver{..} = do
     loop :: Int -> IO ()
     loop ((< nL) -> False) = return ()
     loop i = (removeWatch s =<< getNthClause vec i) >> loop (i + 1)
-  k <- max (div nL 2) <$> setClauseKeys s learnts -- k is the number of clauses not to be purged
-  sortOnActivity learnts
-  loop $ k                      -- CAVEAT: `vec` is a zero-based vector
+  k <- max (div nL 2) <$> sortClauses s learnts -- k is the number of clauses not to be purged
+  loop k                        -- CAVEAT: `vec` is a zero-based vector
   shrinkManager learnts (nL - k)
 
--- | sets valid key to all clauses in ClauseManager and returns number of privileged clauses.
--- this uses the same metrix as reduceDB_lt in glucose 4.0:
+-- | (Good to Bad) Quick sort the key vector based on their activities and returns number of privileged clauses.
+-- this function uses the same metrix as reduceDB_lt in glucose 4.0:
 -- 1. binary clause
 -- 2. smaller lbd
 -- 3. larger activity defined in MiniSat
--- smaller value is better
-{-# INLINABLE setClauseKeys #-}
-setClauseKeys :: Solver -> ClauseExtManager -> IO Int
-setClauseKeys s cm = do
+-- , where smaller value is better.
+--
+-- they are coded into less-than-64bit Int as the following layout
+--
+-- *  4bit: unused
+-- * 12bit: LBD or 0 for preserved clauses
+-- * 24bit: converted activity
+-- * 24bit: clauseVector index
+--
+lbdWidth :: Int
+lbdWidth = 12
+lbdMax :: Int
+lbdMax = 2 ^ lbdWidth - 1
+activityWidth :: Int
+activityWidth = 20
+activityMax :: Int
+activityMax = 2 ^ activityWidth - 1
+activityScale :: Double
+activityScale = fromIntegral activityMax / 2
+indexWidth :: Int
+indexWidth = 26
+indexMask :: Int
+indexMask = (2 ^ indexWidth - 1) -- 16777215 for 24
+
+sortClauses :: Solver -> ClauseExtManager -> IO Int
+sortClauses s cm = do
   n <- numberOfClauses cm
+  when (indexMask < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds mios's " ++ show indexWidth ++" bit manage capacity"
   vec <- getClauseVector cm
   keys <- getKeyVector cm
+  -- 1: assign keys
   let
-    updateNth :: Int -> Int -> IO Int
-    updateNth ((< n) -> False) m = return m
-    updateNth i m = do
+    assignKey :: Int -> Int -> IO Int
+    assignKey ((< n) -> False) m = return m
+    assignKey i m = do
       c <- getNthClause vec i
       k <- sizeOfClause c
       d <- getInt $ lbd c
@@ -520,61 +543,64 @@ setClauseKeys s cm = do
       when p $ setBool (protected c) False
       l <- locked s c
       case () of
-        _ | k == 2 -> setNth keys i (-4) >> updateNth (i + 1) (m + 1)
-        _ | l      -> setNth keys i (-3) >> updateNth (i + 1) (m + 1)
-        _ | p      -> setNth keys i (-2) >> updateNth (i + 1) (m + 1)
---        _ | d <= 2 -> setNth keys i (-1) >> updateNth (i + 1) (m + 1)
---        _ -> setNth keys i (fromIntegral d) >> updateNth (i + 1) m
---        _ | p -> do
---          a <- getDouble (activity c)
---          let d' = div d 2
---          setNth keys i $ ceiling (fromIntegral d' + 1 / (a + 1.1))
---          updateNth (i + 1) m
+        _ | k == 2 -> setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
+        _ | l      -> setNth keys i (shiftL 2 indexWidth + i) >> assignKey (i + 1) (m + 1)
+        _ | p      -> setNth keys i (shiftL 3 indexWidth + i) >> assignKey (i + 1) (m + 1)
+--        _ | d <= 2 -> setNth keys i (-1) >> assignKey (i + 1) (m + 1)
         _ -> do
-          a <- getDouble (activity c) -- activity's upper bound is 1e100; so a's is 100
-          setNth keys i . floor . (1000000 *) $ (fromIntegral d + 1 / (a + 1.1))
-          updateNth (i + 1) m
-  updateNth 0 0
-
--- | (Good to Bad) Quick sort on a clause vector based on their activities
-sortOnActivity :: ClauseExtManager -> IO ()
-sortOnActivity cm = do
-  n <- numberOfClauses cm
-  vec <- getClauseVector cm
-  keys <- getKeyVector cm
+          b2 <- floor . (activityScale *) . (1 -) . logBase 1e100 . max 1 <$> getDouble (activity c)
+          setNth keys i $ shiftL (min lbdMax d) (activityWidth + indexWidth) + shiftL b2 indexWidth + i
+          assignKey (i + 1) m
+  n' <- assignKey 0 0
+  -- 2: sort keyVector
   let
-    keyOf :: Int -> IO Int
-    keyOf i = getNth keys i
-    swap :: Int -> Int -> IO ()
-    swap i j = swapClauses vec i j >> swapBetween keys i j
     sortOnRange :: Int -> Int -> IO ()
     sortOnRange left right
       | left >= right = return ()
       | left + 1 == right = do
-          a <- keyOf left
-          b <- keyOf right
-          unless (a < b) $ swap left right
+          a <- getNth keys left
+          b <- getNth keys right
+          unless (a < b) $ swapBetween keys left right
       | otherwise = do
           let p = div (left + right) 2
-          pivot <- keyOf p
-          swap p left -- set a sentinel for r'
+          pivot <- getNth keys p
+          swapBetween keys p left -- set a sentinel for r'
           let
             nextL :: Int -> IO Int
             nextL i@((<= right) -> False) = return i
-            nextL i = do v <- keyOf i; if v < pivot then nextL (i + 1) else return i
+            nextL i = do v <- getNth keys i; if v < pivot then nextL (i + 1) else return i
             nextR :: Int -> IO Int
             -- nextR i@((left <=) -> False) = return i
-            nextR i = do v <- keyOf i; if pivot < v then nextR (i - 1) else return i
+            nextR i = do v <- getNth keys i; if pivot < v then nextR (i - 1) else return i
             divide :: Int -> Int -> IO Int
             divide l r = do
               l' <- nextL l
               r' <- nextR r
-              if l' < r' then swap l' r' >> divide (l' + 1) (r' - 1) else return r'
+              if l' < r' then swapBetween keys l' r' >> divide (l' + 1) (r' - 1) else return r'
           m <- divide (left + 1) right
-          swap left m
+          swapBetween keys left m
           sortOnRange left (m - 1)
           sortOnRange (m + 1) right
   sortOnRange 0 (n - 1)
+  -- 3: place clauses
+  let
+    seek :: Int -> IO ()
+    seek ((< n) -> False) = return ()
+    seek i = do
+      bits <- getNth keys i
+      when (indexMask < bits) $ do
+        c <- getNthClause vec i
+        let
+          sweep k = do
+            k' <- (indexMask .&.) <$> getNth keys k
+            setNth keys k k
+            if k' == i
+              then setNthClause vec k c
+              else getNthClause vec k' >>= setNthClause vec k >> sweep k'
+        sweep i
+      seek $ i + 1
+  seek 0
+  return n'
 
 -- | #M22
 --
