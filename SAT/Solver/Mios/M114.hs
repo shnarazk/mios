@@ -556,10 +556,12 @@ sortClauses s cm = do
           setNth keys i $ shiftL (min lbdMax d) (activityWidth + indexWidth) + shiftL b2 indexWidth + i
           assignKey (i + 1) m
   n' <- assignKey 0 0
+  let limit = 1 + max n' (div n 2)
   -- 2: sort keyVector
   let
     sortOnRange :: Int -> Int -> IO ()
     sortOnRange left right
+      | limit < left = return ()
       | left >= right = return ()
       | left + 1 == right = do
           a <- getNth keys left
@@ -589,7 +591,7 @@ sortClauses s cm = do
   -- 3: place clauses
   let
     seek :: Int -> IO ()
-    seek ((< n) -> False) = return ()
+    seek ((< limit) -> False) = return ()
     seek i = do
       bits <- getNth keys i
       when (indexMax < bits) $ do
