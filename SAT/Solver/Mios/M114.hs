@@ -30,9 +30,9 @@ removeWatch :: Solver -> Clause -> IO ()
 removeWatch Solver{..} c = do
   let lvec = asVec c
   l1 <- negateLit <$> getNth lvec 0
-  removeClause (getNthWatcher watches l1) c
+  setClauseToPurge (getNthWatcher watches l1) c
   l2 <- negateLit <$> getNth lvec 1
-  removeClause (getNthWatcher watches l2) c
+  setClauseToPurge (getNthWatcher watches l2) c
 
 --------------------------------------------------------------------------------
 -- Operations on 'Clause'
@@ -494,6 +494,7 @@ reduceDB s@Solver{..} = do
     loop i = (removeWatch s =<< getNthClause vec i) >> loop (i + 1)
   k <- max (div nL 2) <$> sortClauses s learnts -- k is the number of clauses not to be purged
   loop k                        -- CAVEAT: `vec` is a zero-based vector
+  garbageCollect watches
   shrinkManager learnts (nL - k)
 
 -- | (Good to Bad) Quick sort the key vector based on their activities and returns number of privileged clauses.
@@ -654,7 +655,9 @@ simplifyDB s@Solver{..} = do
                           then removeWatch s c >> loopOnVector (i + 1) j
                           else setNthClause vec' j c >> loopOnVector (i + 1) (j + 1)
                 loopOnVector 0 0
-            for 0
+            ret <- for 0
+            garbageCollect watches
+            return ret
     else return False
 
 -- | #M22
