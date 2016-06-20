@@ -486,16 +486,16 @@ propagate s@Solver{..} = do
 {-# INLINABLE reduceDB #-}
 reduceDB :: Solver -> IO ()
 reduceDB s@Solver{..} = do
-  nL <- nLearnts s
+  n <- nLearnts s
   vec <- getClauseVector learnts
   let
     loop :: Int -> IO ()
-    loop ((< nL) -> False) = return ()
+    loop ((< n) -> False) = return ()
     loop i = (removeWatch s =<< getNthClause vec i) >> loop (i + 1)
-  k <- max (div nL 2) <$> sortClauses s learnts -- k is the number of clauses not to be purged
-  loop k                        -- CAVEAT: `vec` is a zero-based vector
+  k <- sortClauses s learnts (div n 2) -- k is the number of clauses not to be purged
+  loop k                               -- CAVEAT: `vec` is a zero-based vector
   garbageCollect watches
-  shrinkManager learnts (nL - k)
+  shrinkManager learnts (n - k)
 
 -- | (Good to Bad) Quick sort the key vector based on their activities and returns number of privileged clauses.
 -- this function uses the same metrix as reduceDB_lt in glucose 4.0:
@@ -520,8 +520,9 @@ reduceDB s@Solver{..} = do
       _ | 29 <= w -> ( 6,  5)   -- 17 bit => 128K clauses
       _ -> error "Int on your CPU doesn't have sufficient bit width."
 
-sortClauses :: Solver -> ClauseExtManager -> IO Int
-sortClauses s cm = do
+{-# INLINABLE sortClauses #-}
+sortClauses :: Solver -> ClauseExtManager -> Int -> IO Int
+sortClauses s cm nneeds = do
   -- constants
   let
     lbdMax :: Int
@@ -557,10 +558,12 @@ sortClauses s cm = do
           setNth keys i $ shiftL (min lbdMax d) (activityWidth + indexWidth) + shiftL b2 indexWidth + i
           assignKey (i + 1) m
   n' <- assignKey 0 0
+  let limit = max (1 + n') (div n' 2 + nneeds)
   -- 2: sort keyVector
   let
     sortOnRange :: Int -> Int -> IO ()
     sortOnRange left right
+      | limit < left = return ()
       | left >= right = return ()
       | left + 1 == right = do
           a <- getNth keys left
@@ -590,7 +593,7 @@ sortClauses s cm = do
   -- 3: place clauses
   let
     seek :: Int -> IO ()
-    seek ((< n) -> False) = return ()
+    seek ((< limit) -> False) = return ()
     seek i = do
       bits <- getNth keys i
       when (indexMax < bits) $ do
@@ -605,7 +608,7 @@ sortClauses s cm = do
         sweep i
       seek $ i + 1
   seek 0
-  return n'
+  return limit
 
 -- | #M22
 --

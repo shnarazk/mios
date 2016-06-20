@@ -206,13 +206,18 @@ purgeGarbages ClauseExtManager{..} = do
   when diry $ do
     n <- getInt _nActives
     vec <- IORef.readIORef _clauseVector
+    keys <- IORef.readIORef _keyVector
     let
       loop :: Int -> Int -> IO Int
       loop ((< n) -> False) n' = return n'
       loop i j = do
         c <- C.getNthClause vec i
         if c /= C.NullClause
-          then unless (i == j) (C.setNthClause vec j c) >> loop (i + 1) (j + 1)
+          then do
+              unless (i == j) $ do
+                C.setNthClause vec j c
+                setNth keys j =<< getNth keys i
+              loop (i + 1) (j + 1)
           else loop (i + 1) j
     setInt _nActives =<< loop 0 0
     setBool _dirtified False
