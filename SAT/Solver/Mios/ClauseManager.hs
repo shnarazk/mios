@@ -19,14 +19,14 @@ module SAT.Solver.Mios.ClauseManager
        , ClauseExtManager
        , pushClauseWithKey
        , getKeyVector
-       , setClauseToPurge
-       , purgeGarbages
+       , markClause
+--       , purifyManager
          -- * WatcherList (vector of ClauseExtManager)
        , WatcherList
        , newWatcherList
        , getNthWatcher
        , garbageCollect
-       , numberOfRegisteredClauses
+--       , numberOfRegisteredClauses
        )
        where
 
@@ -125,10 +125,10 @@ instance VectorFamily SimpleManager C.Clause where
 -- | Clause + Blocking Literal
 data ClauseExtManager = ClauseExtManager
   {
-    _nActives      :: IntSingleton               -- number of active clause
-  , _dirtified	   :: BoolSingleton		 -- whether it needs gc
-  , _clauseVector  :: IORef.IORef C.ClauseVector -- clause list
-  , _keyVector     :: IORef.IORef Vec            -- Int list
+    _nActives     :: IntSingleton               -- number of active clause
+  , _purged       :: BoolSingleton              -- whether it needs gc
+  , _clauseVector :: IORef.IORef C.ClauseVector -- clause list
+  , _keyVector    :: IORef.IORef Vec            -- Int list
   }
 
 instance ClauseManager ClauseExtManager where
@@ -185,9 +185,9 @@ instance ClauseManager ClauseExtManager where
   removeNthClause = error "removeNthClause is not implemented on ClauseExtManager"
 -}
 
-{-# INLINE setClauseToPurge #-}
-setClauseToPurge :: ClauseExtManager -> C.Clause -> IO ()
-setClauseToPurge ClauseExtManager{..} c = do
+{-# INLINE markClause #-}
+markClause :: ClauseExtManager -> C.Clause -> IO ()
+markClause ClauseExtManager{..} c = do
   !n <- getInt _nActives
   !v <- IORef.readIORef _clauseVector
   let
@@ -197,12 +197,12 @@ setClauseToPurge ClauseExtManager{..} c = do
       if c' == c then MV.unsafeWrite v k C.NullClause else seekIndex $ k + 1
   unless (n == 0) $ do
     seekIndex 0
-    setBool _dirtified True
+    setBool _purged True
 
-{-# INLINE purgeGarbages #-}
-purgeGarbages :: ClauseExtManager -> IO ()
-purgeGarbages ClauseExtManager{..} = do
-  diry <- getBool _dirtified
+{-# INLINE purifyManager #-}
+purifyManager :: ClauseExtManager -> IO ()
+purifyManager ClauseExtManager{..} = do
+  diry <- getBool _purged
   when diry $ do
     n <- getInt _nActives
     vec <- IORef.readIORef _clauseVector
@@ -220,7 +220,7 @@ purgeGarbages ClauseExtManager{..} = do
               loop (i + 1) (j + 1)
           else loop (i + 1) j
     setInt _nActives =<< loop 0 0
-    setBool _dirtified False
+    setBool _purged False
 
 {-# INLINE getKeyVector #-}
 getKeyVector :: ClauseExtManager -> IO Vec
@@ -239,7 +239,6 @@ pushClauseWithKey !ClauseExtManager{..} !c k = do
         let len = max 8 $ MV.length v
         v' <- MV.unsafeGrow v len
         b' <- vecGrow b len
-        -- forM_ [n  .. MV.length v' - 1] $ \i -> MV.unsafeWrite v' i C.NullClause
         MV.unsafeWrite v' n c
         setNth b' n k
         IORef.writeIORef _clauseVector v'
@@ -251,13 +250,13 @@ instance VectorFamily ClauseExtManager C.Clause where
   dump mes ClauseExtManager{..} = do
     n <- getInt _nActives
     if n == 0
-      then return $ mes ++ "empty clausemanager"
+      then return $ mes ++ "empty ClauseExtManager"
       else do
           l <- take n <$> (asList =<< IORef.readIORef _clauseVector)
           sts <- mapM (dump ",") (l :: [C.Clause])
           return $ mes ++ "[" ++ show n ++ "]" ++ tail (concat sts)
 
--------------------------------------------------------------------------------- ClauseExtManagers
+-------------------------------------------------------------------------------- WatcherList
 
 type WatcherList = V.Vector ClauseExtManager
 
@@ -274,12 +273,12 @@ getNthWatcher = V.unsafeIndex
 instance VectorFamily WatcherList C.Clause where
   dump mes wl = (mes ++) . L.concat <$> forM [1 .. V.length wl - 1] (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i))
 
-numberOfRegisteredClauses :: WatcherList -> IO Int
-numberOfRegisteredClauses ws = sum <$> V.mapM numberOfClauses ws
-
 {-# INLINE garbageCollect #-}
 garbageCollect :: WatcherList -> IO ()
-garbageCollect wm = V.mapM_ purgeGarbages wm
+garbageCollect wm = V.mapM_ purifyManager wm
+
+numberOfRegisteredClauses :: WatcherList -> IO Int
+numberOfRegisteredClauses ws = sum <$> V.mapM numberOfClauses ws
 
 {-
 -------------------------------------------------------------------------------- debugging stuff

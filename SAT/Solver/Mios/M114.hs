@@ -30,9 +30,9 @@ removeWatch :: Solver -> Clause -> IO ()
 removeWatch Solver{..} c = do
   let lvec = asVec c
   l1 <- negateLit <$> getNth lvec 0
-  setClauseToPurge (getNthWatcher watches l1) c
+  markClause (getNthWatcher watches l1) c
   l2 <- negateLit <$> getNth lvec 1
-  setClauseToPurge (getNthWatcher watches l2) c
+  markClause (getNthWatcher watches l2) c
 
 --------------------------------------------------------------------------------
 -- Operations on 'Clause'
