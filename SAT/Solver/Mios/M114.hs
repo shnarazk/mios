@@ -558,7 +558,7 @@ sortClauses s cm nneeds = do
           setNth keys i $ shiftL (min lbdMax d) (activityWidth + indexWidth) + shiftL b2 indexWidth + i
           assignKey (i + 1) m
   n' <- assignKey 0 0
-  let limit = max (1 + n') (div n' 2 + nneeds)
+  let limit = min n (n' + nneeds)
   -- 2: sort keyVector
   let
     sortOnRange :: Int -> Int -> IO ()
