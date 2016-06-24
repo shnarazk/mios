@@ -544,16 +544,15 @@ sortClauses s cm nneeds = do
     assignKey i m = do
       c <- getNthClause vec i
       k <- sizeOfClause c
-      d <- getInt $ lbd c
+      l <- locked s c
       p <- getBool $ protected c
       when p $ setBool (protected c) False
-      l <- locked s c
       case () of
         _ | k == 2 -> setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
         _ | l      -> setNth keys i (shiftL 2 indexWidth + i) >> assignKey (i + 1) (m + 1)
-        _ | p      -> setNth keys i (shiftL d indexWidth + i) >> assignKey (i + 1) (m + 1)
---        _ | d <= 2 -> setNth keys i (shiftL 4 indexWidth + 1) >> assignKey (i + 1) m
+        _ | p      -> setNth keys i (shiftL 3 indexWidth + i) >> assignKey (i + 1) (m + 1)
         _ -> do
+          d <- getInt $ lbd c
           b2 <- floor . (activityScale *) . (1 -) . logBase 1e100 . max 1 <$> getDouble (activity c)
           setNth keys i $ shiftL (min lbdMax d) (activityWidth + indexWidth) + shiftL b2 indexWidth + i
           assignKey (i + 1) m
