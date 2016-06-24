@@ -6,8 +6,9 @@ a part of my research theme.
 
 #### > Features
 
-* fundamentally this is a *line-to-line* translation of [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip)
-(And,  in the early stage of development, it was based on  N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518.)
+* fundamentally it is developed based on Minisat-1.14, 2.20.
+  * It was a *line-to-line* translation of [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip)
+  * And,  in the early stage of development, it was based on  N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518.
 * runs in `IO` monad, uses `Data.Vector` and *pointer-based equality* by `reallyUnsafePtrEquality`
 * very fast, compared with SAT solvers written in Haskell; see below.
 
@@ -26,6 +27,13 @@ by 3.4. This means that *mios-1.1.1 is 3.4 times slower than MiniSat-1.14*.
 ![](https://docs.google.com/spreadsheets/d/1cNltZ4FIu_exSUQMcXe53w4fADr3sOUxpo3L7oM0H_Q/pubchart?oid=297581252&format=image)
 
 #### > Release Note
+
+##### 1.2.0
+
+* use *literal block distance (LBD)*
+* use *blocking literals*
+* remove random literal selection
+* remove 'Criterion' from dependency list
 
 ##### 1.1.2
 
