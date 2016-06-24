@@ -27,28 +27,18 @@ Flag llvm
   Description:	        Compile with llvm
   Default:	        False
 
-Flag devel
-  Description:	        Build an executable for mios developers
-  Default:	        False
-
-Flag profile
-  Description:	        Build an executable for profiling (use with '--enable-executable-profiling')
-  Default:	        False
-
-Flag criterion
-  Description:	        Build an executable for exhaustive benchmarks
-  Default:	        False
-
 library
-  if flag(lib) && !flag(profile)
-    buildable:	        False
+  if flag(lib)
+    buildable:	        True
   else
     buildable:	        False
-  if flag(llvm)
-    ghc-options:	-Wall-missed-specialisations -XStrict -fstrictness -fno-state-hack -funbox-strict-fields -O2 -ignore-asserts -fllvm -optlo-O3 -fno-warn-tabs -funfolding-use-threshold=200 -fno-full-laziness
-  else
-    ghc-options:	-Wall-missed-specialisations -XStrict -fstrictness -fno-state-hack -funbox-strict-fields -msse4.2 -O2 -fignore-asserts -fno-warn-tabs -funfolding-use-threshold=200 -fno-full-laziness
   default-language:	Haskell2010
+  default-extensions:  Strict
+  if flag(llvm)
+    ghc-options:	-Wall-missed-specialisations -ignore-asserts -fno-warn-tabs -funbox-strict-fields -O2 -fllvm -optlo-O3
+  else
+    ghc-options:	-Wall-missed-specialisations -ignore-asserts -fno-warn-tabs -funbox-strict-fields -O2 -msse4.2
+
   -- Modules exported by the library.
   exposed-modules:
                         SAT.Solver.Mios
@@ -69,22 +59,18 @@ library
     -- Modules included in this library but not exported.
   other-modules:
     -- Other library packages from which modules are imported.
-  build-depends:        base ==4.9.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.5.*, bytestring ==0.10.*,
-                        primitive ==0.6.*
+  build-depends:        base ==4.9.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.5.*, bytestring ==0.10.*, primitive ==0.6.*
 
 executable mios
   main-is:              app/mios.hs
-  if flag(profile) || flag(devel)
-    buildable:	        False
-  else
-    buildable:	        True
+  buildable:	        True
   default-language:	Haskell2010
+  default-extensions:  Strict
   if flag(llvm)
-    ghc-options:	-Wall-missed-specialisations -XStrict -fstrictness -fno-state-hack -funbox-strict-fields -O2 -ignore-asserts -fllvm -optlo-O3 -fno-warn-tabs -funfolding-use-threshold=200 -fno-full-laziness
+    ghc-options:	-Wall-missed-specialisations -ignore-asserts -fno-warn-tabs -funbox-strict-fields -O2 -fllvm -optlo-O3
   else
-    ghc-options:	-Wall-missed-specialisations -XStrict -fstrictness -fno-state-hack -funbox-strict-fields -msse4.2 -O2 -fignore-asserts -fno-warn-tabs -funfolding-use-threshold=200 -fno-full-laziness
-  build-depends:	base ==4.9.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.5.*, bytestring ==0.10.*,
-                        primitive ==0.6.*
+    ghc-options:	-Wall-missed-specialisations -ignore-asserts -fno-warn-tabs -funbox-strict-fields -O2 -msse4.2
+  build-depends:	base ==4.9.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.5.*, bytestring ==0.10.*, primitive ==0.6.*
   other-modules:
                         SAT.Solver.Mios
                         SAT.Solver.Mios.Clause
@@ -102,19 +88,17 @@ executable mios
                         SAT.Solver.Mios.Types
                         SAT.Solver.Mios.Validator
 
-executable mios-1.2.0
+executable mios-1.2.0-Strict
   main-is:              app/mios.hs
-  if flag(devel)
-    buildable:	        True
-  else
-    buildable:	        False
+  buildable:	        False
   default-language:	Haskell2010
+  default-extensions:  Strict
   if flag(llvm)
-    ghc-options:	-Wall-missed-specialisations -XStrict -fstrictness -fno-state-hack -funbox-strict-fields -O2 -ignore-asserts -fllvm -optlo-O3 -fno-warn-tabs -funfolding-use-threshold=200 -fno-full-laziness
+    ghc-options:	-Wall-missed-specialisations -ignore-asserts -fno-warn-tabs -funbox-strict-fields -O2 -fllvm -optlo-O3
   else
-    ghc-options:	-Wall-missed-specialisations -XStrict -fstrictness -fno-state-hack -funbox-strict-fields -msse4.2 -O2 -fignore-asserts -fno-warn-tabs -funfolding-use-threshold=200 -fno-full-laziness
-  build-depends:	base ==4.9.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.5.*, bytestring ==0.10.*,
-                        primitive ==0.6.*
+    ghc-options:	-Wall-missed-specialisations -ignore-asserts -fno-warn-tabs -funbox-strict-fields -O2 -msse4.2
+ull-laziness -msse4.2
+  build-depends:	base ==4.9.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.5.*, bytestring ==0.10.*, primitive ==0.6.*
   other-modules:
                         SAT.Solver.Mios
                         SAT.Solver.Mios.Clause
@@ -131,11 +115,3 @@ executable mios-1.2.0
                         SAT.Solver.Mios.Solver
                         SAT.Solver.Mios.Types
                         SAT.Solver.Mios.Validator
-
-Test-Suite doctest
-  type:                 exitcode-stdio-1.0
-  default-language:     Haskell2010
-  hs-source-dirs:       test
-  ghc-options:          -threaded -Wall -fno-warn-tabs
-  main-Is:              doctest.hs
-  build-depends:        base, doctest >= 0.9.3
