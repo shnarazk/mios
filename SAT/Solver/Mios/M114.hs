@@ -543,19 +543,20 @@ sortClauses s cm nneeds = do
     assignKey ((< n) -> False) m = return m
     assignKey i m = do
       c <- getNthClause vec i
-      k <- sizeOfClause c
-      l <- locked s c
-      p <- getBool $ protected c
+      k <- sizeOfClause c        -- this is cheap
+      p <- getBool $ protected c -- this is cheap too
       when p $ setBool (protected c) False
-      case () of
-        _ | k == 2 -> setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
-        _ | l      -> setNth keys i (shiftL 2 indexWidth + i) >> assignKey (i + 1) (m + 1)
-        _ | p      -> setNth keys i (shiftL 3 indexWidth + i) >> assignKey (i + 1) (m + 1)
-        _ -> do
-          d <- getInt $ lbd c
-          b2 <- floor . (activityScale *) . (1 -) . logBase 1e100 . max 1 <$> getDouble (activity c)
-          setNth keys i $ shiftL (min lbdMax d) (activityWidth + indexWidth) + shiftL b2 indexWidth + i
-          assignKey (i + 1) m
+      if k == 2 || p
+        then setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
+        else do
+            l <- locked s c      -- this is expensive
+            if l
+              then setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
+              else do
+                  d <- getInt $ lbd c
+                  b <- floor . (activityScale *) . (1 -) . logBase 1e100 . max 1 <$> getDouble (activity c)
+                  setNth keys i $ shiftL (min lbdMax d) (activityWidth + indexWidth) + shiftL b indexWidth + i
+                  assignKey (i + 1) m
   n' <- assignKey 0 0
   let limit = min n (n' + nneeds)
   -- 2: sort keyVector
