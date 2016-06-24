@@ -40,7 +40,6 @@ module SAT.Solver.Mios.Solver
         where
 
 import Control.Monad ((<=<), forM_, unless, when)
-import System.Random (mkStdGen, randomIO, setStdGen)
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Clause
@@ -90,7 +89,6 @@ data Solver = Solver
 -- | returns an everything-is-initialized solver from the arguments
 newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
 newSolver conf desc@(CNFDescription nv nc _) = do
-  setStdGen $ mkStdGen 91648253
   Solver
     -- Public Interface
     <$> newVecBool nv False                           -- model
@@ -389,7 +387,6 @@ instance VarOrder Solver where
     let
       nv = nVars s
       asg = assigns s
-      rd = randomDecisionRate (config s)
       -- | returns the most active var (heap-based implementation)
       loop :: IO Var
       loop = do
@@ -400,18 +397,7 @@ instance VarOrder Solver where
               v <- getHeapRoot s
               x <- getNth asg v
               if x == lBottom then return v else loop
-    -- the threshold used in MiniSat 1.14 is 0.02, namely 20/1000
-    -- But it is 0 in MiniSat 2.20
-    if 0 < rd
-      then do
-          r <- flip mod 1000 <$> randomIO :: IO Int
-          if r < rd
-            then do
-                v <- (+ 1) . flip mod nv <$> randomIO
-                x <- getNth asg v
-                if x == lBottom then return v else loop
-            else loop
-      else loop
+    loop
 
 -------------------------------------------------------------------------------- Activities
 
