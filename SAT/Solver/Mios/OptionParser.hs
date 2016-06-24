@@ -1,4 +1,4 @@
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Safe #-}
 -- | command line option parser for mios
 module SAT.Solver.Mios.OptionParser
        (
