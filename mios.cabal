@@ -88,9 +88,9 @@ executable mios
                         SAT.Solver.Mios.Types
                         SAT.Solver.Mios.Validator
 
-executable mios-1.2.0-Strict
+executable mios-1.2.0
   main-is:              app/mios.hs
-  buildable:	        False
+  buildable:	        True
   default-language:	Haskell2010
   default-extensions:  Strict
   if flag(llvm)
