@@ -97,7 +97,6 @@ executable mios-1.2.0-Strict
     ghc-options:	-Wall-missed-specialisations -ignore-asserts -fno-warn-tabs -funbox-strict-fields -O2 -fllvm -optlo-O3
   else
     ghc-options:	-Wall-missed-specialisations -ignore-asserts -fno-warn-tabs -funbox-strict-fields -O2 -msse4.2
-ull-laziness -msse4.2
   build-depends:	base ==4.9.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.5.*, bytestring ==0.10.*, primitive ==0.6.*
   other-modules:
                         SAT.Solver.Mios
