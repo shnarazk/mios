@@ -86,11 +86,11 @@ It's an invalid assignment.
 
 #### > Install
 
-* ghc-7.10.2 or upper
+* ghc-8.0.1 or upper
 * [Stack](http://www.haskellstack.org/) or `cabal-install`
 
 ```
-stack init --resolver lts-5.5   # or upper
+stack init --resolver nightly-2016-XX-XX
 stack install
 ```
 
@@ -104,15 +104,13 @@ cabal install
 
 ```
 $ mios a.cnf
-dumps an assignment :: [Int]
+an assignment :: [Int]
 
 $ mios --help
-mios* WIP-for-1.1.1$ mios
-mios 1.1.1 #3.4*1.14
+mios 1.2
 Usage: mios [OPTIONS] target.cnf
   -d 0.95   --variable-decay-rate=0.95  [solver] variable activity decay rate (0.0 - 1.0)
   -c 0.999  --clause-decay-rate=0.999   [solver] clause activity decay rate (0.0 - 1.0)
-  -r 0      --random-decision-rate=0    [solver] random selection rate (0 - 1000)
   -:        --validate-assignment       [solver] read an assignment from STDIN and validate it
             --validate                  [solver] self-check the (satisfied) answer
   -o file   --output=file               [option] filename to store the result
