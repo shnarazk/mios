@@ -6,8 +6,9 @@ version:                1.2.0
 synopsis:               Minisat-based Implementation and Optimization Study on SAT solver
 description:
 
-  A modern and fast SAT solver in Haskell, based on Minisat. It uses CDCL, watch literals, VSIDS, restart, and so on.
-  This is a part of 'Study on SAT Solver Algorithms in Haskell'.
+  A modern and fast SAT solver written in Haskell, based on Minisat-1.14 and 2.2.
+  By using CDCL, watch literals, VSIDS, restart, blocking-literals, LBD and so on,
+  the current vesion is only 1.8 time slower than Minisat-1.14.
   .
 
 license:                GPL-3
@@ -38,8 +39,6 @@ library
     ghc-options:	-Wall-missed-specialisations -ignore-asserts -fno-warn-tabs -funbox-strict-fields -O2 -fllvm -optlo-O3
   else
     ghc-options:	-Wall-missed-specialisations -ignore-asserts -fno-warn-tabs -funbox-strict-fields -O2 -msse4.2
-
-  -- Modules exported by the library.
   exposed-modules:
                         SAT.Solver.Mios
                         SAT.Solver.Mios.Clause
@@ -56,9 +55,7 @@ library
                         SAT.Solver.Mios.Solver
                         SAT.Solver.Mios.Types
                         SAT.Solver.Mios.Validator
-    -- Modules included in this library but not exported.
   other-modules:
-    -- Other library packages from which modules are imported.
   build-depends:        base ==4.9.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.5.*, bytestring ==0.10.*, primitive ==0.6.*
 
 executable mios
