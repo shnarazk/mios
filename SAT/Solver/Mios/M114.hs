@@ -543,12 +543,11 @@ sortClauses s cm nneeds = do
     assignKey ((< n) -> False) m = return m
     assignKey i m = do
       c <- getNthClause vec i
-      k <- sizeOfClause c        -- this is cheap
-      p <- getBool $ protected c -- this is cheap too
-      when p $ setBool (protected c) False
-      if k == 2 || p
-        then setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
-        else do
+      k <- (\k -> if k == 2 then return k else fromEnum <$> getBool (protected c)) =<< sizeOfClause c
+      case k of
+        1 -> setBool (protected c) False >> setNth keys i (shiftL 2 indexWidth + i) >> assignKey (i + 1) (m + 1)
+        2 -> setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
+        _ -> do
             l <- locked s c      -- this is expensive
             if l
               then setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
@@ -557,8 +556,7 @@ sortClauses s cm nneeds = do
                   b <- floor . (activityScale *) . (1 -) . logBase 1e100 . max 1 <$> getDouble (activity c)
                   setNth keys i $ shiftL (min lbdMax d) (activityWidth + indexWidth) + shiftL b indexWidth + i
                   assignKey (i + 1) m
-  n' <- assignKey 0 0
-  let limit = min n (n' + nneeds)
+  limit <- min n . (+ nneeds) <$> assignKey 0 0
   -- 2: sort keyVector
   let
     sortOnRange :: Int -> Int -> IO ()
