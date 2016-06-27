@@ -6,9 +6,9 @@ a part of my research theme.
 
 #### > Features
 
-* fundamentally it is developed based on Minisat-1.14, 2.20.
-  * It was a *line-to-line* translation of [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip)
-  * And,  in the early stage of development, it was based on  N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518.
+* fundamentally it is developed based on Minisat-1.14 and 2.2.0.
+  * Firstly, version 1.0 was based on N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518.
+  * Version 1.1 was a *line-to-line* translation of [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip)
 * runs in `IO` monad, uses `Data.Vector` and *pointer-based equality* by `reallyUnsafePtrEquality`
 * very fast, compared with SAT solvers written in Haskell; see below.
 
@@ -16,9 +16,9 @@ a part of my research theme.
 
 * On a subset of SAT-RACE 2015 Application Problems (timeout: 1200 sec)
 
-This is a result on a subset the problems of which MiniSat-2.2 can solve
-in 1000 secs. `2.2 * minisat` is the line scaled the result of MiniSat-2.2
-by 2.2. This means that *mios-1.2.0 is 2.2 times slower than MiniSat-2.2*.
+This is a result on a subset the problems of which MiniSat-2.2.0 can solve
+in 1000 secs. `2.2 * minisat` is the line scaled the result of MiniSat-2.2.0
+by 2.2. This means that *mios-1.2.0 is 2.2 times slower than MiniSat-2.2.0*.
 
 ![cactus plot on SAT-RACE 2015](https://cloud.githubusercontent.com/assets/997855/16362274/62dd40da-3be5-11e6-9a90-688909618894.png)
 
