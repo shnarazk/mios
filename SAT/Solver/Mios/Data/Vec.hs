@@ -70,5 +70,6 @@ newSizedVecIntFromList !l = U.unsafeThaw $ U.fromList (length l : l)
 newSizedVecIntFromUVector :: U.Vector Int -> IO Vec
 newSizedVecIntFromUVector = U.unsafeThaw
 
+{-# INLINE vecGrow #-}
 vecGrow :: Vec -> Int -> IO Vec
 vecGrow = UV.unsafeGrow
