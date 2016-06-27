@@ -20,7 +20,7 @@ This is a result on a subset the problems of which MiniSat-2.2.0 can solve
 in 1000 secs. `3.4 * minisat` is the line scaled the result of MiniSat-1.14
 by 3.4. This means that *mios-1.1.1 is 3.4 times slower than MiniSat-1.14*.
 
-![scatter plot](https://cloud.githubusercontent.com/assets/997855/14322605/746d2652-fc58-11e5-9fdc-588c7dc02508.png)
+![cactus plot on SAT-RACE 2015](https://cloud.githubusercontent.com/assets/997855/16362274/62dd40da-3be5-11e6-9a90-688909618894.png)
 
 * Performances on [various 3SAT problems (uf-* series)](http://www.cs.ubc.ca/~hoos/SATLIB/benchm.html)
 
@@ -30,8 +30,8 @@ by 3.4. This means that *mios-1.1.1 is 3.4 times slower than MiniSat-1.14*.
 
 ##### 1.2.0
 
-* use *literal block distance (LBD)*
 * use *blocking literals*
+* implement *literal block distance (LBD)* (not tested well)
 * remove random literal selection
 * remove 'Criterion' from dependency list
 
