@@ -9,8 +9,8 @@ a part of my research theme.
 * fundamentally it is developed based on Minisat-1.14 and 2.2.0.
   * Firstly, version 1.0 was based on N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518.
   * Version 1.1 was a *line-to-line* translation of [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip)
-* runs in `IO` monad, uses `Data.Vector` and *pointer-based equality* by `reallyUnsafePtrEquality`
-* very fast, compared with SAT solvers written in Haskell; see below.
+* runs in `IO` monad, uses `Data.Vector.Mutable.Unboxed` and `reallyUnsafePtrEquality`
+* very fast, compared with other SAT solvers written in Haskell; see below.
 
 ##### benchmark results
 
