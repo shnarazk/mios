@@ -16,9 +16,9 @@ a part of my research theme.
 
 * On a subset of SAT-RACE 2015 Application Problems (timeout: 1200 sec)
 
-This is a result on a subset the problems of which MiniSat-2.2.0 can solve
-in 1000 secs. `3.4 * minisat` is the line scaled the result of MiniSat-1.14
-by 3.4. This means that *mios-1.1.1 is 3.4 times slower than MiniSat-1.14*.
+This is a result on a subset the problems of which MiniSat-2.2 can solve
+in 1000 secs. `2.2 * minisat` is the line scaled the result of MiniSat-2.2
+by 2.2. This means that *mios-1.2.0 is 2.2 times slower than MiniSat-2.2*.
 
 ![cactus plot on SAT-RACE 2015](https://cloud.githubusercontent.com/assets/997855/16362274/62dd40da-3be5-11e6-9a90-688909618894.png)
 
