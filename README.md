@@ -33,6 +33,7 @@ by 2.2. This means that *mios-1.2.0 is 2.2 times slower than MiniSat-2.2.0*.
 * use *blocking literals*
 * implement *literal block distance (LBD)* (not tested well)
 * revise `reduceDB`
+* use phase-saving
 * remove random literal selection
 * remove 'Criterion' from dependency list
 
