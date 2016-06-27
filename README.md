@@ -30,8 +30,8 @@ by 3.4. This means that *mios-1.1.1 is 3.4 times slower than MiniSat-1.14*.
 
 ##### 1.2.0
 
-* use *literal block distance (LBD)*
 * use *blocking literals*
+* implement *literal block distance (LBD)* (not tested well)
 * remove random literal selection
 * remove 'Criterion' from dependency list
 
