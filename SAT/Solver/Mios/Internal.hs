@@ -19,7 +19,7 @@ data MiosConfiguration = MiosConfiguration
                          {
                            variableDecayRate  :: Double
                          , clauseDecayRate    :: Double
-                         , randomDecisionRate :: Int -- used in Solver.select
+--                         , randomDecisionRate :: Int -- used in Solver.select
                          , collectStats       :: Bool
                          }
 
@@ -28,4 +28,4 @@ data MiosConfiguration = MiosConfiguration
 -- Minisat-2.20 uses (0.95, 0.999, 0).
 -- Gulcose-4.0  uses (0.8 , 0.999, 0).
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 0.999 0 False
+defaultConfiguration = MiosConfiguration 0.95 0.999 {- 0 -} False

@@ -378,6 +378,7 @@ propagate :: Solver -> IO Clause
 propagate s@Solver{..} = do
   -- myVal <- getNth stats (fromEnum NumOfBackjump)
   let
+{-
     myVal = 0
     bumpAllVar :: IO ()         -- not in use
     bumpAllVar = do
@@ -389,6 +390,7 @@ propagate s@Solver{..} = do
           when (c == myVal) $ varBumpActivity s i
           loop $ i + 1
       loop 1
+-}
     trailVec = asVec trail
     while :: Clause -> Bool -> IO Clause
     while confl False = {- bumpAllVar >> -} return confl
@@ -402,6 +404,7 @@ propagate s@Solver{..} = do
 --      rc <- getNthClause reason $ lit2var p
 --      byGlue <- if (rc /= NullClause) && learnt rc then (== 2) <$> getInt (lbd rc) else return False
       let
+{-
         checkAllLiteralsIn :: Clause -> IO () -- not in use
         checkAllLiteralsIn c = do
           nc <- sizeOfClause c
@@ -414,6 +417,7 @@ propagate s@Solver{..} = do
               setNth pr'seen v myVal
               loop $ i + 1
           loop 0
+-}
         forClause :: Clause -> Int -> Int -> IO Clause
         forClause confl i@((< end) -> False) j = do
           shrinkManager ws (i - j)

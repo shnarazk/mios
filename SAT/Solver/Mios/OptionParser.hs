@@ -25,7 +25,7 @@ data MiosProgramOption = MiosProgramOption
                      , _outputFile :: Maybe String
                      , _confVariableDecayRate :: Double
                      , _confClauseDecayRate :: Double
-                     , _confRandomDecisionRate :: Int
+--                     , _confRandomDecisionRate :: Int
                      , _confCheckAnswer :: Bool
                      , _confVerbose :: Bool
                      , _confTimeProbe :: Bool
@@ -44,7 +44,7 @@ miosDefaultOption = MiosProgramOption
   , _outputFile = Nothing
   , _confVariableDecayRate = variableDecayRate defaultConfiguration
   , _confClauseDecayRate = clauseDecayRate defaultConfiguration
-  , _confRandomDecisionRate = randomDecisionRate defaultConfiguration
+--  , _confRandomDecisionRate = randomDecisionRate defaultConfiguration
   , _confCheckAnswer = False
   , _confVerbose = False
   , _confTimeProbe = False
@@ -127,6 +127,6 @@ toMiosConf opts = MiosConfiguration
                  {
                    variableDecayRate = _confVariableDecayRate opts
                  , clauseDecayRate = _confClauseDecayRate opts
-                 , randomDecisionRate = _confRandomDecisionRate opts
+--                 , randomDecisionRate = _confRandomDecisionRate opts
                  , collectStats = _confStatProbe opts
                  }

@@ -88,7 +88,7 @@ data Solver = Solver
 
 -- | returns an everything-is-initialized solver from the arguments
 newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
-newSolver conf desc@(CNFDescription nv nc _) = do
+newSolver conf (CNFDescription nv nc _) = do
   Solver
     -- Public Interface
     <$> newVecBool nv False                           -- model
@@ -385,7 +385,6 @@ instance VarOrder Solver where
   {-# SPECIALIZE INLINE select :: Solver -> IO Var #-}
   select s = do
     let
-      nv = nVars s
       asg = assigns s
       -- | returns the most active var (heap-based implementation)
       loop :: IO Var
