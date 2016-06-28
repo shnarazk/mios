@@ -263,7 +263,7 @@ parseInt st = do
     c | '0' <= c && c <= '9'  -> loop st 0
     _ -> error "PARSE ERROR! Unexpected char"
 
-readClause :: Solver -> Vec -> FixedVecBool -> B.ByteString -> IO B.ByteString
+readClause :: Solver -> Vec -> VecBool -> B.ByteString -> IO B.ByteString
 readClause s buffer pvec stream = do
   let
     loop :: Int -> B.ByteString -> IO B.ByteString

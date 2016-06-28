@@ -6,8 +6,8 @@ module SAT.Solver.Mios.Internal
        , module Plumbing
        )
        where
-import SAT.Solver.Mios.Data.FixedVecBool as Plumbing
-import SAT.Solver.Mios.Data.FixedVecDouble as Plumbing
+import SAT.Solver.Mios.Data.VecBool as Plumbing
+import SAT.Solver.Mios.Data.VecDouble as Plumbing
 import SAT.Solver.Mios.Data.Stack as Plumbing
 
 -- | version name

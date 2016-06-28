@@ -49,7 +49,7 @@ import SAT.Solver.Mios.ClauseManager
 data Solver = Solver
               {
                 -- Public Interface
-                model      :: !FixedVecBool      -- ^ If found, this vector has the model
+                model      :: !VecBool           -- ^ If found, this vector has the model
               , conflict   :: !Stack             -- ^ set of literals in the case of conflicts
                 -- Clause Database
               , clauses    :: !ClauseExtManager  -- ^ List of problem constraints.
@@ -64,7 +64,7 @@ data Solver = Solver
               , reason     :: !ClauseVector      -- ^ For each variable, the constraint that implied its value; var-indexed
               , level      :: !Vec               -- ^ For each variable, the decision level it was assigned; var-indexed
                 -- Variable Order
-              , activities :: !FixedVecDouble    -- ^ Heuristic measurement of the activity of a variable; var-indexed
+              , activities :: !VecDouble         -- ^ Heuristic measurement of the activity of a variable; var-indexed
               , order      :: !VarHeap           -- ^ Keeps track of the dynamic variable order.
                 -- Configuration
               , config     :: !MiosConfiguration -- ^ search paramerters

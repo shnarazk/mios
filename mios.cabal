@@ -43,8 +43,8 @@ library
                         SAT.Solver.Mios
                         SAT.Solver.Mios.Clause
                         SAT.Solver.Mios.ClauseManager
-                        SAT.Solver.Mios.Data.FixedVecBool
-                        SAT.Solver.Mios.Data.FixedVecDouble
+                        SAT.Solver.Mios.Data.VecBool
+                        SAT.Solver.Mios.Data.VecDouble
                         SAT.Solver.Mios.Data.Vec
                         SAT.Solver.Mios.Data.Singleton
                         SAT.Solver.Mios.Data.Stack
@@ -72,8 +72,8 @@ executable mios
                         SAT.Solver.Mios
                         SAT.Solver.Mios.Clause
                         SAT.Solver.Mios.ClauseManager
-                        SAT.Solver.Mios.Data.FixedVecBool
-                        SAT.Solver.Mios.Data.FixedVecDouble
+                        SAT.Solver.Mios.Data.VecBool
+                        SAT.Solver.Mios.Data.VecDouble
                         SAT.Solver.Mios.Data.Vec
                         SAT.Solver.Mios.Data.Singleton
                         SAT.Solver.Mios.Data.Stack
@@ -99,8 +99,8 @@ executable mios-1.2.0
                         SAT.Solver.Mios
                         SAT.Solver.Mios.Clause
                         SAT.Solver.Mios.ClauseManager
-                        SAT.Solver.Mios.Data.FixedVecBool
-                        SAT.Solver.Mios.Data.FixedVecDouble
+                        SAT.Solver.Mios.Data.VecBool
+                        SAT.Solver.Mios.Data.VecDouble
                         SAT.Solver.Mios.Data.Vec
                         SAT.Solver.Mios.Data.Singleton
                         SAT.Solver.Mios.Data.Stack
