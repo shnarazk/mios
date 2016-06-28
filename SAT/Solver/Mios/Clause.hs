@@ -4,8 +4,6 @@
   , MagicHash
   , MultiParamTypeClasses
   , RecordWildCards
-  , TupleSections
-  , UndecidableInstances
   , ViewPatterns
   #-}
 {-# LANGUAGE Trustworthy #-}
@@ -14,16 +12,24 @@
 module SAT.Solver.Mios.Clause
        (
          Clause (..)
-       , isLit
-       , getLit
+--       , isLit
+--       , getLit
        , shrinkClause
        , newClauseFromVec
        , sizeOfClause
+         -- * Vector of Clause
+       , ClauseVector
+       , newClauseVector
+       , getNthClause
+       , setNthClause
+       , swapClauses
        )
        where
 
 import Control.Monad (forM_)
 import GHC.Prim (tagToEnum#, reallyUnsafePtrEquality#)
+import qualified Data.Vector as V
+import qualified Data.Vector.Mutable as MV
 import qualified Data.Vector.Unboxed.Mutable as UV
 import Data.List (intercalate)
 import SAT.Solver.Mios.Types
@@ -34,11 +40,13 @@ import SAT.Solver.Mios.Types
 -- TODO: GADTs is better?
 data Clause = Clause
               {
-                learnt   :: !Bool            -- ^ whether this is a learnt clause
-              , activity :: !DoubleSingleton -- ^ activity of this clause
-              , lits     :: !Vec             -- ^ which this clause consists of
+                learnt     :: !Bool            -- ^ whether this is a learnt clause
+              , activity   :: !DoubleSingleton -- ^ activity of this clause
+              , protected  :: !BoolSingleton   -- ^ protected from reduce
+              , lbd        :: !IntSingleton    -- ^ storing the LBD; values are computed in Solver
+              , lits       :: !Vec             -- ^ which this clause consists of
               }
-  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
+--  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
   | NullClause                              -- as null pointer
 
 -- | The equality on 'Clause' is defined by pointer equivalence.
@@ -67,18 +75,18 @@ instance VectorFamily Clause Lit where
 
 -- | returns True if it is a 'BinaryClause'
 -- FIXME: this might be discarded in minisat 2.2
-isLit :: Clause -> Bool
-isLit (BinaryClause _) = True
-isLit _ = False
+-- isLit :: Clause -> Bool
+-- isLit (BinaryClause _) = True
+-- isLit _ = False
 
 -- | returns the literal in a BinaryClause
 -- FIXME: this might be discarded in minisat 2.2
-getLit :: Clause -> Lit
-getLit (BinaryClause x) = x
+-- getLit :: Clause -> Lit
+-- getLit (BinaryClause x) = x
 
 -- | coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes
-liftToClause :: Clause -> Clause
-liftToClause (BinaryClause _) = error "So far I use generic function approach instead of lifting"
+-- liftToClause :: Clause -> Clause
+-- liftToClause (BinaryClause _) = error "So far I use generic function approach instead of lifting"
 
 {-# INLINABLE shrinkClause #-}
 shrinkClause :: Int -> Clause -> IO ()
@@ -92,10 +100,39 @@ newClauseFromVec l vec = do
   n <- getNth vec 0
   v <- newVec $ n + 1
   forM_ [0 .. n] $ \i -> setNth v i =<< getNth vec i
-  Clause l <$> newDouble 0 <*> return v
+  Clause l <$> newDouble 0 <*> newBool False <*> newInt n <*> return v
 
 -- | returns the number of literals in a clause, even if the given clause is a binary clause
 {-# INLINE sizeOfClause #-}
 sizeOfClause :: Clause -> IO Int
-sizeOfClause (BinaryClause _) = return 1
+-- sizeOfClause (BinaryClause _) = return 1
 sizeOfClause !c = getNth (lits c) 0
+
+--------------------------------------------------------------------------------
+
+type ClauseVector = MV.IOVector Clause
+
+instance VectorFamily ClauseVector Clause where
+  asList cv = V.toList <$> V.freeze cv
+  dump mes cv = do
+    l <- asList cv
+    sts <- mapM (dump ",") (l :: [Clause])
+    return $ mes ++ tail (concat sts)
+
+newClauseVector  :: Int -> IO ClauseVector
+newClauseVector n = do
+  v <- MV.new (max 4 n)
+  MV.set v NullClause
+  return v
+
+{-# INLINE getNthClause #-}
+getNthClause :: ClauseVector -> Int -> IO Clause
+getNthClause = MV.unsafeRead
+
+{-# INLINE setNthClause #-}
+setNthClause :: ClauseVector -> Int -> Clause -> IO ()
+setNthClause = MV.unsafeWrite
+
+{-# INLINE swapClauses #-}
+swapClauses :: ClauseVector -> Int -> Int -> IO ()
+swapClauses = MV.unsafeSwap

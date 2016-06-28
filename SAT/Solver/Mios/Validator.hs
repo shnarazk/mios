@@ -1,6 +1,7 @@
 {-# LANGUAGE
     ViewPatterns
   #-}
+{-# LANGUAGE Safe #-}
 module SAT.Solver.Mios.Validator
        (
          validate
@@ -9,6 +10,7 @@ module SAT.Solver.Mios.Validator
 
 import Data.Foldable (toList)
 import SAT.Solver.Mios.Types
+import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.ClauseManager
 import SAT.Solver.Mios.Solver
 

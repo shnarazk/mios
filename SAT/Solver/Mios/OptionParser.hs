@@ -1,4 +1,4 @@
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Safe #-}
 -- | command line option parser for mios
 module SAT.Solver.Mios.OptionParser
        (
@@ -25,7 +25,7 @@ data MiosProgramOption = MiosProgramOption
                      , _outputFile :: Maybe String
                      , _confVariableDecayRate :: Double
                      , _confClauseDecayRate :: Double
-                     , _confRandomDecisionRate :: Int
+--                     , _confRandomDecisionRate :: Int
                      , _confCheckAnswer :: Bool
                      , _confVerbose :: Bool
                      , _confTimeProbe :: Bool
@@ -44,7 +44,7 @@ miosDefaultOption = MiosProgramOption
   , _outputFile = Nothing
   , _confVariableDecayRate = variableDecayRate defaultConfiguration
   , _confClauseDecayRate = clauseDecayRate defaultConfiguration
-  , _confRandomDecisionRate = randomDecisionRate defaultConfiguration
+--  , _confRandomDecisionRate = randomDecisionRate defaultConfiguration
   , _confCheckAnswer = False
   , _confVerbose = False
   , _confTimeProbe = False
@@ -65,9 +65,9 @@ miosOptions =
   , Option ['c'] ["clause-decay-rate"]
     (ReqArg (\v c -> c { _confClauseDecayRate = read v }) (show (_confClauseDecayRate miosDefaultOption)))
     "[solver] clause activity decay rate (0.0 - 1.0)"
-  , Option ['r'] ["random-decision-rate"]
-    (ReqArg (\v c -> c { _confRandomDecisionRate = read v }) (show (_confRandomDecisionRate miosDefaultOption)))
-    "[solver] random selection rate (0 - 1000)"
+--  , Option ['r'] ["random-decision-rate"]
+--    (ReqArg (\v c -> c { _confRandomDecisionRate = read v }) (show (_confRandomDecisionRate miosDefaultOption)))
+--    "[solver] random selection rate (0 - 1000)"
   , Option [':'] ["validate-assignment"]
     (NoArg (\c -> c { _validateAssignment = True }))
     "[solver] read an assignment from STDIN and validate it"
@@ -127,6 +127,6 @@ toMiosConf opts = MiosConfiguration
                  {
                    variableDecayRate = _confVariableDecayRate opts
                  , clauseDecayRate = _confClauseDecayRate opts
-                 , randomDecisionRate = _confRandomDecisionRate opts
+--                 , randomDecisionRate = _confRandomDecisionRate opts
                  , collectStats = _confStatProbe opts
                  }

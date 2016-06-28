@@ -3,9 +3,6 @@
     BangPatterns
   , FlexibleInstances
   , MultiParamTypeClasses
-  , TupleSections
-  , TypeFamilies
-  , UndecidableInstances
   #-}
 {-# LANGUAGE Trustworthy #-}
 

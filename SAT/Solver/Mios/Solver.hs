@@ -1,9 +1,6 @@
+-- | This is a part of MIOS
 {-# LANGUAGE
     BangPatterns
-  , FlexibleContexts
-  , FlexibleInstances
-  , FunctionalDependencies
-  , MagicHash
   , RecordWildCards
   , ScopedTypeVariables
   , TupleSections
@@ -43,47 +40,92 @@ module SAT.Solver.Mios.Solver
         where
 
 import Control.Monad ((<=<), forM_, unless, when)
-import System.Random (mkStdGen, randomIO, setStdGen)
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.ClauseManager
-import SAT.Solver.Mios.WatcherLists
 
 -- | __Fig. 2.(p.9)__ Internal State of the solver
 data Solver = Solver
               {
                 -- Public Interface
-                model      :: !FixedVecBool       -- ^ If found, this vector has the model
-              , conflict   :: !Stack              -- ^ set of literals in the case of conflicts
+                model      :: !VecBool           -- ^ If found, this vector has the model
+              , conflict   :: !Stack             -- ^ set of literals in the case of conflicts
                 -- Clause Database
-              , clauses    :: !ClauseManager     -- ^ List of problem constraints.
-              , learnts    :: !ClauseManager     -- ^ List of learnt clauses.
-              , watches    :: !WatcherLists      -- ^ a list of constraint wathing 'p', literal-indexed
+              , clauses    :: !ClauseExtManager  -- ^ List of problem constraints.
+              , learnts    :: !ClauseExtManager  -- ^ List of learnt clauses.
+              , watches    :: !WatcherList       -- ^ a list of constraint wathing 'p', literal-indexed
                 -- Assignment Management
               , assigns    :: !Vec               -- ^ The current assignments indexed on variables; var-indexed
+              , phases     :: !Vec               -- ^ The last assignments indexed on variables; var-indexed
               , trail      :: !Stack             -- ^ List of assignments in chronological order; var-indexed
               , trailLim   :: !Stack             -- ^ Separator indices for different decision levels in 'trail'.
               , qHead      :: !IntSingleton      -- ^ 'trail' is divided at qHead; assignments and queue
               , reason     :: !ClauseVector      -- ^ For each variable, the constraint that implied its value; var-indexed
               , level      :: !Vec               -- ^ For each variable, the decision level it was assigned; var-indexed
                 -- Variable Order
-              , activities :: !FixedVecDouble    -- ^ Heuristic measurement of the activity of a variable; var-indexed
+              , activities :: !VecDouble         -- ^ Heuristic measurement of the activity of a variable; var-indexed
               , order      :: !VarHeap           -- ^ Keeps track of the dynamic variable order.
                 -- Configuration
               , config     :: !MiosConfiguration -- ^ search paramerters
               , nVars      :: !Int               -- ^ number of variables
               , claInc     :: !DoubleSingleton   -- ^ Clause activity increment amount to bump with.
+--            , varDecay   :: !DoubleSingleton   -- ^ used to set 'varInc'
               , varInc     :: !DoubleSingleton   -- ^ Variable activity increment amount to bump with.
               , rootLevel  :: !IntSingleton      -- ^ Separates incremental and search assumptions.
                 -- Working Memory
-              , ok         :: !BoolSingleton     -- ^ return vaule holdher
-              , an_seen    :: !Vec               -- ^ scratch var for 'analyze'; var-indexed
-              , an_toClear :: !Stack             -- ^ ditto
-              , an_stack   :: !Stack             -- ^ ditto
+              , ok         :: !BoolSingleton     -- ^ return value holder
+              , an'seen    :: !Vec               -- ^ scratch var for 'analyze'; var-indexed
+              , an'toClear :: !Stack             -- ^ ditto
+              , an'stack   :: !Stack             -- ^ ditto
+              , pr'seen    :: !Vec               -- ^ used in propagate
+              , lbd'seen   :: !Vec               -- ^ used in lbd computation
+              , lbd'key    :: !IntSingleton      -- ^ used in lbd computation
               , litsLearnt :: !Stack             -- ^ used to create a learnt clause
+              , lastDL     :: !Stack             -- ^ last decision level used in analyze
               , stats      :: !Vec               -- ^ statistics information holder
               }
+
+-- | returns an everything-is-initialized solver from the arguments
+newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
+newSolver conf (CNFDescription nv nc _) = do
+  Solver
+    -- Public Interface
+    <$> newVecBool nv False                           -- model
+    <*> newStack nv                                   -- coflict
+    -- Clause Database
+    <*> newManager nc                                 -- clauses
+    <*> newManager nc                                 -- learnts
+    <*> newWatcherList nv 2                           -- watches
+    -- Assignment Management
+    <*> newVecWith (nv + 1) lBottom                   -- assigns
+    <*> newVecWith (nv + 1) lBottom                   -- phases
+    <*> newStack nv                                   -- trail
+    <*> newStack nv                                   -- trailLim
+    <*> newInt 0                                      -- qHead
+    <*> newClauseVector (nv + 1)                      -- reason
+    <*> newVecWith (nv + 1) (-1)                      -- level
+    -- Variable Order
+    <*> newVecDouble (nv + 1) 0                       -- activities
+    <*> newVarHeap nv                                 -- order
+    -- Configuration
+    <*> return conf                                   -- config
+    <*> return nv                                     -- nVars
+    <*> newDouble 1.0                                 -- claInc
+--  <*> newDouble (variableDecayRate conf)            -- varDecay
+    <*> newDouble 1.0                                 -- varInc
+    <*> newInt 0                                      -- rootLevel
+    -- Working Memory
+    <*> newBool True                                  -- ok
+    <*> newVec (nv + 1)                               -- an'seen
+    <*> newStack nv                                   -- an'toClear
+    <*> newStack nv                                   -- an'stack
+    <*> newVecWith (nv + 1) (-1)                      -- pr'seen
+    <*> newVec nv                                     -- lbd'seen
+    <*> newInt 0                                      -- lbd'key
+    <*> newStack nv                                   -- litsLearnt
+    <*> newStack nv                                   -- lastDL
+    <*> newVec (1 + fromEnum (maxBound :: StatIndex)) -- stats
 
 --------------------------------------------------------------------------------
 -- Accessors
@@ -143,42 +185,6 @@ getStats (config -> collectStats -> False) = return []
 getStats (stats -> v) = mapM (\i -> (i, ) <$> getNth v (fromEnum i)) [minBound .. maxBound :: StatIndex]
 
 -------------------------------------------------------------------------------- State Modifiers
-
--- | returns an everything-is-initialized solver from the arguments
-newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
-newSolver conf desc@(CNFDescription nv nc _) = do
-  setStdGen $ mkStdGen 91648253
-  Solver
-    -- Public Interface
-    <$> newVecBool nv False         -- model
-    <*> newStack nv                 -- coflict
-    -- Clause Database
-    <*> newClauseManager nc         -- clauses
-    <*> newClauseManager nc         -- learnts
-    <*> newWatcherLists nv 2        -- watches
-    -- Assignment Management
-    <*> newVecWith (nv + 1) lBottom -- assigns
-    <*> newStack nv                 -- trail
-    <*> newStack nv                 -- trailLim
-    <*> newInt 0                    -- qHead
-    <*> newClauseVector (nv + 1)    -- reason
-    <*> newVecWith (nv + 1) (-1)    -- level
-    -- Variable Order
-    <*> newVecDouble (nv + 1) 0     -- activities
-    <*> newVarHeap nv               -- order
-    -- Configuration
-    <*> return conf                 -- config
-    <*> return nv                   -- nVars
-    <*> newDouble 1.0               -- claInc
-    <*> newDouble 1.0               -- varInc
-    <*> newInt 0                    -- rootLevel
-    -- Working Memory
-    <*> newBool True                -- ok
-    <*> newVec (nv + 1)             -- an_seen
-    <*> newStack nv                 -- an_toClear
-    <*> newStack nv                 -- an_stack
-    <*> newStack nv                 -- litsLearnt
-    <*> newVec (1 + fromEnum (maxBound :: StatIndex)) -- stats
 
 -- | returns @False@ if a conflict has occured.
 -- This function is called only before the solving phase to register the given clauses.
@@ -284,9 +290,9 @@ clauseNew s@Solver{..} ps isLearnt = do
        forM_ [0 .. k -1] $ varBumpActivity s . lit2var <=< getNth vec -- variables in conflict clauses are bumped
      -- Add clause to watcher lists:
      l0 <- negateLit <$> getNth vec 0
-     pushClause (getNthWatchers watches l0) c
+     pushClauseWithKey (getNthWatcher watches l0) c 0
      l1 <- negateLit <$> getNth vec 1
-     pushClause (getNthWatchers watches l1) c
+     pushClauseWithKey (getNthWatcher watches l1) c 0
      return (True, c)
 
 -- | __Fig. 9 (p.14)__
@@ -339,6 +345,7 @@ cancelUntil s@Solver{..} lvl = do
       loopOnTrail ((lim <=) -> False) = return ()
       loopOnTrail c = do
         x <- lit2var <$> getNth tr c
+        setNth phases x =<< getNth assigns x
         setNth assigns x lBottom
         -- #reason to set reason Null
         -- if we don't clear @reason[x] :: Clause@ here, @reason[x]@ remains as locked.
@@ -378,9 +385,7 @@ instance VarOrder Solver where
   {-# SPECIALIZE INLINE select :: Solver -> IO Var #-}
   select s = do
     let
-      nv = nVars s
       asg = assigns s
-      rd = randomDecisionRate (config s)
       -- | returns the most active var (heap-based implementation)
       loop :: IO Var
       loop = do
@@ -391,18 +396,7 @@ instance VarOrder Solver where
               v <- getHeapRoot s
               x <- getNth asg v
               if x == lBottom then return v else loop
-    -- the threshold used in MiniSat 1.14 is 0.02, namely 20/1000
-    -- But it is 0 in MiniSat 2.20
-    if 0 < rd
-      then do
-          r <- flip mod 1000 <$> randomIO :: IO Int
-          if r < rd
-            then do
-                v <- (+ 1) . flip mod nv <$> randomIO
-                x <- getNth asg v
-                if x == lBottom then return v else loop
-            else loop
-      else loop
+    loop
 
 -------------------------------------------------------------------------------- Activities
 
@@ -420,6 +414,7 @@ varBumpActivity s@Solver{..} !x = do
 {-# INLINE varDecayActivity #-}
 varDecayActivity :: Solver -> IO ()
 varDecayActivity Solver{..} = modifyDouble varInc (/ variableDecayRate config)
+-- varDecayActivity Solver{..} = modifyDouble varInc . (flip (/)) =<< getDouble varDecay
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE varRescaleActivity #-}

@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE Trustworthy #-}
 -- | Minisat-based Implementation and Optimization Study
 
 module SAT.Solver.Mios
@@ -167,8 +168,8 @@ executeValidator opts@(_targetFile -> target@(Just cnfFile)) = do
   unless (_confNoAnswer opts) $ print asg
   result <- s `validate` (asg :: [Int])
   if result
-    then putStrLn "It's a valid assignment." >> exitSuccess
-    else putStrLn "It's an invalid assignment." >> exitFailure
+    then putStrLn ("It's a valid assignment for " ++ cnfFile ++ ".") >> exitSuccess
+    else putStrLn ("It's an invalid assignment for " ++ cnfFile ++ ".") >> exitFailure
 
 executeValidator _  = return ()
 
@@ -262,7 +263,7 @@ parseInt st = do
     c | '0' <= c && c <= '9'  -> loop st 0
     _ -> error "PARSE ERROR! Unexpected char"
 
-readClause :: Solver -> Vec -> FixedVecBool -> B.ByteString -> IO B.ByteString
+readClause :: Solver -> Vec -> VecBool -> B.ByteString -> IO B.ByteString
 readClause s buffer pvec stream = do
   let
     loop :: Int -> B.ByteString -> IO B.ByteString

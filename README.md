@@ -6,26 +6,37 @@ a part of my research theme.
 
 #### > Features
 
-* fundamentally this is a *line-to-line* translation of [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip)
-(And,  in the early stage of development, it was based on  N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518.)
-* runs in `IO` monad, uses `Data.Vector` and *pointer-based equality* by `reallyUnsafePtrEquality`
-* very fast, compared with SAT solvers written in Haskell; see below.
+* fundamentally it is developed based on Minisat-1.14 and 2.2.0.
+  * Firstly, version 1.0 was based on N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518.
+  * Version 1.1 was a *line-to-line* translation of [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip).
+  * Version 1.2 imported some idea used in Glucose 4.0.
+* runs in `IO` monad, uses `Data.Vector.Mutable.Unboxed` and `reallyUnsafePtrEquality`.
+* very fast, compared with other SAT solvers written in Haskell; see below.
 
 ##### benchmark results
 
-* On a subset of SAT-RACE 2015 Application Problems (timeout: 1200 sec)
+* On a subset of SAT-Race 2015 Application Problems (timeout: 1200 sec)
 
 This is a result on a subset the problems of which MiniSat-2.2.0 can solve
-in 1000 secs. `3.4 * minisat` is the line scaled the result of MiniSat-1.14
-by 3.4. This means that *mios-1.1.1 is 3.4 times slower than MiniSat-1.14*.
+in 1000 secs. `2.0 * minisat-2.2` is the line scaled the result of MiniSat-2.2.0
+by 2. This means that *mios-1.2.0 is only about 2 times slower than MiniSat-2.2.0*.
 
-![scatter plot](https://cloud.githubusercontent.com/assets/997855/14322605/746d2652-fc58-11e5-9fdc-588c7dc02508.png)
+![cactus plot on SAT-RACE 2015](https://cloud.githubusercontent.com/assets/997855/16403150/375f4aea-3d2d-11e6-9683-74f30bea975e.png)
 
 * Performances on [various 3SAT problems (uf-* series)](http://www.cs.ubc.ca/~hoos/SATLIB/benchm.html)
 
 ![](https://docs.google.com/spreadsheets/d/1cNltZ4FIu_exSUQMcXe53w4fADr3sOUxpo3L7oM0H_Q/pubchart?oid=297581252&format=image)
 
 #### > Release Note
+
+##### 1.2.0
+
+* use *blocking literals*
+* implement *literal block distance (LBD)* (not tested well)
+* revise `reduceDB`
+* use phase-saving
+* remove random literal selection
+* remove 'Criterion' from dependency list
 
 ##### 1.1.2
 
@@ -78,11 +89,11 @@ It's an invalid assignment.
 
 #### > Install
 
-* ghc-7.10.2 or upper
+* ghc-8.0.1 or upper (By deleting `default-extensions` from mios.cabal, you can use ghc-7.10.x.)
 * [Stack](http://www.haskellstack.org/) or `cabal-install`
 
 ```
-stack init --resolver lts-5.5   # or upper
+stack init --resolver nightly-2016-XX-XX
 stack install
 ```
 
@@ -96,15 +107,13 @@ cabal install
 
 ```
 $ mios a.cnf
-dumps an assignment :: [Int]
+an assignment :: [Int]
 
 $ mios --help
-mios* WIP-for-1.1.1$ mios
-mios 1.1.1 #3.4*1.14
+mios 1.2
 Usage: mios [OPTIONS] target.cnf
   -d 0.95   --variable-decay-rate=0.95  [solver] variable activity decay rate (0.0 - 1.0)
   -c 0.999  --clause-decay-rate=0.999   [solver] clause activity decay rate (0.0 - 1.0)
-  -r 0      --random-decision-rate=0    [solver] random selection rate (0 - 1000)
   -:        --validate-assignment       [solver] read an assignment from STDIN and validate it
             --validate                  [solver] self-check the (satisfied) answer
   -o file   --output=file               [option] filename to store the result
