@@ -17,7 +17,7 @@ a part of my research theme.
 * On a subset of SAT-Race 2015 Application Problems (timeout: 1200 sec)
 
 This is a result on a subset the problems of which MiniSat-2.2.0 can solve
-in 1000 secs. `2.0 * minisat` is the line scaled the result of MiniSat-2.2.0
+in 1000 secs. `2.0 * minisat-2.2` is the line scaled the result of MiniSat-2.2.0
 by 2. This means that *mios-1.2.0 is only about 2 times slower than MiniSat-2.2.0*.
 
 ![cactus plot on SAT-RACE 2015](https://cloud.githubusercontent.com/assets/997855/16403150/375f4aea-3d2d-11e6-9683-74f30bea975e.png)
