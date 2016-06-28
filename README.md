@@ -20,7 +20,7 @@ This is a result on a subset the problems of which MiniSat-2.2.0 can solve
 in 1000 secs. `2.2 * minisat` is the line scaled the result of MiniSat-2.2.0
 by 2.2. This means that *mios-1.2.0 is 2.2 times slower than MiniSat-2.2.0*.
 
-![cactus plot on SAT-RACE 2015](https://cloud.githubusercontent.com/assets/997855/16362274/62dd40da-3be5-11e6-9a90-688909618894.png)
+![cactus plot on SAT-RACE 2015](https://cloud.githubusercontent.com/assets/997855/16402947/9440c6c8-3d2b-11e6-9ef4-21c3e41a4b9c.png)
 
 * Performances on [various 3SAT problems (uf-* series)](http://www.cs.ubc.ca/~hoos/SATLIB/benchm.html)
 
