@@ -14,13 +14,13 @@ a part of my research theme.
 
 ##### benchmark results
 
-* On a subset of SAT-RACE 2015 Application Problems (timeout: 1200 sec)
+* On a subset of SAT-Race 2015 Application Problems (timeout: 1200 sec)
 
 This is a result on a subset the problems of which MiniSat-2.2.0 can solve
-in 1000 secs. `2.2 * minisat` is the line scaled the result of MiniSat-2.2.0
-by 2.2. This means that *mios-1.2.0 is 2.2 times slower than MiniSat-2.2.0*.
+in 1000 secs. `2.0 * minisat` is the line scaled the result of MiniSat-2.2.0
+by 2. This means that *mios-1.2.0 is only about 2 times slower than MiniSat-2.2.0*.
 
-![cactus plot on SAT-RACE 2015](https://cloud.githubusercontent.com/assets/997855/16402947/9440c6c8-3d2b-11e6-9ef4-21c3e41a4b9c.png)
+![cactus plot on SAT-RACE 2015](https://cloud.githubusercontent.com/assets/997855/16403150/375f4aea-3d2d-11e6-9683-74f30bea975e.png)
 
 * Performances on [various 3SAT problems (uf-* series)](http://www.cs.ubc.ca/~hoos/SATLIB/benchm.html)
 
