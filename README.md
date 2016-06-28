@@ -89,7 +89,7 @@ It's an invalid assignment.
 
 #### > Install
 
-* ghc-8.0.1 or upper
+* ghc-8.0.1 or upper (By deleting `default-extensions` from mios.cabal, you can use ghc-7.10.x.)
 * [Stack](http://www.haskellstack.org/) or `cabal-install`
 
 ```
