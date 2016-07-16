@@ -82,6 +82,7 @@ type Var = Int
 bottomVar :: Var
 bottomVar = 0
 
+-- | converts a usual Int to an internal 'Var' presentation
 {-# INLINE int2var #-}
 int2var = abs
 
@@ -134,6 +135,8 @@ negateLit !l = complementBit l 0 -- if even l then l + 1 else l - 1
 lit2var :: Lit -> Var
 lit2var !n = shiftR n 1
 
+-- | converts a 'Var' to the corresponing literal
+--
 -- >>> var2lit 1 True
 -- 2
 -- >>> var2lit 1 False

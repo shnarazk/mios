@@ -110,6 +110,7 @@ sizeOfClause !c = getNth (lits c) 0
 
 --------------------------------------------------------------------------------
 
+-- | Mutable 'Clause' Vector
 type ClauseVector = MV.IOVector Clause
 
 instance VectorFamily ClauseVector Clause where
@@ -119,20 +120,24 @@ instance VectorFamily ClauseVector Clause where
     sts <- mapM (dump ",") (l :: [Clause])
     return $ mes ++ tail (concat sts)
 
+-- | returns a new 'ClauseVector'
 newClauseVector  :: Int -> IO ClauseVector
 newClauseVector n = do
   v <- MV.new (max 4 n)
   MV.set v NullClause
   return v
 
+-- | returns the nth 'Clause'
 {-# INLINE getNthClause #-}
 getNthClause :: ClauseVector -> Int -> IO Clause
 getNthClause = MV.unsafeRead
 
+-- | sets the nth 'Clause'
 {-# INLINE setNthClause #-}
 setNthClause :: ClauseVector -> Int -> Clause -> IO ()
 setNthClause = MV.unsafeWrite
 
+-- | swaps the two 'Clause's
 {-# INLINE swapClauses #-}
 swapClauses :: ClauseVector -> Int -> Int -> IO ()
 swapClauses = MV.unsafeSwap
