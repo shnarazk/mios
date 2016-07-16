@@ -1,3 +1,4 @@
+-- | Internal Settings
 module SAT.Solver.Mios.Internal
        (
          versionId

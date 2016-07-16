@@ -1,3 +1,4 @@
+-- | Mutable Unboxed Double Vector
 {-# LANGUAGE
     BangPatterns
   , FlexibleInstances

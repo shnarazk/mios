@@ -21,6 +21,7 @@ module SAT.Solver.Mios.Solver
        , valueVar
        , valueLit
        , locked
+       , VarHeap
          -- * State Modifiers
        , addClause
        , enqueue
@@ -176,10 +177,12 @@ data StatIndex =
   | NumOfRestart
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 
+-- | increments a stat data corresponding to 'StatIndex'
 incrementStat :: Solver -> StatIndex -> Int -> IO ()
 incrementStat (config -> collectStats -> False) _ _ = return ()
 incrementStat (stats -> v) (fromEnum -> i) k = modifyNth v (+ k) i
 
+-- | returns the statistics as list
 getStats :: Solver -> IO [(StatIndex, Int)]
 getStats (config -> collectStats -> False) = return []
 getStats (stats -> v) = mapM (\i -> (i, ) <$> getNth v (fromEnum i)) [minBound .. maxBound :: StatIndex]
@@ -457,8 +460,8 @@ claRescaleActivity Solver{..} = do
 
 -- | 'VarHeap' is a heap tree built from two 'Vec'
 -- This implementation is identical wtih that in Minisat-1.14
--- Note: the zero-th element of 'heap' is used for holding the number of elements
--- Note: VarHeap itself is not a 'VarOrder', because it requires a pointer to solver
+-- Note: the zero-th element of @heap@ is used for holding the number of elements
+-- Note: VarHeap itself is not a @VarOrder@, because it requires a pointer to solver
 data VarHeap = VarHeap
                 {
                   heap :: Vec -- order to var

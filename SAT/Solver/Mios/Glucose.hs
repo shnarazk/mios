@@ -22,6 +22,7 @@ import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.Solver
 
+-- | returns the LBD vaule for 'Vec[1 ..]'
 computeLBD :: Solver -> Vec -> IO Int
 computeLBD Solver{..} vec = do
   key <- (1 +) <$> getInt lbd'key
@@ -38,10 +39,12 @@ computeLBD Solver{..} vec = do
         else setNth lbd'seen l key >> loop (i + 1) (n + 1)
   loop 1 0
 
+-- | returns the LBD value of 'Clause'
 {-# INLINE lbdOf #-}
 lbdOf :: Solver -> Clause -> IO Int
 lbdOf s (lits -> v) = computeLBD s v
 
+-- | update the LBD field in 'Clause'
 {-# INLINE setLBD #-}
 setLBD :: Solver -> Clause -> IO ()
 setLBD s c = setInt (lbd c) =<< lbdOf s c
@@ -54,6 +57,7 @@ updateLBD _ (learnt -> False) = return ()
 updateLBD s c@Clause{..} = setInt lbd =<< lbdOf s c
 
 -- | 0 based
+--
 -- >>> nextReduction 0
 -- 20000
 -- >>> nextReduction 1
@@ -65,4 +69,4 @@ updateLBD s c@Clause{..} = setInt lbd =<< lbdOf s c
 --
 nextReduction :: Int -> Int -> Int
 -- nextReduction _ n = 30000 + 10000 * n
-nextReduction b n = b {- * (n + 1) -} + 300 * n {- * (n + 1) -}
+nextReduction b n = b + 300 * n

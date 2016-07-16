@@ -1,3 +1,7 @@
+-- | Mutable Unboxed Boolean Vector
+--
+-- * __VecBool@::UV.IOVector Bool@ -- data type that contains a mutable list of elements
+--
 {-# LANGUAGE
     BangPatterns
   , FlexibleInstances
@@ -5,10 +9,6 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | This is the implementation pack __version 0.6 #activityEstimation
---
--- * __VecBool@::UV.IOVector Bool@ -- data type that contains a mutable list of elements
---
 module SAT.Solver.Mios.Data.VecBool
        (
          VecBool

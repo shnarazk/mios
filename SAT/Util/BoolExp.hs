@@ -25,6 +25,7 @@ module SAT.Util.BoolExp
        , asLatex_
        , numberOfVariables
        , numberOfClauses
+       , tseitinBase
        )
        where
 

@@ -1,3 +1,4 @@
+-- | validate an assignment
 {-# LANGUAGE
     ViewPatterns
   #-}
