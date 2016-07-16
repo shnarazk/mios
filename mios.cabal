@@ -8,7 +8,7 @@ description:
 
   A modern and fast SAT solver written in Haskell, based on Minisat-1.14 and 2.2.
   By using CDCL, watch literals, VSIDS, restart, blocking-literals, LBD and so on,
-  the current vesion is only 1.8 time slower than Minisat-1.14.
+  the current version is only 1.8 time slower than Minisat-1.14.
   .
 
 license:                GPL-3
@@ -16,7 +16,7 @@ license-file:           LICENSE
 author:                 Shuji Narazaki <narazaki@nagasaki-u.ac.jp>
 maintainer:             Shuji Narazaki <narazaki@nagasaki-u.ac.jp>
 -- copyright:
-category:               Artificial Intelligence, Contraint Solver
+category:               Artificial Intelligence, Constraint Solver
 build-type:             Simple
 cabal-version:          >=1.16
 
