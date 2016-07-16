@@ -31,14 +31,17 @@ module SAT.Util.BoolExp
 
 import Data.List (foldl', intercalate)
 
+-- | the start index for the generated variables by Tseitin encoding
 tseitinBase :: Int
 tseitinBase = 1600000
 
 data L = L Int
 
+-- | class of objects that can be interpeted as a bool expression
 class BoolComponent a where
   toBF :: a -> BoolForm   -- lift to BoolForm
 
+-- | CNF expression
 data BoolForm = Cnf (Int, Int) [[Int]]
     deriving (Eq, Show)
 
@@ -54,9 +57,11 @@ instance BoolComponent [Char] where
 instance BoolComponent BoolForm where
   toBF = id
 
+-- | returns the number of variables in the 'BoolForm'
 numberOfVariables :: BoolForm -> Int
 numberOfVariables (Cnf (a, b) _) = a + b - tseitinBase
 
+-- | returns the number of clauses in the 'BoolForm'
 numberOfClauses :: BoolForm -> Int
 numberOfClauses (Cnf _ l) = length l
 
@@ -158,9 +163,11 @@ neg (toBF -> e) =
     m = maxRank e
     c = 1 + max tseitinBase a
 
+-- | equal on BoolForm
 (-=-) :: (BoolComponent a, BoolComponent b) => a -> b -> BoolForm
 (toBF -> e1) -=- (toBF -> e2) = (e1 -&- e2) -|- (neg e1 -&- neg e2)
 
+-- | negation on BoolForm
 (-!-) :: (BoolComponent a, BoolComponent b) => a -> b -> BoolForm
 (toBF -> e1) -!- (toBF -> e2) = (neg e1 -&- e2) -|- (e1 -&- neg e2)
 
@@ -175,12 +182,16 @@ neg (toBF -> e) =
 disjunctionOf :: [BoolForm] -> BoolForm
 disjunctionOf [] = boolFormFalse
 disjunctionOf (x:l) = foldl' (-|-) x l
+
+-- | an alias of 'disjunctionOf'
 (-|||-) = disjunctionOf
 
 -- | merge [BoolForm] by '(-&-)'
 conjunctionOf :: [BoolForm] -> BoolForm
 conjunctionOf [] = boolFormTrue
 conjunctionOf (x:l) = foldl' (-&-) x l
+
+-- | an alias of 'conjunctionOf'
 (-&&&-) = conjunctionOf
 
 -- | converts a BoolForm to "[[Int]]"
@@ -202,7 +213,7 @@ asList cnf@(Cnf (m,n) l)
   where
     (Cnf (m', _) l', _) = renumber (m + 1) cnf
 
--- | make latex string from CNF
+-- | make latex string from CNF, using 'asList_'
 --
 -- >>> asLatex $ "3" -|- "4"
 -- "\\begin{displaymath}\n( x_{3} \\vee x_{4} )\n\\end{displaymath}\n"
@@ -218,6 +229,7 @@ asLatex_ b = beg ++ s ++ end
       | 0 < l = " x_{" ++ show l ++ "} "
       | otherwise = " \\neg " ++ "x_{" ++ show (negate l) ++ "} "
 
+-- | make latex string from CNF, using 'asList'
 asLatex :: BoolForm -> String
 asLatex b = beg ++ s ++ end
   where

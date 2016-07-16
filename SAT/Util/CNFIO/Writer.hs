@@ -36,6 +36,7 @@ toCNFString l = hdr ++ str
     numV = last $ nub $ sort $ map abs $ concat l
     str = concat [intercalate " " (map show c) ++ " 0\n" | c <- l]
 
+-- | converts @[[Int]]@ to a String
 toString  :: [[Int]] -> String -> String -> String
 toString l and' or' = intercalate a ["(" ++ intercalate o [ lit x | x <- c] ++ ")" | c <- l]
   where
@@ -46,6 +47,7 @@ toString l and' or' = intercalate a ["(" ++ intercalate o [ lit x | x <- c] ++ "
     o = pad or'
     pad s = " " ++ s ++ " "
 
+-- | converts @[[Int]]@ to a LaTeX expression
 toLatexString  :: [[Int]] -> String
 toLatexString l = "\\begin{eqnarray*}\n" ++ intercalate a ["(" ++ intercalate o [ lit x | x <- c] ++ ")" | c <- l] ++ "\n\\end{eqnarray*}"
   where
