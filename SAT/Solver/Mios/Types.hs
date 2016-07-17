@@ -1,3 +1,4 @@
+-- | Basic data types used throughout mios.
 {-# LANGUAGE
     BangPatterns
   , FlexibleContexts
@@ -7,7 +8,6 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | Basic abstract data types used throughout the code.
 module SAT.Solver.Mios.Types
        (
          -- Singleton
@@ -16,7 +16,7 @@ module SAT.Solver.Mios.Types
        , module SAT.Solver.Mios.Data.Vec
          -- Abstract interfaces
        , VectorFamily (..)
-         -- * misc function
+         -- *  Variable
        , Var
        , bottomVar
        , int2var
@@ -30,7 +30,7 @@ module SAT.Solver.Mios.Types
        , lit2var
        , var2lit
        , negateLit
-         -- Assignment
+         -- * Assignment
        , LiftedBool (..)
        , lbool
        , lFalse
@@ -82,7 +82,15 @@ type Var = Int
 bottomVar :: Var
 bottomVar = 0
 
--- | converts a usual Int to an internal 'Var' presentation
+-- | converts a usual Int as literal to an internal 'Var' presentation
+--
+-- >>> int2var 1
+-- 1  -- the first literal is the first variable
+-- >>> int2var 2
+-- 2  -- literal @2@ is variable 2
+-- >>> int2var (-2)
+-- 2 -- literal @-2@ is corresponding to variable 2
+--
 {-# INLINE int2var #-}
 int2var = abs
 
@@ -106,6 +114,7 @@ positiveLit :: Lit -> Bool
 positiveLit = even
 
 -- | negates literal
+--
 -- >>> negateLit 2
 -- 3
 -- >>> negateLit 3
@@ -123,13 +132,14 @@ negateLit !l = complementBit l 0 -- if even l then l + 1 else l - 1
 ----------------------------------------
 
 -- | converts 'Lit' into 'Var'
--- >>> lit2var 2  -- 1
+--
+-- >>> lit2var 2
 -- 1
--- >>> lit2var 3  -- -1
+-- >>> lit2var 3
 -- 1
--- >>> lit2var 4 -- 2
+-- >>> lit2var 4
 -- 2
--- >>> lit2var 5 -- -2
+-- >>> lit2var 5
 -- 2
 {-# INLINE lit2var #-}
 lit2var :: Lit -> Var
@@ -154,7 +164,7 @@ var2lit !v _ = shiftL v 1 + 1
 ----------------- Int
 ----------------------------------------
 
--- | convert 'Int' into 'Lit'   -- lit2int . int2lit == id
+-- | converts 'Int' into 'Lit' as @lit2int . int2lit == id@
 --
 -- >>> int2lit 1
 -- 2
@@ -171,7 +181,8 @@ int2lit n
   | 0 < n = 2 * n
   | otherwise = -2 * n + 1
 
--- | converts `Lit' into 'Int'   -- int2lit . lit2int == id
+-- | converts `Lit' into 'Int' as @int2lit . lit2int == id@
+--
 -- >>> lit2int 2
 -- 1
 -- >>> lit2int 3

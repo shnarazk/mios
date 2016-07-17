@@ -1,3 +1,4 @@
+-- | A shrinkable 'VectorFamily' of 'C.Clause'
 {-# LANGUAGE
     BangPatterns
   , DuplicateRecordFields
@@ -8,20 +9,19 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | Clause Managers
 module SAT.Solver.Mios.ClauseManager
        (
          -- * higher level interface for ClauseVector
          ClauseManager (..)
-         -- * vector of clauses
+--       -- * vector of clauses
 --       , SimpleManager
-         -- * vector of caluse and its extra Int value (used for sort key or blocking literal)
+         -- * Manager with an extra Int (used as sort key or blocking literal)
        , ClauseExtManager
        , pushClauseWithKey
        , getKeyVector
        , markClause
 --       , purifyManager
-         -- * WatcherList (vector of ClauseExtManager)
+         -- * WatcherList
        , WatcherList
        , newWatcherList
        , getNthWatcher
@@ -147,7 +147,7 @@ instance ClauseManager ClauseExtManager where
   shrinkManager ClauseExtManager{..} k = modifyInt _nActives (subtract k)
   {-# SPECIALIZE INLINE getClauseVector :: ClauseExtManager -> IO C.ClauseVector #-}
   getClauseVector ClauseExtManager{..} = IORef.readIORef _clauseVector
-  -- | O(1) inserter
+  -- | O(1) insertion function
   {-# SPECIALIZE INLINE pushClause :: ClauseExtManager -> C.Clause -> IO () #-}
   pushClause !ClauseExtManager{..} !c = do
     -- checkConsistency m c

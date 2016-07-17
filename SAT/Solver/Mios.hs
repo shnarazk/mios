@@ -1,10 +1,10 @@
+-- | Minisat-based Implementation and Optimization Study on SAT solver
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE Trustworthy #-}
--- | Minisat-based Implementation and Optimization Study
 
 module SAT.Solver.Mios
        (
-         -- * SAT solver interface
+         -- * Interface to the core of solver
          versionId
        , CNFDescription (..)
        , module SAT.Solver.Mios.OptionParser
@@ -21,7 +21,7 @@ module SAT.Solver.Mios
        , executeSolver
        , executeValidatorOn
        , executeValidator
-         -- * output
+         -- * File IO
        , dumpAssigmentAsCNF
        )
        where
@@ -182,9 +182,14 @@ validateAssignment desc cls asg = do
   mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . map int2lit)) cls
   s `validate` asg
 
--- | usage
+-- | dumps an assigment to file.
+-- 2nd arg is
 --
--- @do y <- solve s ... ; dumpAssigmentAsCNF "result.cnf" y <$> model s @
+-- * @True@ if the assigment is satisfiable assigment
+--
+-- * @False@ if not
+--
+-- >>> do y <- solve s ... ; dumpAssigmentAsCNF "result.cnf" y <$> model s
 --
 dumpAssigmentAsCNF :: FilePath -> Bool -> [Int] -> IO ()
 dumpAssigmentAsCNF fname False _ = do

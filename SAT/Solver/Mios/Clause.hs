@@ -1,3 +1,4 @@
+-- | Clause, a data supporting pointer-based equality
 {-# LANGUAGE
     BangPatterns
   , FlexibleInstances
@@ -8,7 +9,6 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | Clause
 module SAT.Solver.Mios.Clause
        (
          Clause (..)
@@ -49,7 +49,7 @@ data Clause = Clause
 --  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
   | NullClause                              -- as null pointer
 
--- | The equality on 'Clause' is defined by pointer equivalence.
+-- | The equality on 'Clause' is defined with 'reallyUnsafePtrEquality'.
 instance Eq Clause where
   {-# SPECIALIZE INLINE (==) :: Clause -> Clause -> Bool #-}
   (==) x y = x `seq` y `seq` tagToEnum# (reallyUnsafePtrEquality# x y)
@@ -73,21 +73,22 @@ instance VectorFamily Clause Lit where
     (n : ls)  <- asList lits
     return $ take n ls
 
--- | returns True if it is a 'BinaryClause'
+-- returns True if it is a 'BinaryClause'
 -- FIXME: this might be discarded in minisat 2.2
 -- isLit :: Clause -> Bool
 -- isLit (BinaryClause _) = True
 -- isLit _ = False
 
--- | returns the literal in a BinaryClause
+-- returns the literal in a BinaryClause
 -- FIXME: this might be discarded in minisat 2.2
 -- getLit :: Clause -> Lit
 -- getLit (BinaryClause x) = x
 
--- | coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes
+-- coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes
 -- liftToClause :: Clause -> Clause
 -- liftToClause (BinaryClause _) = error "So far I use generic function approach instead of lifting"
 
+-- | drop the last /N/ literals in a 'Clause' to eliminate unsatisfied literals
 {-# INLINABLE shrinkClause #-}
 shrinkClause :: Int -> Clause -> IO ()
 shrinkClause !n Clause{..} = setNth lits 0 . subtract n =<< getNth lits 0
