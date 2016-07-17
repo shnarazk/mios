@@ -20,12 +20,12 @@ category:               Artificial Intelligence, Constraint Solver
 build-type:             Simple
 cabal-version:          >=1.16
 
-Flag lib
-  Description:	        Install the library
+Flag llvm
+  Description:	        Compile with llvm (this requires patched ghc-8.0.1)
   Default:	        False
 
-Flag llvm
-  Description:	        Compile with llvm
+Flag extralib
+  Description:	        Install extra libraries that mios itself doesn't use
   Default:	        False
 
 library
@@ -36,28 +36,45 @@ library
     ghc-options:	-ignore-asserts -funbox-strict-fields -O2 -fllvm -optlo-O3
   else
     ghc-options:	-ignore-asserts -funbox-strict-fields -O2 -msse4.2
-  exposed-modules:
-                        SAT.Solver.Mios
-                        SAT.Solver.Mios.Clause
-                        SAT.Solver.Mios.ClauseManager
-                        SAT.Solver.Mios.Data.VecBool
-                        SAT.Solver.Mios.Data.VecDouble
-                        SAT.Solver.Mios.Data.Vec
-                        SAT.Solver.Mios.Data.Singleton
-                        SAT.Solver.Mios.Data.Stack
-                        SAT.Solver.Mios.Internal
-                        SAT.Solver.Mios.Glucose
-                        SAT.Solver.Mios.M114
-                        SAT.Solver.Mios.OptionParser
-                        SAT.Solver.Mios.Solver
-                        SAT.Solver.Mios.Types
-                        SAT.Solver.Mios.Validator
-                        SAT.Util.CNFIO
-                        SAT.Util.CNFIO.MinisatReader
-                        SAT.Util.CNFIO.Reader
-                        SAT.Util.CNFIO.Writer
-                        SAT.Util.BoolExp
-  other-modules:
+  if flag(extralib)
+    exposed-modules:
+                          SAT.Solver.Mios
+                          SAT.Solver.Mios.Clause
+                          SAT.Solver.Mios.ClauseManager
+                          SAT.Solver.Mios.Data.VecBool
+                          SAT.Solver.Mios.Data.VecDouble
+                          SAT.Solver.Mios.Data.Vec
+                          SAT.Solver.Mios.Data.Singleton
+                          SAT.Solver.Mios.Data.Stack
+                          SAT.Solver.Mios.Internal
+                          SAT.Solver.Mios.Glucose
+                          SAT.Solver.Mios.M114
+                          SAT.Solver.Mios.OptionParser
+                          SAT.Solver.Mios.Solver
+                          SAT.Solver.Mios.Types
+                          SAT.Solver.Mios.Validator
+  else
+    exposed-modules:
+                          SAT.Solver.Mios
+                          SAT.Solver.Mios.Clause
+                          SAT.Solver.Mios.ClauseManager
+                          SAT.Solver.Mios.Data.VecBool
+                          SAT.Solver.Mios.Data.VecDouble
+                          SAT.Solver.Mios.Data.Vec
+                          SAT.Solver.Mios.Data.Singleton
+                          SAT.Solver.Mios.Data.Stack
+                          SAT.Solver.Mios.Internal
+                          SAT.Solver.Mios.Glucose
+                          SAT.Solver.Mios.M114
+                          SAT.Solver.Mios.OptionParser
+                          SAT.Solver.Mios.Solver
+                          SAT.Solver.Mios.Types
+                          SAT.Solver.Mios.Validator
+                          SAT.Util.CNFIO
+                          SAT.Util.CNFIO.MinisatReader
+                          SAT.Util.CNFIO.Reader
+                          SAT.Util.CNFIO.Writer
+                          SAT.Util.BoolExp
   build-depends:        base ==4.9.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.5.*, bytestring ==0.10.*, primitive ==0.6.*
 
 executable mios
@@ -68,7 +85,7 @@ executable mios
   if flag(llvm)
     ghc-options:	-ignore-asserts -funbox-strict-fields -O2 -fllvm -optlo-O3
   else
-    ghc-options:	-ignore-asserts -funbox-strict-fields -O2
+    ghc-options:	-ignore-asserts -funbox-strict-fields -O2 -msse4.2
   build-depends:	base ==4.9.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.5.*, bytestring ==0.10.*, primitive ==0.6.*
   other-modules:
                         SAT.Solver.Mios
