@@ -52,9 +52,9 @@ library
                         SAT.Util.BoolExp
   build-depends:        base ==4.9.*, vector >=0.11, containers >=0.5, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
   if flag(llvm)
-    ghc-options:	-ignore-asserts -funbox-strict-fields -O1 -fllvm -optlo-O3
+    ghc-options:	-ignore-asserts -funbox-strict-fields -fllvm -optlo-O3
   else
-    ghc-options:	-ignore-asserts -funbox-strict-fields -O1 -msse4.2
+    ghc-options:	-ignore-asserts -funbox-strict-fields -msse4.2
 
 executable mios
   main-is:              app/mios.hs
@@ -63,9 +63,9 @@ executable mios
   default-extensions:  Strict
   build-depends:        base ==4.9.*, vector >=0.11, containers >=0.5, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
   if flag(llvm)
-    ghc-options:	-ignore-asserts -funbox-strict-fields -O1 -fllvm -optlo-O3
+    ghc-options:	-ignore-asserts -funbox-strict-fields -fllvm -optlo-O3
   else
-    ghc-options:	-ignore-asserts -funbox-strict-fields -O1 -msse4.2
+    ghc-options:	-ignore-asserts -funbox-strict-fields -msse4.2
   other-modules:
                         SAT.Solver.Mios
                         SAT.Solver.Mios.Clause
