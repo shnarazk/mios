@@ -29,6 +29,11 @@ by 2. This means that *mios-1.2.0 is only about 2 times slower than MiniSat-2.2.
 
 ### > Release Note
 
+##### 1.2.1
+
+* tiny changes for uploading hackage
+* add a CNF handling library under 'SAT.Util'
+
 ##### 1.2.0
 
 * use *blocking literals*
