@@ -97,14 +97,14 @@ It's an invalid assignment.
 ##### Stack
 
 ```
-git hub https://github.com/shnarazk/mios
+git clone https://github.com/shnarazk/mios
 stack init --resolver nightly-2016-XX-XX
 stack install
 ```
 
 ##### Cabal
 
-mios is registered in hackage.
+Mios is registered in hackage now.
 
 ```
 cabal install mios
