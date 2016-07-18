@@ -4,7 +4,7 @@
 `mios` is yet another minisat-based SAT solver implementation in Haskell, as
 a part of my research theme.
 
-#### > Features
+### > Features
 
 * fundamentally it is developed based on Minisat-1.14 and 2.2.0.
   * Firstly, version 1.0 was based on N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518.
@@ -27,7 +27,7 @@ by 2. This means that *mios-1.2.0 is only about 2 times slower than MiniSat-2.2.
 
 ![](https://docs.google.com/spreadsheets/d/1cNltZ4FIu_exSUQMcXe53w4fADr3sOUxpo3L7oM0H_Q/pubchart?oid=297581252&format=image)
 
-#### > Release Note
+### > Release Note
 
 ##### 1.2.0
 
@@ -87,21 +87,30 @@ $ echo "[1,2,-3,4,-5]" | mios -: test/data/uf200-012.cnf
 It's an invalid assignment.
 ```
 
-#### > Install
+### > Install
+
+##### Requirements
 
 * ghc-8.0.1 or upper (By deleting `default-extensions` from mios.cabal, you can use ghc-7.10.x.)
 * [Stack](http://www.haskellstack.org/) or `cabal-install`
 
+##### Stack
+
 ```
+git hub https://github.com/shnarazk/mios
 stack init --resolver nightly-2016-XX-XX
 stack install
 ```
 
+##### Cabal
+
+mios is registered in hackage.
+
 ```
-cabal install
+cabal install mios
 ```
 
-#### > Usage
+### > Usage
 
 ##### * As a standalone program
 
