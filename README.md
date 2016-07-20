@@ -33,8 +33,8 @@ by 2. This means that *mios-1.2.0 is only about 2 times slower than MiniSat-2.2.
 
 * tiny changes for uploading to [hackage](http://hackage.haskell.org/)
 * add a CNF handling library under 'SAT.Util'
-* optimization flags in the cabal file is removed; there is no significant difference between `-O1` and `-O2`. And `-O1`
-is added by cabal automatically.
+
+Note: mios requires optimization flag `-O2`; it's crucial.
 
 ##### 1.2.0
 
