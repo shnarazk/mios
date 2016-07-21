@@ -1,3 +1,4 @@
+-- | Mutable Unboxed Double Vector
 {-# LANGUAGE
     BangPatterns
   , FlexibleInstances
@@ -20,6 +21,7 @@ import Data.List ()
 import qualified Data.Vector.Unboxed.Mutable as UV
 import SAT.Solver.Mios.Types (VectorFamily(..))
 
+-- | Mutable unboxed Double Vector
 type VecDouble = UV.IOVector Double
 
 instance VectorFamily VecDouble Double where
@@ -27,6 +29,7 @@ instance VectorFamily VecDouble Double where
   asList v = forM [0 .. UV.length v - 1] $ UV.unsafeRead v
   dump str v = (str ++) . show <$> asList v
 
+-- | returns a new 'VecDouble'
 newVecDouble :: Int -> Double -> IO VecDouble
 newVecDouble n 0 = UV.new n
 newVecDouble n x = do
@@ -34,14 +37,17 @@ newVecDouble n x = do
   UV.set v x
   return v
 
+-- | returns the nth value in 'VecDouble'
 {-# INLINE getNthDouble #-}
 getNthDouble :: Int -> VecDouble -> IO Double
 getNthDouble !n v = UV.unsafeRead v n
 
+-- | sets the nth value
 {-# INLINE setNthDouble #-}
 setNthDouble :: Int -> VecDouble -> Double -> IO ()
 setNthDouble !n v !x = UV.unsafeWrite v n x
 
+-- | updates the nth value
 {-# INLINE modifyNthDouble #-}
 modifyNthDouble :: Int -> VecDouble -> (Double -> Double) -> IO ()
 modifyNthDouble !n v !f = UV.unsafeModify v f n

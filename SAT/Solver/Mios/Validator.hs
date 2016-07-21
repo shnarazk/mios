@@ -1,3 +1,4 @@
+-- | validate an assignment
 {-# LANGUAGE
     ViewPatterns
   #-}
@@ -14,7 +15,7 @@ import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.ClauseManager
 import SAT.Solver.Mios.Solver
 
--- | validate the assignment even if the implementation of 'Solver' is wrong; we re-implement some functions here.
+-- | validates the assignment even if the implementation of 'Solver' is wrong; we re-implement some functions here.
 validate :: Traversable t => Solver -> t Int -> IO Bool
 validate s (toList -> map int2lit -> lst) = do
   assignment <- newVec $ 1 + nVars s

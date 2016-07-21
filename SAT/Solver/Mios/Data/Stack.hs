@@ -1,4 +1,4 @@
--- | This is stack of Int, not a list!
+-- | stack of Int, by adding the length field as the zero-th element to a 'Vec'
 {-# LANGUAGE
     BangPatterns
   , FlexibleInstances
@@ -24,6 +24,7 @@ module SAT.Solver.Mios.Data.Stack
 import qualified Data.Vector.Unboxed.Mutable as UV
 import SAT.Solver.Mios.Types
 
+-- | Unboxed mutable stack for Int.
 newtype Stack = Stack
                   {
                     ivec :: UV.IOVector Int
@@ -32,19 +33,22 @@ newtype Stack = Stack
 instance VectorFamily Stack Int where
   dump str v = (str ++) . show <$> asList v
   {-# SPECIALIZE INLINE asVec :: Stack -> Vec #-}
-  asVec (Stack ivec) = UV.unsafeTail ivec
-  asList x = do
-    (n : l) <- asList (ivec x)
+  asVec (Stack v) = UV.unsafeTail v
+  asList (Stack v) = do
+    (n : l) <- asList v
     return $ take n l
 
+-- | returns the number of elements
 {-# INLINE sizeOfStack #-}
 sizeOfStack :: Stack -> IO Int
-sizeOfStack (Stack ivec) = UV.unsafeRead ivec 0
+sizeOfStack (Stack v) = UV.unsafeRead v 0
 
+-- | clear stack
 {-# INLINE clearStack #-}
 clearStack :: Stack -> IO ()
-clearStack (Stack ivec) = UV.unsafeWrite ivec 0 0
+clearStack (Stack v) = UV.unsafeWrite v 0 0
 
+-- | returns a new stack which size is @size@
 {-# INLINABLE newStack #-}
 newStack :: Int -> IO Stack
 newStack n = do
@@ -52,34 +56,38 @@ newStack n = do
   UV.set v 0
   return $ Stack v
 
+-- | pushs an int to 'Stack'
 {-# INLINE pushToStack #-}
 pushToStack :: Stack -> Int -> IO ()
-pushToStack (Stack ivec) !x = do
-  !i <- (+ 1) <$> UV.unsafeRead ivec 0
-  UV.unsafeWrite ivec i x
-  UV.unsafeWrite ivec 0 i
+pushToStack (Stack v) !x = do
+  !i <- (+ 1) <$> UV.unsafeRead v 0
+  UV.unsafeWrite v i x
+  UV.unsafeWrite v 0 i
 
+-- | drops the first element from 'Stack'
 {-# INLINE popFromStack #-}
 popFromStack :: Stack -> IO ()
-popFromStack (Stack ivec) = UV.unsafeModify ivec (subtract 1) 0
+popFromStack (Stack v) = UV.unsafeModify v (subtract 1) 0
 
+-- | peeks the last element in 'Stack'
 {-# INLINE lastOfStack #-}
 lastOfStack :: Stack -> IO Int
-lastOfStack (Stack ivec) = UV.unsafeRead ivec =<< UV.unsafeRead ivec 0
+lastOfStack (Stack v) = UV.unsafeRead v =<< UV.unsafeRead v 0
 
 -- | Shrink the stack. The given arg means the number of discards.
 -- therefore, shrink s n == for [1 .. n] $ \_ -> pop s
 {-# INLINE shrinkStack #-}
 shrinkStack :: Stack -> Int -> IO ()
-shrinkStack (Stack ivec) k = UV.unsafeModify ivec (subtract k) 0
+shrinkStack (Stack v) k = UV.unsafeModify v (subtract k) 0
 
--- | converts Stack to sized Vec; this means get the 'ivec'
+-- | converts Stack to sized Vec; this is the method to get the internal vector
 {-# INLINE asSizedVec #-}
 asSizedVec :: Stack -> Vec
 asSizedVec (Stack v) = v
 
 -- | isomorphic conversion to 'Vec'
--- Note: 'asVec' drops the 1st element and no copy; 'isoVec' copies the active segment
+--
+-- Note: 'asVec' drops the 1st element and no copy (unsafe operation); 'isoVec' really copies the real elements
 {-# INLINE isoVec #-}
 isoVec :: Stack -> IO Vec
-isoVec (Stack ivec) = UV.clone . flip UV.take ivec . (1 +) =<< UV.unsafeRead ivec 0
+isoVec (Stack v) = UV.clone . flip UV.take v . (1 +) =<< UV.unsafeRead v 0

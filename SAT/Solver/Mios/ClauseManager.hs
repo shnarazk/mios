@@ -1,3 +1,4 @@
+-- | A shrinkable 'VectorFamily' of 'C.Clause'
 {-# LANGUAGE
     BangPatterns
   , DuplicateRecordFields
@@ -8,20 +9,19 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | Clause Managers
 module SAT.Solver.Mios.ClauseManager
        (
          -- * higher level interface for ClauseVector
          ClauseManager (..)
-         -- * vector of clauses
+--       -- * vector of clauses
 --       , SimpleManager
-         -- * vector of caluse and its extra Int value (used for sort key or blocking literal)
+         -- * Manager with an extra Int (used as sort key or blocking literal)
        , ClauseExtManager
        , pushClauseWithKey
        , getKeyVector
        , markClause
 --       , purifyManager
-         -- * WatcherList (vector of ClauseExtManager)
+         -- * WatcherList
        , WatcherList
        , newWatcherList
        , getNthWatcher
@@ -38,6 +38,7 @@ import qualified Data.Vector.Mutable as MV
 import SAT.Solver.Mios.Types
 import qualified SAT.Solver.Mios.Clause as C
 
+-- | resizable clause vector
 class ClauseManager a where
   newManager      :: Int -> IO a
   numberOfClauses :: a -> IO Int
@@ -146,7 +147,7 @@ instance ClauseManager ClauseExtManager where
   shrinkManager ClauseExtManager{..} k = modifyInt _nActives (subtract k)
   {-# SPECIALIZE INLINE getClauseVector :: ClauseExtManager -> IO C.ClauseVector #-}
   getClauseVector ClauseExtManager{..} = IORef.readIORef _clauseVector
-  -- | O(1) inserter
+  -- | O(1) insertion function
   {-# SPECIALIZE INLINE pushClause :: ClauseExtManager -> C.Clause -> IO () #-}
   pushClause !ClauseExtManager{..} !c = do
     -- checkConsistency m c
@@ -185,6 +186,7 @@ instance ClauseManager ClauseExtManager where
   removeNthClause = error "removeNthClause is not implemented on ClauseExtManager"
 -}
 
+-- | sets the expire flag to a clause
 {-# INLINE markClause #-}
 markClause :: ClauseExtManager -> C.Clause -> IO ()
 markClause ClauseExtManager{..} c = do
@@ -222,6 +224,7 @@ purifyManager ClauseExtManager{..} = do
     setInt _nActives =<< loop 0 0
     setBool _purged False
 
+-- | returns the associated Int vector
 {-# INLINE getKeyVector #-}
 getKeyVector :: ClauseExtManager -> IO Vec
 getKeyVector ClauseExtManager{..} = IORef.readIORef _keyVector
@@ -258,6 +261,7 @@ instance VectorFamily ClauseExtManager C.Clause where
 
 -------------------------------------------------------------------------------- WatcherList
 
+-- | Vector of 'ClauseExtManager'
 type WatcherList = V.Vector ClauseExtManager
 
 -- | /n/ is the number of 'Var', /m/ is default size of each watcher list
@@ -273,6 +277,7 @@ getNthWatcher = V.unsafeIndex
 instance VectorFamily WatcherList C.Clause where
   dump mes wl = (mes ++) . L.concat <$> forM [1 .. V.length wl - 1] (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i))
 
+-- | purges all expirable clauses in 'WatcherList'
 {-# INLINE garbageCollect #-}
 garbageCollect :: WatcherList -> IO ()
 garbageCollect wm = V.mapM_ purifyManager wm

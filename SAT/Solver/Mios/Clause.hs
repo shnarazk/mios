@@ -1,3 +1,4 @@
+-- | Clause, a data supporting pointer-based equality
 {-# LANGUAGE
     BangPatterns
   , FlexibleInstances
@@ -8,7 +9,6 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | Clause
 module SAT.Solver.Mios.Clause
        (
          Clause (..)
@@ -49,7 +49,7 @@ data Clause = Clause
 --  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
   | NullClause                              -- as null pointer
 
--- | The equality on 'Clause' is defined by pointer equivalence.
+-- | The equality on 'Clause' is defined with 'reallyUnsafePtrEquality'.
 instance Eq Clause where
   {-# SPECIALIZE INLINE (==) :: Clause -> Clause -> Bool #-}
   (==) x y = x `seq` y `seq` tagToEnum# (reallyUnsafePtrEquality# x y)
@@ -73,21 +73,22 @@ instance VectorFamily Clause Lit where
     (n : ls)  <- asList lits
     return $ take n ls
 
--- | returns True if it is a 'BinaryClause'
+-- returns True if it is a 'BinaryClause'
 -- FIXME: this might be discarded in minisat 2.2
 -- isLit :: Clause -> Bool
 -- isLit (BinaryClause _) = True
 -- isLit _ = False
 
--- | returns the literal in a BinaryClause
+-- returns the literal in a BinaryClause
 -- FIXME: this might be discarded in minisat 2.2
 -- getLit :: Clause -> Lit
 -- getLit (BinaryClause x) = x
 
--- | coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes
+-- coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes
 -- liftToClause :: Clause -> Clause
 -- liftToClause (BinaryClause _) = error "So far I use generic function approach instead of lifting"
 
+-- | drop the last /N/ literals in a 'Clause' to eliminate unsatisfied literals
 {-# INLINABLE shrinkClause #-}
 shrinkClause :: Int -> Clause -> IO ()
 shrinkClause !n Clause{..} = setNth lits 0 . subtract n =<< getNth lits 0
@@ -110,6 +111,7 @@ sizeOfClause !c = getNth (lits c) 0
 
 --------------------------------------------------------------------------------
 
+-- | Mutable 'Clause' Vector
 type ClauseVector = MV.IOVector Clause
 
 instance VectorFamily ClauseVector Clause where
@@ -119,20 +121,24 @@ instance VectorFamily ClauseVector Clause where
     sts <- mapM (dump ",") (l :: [Clause])
     return $ mes ++ tail (concat sts)
 
+-- | returns a new 'ClauseVector'
 newClauseVector  :: Int -> IO ClauseVector
 newClauseVector n = do
   v <- MV.new (max 4 n)
   MV.set v NullClause
   return v
 
+-- | returns the nth 'Clause'
 {-# INLINE getNthClause #-}
 getNthClause :: ClauseVector -> Int -> IO Clause
 getNthClause = MV.unsafeRead
 
+-- | sets the nth 'Clause'
 {-# INLINE setNthClause #-}
 setNthClause :: ClauseVector -> Int -> Clause -> IO ()
 setNthClause = MV.unsafeWrite
 
+-- | swaps the two 'Clause's
 {-# INLINE swapClauses #-}
 swapClauses :: ClauseVector -> Int -> Int -> IO ()
 swapClauses = MV.unsafeSwap

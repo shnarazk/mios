@@ -127,7 +127,7 @@ simplify s c = do
 --   * If out_learnt.size() > 1 then 'out_learnt[1]' has the greatest decision level of the
 --     rest of literals. There may be others from the same level though.
 --
--- `analyze` is invoked from `search`
+-- @analyze@ is invoked from @search@
 -- {-# INLINEABLE analyze #-}
 analyze :: Solver -> Clause -> IO Int
 analyze s@Solver{..} confl = do
@@ -251,8 +251,8 @@ analyze s@Solver{..} confl = do
 --
 -- Implementation memo:
 --
--- *  @an'toClear@ is initialized by @ps@ in 'analyze' (a copy of 'learnt').
---   This is used only in this function and 'analyze'.
+-- *  @an'toClear@ is initialized by @ps@ in @analyze@ (a copy of 'learnt').
+--   This is used only in this function and @analyze@.
 --
 {-# INLINEABLE analyzeRemovable #-}
 analyzeRemovable :: Solver -> Lit -> Int -> IO Bool
@@ -358,10 +358,6 @@ analyzeFinal Solver{..} confl skipFirst = do
         loopOnTrail $ i - 1
     loopOnTrail =<< if tls <= rl then return (trs - 1) else getNth (asVec trailLim) rl
 
---
--- 'enqueue' is defined in 'Solver' and functions in M114 use 'unsafeEnqueue'
---
-
 -- | M114:
 -- propagate : [void] -> [Clause+]
 --
@@ -372,7 +368,7 @@ analyzeFinal Solver{..} confl skipFirst = do
 -- __Post-conditions:__
 --   * the propagation queue is empty, even if there was a conflict.
 --
--- memo:`propagate` is invoked by `search`,`simpleDB` and `solve`
+-- memo: @propagate@ is invoked by @search@,`simpleDB` and `solve`
 {-# INLINABLE propagate #-}
 propagate :: Solver -> IO Clause
 propagate s@Solver{..} = do
@@ -784,6 +780,10 @@ solve s@Solver{..} assumps = do
               else cancelUntil s 0 >> return (status == LTrue)
         while 100 (nc / 3.0)
 
+
+--
+-- 'enqueue' is defined in 'Solver'; functions in M114 use 'unsafeEnqueue'
+--
 {-# INLINABLE unsafeEnqueue #-}
 unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
 unsafeEnqueue s@Solver{..} p from = do

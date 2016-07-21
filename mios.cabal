@@ -2,43 +2,33 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                   mios
-version:                1.2.0
-synopsis:               Minisat-based Implementation and Optimization Study on SAT solver
+version:                1.2.1
+synopsis:               A Minisat-based SAT solver in Haskell
 description:
 
   A modern and fast SAT solver written in Haskell, based on Minisat-1.14 and 2.2.
   By using CDCL, watch literals, VSIDS, restart, blocking-literals, LBD and so on,
-  the current vesion is only 1.8 time slower than Minisat-1.14.
+  the current version is only 2.0 time slower than Minisat-2.2.
+  'Mios' is an abbreviation of 'Minisat-based Implementation and Optimization Study on SAT solver'.
   .
 
+homepage:               https://github.com/shnarazk/mios
 license:                GPL-3
 license-file:           LICENSE
 author:                 Shuji Narazaki <narazaki@nagasaki-u.ac.jp>
 maintainer:             Shuji Narazaki <narazaki@nagasaki-u.ac.jp>
--- copyright:
-category:               Artificial Intelligence, Contraint Solver
+category:               Artificial Intelligence, Constraint Solver
 build-type:             Simple
 cabal-version:          >=1.16
-
-Flag lib
-  Description:	        Install the library
-  Default:	        False
 
 Flag llvm
   Description:	        Compile with llvm
   Default:	        False
 
 library
-  if flag(lib)
-    buildable:	        True
-  else
-    buildable:	        False
+  buildable:	        True
   default-language:	Haskell2010
   default-extensions:  Strict
-  if flag(llvm)
-    ghc-options:	-Wall-missed-specialisations -ignore-asserts -funbox-strict-fields -O2 -fllvm -optlo-O3
-  else
-    ghc-options:	-Wall-missed-specialisations -ignore-asserts -funbox-strict-fields -O2 -msse4.2
   exposed-modules:
                         SAT.Solver.Mios
                         SAT.Solver.Mios.Clause
@@ -55,19 +45,27 @@ library
                         SAT.Solver.Mios.Solver
                         SAT.Solver.Mios.Types
                         SAT.Solver.Mios.Validator
-  other-modules:
-  build-depends:        base ==4.9.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.5.*, bytestring ==0.10.*, primitive ==0.6.*
+                        SAT.Util.CNFIO
+                        SAT.Util.CNFIO.MinisatReader
+                        SAT.Util.CNFIO.Reader
+                        SAT.Util.CNFIO.Writer
+                        SAT.Util.BoolExp
+  build-depends:        base ==4.9.*, vector >=0.11, containers >=0.5, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
+  if flag(llvm)
+    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O3
+  else
+    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -msse4.2
 
 executable mios
   main-is:              app/mios.hs
   buildable:	        True
   default-language:	Haskell2010
   default-extensions:  Strict
+  build-depends:        base ==4.9.*, vector >=0.11, containers >=0.5, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
   if flag(llvm)
-    ghc-options:	-Wall-missed-specialisations -ignore-asserts -funbox-strict-fields -O2 -fllvm -optlo-O3
+    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O3
   else
-    ghc-options:	-Wall-missed-specialisations -ignore-asserts -funbox-strict-fields -O2 -msse4.2
-  build-depends:	base ==4.9.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.5.*, bytestring ==0.10.*, primitive ==0.6.*
+    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -msse4.2
   other-modules:
                         SAT.Solver.Mios
                         SAT.Solver.Mios.Clause
@@ -84,30 +82,8 @@ executable mios
                         SAT.Solver.Mios.Solver
                         SAT.Solver.Mios.Types
                         SAT.Solver.Mios.Validator
-
-executable mios-1.2.0
-  main-is:              app/mios.hs
-  buildable:	        True
-  default-language:	Haskell2010
-  default-extensions:  Strict
-  if flag(llvm)
-    ghc-options:	-Wall-missed-specialisations -ignore-asserts -funbox-strict-fields -O2 -fllvm -optlo-O3
-  else
-    ghc-options:	-Wall-missed-specialisations -ignore-asserts -funbox-strict-fields -O2 -msse4.2
-  build-depends:	base ==4.9.*, vector ==0.11.*, containers ==0.5.*, ghc-prim ==0.5.*, bytestring ==0.10.*, primitive ==0.6.*
-  other-modules:
-                        SAT.Solver.Mios
-                        SAT.Solver.Mios.Clause
-                        SAT.Solver.Mios.ClauseManager
-                        SAT.Solver.Mios.Data.VecBool
-                        SAT.Solver.Mios.Data.VecDouble
-                        SAT.Solver.Mios.Data.Vec
-                        SAT.Solver.Mios.Data.Singleton
-                        SAT.Solver.Mios.Data.Stack
-                        SAT.Solver.Mios.Internal
-                        SAT.Solver.Mios.Glucose
-                        SAT.Solver.Mios.M114
-                        SAT.Solver.Mios.OptionParser
-                        SAT.Solver.Mios.Solver
-                        SAT.Solver.Mios.Types
-                        SAT.Solver.Mios.Validator
+                        SAT.Util.CNFIO
+                        SAT.Util.CNFIO.MinisatReader
+                        SAT.Util.CNFIO.Reader
+                        SAT.Util.CNFIO.Writer
+                        SAT.Util.BoolExp
