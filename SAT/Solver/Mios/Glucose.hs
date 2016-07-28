@@ -25,6 +25,8 @@ import SAT.Solver.Mios.Solver
 -- | returns the LBD vaule for 'Vec[1 ..]'
 computeLBD :: Solver -> Vec -> IO Int
 computeLBD Solver{..} vec = do
+  getNth vec 0
+{-
   key <- (1 +) <$> getInt lbd'key
   setInt lbd'key key
   nv <- getNth vec 0
@@ -38,6 +40,7 @@ computeLBD Solver{..} vec = do
         then loop (i + 1) n
         else setNth lbd'seen l key >> loop (i + 1) (n + 1)
   loop 1 0
+-}
 
 -- | returns the LBD value of 'Clause'
 {-# INLINE lbdOf #-}
