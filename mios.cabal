@@ -23,10 +23,10 @@ cabal-version:          >=1.16
 
 Flag llvm
   Description:	        Compile with llvm
-  Default:	        False
+  Default:	        True
 
 library
-  buildable:	        True
+  buildable:	        False
   default-language:	Haskell2010
   default-extensions:  Strict
   exposed-modules:
