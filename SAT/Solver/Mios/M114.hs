@@ -514,7 +514,8 @@ reduceDB s@Solver{..} = do
   where
     w = finiteBitSize (0:: Int)
     (l, a) = case () of
-      _ | 64 <= w -> (16, 19)   -- 28 bit => 256M clauses
+      _ | 64 <= w -> (10, 23)   -- 31 bit => 1G clauses
+--      _ | 64 <= w -> (16, 19)   -- 28 bit => 256M clauses
       _ | 60 <= w -> (14, 19)   -- 26 bit =>  32M clauses
       _ | 32 <= w -> ( 7,  6)   -- 18 bit => 256K clauses
       _ | 29 <= w -> ( 6,  5)   -- 17 bit => 128K clauses
