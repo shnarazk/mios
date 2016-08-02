@@ -437,7 +437,8 @@ varRescaleActivity Solver{..} = do
 {-# INLINE claBumpActivity #-}
 claBumpActivity :: Solver -> Clause -> IO ()
 claBumpActivity s@Solver{..} Clause{..} = do
-  a <- (+) <$> getDouble activity <*> getDouble claInc
+  dl <- fromIntegral <$> decisionLevel s
+  a <- (dl +) <$> getDouble claInc
   if claActivityThreshold < a
     then claRescaleActivity s
     else setDouble activity a
