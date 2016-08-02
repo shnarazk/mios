@@ -79,7 +79,8 @@ newLearntClause s@Solver{..} ps = do
        -- update the solver state by @l@
        unsafeEnqueue s l c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
-       setLBD s c
+       initializeLBD s c
+       setBool (protected c) True
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
 -- simplify its representation (returns @False@) or state that the constraint is
@@ -142,6 +143,7 @@ analyze s@Solver{..} confl = do
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
       when (learnt c) $ do
         claBumpActivity s c
+{-
         -- update LBD like #Glucose4.0
         d <- getInt (lbd c)
         when (2 < d) $ do
@@ -150,6 +152,7 @@ analyze s@Solver{..} confl = do
             when (d <= 30) $ setBool (protected c) True -- 30 is `lbLBDFrozenClause`
             -- seems to be interesting: keep it fro the next round
             setInt (lbd c) nblevels    -- Update it
+-}
       sc <- sizeOfClause c
       let
         lvec = asVec c
@@ -220,7 +223,7 @@ analyze s@Solver{..} confl = do
   loopOnLits 1 1                -- the first literal is specail
   -- glucose heuristics
   nld <- sizeOfStack lastDL
-  lbd' <- computeLBD s $ asSizedVec litsLearnt -- this is not the right value
+  lbd' <- initialLBD s $ asSizedVec litsLearnt -- this is not the right value
   let
     vec = asVec lastDL
     loopOnLastDL :: Int -> IO ()
@@ -553,8 +556,8 @@ sortClauses s cm nneeds = do
             if l
               then setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
               else do
-                  d <- return 0 -- getInt $ lbd c
-                  b <- floor . (activityScale *) . (1 -) . logBase 1e100 . max 1 <$> getDouble (activity c)
+                  d <- getInt $ lbd c
+                  b <- floor . (activityScale *) . (1 -) . logBase claActivityThreshold . max 1 <$> getDouble (activity c)
                   setNth keys i $ shiftL (min lbdMax d) (activityWidth + indexWidth) + shiftL b indexWidth + i
                   assignKey (i + 1) m
   limit <- min n . (+ nneeds) <$> assignKey 0 0
@@ -722,6 +725,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
                    (s `cancelUntil`) =<< getInt rootLevel -- force a restart
+                   claRescaleActivityAfterRestart s
                    incrementStat s NumOfRestart 1
                    return Bottom
              _ -> do
@@ -783,7 +787,7 @@ solve s@Solver{..} assumps = do
 
 
 --
--- 'enqueue' is defined in 'Solver'; functions in M114 use 'unsafeEnqueue'
+-- 'enqueue' is defined in 'Solver'; most functions in M114 use 'unsafeEnqueue'
 --
 {-# INLINABLE unsafeEnqueue #-}
 unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
@@ -793,6 +797,11 @@ unsafeEnqueue s@Solver{..} p from = do
   setNth level v =<< decisionLevel s
   setNthClause reason v from     -- NOTE: @from@ might be NULL!
   pushToStack trail p
+  -- bump psedue lbd of @from@
+  when (from /= NullClause && learnt from) $ do
+    l <- getInt (lbd from)
+    k <- (12 +) <$> decisionLevel s
+    when (k < l) $ setInt (lbd from) k
 
 -- __Pre-condition:__ propagation queue is empty
 {-# INLINE unsafeAssume #-}

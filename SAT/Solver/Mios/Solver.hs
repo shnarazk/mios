@@ -31,8 +31,10 @@ module SAT.Solver.Mios.Solver
          -- * Activities
        , claBumpActivity
        , claDecayActivity
+       , claRescaleActivityAfterRestart
        , varBumpActivity
        , varDecayActivity
+       , claActivityThreshold
          -- * Stats
        , StatIndex (..)
        , incrementStat
@@ -306,6 +308,13 @@ clauseNew s@Solver{..} ps isLearnt = do
 {-# INLINABLE enqueue #-}
 enqueue :: Solver -> Lit -> Clause -> IO Bool
 enqueue s@Solver{..} p from = do
+{-
+  -- bump psedue lbd of @from@
+  when (from /= NullClause && learnt from) $ do
+    l <- getInt (lbd from)
+    k <- (12 +) <$> decisionLevel s
+    when (k < l) $ setInt (lbd from) k
+-}
   -- putStrLn . ("ssigns " ++) . show . map lit2int =<< asList trail
   -- putStrLn =<< dump ("enqueue " ++ show (lit2int p) ++ " ") from
   let signumP = if positiveLit p then lTrue else lFalse
@@ -415,10 +424,9 @@ claActivityThreshold = 1e50
 varBumpActivity :: Solver -> Var -> IO ()
 varBumpActivity s@Solver{..} !x = do
   !a <- (+) <$> getNthDouble x activities <*> getDouble varInc
-  if varActivityThreshold < a
-    then varRescaleActivity s
-    else setNthDouble x activities a
-  update s x
+  setNthDouble x activities a
+  when (varActivityThreshold < a) $ varRescaleActivity s
+  update s x                    -- update the position in heap
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE varDecayActivity #-}
@@ -436,14 +444,11 @@ varRescaleActivity Solver{..} = do
 -- | __Fig. 14 (p.19)__
 {-# INLINE claBumpActivity #-}
 claBumpActivity :: Solver -> Clause -> IO ()
-claBumpActivity s@Solver{..} c@Clause{..} = do
-  dl <- fromIntegral <$> decisionLevel s
-  k <- fromIntegral <$> sizeOfClause c
-  a <- ((if dl > k then dl else dl / k) +) <$> getDouble claInc
---  a <- (+) <$> getDouble activity <*> getDouble claInc
-  if claActivityThreshold < a
-    then claRescaleActivity s
-    else setDouble activity a
+claBumpActivity s c@Clause{..} = do
+  dl <- decisionLevel s
+  a <- (fromIntegral dl +) <$> getDouble activity
+  setDouble activity a
+  when (claActivityThreshold <= a) $ claRescaleActivity s
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE claDecayActivity #-}
@@ -465,6 +470,21 @@ claRescaleActivity Solver{..} = do
       loopOnVector $ i + 1
   loopOnVector 0
   modifyDouble claInc (/ claActivityThreshold)
+
+-- | __Fig. 14 (p.19)__
+{-# INLINE claRescaleActivityAfterRestart #-}
+claRescaleActivityAfterRestart :: Solver -> IO ()
+claRescaleActivityAfterRestart Solver{..} = do
+  vec <- getClauseVector learnts
+  n <- numberOfClauses learnts
+  let
+    loopOnVector :: Int -> IO ()
+    loopOnVector ((< n) -> False) = return ()
+    loopOnVector i = do
+      c <- getNthClause vec i
+      modifyDouble (activity c) sqrt
+      loopOnVector $ i + 1
+  loopOnVector 0
 
 -------------------------------------------------------------------------------- VarHeap
 

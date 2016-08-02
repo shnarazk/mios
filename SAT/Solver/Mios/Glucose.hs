@@ -9,11 +9,13 @@
 
 module SAT.Solver.Mios.Glucose
        (
-         computeLBD
-       , lbdOf
-       , setLBD
-       , updateLBD
-       , nextReduction
+         initialLBD
+--       , computeLBD
+--       , lbdOf
+       , initializeLBD
+--       , setLBD
+--       , updateLBD
+--       , nextReduction
        )
         where
 
@@ -21,6 +23,11 @@ import Control.Monad (when)
 import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.Solver
+
+initialLBD :: Solver -> Vec -> IO Int
+initialLBD Solver{..} vec = do
+  n <- getNth vec 0
+  return $ if n < 12 then n else 12 + n
 
 -- | returns the LBD vaule for 'Vec[1 ..]'
 computeLBD :: Solver -> Vec -> IO Int
@@ -46,6 +53,11 @@ computeLBD Solver{..} vec = do
 {-# INLINE lbdOf #-}
 lbdOf :: Solver -> Clause -> IO Int
 lbdOf s (lits -> v) = computeLBD s v
+
+-- | intiialzie the LBD field in 'Clause'
+{-# INLINE initializeLBD #-}
+initializeLBD :: Solver -> Clause -> IO ()
+initializeLBD s c = setInt (lbd c) =<< initialLBD s (lits c)
 
 -- | update the LBD field in 'Clause'
 {-# INLINE setLBD #-}
