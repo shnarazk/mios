@@ -553,7 +553,7 @@ sortClauses s cm nneeds = do
             if l
               then setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
               else do
-                  d <- getInt $ lbd c
+                  d <- return 0 -- getInt $ lbd c
                   b <- floor . (activityScale *) . (1 -) . logBase 1e100 . max 1 <$> getDouble (activity c)
                   setNth keys i $ shiftL (min lbdMax d) (activityWidth + indexWidth) + shiftL b indexWidth + i
                   assignKey (i + 1) m
