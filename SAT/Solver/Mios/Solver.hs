@@ -429,9 +429,10 @@ varRescaleActivity Solver{..} = do
 -- | __Fig. 14 (p.19)__
 {-# INLINE claBumpActivity #-}
 claBumpActivity :: Solver -> Clause -> IO ()
-claBumpActivity s@Solver{..} Clause{..} = do
+claBumpActivity s@Solver{..} c@Clause{..} = do
   dl <- fromIntegral <$> decisionLevel s
-  a <- (dl +) <$> getDouble claInc
+  k <- fromIntegral <$> sizeOfClause c
+  a <- ((if dl > k then dl else dl / k) +) <$> getDouble claInc
 --  a <- (+) <$> getDouble activity <*> getDouble claInc
   if 1e100 < a
     then claRescaleActivity s
