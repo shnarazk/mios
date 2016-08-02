@@ -441,7 +441,7 @@ claBumpActivity s@Solver{..} c@Clause{..} = do
   k <- fromIntegral <$> sizeOfClause c
   a <- ((if dl > k then dl else dl / k) +) <$> getDouble claInc
 --  a <- (+) <$> getDouble activity <*> getDouble claInc
-  if 1e100 < a
+  if claActivityThreshold < a
     then claRescaleActivity s
     else setDouble activity a
 
