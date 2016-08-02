@@ -403,12 +403,19 @@ instance VarOrder Solver where
 
 -------------------------------------------------------------------------------- Activities
 
+varActivityThreshold :: Double
+varActivityThreshold = 1e100
+
+claActivityThreshold :: Double
+claActivityThreshold = 1e50
+
+
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 {-# INLINE varBumpActivity #-}
 varBumpActivity :: Solver -> Var -> IO ()
 varBumpActivity s@Solver{..} !x = do
   !a <- (+) <$> getNthDouble x activities <*> getDouble varInc
-  if 1e100 < a
+  if varActivityThreshold < a
     then varRescaleActivity s
     else setNthDouble x activities a
   update s x
@@ -423,15 +430,15 @@ varDecayActivity Solver{..} = modifyDouble varInc (/ variableDecayRate config)
 {-# INLINE varRescaleActivity #-}
 varRescaleActivity :: Solver -> IO ()
 varRescaleActivity Solver{..} = do
-  forM_ [1 .. nVars] $ \i -> modifyNthDouble i activities (* 1e-100)
-  modifyDouble varInc (* 1e-100)
+  forM_ [1 .. nVars] $ \i -> modifyNthDouble i activities (/ varActivityThreshold)
+  modifyDouble varInc (/ varActivityThreshold)
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE claBumpActivity #-}
 claBumpActivity :: Solver -> Clause -> IO ()
 claBumpActivity s@Solver{..} Clause{..} = do
   a <- (+) <$> getDouble activity <*> getDouble claInc
-  if 1e20 < a                   -- not 1e-100
+  if claActivityThreshold < a
     then claRescaleActivity s
     else setDouble activity a
 
@@ -451,10 +458,10 @@ claRescaleActivity Solver{..} = do
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
       c <- getNthClause vec i
-      modifyDouble (activity c) (* 1e-20) -- not 1e-100
+      modifyDouble (activity c) (/ claActivityThreshold)
       loopOnVector $ i + 1
   loopOnVector 0
-  modifyDouble claInc (* 1e-20)           -- not 1e-100
+  modifyDouble claInc (/ claActivityThreshold)
 
 -------------------------------------------------------------------------------- VarHeap
 
