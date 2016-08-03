@@ -797,11 +797,13 @@ unsafeEnqueue s@Solver{..} p from = do
   setNth level v =<< decisionLevel s
   setNthClause reason v from     -- NOTE: @from@ might be NULL!
   pushToStack trail p
+{-
   -- bump psedue lbd of @from@
   when (from /= NullClause && learnt from) $ do
     l <- getInt (lbd from)
     k <- (12 +) <$> decisionLevel s
     when (k < l) $ setInt (lbd from) k
+-}
 
 -- __Pre-condition:__ propagation queue is empty
 {-# INLINE unsafeAssume #-}
