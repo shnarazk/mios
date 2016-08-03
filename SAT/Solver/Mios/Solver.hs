@@ -416,8 +416,7 @@ varActivityThreshold :: Double
 varActivityThreshold = 1e100
 
 claActivityThreshold :: Double
-claActivityThreshold = 1e50
-
+claActivityThreshold = 1e20
 
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 {-# INLINE varBumpActivity #-}
@@ -448,6 +447,7 @@ claBumpActivity s c@Clause{..} = do
   dl <- decisionLevel s
   a <- (fromIntegral dl +) <$> getDouble activity
   setDouble activity a
+  -- setBool protected True
   when (claActivityThreshold <= a) $ claRescaleActivity s
 
 -- | __Fig. 14 (p.19)__
@@ -482,7 +482,11 @@ claRescaleActivityAfterRestart Solver{..} = do
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
       c <- getNthClause vec i
-      modifyDouble (activity c) sqrt
+      d <- getInt (lbd c)
+      if d < 9
+        then modifyDouble (activity c) sqrt
+        else setDouble (activity c) 0
+      setBool (protected c) False
       loopOnVector $ i + 1
   loopOnVector 0
 
