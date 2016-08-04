@@ -42,8 +42,8 @@ data Clause = Clause
               {
                 learnt     :: !Bool            -- ^ whether this is a learnt clause
               , activity   :: !DoubleSingleton -- ^ activity of this clause
+              , rank       :: !DoubleSingleton -- ^ storing a static goodness like the LBD; values are computed in Solver
               , protected  :: !BoolSingleton   -- ^ protected from reduce
-              , lbd        :: !IntSingleton    -- ^ storing the LBD; values are computed in Solver
               , lits       :: !Vec             -- ^ which this clause consists of
               }
 --  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
@@ -101,7 +101,7 @@ newClauseFromVec l vec = do
   n <- getNth vec 0
   v <- newVec $ n + 1
   forM_ [0 .. n] $ \i -> setNth v i =<< getNth vec i
-  Clause l <$> newDouble 0 <*> newBool False <*> newInt n <*> return v
+  Clause l <$> newDouble 0 <*> newDouble 0 <*> newBool False <*> return v
 
 -- | returns the number of literals in a clause, even if the given clause is a binary clause
 {-# INLINE sizeOfClause #-}

@@ -482,7 +482,7 @@ claRescaleActivityAfterRestart Solver{..} = do
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
       c <- getNthClause vec i
-      d <- getInt (lbd c)
+      d <- sizeOfClause c
       if d < 9
         then modifyDouble (activity c) sqrt
         else setDouble (activity c) 0

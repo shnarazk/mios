@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                   mios
-version:                1.2.1
+version:                1.2.2
 synopsis:               A Minisat-based SAT solver in Haskell
 description:
 
@@ -26,7 +26,7 @@ Flag llvm
   Default:	        True
 
 library
-  buildable:	        False
+  buildable:	        True
   default-language:	Haskell2010
   default-extensions:  Strict
   exposed-modules:
@@ -39,9 +39,9 @@ library
                         SAT.Solver.Mios.Data.Singleton
                         SAT.Solver.Mios.Data.Stack
                         SAT.Solver.Mios.Internal
-                        SAT.Solver.Mios.Glucose
                         SAT.Solver.Mios.M114
                         SAT.Solver.Mios.OptionParser
+                        SAT.Solver.Mios.Ranking
                         SAT.Solver.Mios.Solver
                         SAT.Solver.Mios.Types
                         SAT.Solver.Mios.Validator
@@ -56,7 +56,7 @@ library
   else
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -msse4.2
 
-executable mios-exp201608
+executable mios
   main-is:              app/mios.hs
   buildable:	        True
   default-language:	Haskell2010
@@ -76,9 +76,9 @@ executable mios-exp201608
                         SAT.Solver.Mios.Data.Singleton
                         SAT.Solver.Mios.Data.Stack
                         SAT.Solver.Mios.Internal
-                        SAT.Solver.Mios.Glucose
                         SAT.Solver.Mios.M114
                         SAT.Solver.Mios.OptionParser
+                        SAT.Solver.Mios.Ranking
                         SAT.Solver.Mios.Solver
                         SAT.Solver.Mios.Types
                         SAT.Solver.Mios.Validator

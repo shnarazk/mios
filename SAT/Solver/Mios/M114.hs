@@ -22,7 +22,7 @@ import SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.ClauseManager
 import SAT.Solver.Mios.Solver
-import SAT.Solver.Mios.Glucose
+import SAT.Solver.Mios.Ranking
 
 -- | #114: __RemoveWatch__
 {-# INLINABLE removeWatch #-}
@@ -79,7 +79,7 @@ newLearntClause s@Solver{..} ps = do
        -- update the solver state by @l@
        unsafeEnqueue s l c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
-       initializeLBD s c
+       setRank s c
        setBool (protected c) True
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
@@ -223,15 +223,15 @@ analyze s@Solver{..} confl = do
   loopOnLits 1 1                -- the first literal is specail
   -- glucose heuristics
   nld <- sizeOfStack lastDL
-  lbd' <- initialLBD s $ asSizedVec litsLearnt -- this is not the right value
+  r <- fromIntegral <$> lbdOf s (asSizedVec litsLearnt) -- this is not the right value
   let
     vec = asVec lastDL
     loopOnLastDL :: Int -> IO ()
     loopOnLastDL ((< nld) -> False) = return ()
     loopOnLastDL i = do
       v <- lit2var <$> getNth vec i
-      d' <- getInt . lbd =<< getNthClause reason v
-      when (lbd' < d') $ varBumpActivity s v
+      r' <- getDouble . rank =<< getNthClause reason v
+      when (r < r') $ varBumpActivity s v
       loopOnLastDL $ i + 1
   loopOnLastDL 0
   clearStack lastDL
@@ -503,7 +503,7 @@ reduceDB s@Solver{..} = do
 -- | (Good to Bad) Quick sort the key vector based on their activities and returns number of privileged clauses.
 -- this function uses the same metrix as reduceDB_lt in glucose 4.0:
 -- 1. binary clause
--- 2. smaller lbd
+-- 2. smaller rank
 -- 3. larger activity defined in MiniSat
 -- , where smaller value is better.
 --
@@ -513,7 +513,7 @@ reduceDB s@Solver{..} = do
 -- * 19 bit: converted activity
 -- * remain: clauseVector index
 --
-(lbdWidth :: Int, activityWidth :: Int, indexWidth :: Int) = (l, a, w - (l + a + 1))
+(rankWidth :: Int, activityWidth :: Int, indexWidth :: Int) = (l, a, w - (l + a + 1))
   where
     w = finiteBitSize (0:: Int)
     (l, a) = case () of
@@ -529,8 +529,8 @@ sortClauses :: Solver -> ClauseExtManager -> Int -> IO Int
 sortClauses s cm nneeds = do
   -- constants
   let
-    lbdMax :: Int
-    lbdMax = 2 ^ lbdWidth - 1
+    rankMax :: Int
+    rankMax = 2 ^ rankWidth - 1
     activityMax :: Int
     activityMax = 2 ^ activityWidth - 1
     activityScale :: Double
@@ -556,9 +556,9 @@ sortClauses s cm nneeds = do
             if l
               then setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
               else do
-                  d <- getInt $ lbd c
+                  d <- floor <$> getDouble (rank c)
                   b <- floor . (activityScale *) . (1 -) . logBase claActivityThreshold . max 1 <$> getDouble (activity c)
-                  setNth keys i $ shiftL (min lbdMax d) (activityWidth + indexWidth) + shiftL b indexWidth + i
+                  setNth keys i $ shiftL (min rankMax d) (activityWidth + indexWidth) + shiftL b indexWidth + i
                   assignKey (i + 1) m
   limit <- min n . (+ nneeds) <$> assignKey 0 0
   -- 2: sort keyVector
@@ -798,11 +798,11 @@ unsafeEnqueue s@Solver{..} p from = do
   setNthClause reason v from     -- NOTE: @from@ might be NULL!
   pushToStack trail p
 {-
-  -- bump psedue lbd of @from@
+  -- bump rank of @from@
   when (from /= NullClause && learnt from) $ do
-    l <- getInt (lbd from)
-    k <- (12 +) <$> decisionLevel s
-    when (k < l) $ setInt (lbd from) k
+    l <- getDouble (rank from)
+    k <- fromIntegral . (12 +) <$> decisionLevel s
+    when (k < l) $ setDouble (rank from) k
 -}
 
 -- __Pre-condition:__ propagation queue is empty
