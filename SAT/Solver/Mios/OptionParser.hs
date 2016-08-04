@@ -48,7 +48,7 @@ miosDefaultOption = MiosProgramOption
   , _confCheckAnswer = False
   , _confVerbose = False
   , _confTimeProbe = False
-  , _confStatProbe = collectStats defaultConfiguration
+  , _confStatProbe = False
   , _confNoAnswer = False
   , _validateAssignment = False
   , _displayHelp = False
@@ -128,5 +128,4 @@ toMiosConf opts = MiosConfiguration
                    variableDecayRate = _confVariableDecayRate opts
                  , clauseDecayRate = _confClauseDecayRate opts
 --                 , randomDecisionRate = _confRandomDecisionRate opts
-                 , collectStats = _confStatProbe opts
                  }

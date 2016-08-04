@@ -37,6 +37,8 @@ module SAT.Solver.Mios.Solver
        , claActivityThreshold
          -- * Stats
        , StatIndex (..)
+       , getStat
+       , setStat
        , incrementStat
        , getStats
        )
@@ -82,8 +84,8 @@ data Solver = Solver
               , an'toClear :: !Stack             -- ^ ditto
               , an'stack   :: !Stack             -- ^ ditto
               , pr'seen    :: !Vec               -- ^ used in propagate
-              , lbd'seen   :: !Vec               -- ^ used in lbd computation
-              , lbd'key    :: !IntSingleton      -- ^ used in lbd computation
+--              , lbd'seen   :: !Vec               -- ^ used in lbd computation
+--              , lbd'key    :: !IntSingleton      -- ^ used in lbd computation
               , litsLearnt :: !Stack             -- ^ used to create a learnt clause
               , lastDL     :: !Stack             -- ^ last decision level used in analyze
               , stats      :: !Vec               -- ^ statistics information holder
@@ -124,8 +126,8 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> newStack nv                                   -- an'toClear
     <*> newStack nv                                   -- an'stack
     <*> newVecWith (nv + 1) (-1)                      -- pr'seen
-    <*> newVec nv                                     -- lbd'seen
-    <*> newInt 0                                      -- lbd'key
+--    <*> newVec nv                                     -- lbd'seen
+--    <*> newInt 0                                      -- lbd'key
     <*> newStack nv                                   -- litsLearnt
     <*> newStack nv                                   -- lastDL
     <*> newVec (1 + fromEnum (maxBound :: StatIndex)) -- stats
@@ -173,20 +175,28 @@ valueLit Solver{..} !p = if positiveLit p then getNth assigns (lit2var p) else n
 locked :: Solver -> Clause -> IO Bool
 locked Solver{..} c@Clause{..} =  (c ==) <$> (getNthClause reason . lit2var =<< getNth lits 1)
 
--- | stats
+-------------------------------------------------------------------------------- Statistics
+
+-- | stat index
 data StatIndex =
     NumOfBackjump
   | NumOfRestart
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 
+-- | returns the value of 'StatIndex'
+getStat :: Solver -> StatIndex -> IO Int
+getStat (stats -> v) (fromEnum -> i) = getNth v i
+
+-- | sets to 'StatIndex'
+setStat :: Solver -> StatIndex -> Int -> IO ()
+setStat (stats -> v) (fromEnum -> i) x = setNth v i x
+
 -- | increments a stat data corresponding to 'StatIndex'
 incrementStat :: Solver -> StatIndex -> Int -> IO ()
-incrementStat (config -> collectStats -> False) _ _ = return ()
 incrementStat (stats -> v) (fromEnum -> i) k = modifyNth v (+ k) i
 
 -- | returns the statistics as list
 getStats :: Solver -> IO [(StatIndex, Int)]
-getStats (config -> collectStats -> False) = return []
 getStats (stats -> v) = mapM (\i -> (i, ) <$> getNth v (fromEnum i)) [minBound .. maxBound :: StatIndex]
 
 -------------------------------------------------------------------------------- State Modifiers

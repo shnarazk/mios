@@ -13,14 +13,13 @@ import SAT.Solver.Mios.Data.Stack as Plumbing
 
 -- | version name
 versionId :: String
-versionId = "mios 1.2.2 -- https://github.com/shnarazk/mios" -- blocking literal - lbd + phase-saving
+versionId = "mios 1.3 -- https://github.com/shnarazk/mios" -- blocking literal - lbd + phase-saving
 
 -- | solver's parameters; random decision rate was dropped.
 data MiosConfiguration = MiosConfiguration
                          {
                            variableDecayRate  :: Double  -- ^ decay rate for variable activity
                          , clauseDecayRate    :: Double  -- ^ decay rate for clause activity
-                         , collectStats       :: Bool    -- ^ whether collect and report statistics
                          }
 
 -- | dafault configuration
@@ -31,4 +30,4 @@ data MiosConfiguration = MiosConfiguration
 -- * Mios-1.2     uses @(0.95, 0.999, 0)@.
 --
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 0.999 {- 0 -} False
+defaultConfiguration = MiosConfiguration 0.95 0.999 {- 0 -}

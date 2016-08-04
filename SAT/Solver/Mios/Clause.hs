@@ -41,13 +41,13 @@ import SAT.Solver.Mios.Types
 data Clause = Clause
               {
                 learnt     :: !Bool            -- ^ whether this is a learnt clause
+--              , rank       :: !IntSingleton    -- ^ goodness like LBD; computed in 'Ranking'
               , activity   :: !DoubleSingleton -- ^ activity of this clause
-              , rank       :: !DoubleSingleton -- ^ storing a static goodness like the LBD; values are computed in Solver
               , protected  :: !BoolSingleton   -- ^ protected from reduce
               , lits       :: !Vec             -- ^ which this clause consists of
               }
---  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
   | NullClause                              -- as null pointer
+--  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
 
 -- | The equality on 'Clause' is defined with 'reallyUnsafePtrEquality'.
 instance Eq Clause where
@@ -88,11 +88,6 @@ instance VectorFamily Clause Lit where
 -- liftToClause :: Clause -> Clause
 -- liftToClause (BinaryClause _) = error "So far I use generic function approach instead of lifting"
 
--- | drop the last /N/ literals in a 'Clause' to eliminate unsatisfied literals
-{-# INLINABLE shrinkClause #-}
-shrinkClause :: Int -> Clause -> IO ()
-shrinkClause !n Clause{..} = setNth lits 0 . subtract n =<< getNth lits 0
-
 -- | copies /vec/ and return a new 'Clause'
 -- Since 1.0.100 DIMACS reader should use a scratch buffer allocated statically.
 {-# INLINE newClauseFromVec #-}
@@ -101,13 +96,18 @@ newClauseFromVec l vec = do
   n <- getNth vec 0
   v <- newVec $ n + 1
   forM_ [0 .. n] $ \i -> setNth v i =<< getNth vec i
-  Clause l <$> newDouble 0 <*> newDouble 0 <*> newBool False <*> return v
+  Clause l <$> {- newInt 0 <*> -} newDouble 0 <*> newBool False <*> return v
 
 -- | returns the number of literals in a clause, even if the given clause is a binary clause
 {-# INLINE sizeOfClause #-}
 sizeOfClause :: Clause -> IO Int
 -- sizeOfClause (BinaryClause _) = return 1
 sizeOfClause !c = getNth (lits c) 0
+
+-- | drop the last /N/ literals in a 'Clause' to eliminate unsatisfied literals
+{-# INLINABLE shrinkClause #-}
+shrinkClause :: Int -> Clause -> IO ()
+shrinkClause !n Clause{..} = setNth lits 0 . subtract n =<< getNth lits 0
 
 --------------------------------------------------------------------------------
 

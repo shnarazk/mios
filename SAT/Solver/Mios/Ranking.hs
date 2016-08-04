@@ -9,13 +9,14 @@
 
 module SAT.Solver.Mios.Ranking
        (
-         -- * Rank of Clause 
-         setRank
-       , updateRank
-         -- * Literal Block Distance
-       , lbdOf
-         -- * Value for sorting
-       , sortingKey
+         -- * Rank of Clause
+         ranking
+--       , setRank
+--       , updateRank
+--         -- * Literal Block Distance
+--       , lbdOf
+--         -- * Value for sorting
+--       , sortingKey
        )
         where
 
@@ -24,14 +25,55 @@ import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.Solver
 
 -- | returns size of clause with offset
-rankBySize :: Solver -> Clause -> IO Double
-rankBySize Solver{..} c = do
-  n <- sizeOfClause c
-  return . fromIntegral $ if n < 12 then n else 12 + n
+{-# INLINE rankBySize #-}
+rankBySize :: Solver -> Clause -> IO Int
+rankBySize _ = sizeOfClause
 
+-- | returns size of clause with offset
+{-# INLINE rankBySizeOffset #-}
+rankBySizeOffset :: Solver -> Clause -> IO Int
+rankBySizeOffset _ c = do
+  n <- sizeOfClause c
+  return $ if n < 12 then n else 12 + n
+
+rankBySizeOffset' :: Solver -> Clause -> IO Int
+rankBySizeOffset' s _ = (12 +) <$> decisionLevel s
+
+{-# INLINE ranking #-}
+ranking :: Solver -> Clause -> IO Int
+ranking = rankBySize
+
+{-# INLINE ranking' #-}
+ranking' :: Solver -> Clause -> IO Int
+ranking' = rankBySize
+
+{-
+-------------------------------------------------------------------------------- Clause.rank
+-- | set 'Clause' rank, that keep goodness of the clause
+{-# INLINE setRank #-}
+setRank :: Solver -> Clause -> IO ()
+setRank s c = setInt (rank c) =<< ranking s c
+
+-- | update 'Clause' rank based on @f@ that is applied to the old and new values of @rank@
+{-# INLINE updateRank #-}
+updateRank :: Solver -> Clause -> (Int -> Int -> Int) -> IO ()
+updateRank _ NullClause _ = error "Ranking.updateRank was called on NullClause"
+updateRank _ (learnt -> False) _ = return ()
+updateRank s c@Clause{..} f = do
+  w <- getInt rank
+  w' <- ranking' s c
+  setInt rank (f w w')
+
+sortingKey :: Clause -> IO Int
+sortingKey = undefined
+-}
+
+{-
+-------------------------------------------------------------------------------- LBD
 -- | returns the LBD vaule of 'Clause'
-rankByLBD :: Solver -> Clause -> IO Double
-rankByLBD s (lits -> vec) = fromIntegral <$> lbdOf s vec
+{-# INLINE rankByLBD #-}
+rankByLBD :: Solver -> Clause -> IO Int
+rankByLBD s (lits -> vec) = lbdOf s vec
 
 -- | returns the LBD vaule of 'SizedVec'
 lbdOf :: Solver -> Vec -> IO Int
@@ -49,28 +91,9 @@ lbdOf Solver{..} vec = do
         then loop (i + 1) n
         else setNth lbd'seen l key >> loop (i + 1) (n + 1)
   loop 1 0
+-}
 
-ranking :: Solver -> Clause -> IO Double
-ranking = rankBySize
-
--- | set 'Clause' rank, that keep goodness of the clause
-{-# INLINE setRank #-}
-setRank :: Solver -> Clause -> IO ()
-setRank s c = setDouble (rank c) =<< ranking s c
-
--- | update 'Clause' rank based on @f@ that is applied to the old and new values of @rank@
-{-# INLINE updateRank #-}
-updateRank :: Solver -> Clause -> (Double -> Double -> Double) -> IO ()
-updateRank _ NullClause _ = error "Ranking.updateRank was called NullClause"
-updateRank _ (learnt -> False) _ = return ()
-updateRank s c@Clause{..} f = do
-  w <- getDouble rank
-  w' <- ranking s c
-  setDouble rank (f w w')
-
-sortingKey :: Clause -> IO Int
-sortingKey = undefined
-
+-------------------------------------------------------------------------------- Glucose garbage
 -- | 0 based
 --
 -- >>> nextReduction 0

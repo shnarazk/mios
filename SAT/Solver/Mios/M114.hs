@@ -79,7 +79,7 @@ newLearntClause s@Solver{..} ps = do
        -- update the solver state by @l@
        unsafeEnqueue s l c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
-       setRank s c
+       -- setRank s c
        setBool (protected c) True
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
@@ -223,14 +223,14 @@ analyze s@Solver{..} confl = do
   loopOnLits 1 1                -- the first literal is specail
   -- glucose heuristics
   nld <- sizeOfStack lastDL
-  r <- fromIntegral <$> lbdOf s (asSizedVec litsLearnt) -- this is not the right value
+  r <- sizeOfStack litsLearnt -- this is not the right value
   let
     vec = asVec lastDL
     loopOnLastDL :: Int -> IO ()
     loopOnLastDL ((< nld) -> False) = return ()
     loopOnLastDL i = do
       v <- lit2var <$> getNth vec i
-      r' <- getDouble . rank =<< getNthClause reason v
+      r' <- ranking s =<< getNthClause reason v
       when (r < r') $ varBumpActivity s v
       loopOnLastDL $ i + 1
   loopOnLastDL 0
@@ -556,7 +556,7 @@ sortClauses s cm nneeds = do
             if l
               then setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
               else do
-                  d <- floor <$> getDouble (rank c)
+                  d <- ranking s c
                   b <- floor . (activityScale *) . (1 -) . logBase claActivityThreshold . max 1 <$> getDouble (activity c)
                   setNth keys i $ shiftL (min rankMax d) (activityWidth + indexWidth) + shiftL b indexWidth + i
                   assignKey (i + 1) m
@@ -797,13 +797,7 @@ unsafeEnqueue s@Solver{..} p from = do
   setNth level v =<< decisionLevel s
   setNthClause reason v from     -- NOTE: @from@ might be NULL!
   pushToStack trail p
-{-
-  -- bump rank of @from@
-  when (from /= NullClause && learnt from) $ do
-    l <- getDouble (rank from)
-    k <- fromIntegral . (12 +) <$> decisionLevel s
-    when (k < l) $ setDouble (rank from) k
--}
+  -- when (from /= NullClause && learnt from) $ updateRank s from min  -- bump rank of @from@
 
 -- __Pre-condition:__ propagation queue is empty
 {-# INLINE unsafeAssume #-}
