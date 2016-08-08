@@ -1,8 +1,9 @@
--- | validate an assignment
 {-# LANGUAGE
     ViewPatterns
   #-}
 {-# LANGUAGE Safe #-}
+
+-- | validate an assignment
 module SAT.Solver.Mios.Validator
        (
          validate
@@ -24,18 +25,18 @@ validate s (toList -> map int2lit -> lst) = do
   let
     inject :: Lit -> IO ()
     inject l = setNth assignment (lit2var l) $ if positiveLit l then lTrue else lFalse
-    -- return True if the literal is satisfied under the assignment
+    -- returns True if the literal is satisfied under the assignment
     satisfied :: Lit -> IO Bool
     satisfied l
       | positiveLit l = (lTrue ==) <$> getNth assignment (lit2var l)
       | otherwise     = (lFalse ==) <$> getNth assignment (lit2var l)
-    -- return True is any literal in the given list
+    -- returns True is any literal in the given list
     satAny :: [Lit] -> IO Bool
     satAny [] = return False
     satAny (l:ls) = do
       sat' <- satisfied l
       if sat' then return True else satAny ls
-    -- traverse all clauses in 'clauses'
+    -- traverses all clauses in 'clauses'
     loopOnVector :: Int -> IO Bool
     loopOnVector ((< nc) -> False) = return True
     loopOnVector i = do

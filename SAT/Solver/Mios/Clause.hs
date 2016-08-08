@@ -1,4 +1,3 @@
--- | Clause, a data supporting pointer-based equality
 {-# LANGUAGE
     BangPatterns
   , FlexibleInstances
@@ -9,6 +8,7 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
+-- | Clause, supporting pointer-based equality
 module SAT.Solver.Mios.Clause
        (
          Clause (..)

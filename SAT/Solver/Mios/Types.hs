@@ -1,4 +1,3 @@
--- | Basic data types used throughout mios.
 {-# LANGUAGE
     BangPatterns
   , FlexibleContexts
@@ -8,6 +7,7 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
+-- | Basic data types used throughout mios.
 module SAT.Solver.Mios.Types
        (
          -- Singleton

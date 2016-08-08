@@ -1,4 +1,3 @@
--- | A shrinkable 'VectorFamily' of 'C.Clause'
 {-# LANGUAGE
     BangPatterns
   , DuplicateRecordFields
@@ -9,6 +8,7 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
+-- | A shrinkable vector of 'C.Clause'
 module SAT.Solver.Mios.ClauseManager
        (
          -- * higher level interface for ClauseVector

@@ -1,4 +1,3 @@
--- | This is a part of MIOS
 {-# LANGUAGE
     BangPatterns
   , RecordWildCards
@@ -7,6 +6,7 @@
   #-}
 {-# LANGUAGE Safe #-}
 
+-- | This is a part of MIOS; main heuristics
 module SAT.Solver.Mios.M114
        (
          simplifyDB

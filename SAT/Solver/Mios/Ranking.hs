@@ -1,4 +1,3 @@
--- | Clause Rank evalaution
 {-# LANGUAGE
     BangPatterns
   , RecordWildCards
@@ -7,6 +6,7 @@
   #-}
 {-# LANGUAGE Safe #-}
 
+-- | Clause Rank evalaution
 module SAT.Solver.Mios.Ranking
        (
          -- * Rank of Clause

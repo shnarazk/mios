@@ -1,4 +1,3 @@
--- | This is a part of MIOS
 {-# LANGUAGE
     BangPatterns
   , RecordWildCards
@@ -8,6 +7,7 @@
   #-}
 {-# LANGUAGE Safe #-}
 
+-- | This is a part of MIOS; main data
 module SAT.Solver.Mios.Solver
        (
          -- * Solver
