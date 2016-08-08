@@ -11,6 +11,7 @@ module SAT.Solver.Mios.Ranking
        (
          -- * Rank of Clause
          ranking
+       , rankBySizeOffset
 --       , setRank
 --       , updateRank
 --         -- * Literal Block Distance
@@ -20,39 +21,36 @@ module SAT.Solver.Mios.Ranking
        )
         where
 
-import SAT.Solver.Mios.Types
+-- import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.Solver
 
 -- | returns size of clause with offset
 {-# INLINE rankBySize #-}
-rankBySize :: Solver -> Clause -> IO Int
-rankBySize _ = sizeOfClause
+rankBySize :: Bool -> Solver -> Clause -> IO Int
+rankBySize _ _ = sizeOfClause
 
 -- | returns size of clause with offset
 {-# INLINE rankBySizeOffset #-}
-rankBySizeOffset :: Solver -> Clause -> IO Int
-rankBySizeOffset _ c = do
+rankBySizeOffset :: Bool -> Solver -> Clause -> IO Int
+rankBySizeOffset True _ c = do
   n <- sizeOfClause c
   return $ if n < 12 then n else 12 + n
+rankBySizeOffset False s _ = (12 +) <$> decisionLevel s
 
-rankBySizeOffset' :: Solver -> Clause -> IO Int
-rankBySizeOffset' s _ = (12 +) <$> decisionLevel s
-
+-- | returns the ranking vaule for 'Clause' under 'Solver'
+-- If the first arg is True, we use /initializer/ instead of normal ranking function.
 {-# INLINE ranking #-}
-ranking :: Solver -> Clause -> IO Int
+ranking :: Bool -> Solver -> Clause -> IO Int
 ranking = rankBySize
-
-{-# INLINE ranking' #-}
-ranking' :: Solver -> Clause -> IO Int
-ranking' = rankBySize
 
 {-
 -------------------------------------------------------------------------------- Clause.rank
 -- | set 'Clause' rank, that keep goodness of the clause
+-- If the first arg is True, we use 'initializeRanking', otherwise 'ranking'.
 {-# INLINE setRank #-}
-setRank :: Solver -> Clause -> IO ()
-setRank s c = setInt (rank c) =<< ranking s c
+setRank :: Bool -> Solver -> Clause -> IO ()
+setRank init s c = setInt (rank c) =<< ranking init s c
 
 -- | update 'Clause' rank based on @f@ that is applied to the old and new values of @rank@
 {-# INLINE updateRank #-}
@@ -61,7 +59,7 @@ updateRank _ NullClause _ = error "Ranking.updateRank was called on NullClause"
 updateRank _ (learnt -> False) _ = return ()
 updateRank s c@Clause{..} f = do
   w <- getInt rank
-  w' <- ranking' s c
+  w' <- ranking False s c
   setInt rank (f w w')
 
 sortingKey :: Clause -> IO Int
