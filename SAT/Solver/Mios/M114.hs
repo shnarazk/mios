@@ -456,6 +456,7 @@ propagate s@Solver{..} = do
                           result <- enqueue s first c
                           if not result
                             then do
+                                setBool (protected c) True
                                 ((== 0) <$> decisionLevel s) >>= (`when` setBool ok False)
                                 setInt qHead =<< sizeOfStack trail
                                 -- Copy the remaining watches:
