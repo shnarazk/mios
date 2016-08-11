@@ -41,8 +41,8 @@ removeWatch Solver{..} c = do
 -- | __Fig. 8. (p.12)__ create a new LEARNT clause and adds it to watcher lists
 -- This is a strippped-down version of 'newClause' in Solver
 {-# INLINABLE newLearntClause #-}
-newLearntClause :: Solver -> Vec -> IO ()
-newLearntClause s@Solver{..} ps = do
+newLearntClause :: Solver -> Vec -> Int -> IO ()
+newLearntClause s@Solver{..} ps act = do
   good <- getBool ok
   when good $ do
     -- ps is a 'SizedVectorInt'; ps[0] is the number of active literals
@@ -69,7 +69,7 @@ newLearntClause s@Solver{..} ps = do
              else findMax (i + 1) j val
        swapBetween vec 1 =<< findMax 0 0 0 -- Let @max_i@ be the index of the literal with highest decision level
        -- Bump, enqueue, store clause:
-       claBumpActivity s c -- newly learnt clauses should be considered active
+       setDouble (activity c) (fromIntegral act) -- newly learnt clauses should be considered active
        -- Add clause to all managers
        pushClause learnts c
        l <- getNth vec 0
@@ -142,7 +142,7 @@ analyze s@Solver{..} confl = do
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
       when (learnt c) $ do
-        claBumpActivity s c
+        claBumpActivity s c $ fromIntegral dl
 {-
         -- update LBD like #Glucose4.0
         d <- getInt (lbd c)
@@ -703,7 +703,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
 --                    when (d < 0.95) $ modifyDouble varDecay (+ 0.01)
                   backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
                   (s `cancelUntil`) . max backtrackLevel =<< getInt rootLevel
-                  newLearntClause s $ asSizedVec litsLearnt
+                  newLearntClause s (asSizedVec litsLearnt) d
                   k <- sizeOfStack litsLearnt
                   when (k == 1) $ do
                     (v :: Var) <- lit2var <$> getNth (asVec litsLearnt) 0

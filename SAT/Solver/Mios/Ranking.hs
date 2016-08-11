@@ -11,7 +11,7 @@ module SAT.Solver.Mios.Ranking
        (
          -- * Rank of Clause
          ranking
-       , rankBySizeOffset
+--       , rankBySizeOffset
 --       , setRank
 --       , updateRank
 --         -- * Literal Block Distance

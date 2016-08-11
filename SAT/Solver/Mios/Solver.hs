@@ -301,7 +301,7 @@ clauseNew s@Solver{..} ps isLearnt = do
        -- x <- asList c
        -- unless (length x == length (nub x)) $ error "new clause contains a element doubly"
        -- Bumping:
-       claBumpActivity s c -- newly learnt clauses should be considered active
+       claBumpActivity s c . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
        forM_ [0 .. k -1] $ varBumpActivity s . lit2var <=< getNth vec -- variables in conflict clauses are bumped
      -- Add clause to watcher lists:
      l0 <- negateLit <$> getNth vec 0
@@ -426,7 +426,7 @@ varActivityThreshold :: Double
 varActivityThreshold = 1e100
 
 claActivityThreshold :: Double
-claActivityThreshold = 1e20
+claActivityThreshold = 1e50
 
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 {-# INLINE varBumpActivity #-}
@@ -452,10 +452,9 @@ varRescaleActivity Solver{..} = do
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE claBumpActivity #-}
-claBumpActivity :: Solver -> Clause -> IO ()
-claBumpActivity s c@Clause{..} = do
-  dl <- decisionLevel s
-  a <- (fromIntegral dl +) <$> getDouble activity
+claBumpActivity :: Solver -> Clause -> Double -> IO ()
+claBumpActivity s Clause{..} k = do
+  a <- (+ k) <$> getDouble activity
   setDouble activity a
   -- setBool protected True
   when (claActivityThreshold <= a) $ claRescaleActivity s
