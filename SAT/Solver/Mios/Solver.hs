@@ -426,7 +426,7 @@ varActivityThreshold :: Double
 varActivityThreshold = 1e100
 
 claActivityThreshold :: Double
-claActivityThreshold = 1e50
+claActivityThreshold = 1e20
 
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 {-# INLINE varBumpActivity #-}
