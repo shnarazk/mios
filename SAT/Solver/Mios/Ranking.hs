@@ -11,6 +11,7 @@ module SAT.Solver.Mios.Ranking
        (
          -- * Rank of Clause
          ranking
+       , ranking'
 --       , rankBySizeOffset
 --       , setRank
 --       , updateRank
@@ -24,6 +25,11 @@ module SAT.Solver.Mios.Ranking
 -- import SAT.Solver.Mios.Types
 import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.Solver
+
+-- | specialized version of ranking
+{-# INLINE ranking' #-}
+ranking' :: Clause -> IO Int
+ranking' = sizeOfClause
 
 -- | returns size of clause with offset
 {-# INLINE rankBySize #-}

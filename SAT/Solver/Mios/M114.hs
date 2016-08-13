@@ -230,7 +230,7 @@ analyze s@Solver{..} confl = do
     loopOnLastDL ((< nld) -> False) = return ()
     loopOnLastDL i = do
       v <- lit2var <$> getNth vec i
-      r' <- ranking False s =<< getNthClause reason v
+      r' <- ranking' =<< getNthClause reason v
       when (r < r') $ varBumpActivity s v
       loopOnLastDL $ i + 1
   loopOnLastDL 0
@@ -556,7 +556,7 @@ sortClauses s cm nneeds = do
             if l
               then setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
               else do
-                  d <- ranking False s c
+                  d <- ranking' c
                   b <- floor . (activityScale *) . (1 -) . logBase claActivityThreshold . max 1 <$> getDouble (activity c)
                   setNth keys i $ shiftL (min rankMax d) (activityWidth + indexWidth) + shiftL b indexWidth + i
                   assignKey (i + 1) m
