@@ -41,7 +41,7 @@ library
                         SAT.Solver.Mios.Internal
                         SAT.Solver.Mios.M114
                         SAT.Solver.Mios.OptionParser
-                        SAT.Solver.Mios.Ranking
+--                        SAT.Solver.Mios.Ranking
                         SAT.Solver.Mios.Solver
                         SAT.Solver.Mios.Types
                         SAT.Solver.Mios.Validator
@@ -78,7 +78,7 @@ executable mios-1.2.2
                         SAT.Solver.Mios.Internal
                         SAT.Solver.Mios.M114
                         SAT.Solver.Mios.OptionParser
-                        SAT.Solver.Mios.Ranking
+--                        SAT.Solver.Mios.Ranking
                         SAT.Solver.Mios.Solver
                         SAT.Solver.Mios.Types
                         SAT.Solver.Mios.Validator

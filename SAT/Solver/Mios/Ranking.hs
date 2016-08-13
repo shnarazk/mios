@@ -10,8 +10,7 @@
 module SAT.Solver.Mios.Ranking
        (
          -- * Rank of Clause
-         ranking
-       , ranking'
+       , ranking
 --       , rankBySizeOffset
 --       , setRank
 --       , updateRank

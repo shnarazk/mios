@@ -22,7 +22,13 @@ import SAT.Solver.Mios.Internal
 import SAT.Solver.Mios.Clause
 import SAT.Solver.Mios.ClauseManager
 import SAT.Solver.Mios.Solver
-import SAT.Solver.Mios.Ranking
+-- import SAT.Solver.Mios.Ranking
+
+-------------------------------------------------------------------------------- Ranking
+-- | specialized version of ranking
+{-# INLINE ranking' #-}
+ranking' :: Clause -> IO Int
+ranking' = sizeOfClause
 
 -- | #114: __RemoveWatch__
 {-# INLINABLE removeWatch #-}
@@ -41,8 +47,8 @@ removeWatch Solver{..} c = do
 -- | __Fig. 8. (p.12)__ create a new LEARNT clause and adds it to watcher lists
 -- This is a strippped-down version of 'newClause' in Solver
 {-# INLINABLE newLearntClause #-}
-newLearntClause :: Solver -> Vec -> Int -> IO ()
-newLearntClause s@Solver{..} ps act = do
+newLearntClause :: Solver -> Vec -> IO ()
+newLearntClause s@Solver{..} ps = do
   good <- getBool ok
   when good $ do
     -- ps is a 'SizedVectorInt'; ps[0] is the number of active literals
@@ -69,7 +75,7 @@ newLearntClause s@Solver{..} ps act = do
              else findMax (i + 1) j val
        swapBetween vec 1 =<< findMax 0 0 0 -- Let @max_i@ be the index of the literal with highest decision level
        -- Bump, enqueue, store clause:
-       setDouble (activity c) (fromIntegral act) -- newly learnt clauses should be considered active
+       setDouble (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
        -- Add clause to all managers
        pushClause learnts c
        l <- getNth vec 0
@@ -142,7 +148,7 @@ analyze s@Solver{..} confl = do
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
       when (learnt c) $ do
-        claBumpActivity s c $ fromIntegral dl
+        claBumpActivity s c
 {-
         -- update LBD like #Glucose4.0
         d <- getInt (lbd c)
@@ -522,7 +528,7 @@ reduceDB s@Solver{..} = do
       _ | 60 <= w -> (14, 19)   -- 26 bit =>  32M clauses
       _ | 32 <= w -> ( 7,  6)   -- 18 bit => 256K clauses
       _ | 29 <= w -> ( 6,  5)   -- 17 bit => 128K clauses
-      _ -> error "Int on your CPU doesn't have sufficient bit width."
+--      _ -> error "Int on your CPU doesn't have sufficient bit width."
 
 {-# INLINABLE sortClauses #-}
 sortClauses :: Solver -> ClauseExtManager -> Int -> IO Int
@@ -538,7 +544,7 @@ sortClauses s cm nneeds = do
     indexMax :: Int
     indexMax = (2 ^ indexWidth - 1) -- 67,108,863 for 26
   n <- numberOfClauses cm
-  when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds mios's " ++ show indexWidth ++" bit manage capacity"
+  -- when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds mios's " ++ show indexWidth ++" bit manage capacity"
   vec <- getClauseVector cm
   keys <- getKeyVector cm
   -- 1: assign keys
@@ -703,7 +709,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
 --                    when (d < 0.95) $ modifyDouble varDecay (+ 0.01)
                   backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
                   (s `cancelUntil`) . max backtrackLevel =<< getInt rootLevel
-                  newLearntClause s (asSizedVec litsLearnt) d
+                  newLearntClause s $ asSizedVec litsLearnt
                   k <- sizeOfStack litsLearnt
                   when (k == 1) $ do
                     (v :: Var) <- lit2var <$> getNth (asVec litsLearnt) 0
