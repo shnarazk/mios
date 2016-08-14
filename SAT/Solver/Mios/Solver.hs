@@ -74,7 +74,7 @@ data Solver = Solver
                 -- Configuration
               , config     :: !MiosConfiguration -- ^ search paramerters
               , nVars      :: !Int               -- ^ number of variables
-              , claInc     :: !DoubleSingleton   -- ^ Clause activity increment amount to bump with.
+--              , claInc     :: !DoubleSingleton   -- ^ Clause activity increment amount to bump with.
 --            , varDecay   :: !DoubleSingleton   -- ^ used to set 'varInc'
               , varInc     :: !DoubleSingleton   -- ^ Variable activity increment amount to bump with.
               , rootLevel  :: !IntSingleton      -- ^ Separates incremental and search assumptions.
@@ -116,7 +116,7 @@ newSolver conf (CNFDescription nv nc _) = do
     -- Configuration
     <*> return conf                                   -- config
     <*> return nv                                     -- nVars
-    <*> newDouble 1.0                                 -- claInc
+--    <*> newDouble 1.0                                 -- claInc
 --  <*> newDouble (variableDecayRate conf)            -- varDecay
     <*> newDouble 1.0                                 -- varInc
     <*> newInt 0                                      -- rootLevel
@@ -425,8 +425,8 @@ instance VarOrder Solver where
 varActivityThreshold :: Double
 varActivityThreshold = 1e100
 
-claActivityThreshold :: Double
-claActivityThreshold = 1e20
+claActivityThreshold :: Int
+claActivityThreshold = 2 ^ 50
 
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 {-# INLINE varBumpActivity #-}
@@ -454,16 +454,15 @@ varRescaleActivity Solver{..} = do
 {-# INLINE claBumpActivity #-}
 claBumpActivity :: Solver -> Clause -> IO ()
 claBumpActivity s Clause{..} = do
-  dl <- decisionLevel s
-  a <- (fromIntegral dl +) <$> getDouble activity
-  setDouble activity a
+  a <- (+) <$> getInt activity <*> decisionLevel s
+  setInt activity a
   -- setBool protected True
   when (claActivityThreshold <= a) $ claRescaleActivity s
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE claDecayActivity #-}
 claDecayActivity :: Solver -> IO ()
-claDecayActivity Solver{..} = modifyDouble claInc (/ clauseDecayRate config)
+claDecayActivity Solver{..} = undefined -- modifyDouble claInc (/ clauseDecayRate config)
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE claRescaleActivity #-}
@@ -476,10 +475,10 @@ claRescaleActivity Solver{..} = do
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
       c <- getNthClause vec i
-      modifyDouble (activity c) (/ claActivityThreshold)
+      modifyInt (activity c) (`div` 256)
       loopOnVector $ i + 1
   loopOnVector 0
-  modifyDouble claInc (/ claActivityThreshold)
+  -- modifyDouble claInc (`div` claActivityThreshold)
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE claRescaleActivityAfterRestart #-}
@@ -494,8 +493,8 @@ claRescaleActivityAfterRestart Solver{..} = do
       c <- getNthClause vec i
       d <- sizeOfClause c
       if d < 9
-        then modifyDouble (activity c) sqrt
-        else setDouble (activity c) 0
+        then modifyInt (activity c) (ceiling . (sqrt :: Double -> Double) . fromIntegral)
+        else setInt (activity c) 0
       setBool (protected c) False
       loopOnVector $ i + 1
   loopOnVector 0

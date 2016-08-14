@@ -75,7 +75,7 @@ newLearntClause s@Solver{..} ps = do
              else findMax (i + 1) j val
        swapBetween vec 1 =<< findMax 0 0 0 -- Let @max_i@ be the index of the literal with highest decision level
        -- Bump, enqueue, store clause:
-       setDouble (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
+       setInt (activity c) =<< decisionLevel s -- newly learnt clauses should be considered active
        -- Add clause to all managers
        pushClause learnts c
        l <- getNth vec 0
@@ -539,8 +539,8 @@ sortClauses s cm nneeds = do
     rankMax = 2 ^ rankWidth - 1
     activityMax :: Int
     activityMax = 2 ^ activityWidth - 1
-    activityScale :: Double
-    activityScale = fromIntegral activityMax
+    activityDownScale :: Int
+    activityDownScale = div claActivityThreshold activityMax
     indexMax :: Int
     indexMax = (2 ^ indexWidth - 1) -- 67,108,863 for 26
   n <- numberOfClauses cm
@@ -563,7 +563,7 @@ sortClauses s cm nneeds = do
               then setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
               else do
                   d <- ranking' c
-                  b <- floor . (activityScale *) . (1 -) . logBase claActivityThreshold . max 1 <$> getDouble (activity c)
+                  b <- (`div` activityDownScale) <$> getInt (activity c)
                   setNth keys i $ shiftL (min rankMax d) (activityWidth + indexWidth) + shiftL b indexWidth + i
                   assignKey (i + 1) m
   limit <- min n . (+ nneeds) <$> assignKey 0 0
@@ -715,7 +715,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                     (v :: Var) <- lit2var <$> getNth (asVec litsLearnt) 0
                     setNth level v 0
                   varDecayActivity s
-                  claDecayActivity s
+                  -- claDecayActivity s
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:

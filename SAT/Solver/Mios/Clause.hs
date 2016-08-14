@@ -42,7 +42,7 @@ data Clause = Clause
               {
                 learnt     :: !Bool            -- ^ whether this is a learnt clause
 --              , rank       :: !IntSingleton    -- ^ goodness like LBD; computed in 'Ranking'
-              , activity   :: !DoubleSingleton -- ^ activity of this clause
+              , activity   :: !IntSingleton    -- ^ activity of this clause
               , protected  :: !BoolSingleton   -- ^ protected from reduce
               , lits       :: !Vec             -- ^ which this clause consists of
               }
@@ -62,7 +62,7 @@ instance Show Clause where
 instance VectorFamily Clause Lit where
   dump mes NullClause = return $ mes ++ "Null"
   dump mes Clause{..} = do
-    a <- show <$> getDouble activity
+    a <- show <$> getInt activity
     (len:ls) <- asList lits
     return $ mes ++ "C" ++ show len ++ "{" ++ intercalate "," [show learnt, a, show . map lit2int . take len $ ls] ++ "}"
   {-# SPECIALIZE INLINE asVec :: Clause -> Vec #-}
@@ -96,7 +96,7 @@ newClauseFromVec l vec = do
   n <- getNth vec 0
   v <- newVec $ n + 1
   forM_ [0 .. n] $ \i -> setNth v i =<< getNth vec i
-  Clause l <$> {- newInt 0 <*> -} newDouble 0 <*> newBool False <*> return v
+  Clause l <$> {- newInt 0 <*> -} newInt 0 <*> newBool False <*> return v
 
 -- | returns the number of literals in a clause, even if the given clause is a binary clause
 {-# INLINE sizeOfClause #-}
