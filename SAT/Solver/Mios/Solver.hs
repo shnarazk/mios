@@ -74,7 +74,7 @@ data Solver = Solver
                 -- Configuration
               , config     :: !MiosConfiguration -- ^ search paramerters
               , nVars      :: !Int               -- ^ number of variables
-              , claInc     :: !DoubleSingleton   -- ^ Clause activity increment amount to bump with.
+--              , claInc     :: !DoubleSingleton   -- ^ Clause activity increment amount to bump with.
 --            , varDecay   :: !DoubleSingleton   -- ^ used to set 'varInc'
               , varInc     :: !DoubleSingleton   -- ^ Variable activity increment amount to bump with.
               , rootLevel  :: !IntSingleton      -- ^ Separates incremental and search assumptions.
@@ -116,7 +116,7 @@ newSolver conf (CNFDescription nv nc _) = do
     -- Configuration
     <*> return conf                                   -- config
     <*> return nv                                     -- nVars
-    <*> newDouble 1.0                                 -- claInc
+--    <*> newDouble 1.0                                 -- claInc
 --  <*> newDouble (variableDecayRate conf)            -- varDecay
     <*> newDouble 1.0                                 -- varInc
     <*> newInt 0                                      -- rootLevel
@@ -463,7 +463,7 @@ claBumpActivity s Clause{..} = do
 -- | __Fig. 14 (p.19)__
 {-# INLINE claDecayActivity #-}
 claDecayActivity :: Solver -> IO ()
-claDecayActivity Solver{..} = modifyDouble claInc (/ clauseDecayRate config)
+claDecayActivity Solver{..} = undefined -- modifyDouble claInc (/ clauseDecayRate config)
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE claRescaleActivity #-}
@@ -479,23 +479,25 @@ claRescaleActivity Solver{..} = do
       modifyDouble (activity c) (/ claActivityThreshold)
       loopOnVector $ i + 1
   loopOnVector 0
-  modifyDouble claInc (/ claActivityThreshold)
+  -- modifyDouble claInc (/ claActivityThreshold)
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE claRescaleActivityAfterRestart #-}
-claRescaleActivityAfterRestart :: Solver -> IO ()
-claRescaleActivityAfterRestart Solver{..} = do
+claRescaleActivityAfterRestart :: Solver -> Int -> IO ()
+claRescaleActivityAfterRestart Solver{..} _ = do
   vec <- getClauseVector learnts
   n <- numberOfClauses learnts
   let
+    thr = 9
     loopOnVector :: Int -> IO ()
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
       c <- getNthClause vec i
       d <- sizeOfClause c
-      if d < 9
-        then modifyDouble (activity c) sqrt
-        else setDouble (activity c) 0
+      case () of
+        _ | d < 3   -> return ()
+        _ | d < thr -> modifyDouble (activity c) sqrt
+        _           -> setDouble (activity c) 0 -- purge activities for big clauses
       setBool (protected c) False
       loopOnVector $ i + 1
   loopOnVector 0
