@@ -484,23 +484,30 @@ claRescaleActivity Solver{..} = do
 -- | __Fig. 14 (p.19)__
 {-# INLINE claRescaleActivityAfterRestart #-}
 claRescaleActivityAfterRestart :: Solver -> Int -> IO ()
-claRescaleActivityAfterRestart Solver{..} _ = do
+claRescaleActivityAfterRestart Solver{..} dl = do
   vec <- getClauseVector learnts
   n <- numberOfClauses learnts
+  -- counters <- newVec 17
   let
-    thr = 9
+    thr = max 5 $ div dl 2
     loopOnVector :: Int -> IO ()
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
       c <- getNthClause vec i
       d <- sizeOfClause c
+      -- modifyNth counters (+ 1) (min d 16)
+      when (thr < d) $ setBool (protected c) False
+      -- setBool (protected c) (d < thr)
+      -- setDouble (activity c) 0
+{-
       case () of
-        _ | d < 3   -> return ()
-        _ | d < thr -> modifyDouble (activity c) sqrt
-        _           -> setDouble (activity c) 0 -- purge activities for big clauses
-      setBool (protected c) False
+        _ | d < 5   -> return ()
+        _ -> setDouble (activity c) 0 -- >> setBool (protected c) False
+--        _           -> setDouble (activity c) 0 -- purge activities for big clauses
+-}
       loopOnVector $ i + 1
   loopOnVector 0
+  -- putStr $ show thr ++ ": " >> print . zip [2::Int ..] . drop 2 =<< asList counters
 
 -------------------------------------------------------------------------------- VarHeap
 
