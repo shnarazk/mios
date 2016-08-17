@@ -489,14 +489,18 @@ claRescaleActivityAfterRestart Solver{..} dl = do
   n <- numberOfClauses learnts
   -- counters <- newVec 17
   let
-    thr = max 5 $ div dl 2
+    -- thr = max 5 $ div dl 2
     loopOnVector :: Int -> IO ()
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
       c <- getNthClause vec i
       d <- sizeOfClause c
+      if d < 9
+        then modifyDouble (activity c) sqrt
+        else setDouble (activity c) 0
+      setBool (protected c) False
       -- modifyNth counters (+ 1) (min d 16)
-      when (thr < d) $ setBool (protected c) False
+      -- when (thr < d) $ setBool (protected c) False
       -- setBool (protected c) (d < thr)
       -- setDouble (activity c) 0
 {-
