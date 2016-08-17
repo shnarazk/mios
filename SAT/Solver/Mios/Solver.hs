@@ -30,7 +30,7 @@ module SAT.Solver.Mios.Solver
        , getModel
          -- * Activities
        , claBumpActivity
-       , claDecayActivity
+--       , claDecayActivity
        , claRescaleActivityAfterRestart
        , varBumpActivity
        , varDecayActivity
@@ -453,17 +453,20 @@ varRescaleActivity Solver{..} = do
 -- | __Fig. 14 (p.19)__
 {-# INLINE claBumpActivity #-}
 claBumpActivity :: Solver -> Clause -> IO ()
-claBumpActivity s Clause{..} = do
+claBumpActivity s@Solver{..} Clause{..} = do
   dl <- decisionLevel s
-  a <- (fromIntegral dl +) <$> getDouble activity
+  let d = fromIntegral dl -- $ if dl <= 3 then 100 else dl
+  a <- (d +) <$> getDouble activity
   setDouble activity a
   -- setBool protected True
   when (claActivityThreshold <= a) $ claRescaleActivity s
 
+{-
 -- | __Fig. 14 (p.19)__
 {-# INLINE claDecayActivity #-}
 claDecayActivity :: Solver -> IO ()
-claDecayActivity Solver{..} = undefined -- modifyDouble claInc (/ clauseDecayRate config)
+claDecayActivity Solver{..} = modifyDouble claInc (/ clauseDecayRate config)
+-}
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE claRescaleActivity #-}
@@ -487,31 +490,20 @@ claRescaleActivityAfterRestart :: Solver -> Int -> IO ()
 claRescaleActivityAfterRestart Solver{..} dl = do
   vec <- getClauseVector learnts
   n <- numberOfClauses learnts
-  -- counters <- newVec 17
   let
-    -- thr = max 5 $ div dl 2
     loopOnVector :: Int -> IO ()
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
       c <- getNthClause vec i
       d <- sizeOfClause c
-      if d < 9
-        then modifyDouble (activity c) sqrt
-        else setDouble (activity c) 0
-      setBool (protected c) False
-      -- modifyNth counters (+ 1) (min d 16)
-      -- when (thr < d) $ setBool (protected c) False
-      -- setBool (protected c) (d < thr)
-      -- setDouble (activity c) 0
-{-
-      case () of
-        _ | d < 5   -> return ()
-        _ -> setDouble (activity c) 0 -- >> setBool (protected c) False
---        _           -> setDouble (activity c) 0 -- purge activities for big clauses
--}
+      when (8 < d) $ setDouble (activity c) 0 -- (fromIntegral dl)
+--      modifyDouble (activity c) (/ k) -- sqrt
+--      if d < 9
+--        then modifyDouble (activity c) (/ d) -- sqrt
+--        else setDouble (activity c) 0
+      when (8 < dl) $ setBool (protected c) False
       loopOnVector $ i + 1
   loopOnVector 0
-  -- putStr $ show thr ++ ": " >> print . zip [2::Int ..] . drop 2 =<< asList counters
 
 -------------------------------------------------------------------------------- VarHeap
 
