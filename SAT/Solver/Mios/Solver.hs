@@ -453,10 +453,9 @@ varRescaleActivity Solver{..} = do
 -- | __Fig. 14 (p.19)__
 {-# INLINE claBumpActivity #-}
 claBumpActivity :: Solver -> Clause -> IO ()
-claBumpActivity s@Solver{..} Clause{..} = do
+claBumpActivity s Clause{..} = do
   dl <- decisionLevel s
-  let d = fromIntegral dl -- $ if dl <= 3 then 100 else dl
-  a <- (d +) <$> getDouble activity
+  a <- (fromIntegral dl +) <$> getDouble activity
   setDouble activity a
   -- setBool protected True
   when (claActivityThreshold <= a) $ claRescaleActivity s
@@ -486,8 +485,8 @@ claRescaleActivity Solver{..} = do
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE claRescaleActivityAfterRestart #-}
-claRescaleActivityAfterRestart :: Solver -> Int -> IO ()
-claRescaleActivityAfterRestart Solver{..} dl = do
+claRescaleActivityAfterRestart :: Solver -> IO ()
+claRescaleActivityAfterRestart Solver{..} = do
   vec <- getClauseVector learnts
   n <- numberOfClauses learnts
   let
@@ -496,12 +495,10 @@ claRescaleActivityAfterRestart Solver{..} dl = do
     loopOnVector i = do
       c <- getNthClause vec i
       d <- sizeOfClause c
-      when (8 < d) $ setDouble (activity c) 0 -- (fromIntegral dl)
---      modifyDouble (activity c) (/ k) -- sqrt
---      if d < 9
---        then modifyDouble (activity c) (/ d) -- sqrt
---        else setDouble (activity c) 0
-      when (8 < dl) $ setBool (protected c) False
+      if d < 9
+        then modifyDouble (activity c) (/ fromIntegral d) -- sqrt
+        else setDouble (activity c) 0
+      setBool (protected c) False
       loopOnVector $ i + 1
   loopOnVector 0
 

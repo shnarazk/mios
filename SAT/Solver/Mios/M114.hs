@@ -731,7 +731,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
                    (s `cancelUntil`) =<< getInt rootLevel -- force a restart
-                   claRescaleActivityAfterRestart s d
+                   claRescaleActivityAfterRestart s
                    incrementStat s NumOfRestart 1
                    return Bottom
              _ -> do
