@@ -371,7 +371,7 @@ analyzeFinal Solver{..} confl skipFirst = do
 -- propagate : [void] -> [Clause+]
 --
 -- __Description:__
---   Porpagates all enqueued facts. If a conflict arises, the cornflicting clause is returned.
+--   Porpagates all enqueued facts. If a conflict arises, the conflicting clause is returned.
 --   otherwise CRef_undef.
 --
 -- __Post-conditions:__
