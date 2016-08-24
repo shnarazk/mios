@@ -29,6 +29,10 @@ by 2. This means that *mios-1.2.0 is only about 2 times slower than MiniSat-2.2.
 
 ### > Release Note
 
+##### 1.2.2
+
+* replace LBD heuristics with a simpler metrics, inspired by S. Jabbour, et. al: “*Revisiting the Learned Clauses Database Reduction Strategies*,” 2013.
+
 ##### 1.2.1
 
 * tiny changes for uploading to [hackage](http://hackage.haskell.org/)
