@@ -463,6 +463,7 @@ propagate s@Solver{..} = do
                           if not result
                             then do
                                 ((== 0) <$> decisionLevel s) >>= (`when` setBool ok False)
+                                -- #BBCP
                                 setInt qHead =<< sizeOfStack trail
                                 -- Copy the remaining watches:
                                 let
