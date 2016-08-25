@@ -23,10 +23,7 @@ import qualified Data.Vector.Unboxed.Mutable as UV
 import SAT.Solver.Mios.Types
 
 -- | Unboxed mutable stack for Int.
-newtype Stack = Stack
-                  {
-                    ivec :: UV.IOVector Int
-                  }
+newtype Stack = Stack (UV.IOVector Int)
 
 instance VectorFamily Stack Int where
   dump str v = (str ++) . show <$> asList v
