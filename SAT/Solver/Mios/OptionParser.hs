@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE Safe #-}
 
 -- | command line option parser for mios
@@ -24,17 +25,17 @@ data MiosProgramOption = MiosProgramOption
                      {
                        _targetFile :: Maybe String
                      , _outputFile :: Maybe String
-                     , _confVariableDecayRate :: Double
-                     , _confClauseDecayRate :: Double
+                     , _confVariableDecayRate :: !Double
+--                     , _confClauseDecayRate :: Double
 --                     , _confRandomDecisionRate :: Int
-                     , _confCheckAnswer :: Bool
-                     , _confVerbose :: Bool
-                     , _confTimeProbe :: Bool
-                     , _confStatProbe :: Bool
-                     , _confNoAnswer :: Bool
-                     , _validateAssignment :: Bool
-                     , _displayHelp :: Bool
-                     , _displayVersion :: Bool
+                     , _confCheckAnswer :: !Bool
+                     , _confVerbose :: !Bool
+                     , _confTimeProbe :: !Bool
+                     , _confStatProbe :: !Bool
+                     , _confNoAnswer :: !Bool
+                     , _validateAssignment :: !Bool
+                     , _displayHelp :: !Bool
+                     , _displayVersion :: !Bool
                      }
 
 -- | default option settings
@@ -44,7 +45,7 @@ miosDefaultOption = MiosProgramOption
     _targetFile = Just ""
   , _outputFile = Nothing
   , _confVariableDecayRate = variableDecayRate defaultConfiguration
-  , _confClauseDecayRate = clauseDecayRate defaultConfiguration
+--  , _confClauseDecayRate = clauseDecayRate defaultConfiguration
 --  , _confRandomDecisionRate = randomDecisionRate defaultConfiguration
   , _confCheckAnswer = False
   , _confVerbose = False
@@ -63,9 +64,9 @@ miosOptions =
     Option ['d'] ["variable-decay-rate"]
     (ReqArg (\v c -> c { _confVariableDecayRate = read v }) (show (_confVariableDecayRate miosDefaultOption)))
     "[solver] variable activity decay rate (0.0 - 1.0)"
-  , Option ['c'] ["clause-decay-rate"]
-    (ReqArg (\v c -> c { _confClauseDecayRate = read v }) (show (_confClauseDecayRate miosDefaultOption)))
-    "[solver] clause activity decay rate (0.0 - 1.0)"
+--  , Option ['c'] ["clause-decay-rate"]
+--    (ReqArg (\v c -> c { _confClauseDecayRate = read v }) (show (_confClauseDecayRate miosDefaultOption)))
+--    "[solver] clause activity decay rate (0.0 - 1.0)"
 --  , Option ['r'] ["random-decision-rate"]
 --    (ReqArg (\v c -> c { _confRandomDecisionRate = read v }) (show (_confRandomDecisionRate miosDefaultOption)))
 --    "[solver] random selection rate (0 - 1000)"
@@ -127,6 +128,6 @@ toMiosConf :: MiosProgramOption -> MiosConfiguration
 toMiosConf opts = MiosConfiguration
                  {
                    variableDecayRate = _confVariableDecayRate opts
-                 , clauseDecayRate = _confClauseDecayRate opts
+--                 , clauseDecayRate = _confClauseDecayRate opts
 --                 , randomDecisionRate = _confRandomDecisionRate opts
                  }
