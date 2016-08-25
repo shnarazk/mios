@@ -21,7 +21,6 @@ module SAT.Solver.Mios.Solver
        , valueVar
        , valueLit
        , locked
-       , VarHeap
          -- * State Modifiers
        , addClause
        , enqueue
