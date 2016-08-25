@@ -524,11 +524,10 @@ reduceDB s@Solver{..} = do
   where
     w = finiteBitSize (0:: Int)
     (l, a) = case () of
-      _ | 64 <= w -> (8, 25)   -- 30 bit => 1G clauses
---      _ | 64 <= w -> (16, 19)   -- 28 bit => 256M clauses
-      _ | 60 <= w -> (14, 19)   -- 26 bit =>  32M clauses
-      _ | 32 <= w -> ( 7,  6)   -- 18 bit => 256K clauses
-      _ | 29 <= w -> ( 6,  5)   -- 17 bit => 128K clauses
+      _ | 64 <= w -> (8, 25)   -- 30 bit =>   1G clauses
+      _ | 60 <= w -> (8, 24)   -- 26 bit =>  64M clauses
+      _ | 32 <= w -> (6,  7)   -- 18 bit => 256K clauses
+      _ | 29 <= w -> (6,  5)   -- 17 bit => 128K clauses
 --      _ -> error "Int on your CPU doesn't have sufficient bit width."
 
 {-# INLINABLE sortClauses #-}
@@ -587,7 +586,6 @@ sortClauses s cm nneeds = do
             nextL i@((<= right) -> False) = return i
             nextL i = do v <- getNth keys i; if v < pivot then nextL (i + 1) else return i
             nextR :: Int -> IO Int
-            -- nextR i@((left <=) -> False) = return i
             nextR i = do v <- getNth keys i; if pivot < v then nextR (i - 1) else return i
             divide :: Int -> Int -> IO Int
             divide l r = do
@@ -804,7 +802,6 @@ unsafeEnqueue s@Solver{..} p from = do
   setNth level v =<< decisionLevel s
   setNthClause reason v from     -- NOTE: @from@ might be NULL!
   pushToStack trail p
-  -- when (from /= NullClause && learnt from) $ updateRank s from min  -- bump rank of @from@
 
 -- __Pre-condition:__ propagation queue is empty
 {-# INLINE unsafeAssume #-}
@@ -812,18 +809,3 @@ unsafeAssume :: Solver -> Lit -> IO ()
 unsafeAssume s@Solver{..} p = do
   pushToStack trailLim =<< sizeOfStack trail
   unsafeEnqueue s p NullClause
-
-{-
--- | for debug
-fromAssigns :: Vec -> IO [Int]
-fromAssigns as = zipWith f [1 .. ] . tail <$> asList as
-  where
-    f n x
-      | x == lTrue = n
-      | x == lFalse = negate n
-      | otherwise = 0
-
--- | for debug
-dumpAssignment :: String -> Vec -> IO String
-dumpAssignment mes v = (mes ++) . show <$> fromAssigns v
--}

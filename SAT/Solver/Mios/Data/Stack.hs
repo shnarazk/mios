@@ -1,11 +1,9 @@
--- | stack of Int, by adding the length field as the zero-th element to a 'Vec'
 {-# LANGUAGE
-    BangPatterns
-  , FlexibleInstances
-  , MultiParamTypeClasses
+    MultiParamTypeClasses
   #-}
 {-# LANGUAGE Trustworthy #-}
 
+-- | stack of Int, by adding the length field as the zero-th element to a 'Vec'
 module SAT.Solver.Mios.Data.Stack
        (
          Stack
@@ -17,7 +15,7 @@ module SAT.Solver.Mios.Data.Stack
        , lastOfStack
        , shrinkStack
        , asSizedVec
-       , isoVec
+--       , isoVec
        )
        where
 
@@ -59,8 +57,8 @@ newStack n = do
 -- | pushs an int to 'Stack'
 {-# INLINE pushToStack #-}
 pushToStack :: Stack -> Int -> IO ()
-pushToStack (Stack v) !x = do
-  !i <- (+ 1) <$> UV.unsafeRead v 0
+pushToStack (Stack v) x = do
+  i <- (+ 1) <$> UV.unsafeRead v 0
   UV.unsafeWrite v i x
   UV.unsafeWrite v 0 i
 
@@ -85,9 +83,11 @@ shrinkStack (Stack v) k = UV.unsafeModify v (subtract k) 0
 asSizedVec :: Stack -> Vec
 asSizedVec (Stack v) = v
 
+{-
 -- | isomorphic conversion to 'Vec'
 --
 -- Note: 'asVec' drops the 1st element and no copy (unsafe operation); 'isoVec' really copies the real elements
 {-# INLINE isoVec #-}
 isoVec :: Stack -> IO Vec
 isoVec (Stack v) = UV.clone . flip UV.take v . (1 +) =<< UV.unsafeRead v 0
+-}

@@ -126,8 +126,8 @@ instance VectorFamily SimpleManager C.Clause where
 -- | Clause + Blocking Literal
 data ClauseExtManager = ClauseExtManager
   {
-    _nActives     :: IntSingleton               -- number of active clause
-  , _purged       :: BoolSingleton              -- whether it needs gc
+    _nActives     :: !IntSingleton               -- number of active clause
+  , _purged       :: !BoolSingleton              -- whether it needs gc
   , _clauseVector :: IORef.IORef C.ClauseVector -- clause list
   , _keyVector    :: IORef.IORef Vec            -- Int list
   }

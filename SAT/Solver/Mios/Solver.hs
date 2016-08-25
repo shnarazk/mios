@@ -74,7 +74,7 @@ data Solver = Solver
                 -- Configuration
               , config     :: !MiosConfiguration -- ^ search paramerters
               , nVars      :: !Int               -- ^ number of variables
---              , claInc     :: !DoubleSingleton   -- ^ Clause activity increment amount to bump with.
+--            , claInc     :: !DoubleSingleton   -- ^ Clause activity increment amount to bump with.
 --            , varDecay   :: !DoubleSingleton   -- ^ used to set 'varInc'
               , varInc     :: !DoubleSingleton   -- ^ Variable activity increment amount to bump with.
               , rootLevel  :: !IntSingleton      -- ^ Separates incremental and search assumptions.
@@ -84,11 +84,13 @@ data Solver = Solver
               , an'toClear :: !Stack             -- ^ ditto
               , an'stack   :: !Stack             -- ^ ditto
               , pr'seen    :: !Vec               -- ^ used in propagate
---              , lbd'seen   :: !Vec               -- ^ used in lbd computation
---              , lbd'key    :: !IntSingleton      -- ^ used in lbd computation
               , litsLearnt :: !Stack             -- ^ used to create a learnt clause
               , lastDL     :: !Stack             -- ^ last decision level used in analyze
               , stats      :: !Vec               -- ^ statistics information holder
+{-
+              , lbd'seen   :: !Vec               -- ^ used in lbd computation
+              , lbd'key    :: !IntSingleton      -- ^ used in lbd computation
+-}
               }
 
 -- | returns an everything-is-initialized solver from the arguments
@@ -116,7 +118,7 @@ newSolver conf (CNFDescription nv nc _) = do
     -- Configuration
     <*> return conf                                   -- config
     <*> return nv                                     -- nVars
---    <*> newDouble 1.0                                 -- claInc
+--  <*> newDouble 1.0                                 -- claInc
 --  <*> newDouble (variableDecayRate conf)            -- varDecay
     <*> newDouble 1.0                                 -- varInc
     <*> newInt 0                                      -- rootLevel
@@ -126,11 +128,13 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> newStack nv                                   -- an'toClear
     <*> newStack nv                                   -- an'stack
     <*> newVecWith (nv + 1) (-1)                      -- pr'seen
---    <*> newVec nv                                     -- lbd'seen
---    <*> newInt 0                                      -- lbd'key
     <*> newStack nv                                   -- litsLearnt
     <*> newStack nv                                   -- lastDL
     <*> newVec (1 + fromEnum (maxBound :: StatIndex)) -- stats
+{-
+--    <*> newVec nv                                     -- lbd'seen
+--    <*> newInt 0                                      -- lbd'key
+-}
 
 --------------------------------------------------------------------------------
 -- Accessors
@@ -184,18 +188,22 @@ data StatIndex =
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 
 -- | returns the value of 'StatIndex'
+{-# INLINE getStat #-}
 getStat :: Solver -> StatIndex -> IO Int
 getStat (stats -> v) (fromEnum -> i) = getNth v i
 
 -- | sets to 'StatIndex'
+{-# INLINE setStat #-}
 setStat :: Solver -> StatIndex -> Int -> IO ()
 setStat (stats -> v) (fromEnum -> i) x = setNth v i x
 
 -- | increments a stat data corresponding to 'StatIndex'
+{-# INLINE incrementStat #-}
 incrementStat :: Solver -> StatIndex -> Int -> IO ()
 incrementStat (stats -> v) (fromEnum -> i) k = modifyNth v (+ k) i
 
 -- | returns the statistics as list
+{-# INLINABLE getStats #-}
 getStats :: Solver -> IO [(StatIndex, Int)]
 getStats (stats -> v) = mapM (\i -> (i, ) <$> getNth v (fromEnum i)) [minBound .. maxBound :: StatIndex]
 
@@ -325,8 +333,6 @@ enqueue s@Solver{..} p from = do
     k <- (12 +) <$> decisionLevel s
     when (k < l) $ setInt (lbd from) k
 -}
-  -- putStrLn . ("ssigns " ++) . show . map lit2int =<< asList trail
-  -- putStrLn =<< dump ("enqueue " ++ show (lit2int p) ++ " ") from
   let signumP = if positiveLit p then lTrue else lFalse
   let v = lit2var p
   val <- valueVar s v
@@ -515,9 +521,15 @@ data VarHeap = VarHeap
                 }
 
 newVarHeap :: Int -> IO VarHeap
-newVarHeap n = VarHeap <$> newSizedVecIntFromList lst <*> newSizedVecIntFromList lst
-  where
-    lst = [1 .. n]
+newVarHeap n = do
+  v1 <- newVec (n + 1)
+  v2 <- newVec (n + 1)
+  let
+    loop :: Int -> IO ()
+    loop ((<= n) -> False) = setNth v1 0 n >> setNth v2 0 n
+    loop i = setNth v1 i i >> setNth v2 i i >> loop (i + 1)
+  loop 1
+  return $ VarHeap v1 v2
 
 {-# INLINE numElementsInHeap #-}
 numElementsInHeap :: Solver -> IO Int

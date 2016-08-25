@@ -1,8 +1,9 @@
--- | A fast(est) mutable data
 {-# LANGUAGE
     BangPatterns
   #-}
 {-# LANGUAGE Trustworthy #-}
+
+-- | A fast(est) mutable data based on Data.Vector.Unboxed.Mutable
 
 module SAT.Solver.Mios.Data.Singleton
        (
@@ -26,97 +27,6 @@ module SAT.Solver.Mios.Data.Singleton
        , modifyDouble
        )
        where
-{-
-----------------------------------------
--- Implementation 1. :: IORef
-----------------------------------------
-
-import Data.IORef
-
-type BoolSingleton = IORef Bool
-
-newBool :: Bool -> IO BoolSingleton
-newBool = newIORef
-
-{-# INLINE getBool #-}
-getBool :: BoolSingleton -> IO Bool
-getBool = readIORef
-
-{-# INLINE setBool #-}
-setBool :: BoolSingleton -> Bool -> IO ()
-setBool = writeIORef
-
-{-# INLINE modifyBool #-}
-modifyBool :: BoolSingleton -> (Bool -> Bool) -> IO ()
-modifyBool = modifyIORef'
-
-type IntSingleton = IORef Int
-
-newInt :: Int -> IO IntSingleton
-newInt = newIORef
-
-{-# INLINE getInt #-}
-getInt :: IntSingleton -> IO Int
-getInt = readIORef
-
-{-# INLINE setInt #-}
-setInt :: IntSingleton -> Int -> IO ()
-setInt = writeIORef
-
-{-# INLINE modifyInt #-}
-modifyInt :: IntSingleton -> (Int -> Int) -> IO ()
-modifyInt = modifyIORef'
-
-type DoubleSingleton = IORef Double
-
-newDouble :: Double -> IO DoubleSingleton
-newDouble = newIORef
-
-{-# INLINE getDouble #-}
-getDouble :: DoubleSingleton -> IO Double
-getDouble = readIORef
-
-{-# INLINE setDouble #-}
-setDouble :: DoubleSingleton -> Double -> IO ()
-setDouble = writeIORef
-
-{-# INLINE modifyDouble #-}
-modifyDouble :: DoubleSingleton -> (Double -> Double) -> IO ()
-modifyDouble = modifyIORef'
--}
-{-
-----------------------------------------
--- Implementation 2. :: Data.Mutable.IOURef
-----------------------------------------
-
-import qualified Data.Mutable as M
-
-newtype IntSingleton = IntSingleton
-                       {
-                         mutableInt :: M.IOURef Int
-                       }
-
-newInt :: IO IntSingleton
-newInt = IntSingleton <$> M.newRef 0
-
-{-# INLINE getInt #-}
-getInt :: IntSingleton -> IO Int
-getInt !(IntSingleton val) = M.readRef val
-
-{-# INLINE setInt #-}
-setInt :: IntSingleton -> Int -> IO ()
-setInt !(IntSingleton val) !x = M.writeRef val x
-
-{-# INLINE modifyInt #-}
-modifyInt :: IntSingleton -> (Int -> Int) -> IO ()
-modifyInt !(IntSingleton val) !f = M.modifyRef' val f
--}
-
--- {-
-----------------------------------------
--- Implementation 3. :: Data.Vector.Unboxed.Mutable
-----------------------------------------
-
 import qualified Data.Vector.Unboxed.Mutable as UV
 
 -- | mutable Int
@@ -142,7 +52,7 @@ setInt val !x = UV.unsafeWrite val 0 x
 -- | modifies the value
 {-# INLINE modifyInt #-}
 modifyInt :: IntSingleton -> (Int -> Int) -> IO ()
-modifyInt val !f = UV.unsafeModify val f 0
+modifyInt val f = UV.unsafeModify val f 0
 
 -- | mutable Bool
 type BoolSingleton = UV.IOVector Bool
@@ -167,7 +77,7 @@ setBool val !x = UV.unsafeWrite val 0 x
 -- | modifies the value
 {-# INLINE modifyBool #-}
 modifyBool :: BoolSingleton -> (Bool -> Bool) -> IO ()
-modifyBool val !f = UV.unsafeModify val f 0
+modifyBool val f = UV.unsafeModify val f 0
 
 -- | mutable Double
 type DoubleSingleton = UV.IOVector Double
@@ -192,5 +102,4 @@ setDouble val !x = UV.unsafeWrite val 0 x
 -- | modifies the value
 {-# INLINE modifyDouble #-}
 modifyDouble :: DoubleSingleton -> (Double -> Double) -> IO ()
-modifyDouble val !f = UV.unsafeModify val f 0
--- -}
+modifyDouble val f = UV.unsafeModify val f 0

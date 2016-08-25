@@ -18,8 +18,8 @@ versionId = "mios 1.2.2 -- https://github.com/shnarazk/mios" -- no more LBD
 -- | solver's parameters; random decision rate was dropped.
 data MiosConfiguration = MiosConfiguration
                          {
-                           variableDecayRate  :: Double  -- ^ decay rate for variable activity
-                         , clauseDecayRate    :: Double  -- ^ decay rate for clause activity
+                           variableDecayRate  :: !Double  -- ^ decay rate for variable activity
+                         , clauseDecayRate    :: !Double  -- ^ decay rate for clause activity
                          }
 
 -- | dafault configuration
