@@ -345,7 +345,7 @@ enqueue s@Solver{..} p from = do
         return $ val == signumP
     else do
         -- New fact, store it
-        setNth assigns v $! signumP
+        setNth assigns v signumP
         setNth level v =<< decisionLevel s
         setNthClause reason v from     -- NOTE: @from@ might be NULL!
         pushToStack trail p

@@ -790,7 +790,6 @@ solve s@Solver{..} assumps = do
               else cancelUntil s 0 >> return (status == LTrue)
         while 100 (nc / 3.0)
 
-
 --
 -- 'enqueue' is defined in 'Solver'; most functions in M114 use 'unsafeEnqueue'
 --
