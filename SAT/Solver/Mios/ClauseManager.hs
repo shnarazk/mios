@@ -271,7 +271,7 @@ newWatcherList n m = V.fromList <$> forM [0 .. int2lit (negate n) + 1] (\_ -> ne
 
 -- | returns the watcher List :: "ClauseManager" for "Literal" /l/
 {-# INLINE getNthWatcher #-}
-getNthWatcher :: WatcherList -> Lit-> ClauseExtManager
+getNthWatcher :: WatcherList -> Lit -> ClauseExtManager
 getNthWatcher = V.unsafeIndex
 
 instance VectorFamily WatcherList C.Clause where
