@@ -506,7 +506,7 @@ claRescaleActivityAfterRestart Solver{..} = do
       c <- getNthClause vec i
       d <- sizeOfClause c
       if d < 6
-        then modifyDouble (activity c) (** 0.26)
+        then modifyDouble (activity c) (** 0.25)
         else setDouble (activity c) 0
       setBool (protected c) False
       loopOnVector $ i + 1
