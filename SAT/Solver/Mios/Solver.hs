@@ -155,28 +155,28 @@ nLearnts = numberOfClauses . learnts
 
 -- | return the model as a list of literal
 getModel :: Solver -> IO [Int]
-getModel s = zipWith (\n b -> if b then n else negate n) [1 .. ] <$> asList (model s)
+getModel !s = zipWith (\n b -> if b then n else negate n) [1 .. ] <$> asList (model s)
 
 -- | returns the current decision level
 {-# INLINE decisionLevel #-}
 decisionLevel :: Solver -> IO Int
-decisionLevel Solver{..} = sizeOfStack trailLim
+decisionLevel = sizeOfStack . trailLim
 
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Var'
 {-# INLINE valueVar #-}
 valueVar :: Solver -> Var -> IO Int
-valueVar s !x = getNth (assigns s) x
+valueVar = getNth . assigns
 
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit'
 {-# INLINE valueLit #-}
 valueLit :: Solver -> Lit -> IO Int -- FIXME: LiftedBool
-valueLit Solver{..} !p = if positiveLit p then getNth assigns (lit2var p) else negate <$> getNth assigns (lit2var p)
+valueLit !(assigns -> a) !p = (\x -> if positiveLit p then x else negate x) <$> getNth a (lit2var p)
 
 -- | __Fig. 7. (p.11)__
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__
 {-# INLINE locked #-}
 locked :: Solver -> Clause -> IO Bool
-locked Solver{..} c@Clause{..} =  (c ==) <$> (getNthClause reason . lit2var =<< getNth lits 1)
+locked !s !c = (c ==) <$> (getNthClause (reason s) . lit2var =<< getNth (lits c) 1)
 
 -------------------------------------------------------------------------------- Statistics
 
@@ -189,17 +189,17 @@ data StatIndex =
 -- | returns the value of 'StatIndex'
 {-# INLINE getStat #-}
 getStat :: Solver -> StatIndex -> IO Int
-getStat (stats -> v) (fromEnum -> i) = getNth v i
+getStat !(stats -> v) !(fromEnum -> i) = getNth v i
 
 -- | sets to 'StatIndex'
 {-# INLINE setStat #-}
 setStat :: Solver -> StatIndex -> Int -> IO ()
-setStat (stats -> v) (fromEnum -> i) x = setNth v i x
+setStat !(stats -> v) !(fromEnum -> i) x = setNth v i x
 
 -- | increments a stat data corresponding to 'StatIndex'
 {-# INLINE incrementStat #-}
 incrementStat :: Solver -> StatIndex -> Int -> IO ()
-incrementStat (stats -> v) (fromEnum -> i) k = modifyNth v (+ k) i
+incrementStat !(stats -> v) !(fromEnum -> i) k = modifyNth v (+ k) i
 
 -- | returns the statistics as list
 {-# INLINABLE getStats #-}
@@ -357,8 +357,8 @@ enqueue s@Solver{..} p from = do
 -- __Pre-condition:__ propagation queue is empty
 {-# INLINE assume #-}
 assume :: Solver -> Lit -> IO Bool
-assume s@Solver{..} p = do
-  pushToStack trailLim =<< sizeOfStack trail
+assume !s p = do
+  pushToStack (trailLim s) =<< sizeOfStack (trail s)
   enqueue s p NullClause
 
 -- | #M22: Revert to the states at given level (keeping all assignment at 'level' but not beyond).
