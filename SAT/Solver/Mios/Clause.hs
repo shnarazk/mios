@@ -107,7 +107,7 @@ sizeOfClause !c = getNth (lits c) 0
 -- | drop the last /N/ literals in a 'Clause' to eliminate unsatisfied literals
 {-# INLINABLE shrinkClause #-}
 shrinkClause :: Int -> Clause -> IO ()
-shrinkClause n !c = modifyNth (lits c) (subtract n) 0
+shrinkClause !n Clause{..} = setNth lits 0 . subtract n =<< getNth lits 0
 
 --------------------------------------------------------------------------------
 
