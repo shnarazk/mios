@@ -140,13 +140,13 @@ instance ClauseManager ClauseExtManager where
     b <- newVec (MV.length v)
     ClauseExtManager i <$> newBool False <*> IORef.newIORef v <*> IORef.newIORef b
   {-# SPECIALIZE INLINE numberOfClauses :: ClauseExtManager -> IO Int #-}
-  numberOfClauses ClauseExtManager{..} = getInt _nActives
+  numberOfClauses !m = getInt (_nActives m)
   {-# SPECIALIZE INLINE clearManager :: ClauseExtManager -> IO () #-}
-  clearManager ClauseExtManager{..} = setInt _nActives 0
+  clearManager !m = setInt (_nActives m) 0
   {-# SPECIALIZE INLINE shrinkManager :: ClauseExtManager -> Int -> IO () #-}
-  shrinkManager ClauseExtManager{..} k = modifyInt _nActives (subtract k)
+  shrinkManager !m k = modifyInt (_nActives m) (subtract k)
   {-# SPECIALIZE INLINE getClauseVector :: ClauseExtManager -> IO C.ClauseVector #-}
-  getClauseVector ClauseExtManager{..} = IORef.readIORef _clauseVector
+  getClauseVector !m = IORef.readIORef (_clauseVector m)
   -- | O(1) insertion function
   {-# SPECIALIZE INLINE pushClause :: ClauseExtManager -> C.Clause -> IO () #-}
   pushClause !ClauseExtManager{..} !c = do
@@ -280,10 +280,12 @@ instance VectorFamily WatcherList C.Clause where
 -- | purges all expirable clauses in 'WatcherList'
 {-# INLINE garbageCollect #-}
 garbageCollect :: WatcherList -> IO ()
-garbageCollect wm = V.mapM_ purifyManager wm
+garbageCollect = V.mapM_ purifyManager
 
+{-
 numberOfRegisteredClauses :: WatcherList -> IO Int
 numberOfRegisteredClauses ws = sum <$> V.mapM numberOfClauses ws
+-}
 
 {-
 -------------------------------------------------------------------------------- debugging stuff
