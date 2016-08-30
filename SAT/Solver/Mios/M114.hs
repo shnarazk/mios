@@ -25,7 +25,7 @@ import SAT.Solver.Mios.Solver
 -- import SAT.Solver.Mios.Ranking
 
 -------------------------------------------------------------------------------- Ranking
--- | specialized version of ranking
+-- | a special version of ranking
 {-# INLINE ranking' #-}
 ranking' :: Clause -> IO Int
 ranking' = sizeOfClause
@@ -33,12 +33,12 @@ ranking' = sizeOfClause
 -- | #114: __RemoveWatch__
 {-# INLINABLE removeWatch #-}
 removeWatch :: Solver -> Clause -> IO ()
-removeWatch Solver{..} c = do
+removeWatch (watches -> w) c = do
   let lvec = asVec c
   l1 <- negateLit <$> getNth lvec 0
-  markClause (getNthWatcher watches l1) c
+  markClause (getNthWatcher w l1) c
   l2 <- negateLit <$> getNth lvec 1
-  markClause (getNthWatcher watches l2) c
+  markClause (getNthWatcher w l2) c
 
 --------------------------------------------------------------------------------
 -- Operations on 'Clause'

@@ -155,7 +155,7 @@ nLearnts = numberOfClauses . learnts
 
 -- | return the model as a list of literal
 getModel :: Solver -> IO [Int]
-getModel !s = zipWith (\n b -> if b then n else negate n) [1 .. ] <$> asList (model s)
+getModel s = zipWith (\n b -> if b then n else negate n) [1 .. ] <$> asList (model s)
 
 -- | returns the current decision level
 {-# INLINE decisionLevel #-}
@@ -170,13 +170,13 @@ valueVar = getNth . assigns
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit'
 {-# INLINE valueLit #-}
 valueLit :: Solver -> Lit -> IO Int -- FIXME: LiftedBool
-valueLit !(assigns -> a) !p = (\x -> if positiveLit p then x else negate x) <$> getNth a (lit2var p)
+valueLit (assigns -> a) !p = (\x -> if positiveLit p then x else negate x) <$> getNth a (lit2var p)
 
 -- | __Fig. 7. (p.11)__
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__
 {-# INLINE locked #-}
 locked :: Solver -> Clause -> IO Bool
-locked !s !c = (c ==) <$> (getNthClause (reason s) . lit2var =<< getNth (lits c) 1)
+locked s c = (c ==) <$> (getNthClause (reason s) . lit2var =<< getNth (lits c) 1)
 
 -------------------------------------------------------------------------------- Statistics
 
@@ -189,17 +189,17 @@ data StatIndex =
 -- | returns the value of 'StatIndex'
 {-# INLINE getStat #-}
 getStat :: Solver -> StatIndex -> IO Int
-getStat !(stats -> v) !(fromEnum -> i) = getNth v i
+getStat (stats -> v) (fromEnum -> i) = getNth v i
 
 -- | sets to 'StatIndex'
 {-# INLINE setStat #-}
 setStat :: Solver -> StatIndex -> Int -> IO ()
-setStat !(stats -> v) !(fromEnum -> i) x = setNth v i x
+setStat (stats -> v) (fromEnum -> i) x = setNth v i x
 
 -- | increments a stat data corresponding to 'StatIndex'
 {-# INLINE incrementStat #-}
 incrementStat :: Solver -> StatIndex -> Int -> IO ()
-incrementStat !(stats -> v) !(fromEnum -> i) k = modifyNth v (+ k) i
+incrementStat (stats -> v) (fromEnum -> i) k = modifyNth v (+ k) i
 
 -- | returns the statistics as list
 {-# INLINABLE getStats #-}
@@ -352,7 +352,7 @@ enqueue s@Solver{..} p from = do
 -- __Pre-condition:__ propagation queue is empty
 {-# INLINE assume #-}
 assume :: Solver -> Lit -> IO Bool
-assume !s p = do
+assume s p = do
   pushToStack (trailLim s) =<< sizeOfStack (trail s)
   enqueue s p NullClause
 
@@ -436,7 +436,7 @@ claActivityThreshold = 1e20
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 {-# INLINE varBumpActivity #-}
 varBumpActivity :: Solver -> Var -> IO ()
-varBumpActivity s@Solver{..} !x = do
+varBumpActivity s@Solver{..} x = do
   !a <- (+) <$> getNthDouble x activities <*> getDouble varInc
   setNthDouble x activities a
   when (varActivityThreshold < a) $ varRescaleActivity s
