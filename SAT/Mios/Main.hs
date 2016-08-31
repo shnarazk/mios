@@ -7,7 +7,7 @@
 {-# LANGUAGE Safe #-}
 
 -- | This is a part of MIOS; main heuristics
-module SAT.Solver.Mios.M114
+module SAT.Mios.Main
        (
          simplifyDB
        , solve
@@ -17,12 +17,12 @@ module SAT.Solver.Mios.M114
 import Control.Monad (forM_, unless, void, when)
 import Data.Bits
 import Data.Foldable (foldrM)
-import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Internal
-import SAT.Solver.Mios.Clause
-import SAT.Solver.Mios.ClauseManager
-import SAT.Solver.Mios.Solver
--- import SAT.Solver.Mios.Ranking
+import SAT.Mios.Types
+import SAT.Mios.Internal
+import SAT.Mios.Clause
+import SAT.Mios.ClauseManager
+import SAT.Mios.Solver
+-- import SAT.Mios.Ranking
 
 -------------------------------------------------------------------------------- Ranking
 -- | a special version of ranking

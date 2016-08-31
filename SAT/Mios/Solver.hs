@@ -8,7 +8,7 @@
 {-# LANGUAGE Safe #-}
 
 -- | This is a part of MIOS; main data
-module SAT.Solver.Mios.Solver
+module SAT.Mios.Solver
        (
          -- * Solver
          Solver (..)
@@ -44,10 +44,10 @@ module SAT.Solver.Mios.Solver
         where
 
 import Control.Monad ((<=<), forM_, unless, when)
-import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Internal
-import SAT.Solver.Mios.Clause
-import SAT.Solver.Mios.ClauseManager
+import SAT.Mios.Types
+import SAT.Mios.Internal
+import SAT.Mios.Clause
+import SAT.Mios.ClauseManager
 
 -- | __Fig. 2.(p.9)__ Internal State of the solver
 data Solver = Solver

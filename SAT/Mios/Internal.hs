@@ -1,5 +1,5 @@
 -- | Mios Internal Settings
-module SAT.Solver.Mios.Internal
+module SAT.Mios.Internal
        (
          versionId
        , MiosConfiguration (..)
@@ -7,9 +7,9 @@ module SAT.Solver.Mios.Internal
        , module Plumbing
        )
        where
-import SAT.Solver.Mios.Data.VecBool as Plumbing
-import SAT.Solver.Mios.Data.VecDouble as Plumbing
-import SAT.Solver.Mios.Data.Stack as Plumbing
+import SAT.Mios.Data.VecBool as Plumbing
+import SAT.Mios.Data.VecDouble as Plumbing
+import SAT.Mios.Data.Stack as Plumbing
 
 -- | version name
 versionId :: String

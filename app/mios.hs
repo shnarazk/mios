@@ -5,7 +5,7 @@ module Main
        )
        where
 
-import SAT.Solver.Mios
+import SAT.Mios
 
 -- | main
 main :: IO ()

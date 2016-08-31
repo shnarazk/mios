@@ -2,7 +2,7 @@
 {-# LANGUAGE Safe #-}
 
 -- | command line option parser for mios
-module SAT.Solver.Mios.OptionParser
+module SAT.Mios.OptionParser
        (
          MiosConfiguration (..)
        , defaultConfiguration
@@ -18,7 +18,7 @@ module SAT.Solver.Mios.OptionParser
 
 import System.Console.GetOpt (ArgDescr(..), ArgOrder(..), getOpt, OptDescr(..), usageInfo)
 import System.Environment (getArgs)
-import SAT.Solver.Mios.Internal (MiosConfiguration (..), defaultConfiguration)
+import SAT.Mios.Internal (MiosConfiguration (..), defaultConfiguration)
 
 -- | configuration swithces
 data MiosProgramOption = MiosProgramOption

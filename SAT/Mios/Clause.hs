@@ -9,7 +9,7 @@
 {-# LANGUAGE Trustworthy #-}
 
 -- | Clause, supporting pointer-based equality
-module SAT.Solver.Mios.Clause
+module SAT.Mios.Clause
        (
          Clause (..)
 --       , isLit
@@ -32,7 +32,7 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
 import qualified Data.Vector.Unboxed.Mutable as UV
 import Data.List (intercalate)
-import SAT.Solver.Mios.Types
+import SAT.Mios.Types
 
 -- | __Fig. 7.(p.11)__
 -- clause, null, binary clause.

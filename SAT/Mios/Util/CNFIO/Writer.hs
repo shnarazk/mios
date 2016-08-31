@@ -1,7 +1,7 @@
 {-# LANGUAGE Safe #-}
 
 -- | Write SAT data to CNF file
-module SAT.Util.CNFIO.Writer
+module SAT.Mios.Util.CNFIO.Writer
        (
          -- * Interface
          toFile

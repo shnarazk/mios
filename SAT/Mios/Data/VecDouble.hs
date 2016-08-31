@@ -6,7 +6,7 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
-module SAT.Solver.Mios.Data.VecDouble
+module SAT.Mios.Data.VecDouble
        (
          VecDouble
        , newVecDouble
@@ -19,7 +19,7 @@ module SAT.Solver.Mios.Data.VecDouble
 import Control.Monad (forM)
 import Data.List ()
 import qualified Data.Vector.Unboxed.Mutable as UV
-import SAT.Solver.Mios.Types (VectorFamily(..))
+import SAT.Mios.Types (VectorFamily(..))
 
 -- | Mutable unboxed Double Vector
 type VecDouble = UV.IOVector Double

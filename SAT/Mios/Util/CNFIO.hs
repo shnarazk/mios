@@ -1,7 +1,7 @@
 {-# LANGUAGE Safe #-}
 
 -- | Read/Write a CNF file only with ghc standard libraries
-module SAT.Util.CNFIO
+module SAT.Mios.Util.CNFIO
        (
          -- * Input
          fromFile
@@ -14,13 +14,13 @@ module SAT.Util.CNFIO
        , asCNFString
        , asCNFString_
          -- * Bool Operation
-       , module SAT.Util.BoolExp
+       , module SAT.Mios.Util.BoolExp
        )
        where
-import SAT.Util.CNFIO.Reader
-import SAT.Util.CNFIO.Writer
-import SAT.Util.CNFIO.MinisatReader
-import SAT.Util.BoolExp
+import SAT.Mios.Util.CNFIO.Reader
+import SAT.Mios.Util.CNFIO.Writer
+import SAT.Mios.Util.CNFIO.MinisatReader
+import SAT.Mios.Util.BoolExp
 
 -- | String from BoolFrom
 asCNFString :: BoolForm -> String

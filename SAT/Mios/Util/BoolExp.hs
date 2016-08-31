@@ -3,7 +3,7 @@
 
 -- | Boolean Expression module to build CNF from arbitrary expressions
 -- Tseitin translation: http://en.wikipedia.org/wiki/Tseitin_transformation
-module SAT.Util.BoolExp
+module SAT.Mios.Util.BoolExp
        (
          -- * Class & Type
          BoolComponent (..)

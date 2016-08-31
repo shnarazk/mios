@@ -5,7 +5,7 @@
 
 -- | A fast(est) mutable data based on Data.Vector.Unboxed.Mutable
 
-module SAT.Solver.Mios.Data.Singleton
+module SAT.Mios.Data.Singleton
        (
          -- * Bool
          BoolSingleton

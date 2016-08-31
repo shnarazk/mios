@@ -7,7 +7,7 @@
 {-# LANGUAGE Safe #-}
 
 -- | Clause Rank evalaution
-module SAT.Solver.Mios.Ranking
+module SAT.Mios.Ranking
        (
          -- * Rank of Clause
        , ranking
@@ -21,9 +21,9 @@ module SAT.Solver.Mios.Ranking
        )
         where
 
--- import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Clause
-import SAT.Solver.Mios.Solver
+-- import SAT.Mios.Types
+import SAT.Mios.Clause
+import SAT.Mios.Mutables
 
 -- | specialized version of ranking
 {-# INLINE ranking' #-}

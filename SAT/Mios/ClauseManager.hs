@@ -9,7 +9,7 @@
 {-# LANGUAGE Trustworthy #-}
 
 -- | A shrinkable vector of 'C.Clause'
-module SAT.Solver.Mios.ClauseManager
+module SAT.Mios.ClauseManager
        (
          -- * higher level interface for ClauseVector
          ClauseManager (..)
@@ -35,8 +35,8 @@ import qualified Data.IORef as IORef
 import qualified Data.List as L
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
-import SAT.Solver.Mios.Types
-import qualified SAT.Solver.Mios.Clause as C
+import SAT.Mios.Types
+import qualified SAT.Mios.Clause as C
 
 -- | resizable clause vector
 class ClauseManager a where

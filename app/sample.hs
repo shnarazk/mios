@@ -1,5 +1,5 @@
 module Main where
-import SAT.Solver.Mios (CNFDescription (..), solveSAT)
+import SAT.Mios (CNFDescription (..), solveSAT)
 
 -- | a sample CNF
 clauses :: [[Int]]

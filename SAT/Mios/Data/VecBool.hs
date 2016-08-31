@@ -9,7 +9,7 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
-module SAT.Solver.Mios.Data.VecBool
+module SAT.Mios.Data.VecBool
        (
          VecBool
        , newVecBool
@@ -21,7 +21,7 @@ module SAT.Solver.Mios.Data.VecBool
 
 import Control.Monad (forM)
 import qualified Data.Vector.Unboxed.Mutable as UV
-import SAT.Solver.Mios.Types (VectorFamily(..))
+import SAT.Mios.Types (VectorFamily(..))
 
 -- | Mutable unboxed Bool Vector
 type VecBool = UV.IOVector Bool

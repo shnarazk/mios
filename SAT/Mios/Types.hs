@@ -8,12 +8,12 @@
 {-# LANGUAGE Trustworthy #-}
 
 -- | Basic data types used throughout mios.
-module SAT.Solver.Mios.Types
+module SAT.Mios.Types
        (
          -- Singleton
-         module SAT.Solver.Mios.Data.Singleton
+         module SAT.Mios.Data.Singleton
          -- Fixed Unboxed Mutable Int Vector
-       , module SAT.Solver.Mios.Data.Vec
+       , module SAT.Mios.Data.Vec
          -- Abstract interfaces
        , VectorFamily (..)
          -- *  Variable
@@ -45,8 +45,8 @@ module SAT.Solver.Mios.Types
 import Control.Monad (forM)
 import Data.Bits
 import qualified Data.Vector.Unboxed.Mutable as UV
-import SAT.Solver.Mios.Data.Singleton
-import SAT.Solver.Mios.Data.Vec
+import SAT.Mios.Data.Singleton
+import SAT.Mios.Data.Vec
 
 -- | Public interface as /Container/
 class VectorFamily s t | s -> t where

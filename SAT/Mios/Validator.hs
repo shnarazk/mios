@@ -4,17 +4,17 @@
 {-# LANGUAGE Safe #-}
 
 -- | validate an assignment
-module SAT.Solver.Mios.Validator
+module SAT.Mios.Validator
        (
          validate
        )
        where
 
 import Data.Foldable (toList)
-import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Clause
-import SAT.Solver.Mios.ClauseManager
-import SAT.Solver.Mios.Solver
+import SAT.Mios.Types
+import SAT.Mios.Clause
+import SAT.Mios.ClauseManager
+import SAT.Mios.Solver
 
 -- | validates the assignment even if the implementation of 'Solver' is wrong; we re-implement some functions here.
 validate :: Traversable t => Solver -> t Int -> IO Bool

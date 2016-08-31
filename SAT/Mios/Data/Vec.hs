@@ -4,7 +4,7 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
-module SAT.Solver.Mios.Data.Vec
+module SAT.Mios.Data.Vec
        (
          Vec
        , sizeOfVector

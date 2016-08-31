@@ -4,7 +4,7 @@
 {-# LANGUAGE Trustworthy #-}
 
 -- | stack of Int, by adding the length field as the zero-th element to a 'Vec'
-module SAT.Solver.Mios.Data.Stack
+module SAT.Mios.Data.Stack
        (
          Stack
        , newStack
@@ -20,7 +20,7 @@ module SAT.Solver.Mios.Data.Stack
        where
 
 import qualified Data.Vector.Unboxed.Mutable as UV
-import SAT.Solver.Mios.Types
+import SAT.Mios.Types
 
 -- | Unboxed mutable stack for Int.
 newtype Stack = Stack (UV.IOVector Int)
