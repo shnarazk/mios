@@ -8,20 +8,20 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | Clause Managers
-module SAT.Solver.Mios.ClauseManager
+-- | A shrinkable vector of 'C.Clause'
+module SAT.Mios.ClauseManager
        (
          -- * higher level interface for ClauseVector
          ClauseManager (..)
-         -- * vector of clauses
+--       -- * vector of clauses
 --       , SimpleManager
-         -- * vector of caluse and its extra Int value (used for sort key or blocking literal)
+         -- * Manager with an extra Int (used as sort key or blocking literal)
        , ClauseExtManager
        , pushClauseWithKey
        , getKeyVector
        , markClause
 --       , purifyManager
-         -- * WatcherList (vector of ClauseExtManager)
+         -- * WatcherList
        , WatcherList
        , newWatcherList
        , getNthWatcher
@@ -35,9 +35,10 @@ import qualified Data.IORef as IORef
 import qualified Data.List as L
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
-import SAT.Solver.Mios.Types
-import qualified SAT.Solver.Mios.Clause as C
+import SAT.Mios.Types
+import qualified SAT.Mios.Clause as C
 
+-- | resizable clause vector
 class ClauseManager a where
   newManager      :: Int -> IO a
   numberOfClauses :: a -> IO Int
@@ -125,8 +126,8 @@ instance VectorFamily SimpleManager C.Clause where
 -- | Clause + Blocking Literal
 data ClauseExtManager = ClauseExtManager
   {
-    _nActives     :: IntSingleton               -- number of active clause
-  , _purged       :: BoolSingleton              -- whether it needs gc
+    _nActives     :: !IntSingleton               -- number of active clause
+  , _purged       :: !BoolSingleton              -- whether it needs gc
   , _clauseVector :: IORef.IORef C.ClauseVector -- clause list
   , _keyVector    :: IORef.IORef Vec            -- Int list
   }
@@ -139,14 +140,14 @@ instance ClauseManager ClauseExtManager where
     b <- newVec (MV.length v)
     ClauseExtManager i <$> newBool False <*> IORef.newIORef v <*> IORef.newIORef b
   {-# SPECIALIZE INLINE numberOfClauses :: ClauseExtManager -> IO Int #-}
-  numberOfClauses ClauseExtManager{..} = getInt _nActives
+  numberOfClauses !m = getInt (_nActives m)
   {-# SPECIALIZE INLINE clearManager :: ClauseExtManager -> IO () #-}
-  clearManager ClauseExtManager{..} = setInt _nActives 0
+  clearManager !m = setInt (_nActives m) 0
   {-# SPECIALIZE INLINE shrinkManager :: ClauseExtManager -> Int -> IO () #-}
-  shrinkManager ClauseExtManager{..} k = modifyInt _nActives (subtract k)
+  shrinkManager !m k = modifyInt (_nActives m) (subtract k)
   {-# SPECIALIZE INLINE getClauseVector :: ClauseExtManager -> IO C.ClauseVector #-}
-  getClauseVector ClauseExtManager{..} = IORef.readIORef _clauseVector
-  -- | O(1) inserter
+  getClauseVector !m = IORef.readIORef (_clauseVector m)
+  -- | O(1) insertion function
   {-# SPECIALIZE INLINE pushClause :: ClauseExtManager -> C.Clause -> IO () #-}
   pushClause !ClauseExtManager{..} !c = do
     -- checkConsistency m c
@@ -185,6 +186,7 @@ instance ClauseManager ClauseExtManager where
   removeNthClause = error "removeNthClause is not implemented on ClauseExtManager"
 -}
 
+-- | sets the expire flag to a clause
 {-# INLINE markClause #-}
 markClause :: ClauseExtManager -> C.Clause -> IO ()
 markClause ClauseExtManager{..} c = do
@@ -222,6 +224,7 @@ purifyManager ClauseExtManager{..} = do
     setInt _nActives =<< loop 0 0
     setBool _purged False
 
+-- | returns the associated Int vector
 {-# INLINE getKeyVector #-}
 getKeyVector :: ClauseExtManager -> IO Vec
 getKeyVector ClauseExtManager{..} = IORef.readIORef _keyVector
@@ -258,6 +261,7 @@ instance VectorFamily ClauseExtManager C.Clause where
 
 -------------------------------------------------------------------------------- WatcherList
 
+-- | Vector of 'ClauseExtManager'
 type WatcherList = V.Vector ClauseExtManager
 
 -- | /n/ is the number of 'Var', /m/ is default size of each watcher list
@@ -267,18 +271,21 @@ newWatcherList n m = V.fromList <$> forM [0 .. int2lit (negate n) + 1] (\_ -> ne
 
 -- | returns the watcher List :: "ClauseManager" for "Literal" /l/
 {-# INLINE getNthWatcher #-}
-getNthWatcher :: WatcherList -> Lit-> ClauseExtManager
+getNthWatcher :: WatcherList -> Lit -> ClauseExtManager
 getNthWatcher = V.unsafeIndex
 
 instance VectorFamily WatcherList C.Clause where
   dump mes wl = (mes ++) . L.concat <$> forM [1 .. V.length wl - 1] (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i))
 
+-- | purges all expirable clauses in 'WatcherList'
 {-# INLINE garbageCollect #-}
 garbageCollect :: WatcherList -> IO ()
-garbageCollect wm = V.mapM_ purifyManager wm
+garbageCollect = V.mapM_ purifyManager
 
+{-
 numberOfRegisteredClauses :: WatcherList -> IO Int
 numberOfRegisteredClauses ws = sum <$> V.mapM numberOfClauses ws
+-}
 
 {-
 -------------------------------------------------------------------------------- debugging stuff

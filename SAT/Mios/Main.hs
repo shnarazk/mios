@@ -1,4 +1,3 @@
--- | This is a part of MIOS
 {-# LANGUAGE
     BangPatterns
   , RecordWildCards
@@ -7,7 +6,8 @@
   #-}
 {-# LANGUAGE Safe #-}
 
-module SAT.Solver.Mios.M114
+-- | This is a part of MIOS; main heuristics
+module SAT.Mios.Main
        (
          simplifyDB
        , solve
@@ -17,22 +17,28 @@ module SAT.Solver.Mios.M114
 import Control.Monad (forM_, unless, void, when)
 import Data.Bits
 import Data.Foldable (foldrM)
-import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Internal
-import SAT.Solver.Mios.Clause
-import SAT.Solver.Mios.ClauseManager
-import SAT.Solver.Mios.Solver
-import SAT.Solver.Mios.Glucose
+import SAT.Mios.Types
+import SAT.Mios.Internal
+import SAT.Mios.Clause
+import SAT.Mios.ClauseManager
+import SAT.Mios.Solver
+-- import SAT.Mios.Ranking
+
+-------------------------------------------------------------------------------- Ranking
+-- | a special version of ranking
+{-# INLINE ranking' #-}
+ranking' :: Clause -> IO Int
+ranking' = sizeOfClause
 
 -- | #114: __RemoveWatch__
 {-# INLINABLE removeWatch #-}
 removeWatch :: Solver -> Clause -> IO ()
-removeWatch Solver{..} c = do
+removeWatch (watches -> w) c = do
   let lvec = asVec c
   l1 <- negateLit <$> getNth lvec 0
-  markClause (getNthWatcher watches l1) c
+  markClause (getNthWatcher w l1) c
   l2 <- negateLit <$> getNth lvec 1
-  markClause (getNthWatcher watches l2) c
+  markClause (getNthWatcher w l2) c
 
 --------------------------------------------------------------------------------
 -- Operations on 'Clause'
@@ -69,7 +75,7 @@ newLearntClause s@Solver{..} ps = do
              else findMax (i + 1) j val
        swapBetween vec 1 =<< findMax 0 0 0 -- Let @max_i@ be the index of the literal with highest decision level
        -- Bump, enqueue, store clause:
-       claBumpActivity s c -- newly learnt clauses should be considered active
+       setDouble (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
        -- Add clause to all managers
        pushClause learnts c
        l <- getNth vec 0
@@ -79,7 +85,8 @@ newLearntClause s@Solver{..} ps = do
        -- update the solver state by @l@
        unsafeEnqueue s l c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
-       setLBD s c
+       -- setRank s c
+       setBool (protected c) True
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
 -- simplify its representation (returns @False@) or state that the constraint is
@@ -127,7 +134,7 @@ simplify s c = do
 --   * If out_learnt.size() > 1 then 'out_learnt[1]' has the greatest decision level of the
 --     rest of literals. There may be others from the same level though.
 --
--- `analyze` is invoked from `search`
+-- @analyze@ is invoked from @search@
 -- {-# INLINEABLE analyze #-}
 analyze :: Solver -> Clause -> IO Int
 analyze s@Solver{..} confl = do
@@ -142,6 +149,7 @@ analyze s@Solver{..} confl = do
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
       when (learnt c) $ do
         claBumpActivity s c
+{-
         -- update LBD like #Glucose4.0
         d <- getInt (lbd c)
         when (2 < d) $ do
@@ -150,6 +158,7 @@ analyze s@Solver{..} confl = do
             when (d <= 30) $ setBool (protected c) True -- 30 is `lbLBDFrozenClause`
             -- seems to be interesting: keep it fro the next round
             setInt (lbd c) nblevels    -- Update it
+-}
       sc <- sizeOfClause c
       let
         lvec = asVec c
@@ -220,15 +229,15 @@ analyze s@Solver{..} confl = do
   loopOnLits 1 1                -- the first literal is specail
   -- glucose heuristics
   nld <- sizeOfStack lastDL
-  lbd' <- computeLBD s $ asSizedVec litsLearnt -- this is not the right value
+  r <- sizeOfStack litsLearnt -- this is not the right value
   let
     vec = asVec lastDL
     loopOnLastDL :: Int -> IO ()
     loopOnLastDL ((< nld) -> False) = return ()
     loopOnLastDL i = do
       v <- lit2var <$> getNth vec i
-      d' <- getInt . lbd =<< getNthClause reason v
-      when (lbd' < d') $ varBumpActivity s v
+      r' <- ranking' =<< getNthClause reason v
+      when (r < r') $ varBumpActivity s v
       loopOnLastDL $ i + 1
   loopOnLastDL 0
   clearStack lastDL
@@ -251,8 +260,8 @@ analyze s@Solver{..} confl = do
 --
 -- Implementation memo:
 --
--- *  @an'toClear@ is initialized by @ps@ in 'analyze' (a copy of 'learnt').
---   This is used only in this function and 'analyze'.
+-- *  @an'toClear@ is initialized by @ps@ in @analyze@ (a copy of 'learnt').
+--   This is used only in this function and @analyze@.
 --
 {-# INLINEABLE analyzeRemovable #-}
 analyzeRemovable :: Solver -> Lit -> Int -> IO Bool
@@ -358,21 +367,17 @@ analyzeFinal Solver{..} confl skipFirst = do
         loopOnTrail $ i - 1
     loopOnTrail =<< if tls <= rl then return (trs - 1) else getNth (asVec trailLim) rl
 
---
--- 'enqueue' is defined in 'Solver' and functions in M114 use 'unsafeEnqueue'
---
-
 -- | M114:
 -- propagate : [void] -> [Clause+]
 --
 -- __Description:__
---   Porpagates all enqueued facts. If a conflict arises, the cornflicting clause is returned.
+--   Porpagates all enqueued facts. If a conflict arises, the conflicting clause is returned.
 --   otherwise CRef_undef.
 --
 -- __Post-conditions:__
 --   * the propagation queue is empty, even if there was a conflict.
 --
--- memo:`propagate` is invoked by `search`,`simpleDB` and `solve`
+-- memo: @propagate@ is invoked by @search@,`simpleDB` and `solve`
 {-# INLINABLE propagate #-}
 propagate :: Solver -> IO Clause
 propagate s@Solver{..} = do
@@ -458,6 +463,7 @@ propagate s@Solver{..} = do
                           if not result
                             then do
                                 ((== 0) <$> decisionLevel s) >>= (`when` setBool ok False)
+                                -- #BBCP
                                 setInt qHead =<< sizeOfStack trail
                                 -- Copy the remaining watches:
                                 let
@@ -504,7 +510,7 @@ reduceDB s@Solver{..} = do
 -- | (Good to Bad) Quick sort the key vector based on their activities and returns number of privileged clauses.
 -- this function uses the same metrix as reduceDB_lt in glucose 4.0:
 -- 1. binary clause
--- 2. smaller lbd
+-- 2. smaller rank
 -- 3. larger activity defined in MiniSat
 -- , where smaller value is better.
 --
@@ -514,23 +520,23 @@ reduceDB s@Solver{..} = do
 -- * 19 bit: converted activity
 -- * remain: clauseVector index
 --
-(lbdWidth :: Int, activityWidth :: Int, indexWidth :: Int) = (l, a, w - (l + a + 1))
+(rankWidth :: Int, activityWidth :: Int, indexWidth :: Int) = (l, a, w - (l + a + 1))
   where
     w = finiteBitSize (0:: Int)
     (l, a) = case () of
-      _ | 64 <= w -> (16, 19)   -- 28 bit => 256M clauses
-      _ | 60 <= w -> (14, 19)   -- 26 bit =>  32M clauses
-      _ | 32 <= w -> ( 7,  6)   -- 18 bit => 256K clauses
-      _ | 29 <= w -> ( 6,  5)   -- 17 bit => 128K clauses
-      _ -> error "Int on your CPU doesn't have sufficient bit width."
+      _ | 64 <= w -> (8, 25)   -- 30 bit =>   1G clauses
+      _ | 60 <= w -> (8, 24)   -- 26 bit =>  64M clauses
+      _ | 32 <= w -> (6,  7)   -- 18 bit => 256K clauses
+      _ | 29 <= w -> (6,  5)   -- 17 bit => 128K clauses
+--      _ -> error "Int on your CPU doesn't have sufficient bit width."
 
 {-# INLINABLE sortClauses #-}
 sortClauses :: Solver -> ClauseExtManager -> Int -> IO Int
 sortClauses s cm nneeds = do
   -- constants
   let
-    lbdMax :: Int
-    lbdMax = 2 ^ lbdWidth - 1
+    rankMax :: Int
+    rankMax = 2 ^ rankWidth - 1
     activityMax :: Int
     activityMax = 2 ^ activityWidth - 1
     activityScale :: Double
@@ -538,7 +544,7 @@ sortClauses s cm nneeds = do
     indexMax :: Int
     indexMax = (2 ^ indexWidth - 1) -- 67,108,863 for 26
   n <- numberOfClauses cm
-  when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds mios's " ++ show indexWidth ++" bit manage capacity"
+  -- when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds mios's " ++ show indexWidth ++" bit manage capacity"
   vec <- getClauseVector cm
   keys <- getKeyVector cm
   -- 1: assign keys
@@ -556,9 +562,9 @@ sortClauses s cm nneeds = do
             if l
               then setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
               else do
-                  d <- getInt $ lbd c
-                  b <- floor . (activityScale *) . (1 -) . logBase 1e100 . max 1 <$> getDouble (activity c)
-                  setNth keys i $ shiftL (min lbdMax d) (activityWidth + indexWidth) + shiftL b indexWidth + i
+                  d <- ranking' c
+                  b <- floor . (activityScale *) . (1 -) . logBase claActivityThreshold . max 1 <$> getDouble (activity c)
+                  setNth keys i $ shiftL (min rankMax d) (activityWidth + indexWidth) + shiftL b indexWidth + i
                   assignKey (i + 1) m
   limit <- min n . (+ nneeds) <$> assignKey 0 0
   -- 2: sort keyVector
@@ -580,7 +586,6 @@ sortClauses s cm nneeds = do
             nextL i@((<= right) -> False) = return i
             nextL i = do v <- getNth keys i; if v < pivot then nextL (i + 1) else return i
             nextR :: Int -> IO Int
-            -- nextR i@((left <=) -> False) = return i
             nextR i = do v <- getNth keys i; if pivot < v then nextR (i - 1) else return i
             divide :: Int -> Int -> IO Int
             divide l r = do
@@ -709,7 +714,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                     (v :: Var) <- lit2var <$> getNth (asVec litsLearnt) 0
                     setNth level v 0
                   varDecayActivity s
-                  claDecayActivity s
+                  -- claDecayActivity s
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
@@ -725,6 +730,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
                    (s `cancelUntil`) =<< getInt rootLevel -- force a restart
+                   claRescaleActivityAfterRestart s
                    incrementStat s NumOfRestart 1
                    return Bottom
              _ -> do
@@ -784,6 +790,9 @@ solve s@Solver{..} assumps = do
               else cancelUntil s 0 >> return (status == LTrue)
         while 100 (nc / 3.0)
 
+--
+-- 'enqueue' is defined in 'Solver'; most functions in M114 use 'unsafeEnqueue'
+--
 {-# INLINABLE unsafeEnqueue #-}
 unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
 unsafeEnqueue s@Solver{..} p from = do
@@ -799,18 +808,3 @@ unsafeAssume :: Solver -> Lit -> IO ()
 unsafeAssume s@Solver{..} p = do
   pushToStack trailLim =<< sizeOfStack trail
   unsafeEnqueue s p NullClause
-
-{-
--- | for debug
-fromAssigns :: Vec -> IO [Int]
-fromAssigns as = zipWith f [1 .. ] . tail <$> asList as
-  where
-    f n x
-      | x == lTrue = n
-      | x == lFalse = negate n
-      | otherwise = 0
-
--- | for debug
-dumpAssignment :: String -> Vec -> IO String
-dumpAssignment mes v = (mes ++) . show <$> fromAssigns v
--}

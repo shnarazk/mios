@@ -1,4 +1,3 @@
--- | This is a part of MIOS
 {-# LANGUAGE
     BangPatterns
   , RecordWildCards
@@ -8,7 +7,8 @@
   #-}
 {-# LANGUAGE Safe #-}
 
-module SAT.Solver.Mios.Solver
+-- | This is a part of MIOS; main data
+module SAT.Mios.Solver
        (
          -- * Solver
          Solver (..)
@@ -29,21 +29,25 @@ module SAT.Solver.Mios.Solver
        , getModel
          -- * Activities
        , claBumpActivity
-       , claDecayActivity
+--       , claDecayActivity
+       , claRescaleActivityAfterRestart
        , varBumpActivity
        , varDecayActivity
+       , claActivityThreshold
          -- * Stats
        , StatIndex (..)
+       , getStat
+       , setStat
        , incrementStat
        , getStats
        )
         where
 
 import Control.Monad ((<=<), forM_, unless, when)
-import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Internal
-import SAT.Solver.Mios.Clause
-import SAT.Solver.Mios.ClauseManager
+import SAT.Mios.Types
+import SAT.Mios.Internal
+import SAT.Mios.Clause
+import SAT.Mios.ClauseManager
 
 -- | __Fig. 2.(p.9)__ Internal State of the solver
 data Solver = Solver
@@ -69,7 +73,7 @@ data Solver = Solver
                 -- Configuration
               , config     :: !MiosConfiguration -- ^ search paramerters
               , nVars      :: !Int               -- ^ number of variables
-              , claInc     :: !DoubleSingleton   -- ^ Clause activity increment amount to bump with.
+--            , claInc     :: !DoubleSingleton   -- ^ Clause activity increment amount to bump with.
 --            , varDecay   :: !DoubleSingleton   -- ^ used to set 'varInc'
               , varInc     :: !DoubleSingleton   -- ^ Variable activity increment amount to bump with.
               , rootLevel  :: !IntSingleton      -- ^ Separates incremental and search assumptions.
@@ -79,11 +83,13 @@ data Solver = Solver
               , an'toClear :: !Stack             -- ^ ditto
               , an'stack   :: !Stack             -- ^ ditto
               , pr'seen    :: !Vec               -- ^ used in propagate
-              , lbd'seen   :: !Vec               -- ^ used in lbd computation
-              , lbd'key    :: !IntSingleton      -- ^ used in lbd computation
               , litsLearnt :: !Stack             -- ^ used to create a learnt clause
               , lastDL     :: !Stack             -- ^ last decision level used in analyze
               , stats      :: !Vec               -- ^ statistics information holder
+{-
+              , lbd'seen   :: !Vec               -- ^ used in lbd computation
+              , lbd'key    :: !IntSingleton      -- ^ used in lbd computation
+-}
               }
 
 -- | returns an everything-is-initialized solver from the arguments
@@ -111,7 +117,7 @@ newSolver conf (CNFDescription nv nc _) = do
     -- Configuration
     <*> return conf                                   -- config
     <*> return nv                                     -- nVars
-    <*> newDouble 1.0                                 -- claInc
+--  <*> newDouble 1.0                                 -- claInc
 --  <*> newDouble (variableDecayRate conf)            -- varDecay
     <*> newDouble 1.0                                 -- varInc
     <*> newInt 0                                      -- rootLevel
@@ -121,11 +127,13 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> newStack nv                                   -- an'toClear
     <*> newStack nv                                   -- an'stack
     <*> newVecWith (nv + 1) (-1)                      -- pr'seen
-    <*> newVec nv                                     -- lbd'seen
-    <*> newInt 0                                      -- lbd'key
     <*> newStack nv                                   -- litsLearnt
     <*> newStack nv                                   -- lastDL
     <*> newVec (1 + fromEnum (maxBound :: StatIndex)) -- stats
+{-
+--    <*> newVec nv                                     -- lbd'seen
+--    <*> newInt 0                                      -- lbd'key
+-}
 
 --------------------------------------------------------------------------------
 -- Accessors
@@ -152,36 +160,50 @@ getModel s = zipWith (\n b -> if b then n else negate n) [1 .. ] <$> asList (mod
 -- | returns the current decision level
 {-# INLINE decisionLevel #-}
 decisionLevel :: Solver -> IO Int
-decisionLevel Solver{..} = sizeOfStack trailLim
+decisionLevel = sizeOfStack . trailLim
 
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Var'
 {-# INLINE valueVar #-}
 valueVar :: Solver -> Var -> IO Int
-valueVar s !x = getNth (assigns s) x
+valueVar = getNth . assigns
 
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit'
 {-# INLINE valueLit #-}
 valueLit :: Solver -> Lit -> IO Int -- FIXME: LiftedBool
-valueLit Solver{..} !p = if positiveLit p then getNth assigns (lit2var p) else negate <$> getNth assigns (lit2var p)
+valueLit (assigns -> a) !p = (\x -> if positiveLit p then x else negate x) <$> getNth a (lit2var p)
 
 -- | __Fig. 7. (p.11)__
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__
 {-# INLINE locked #-}
 locked :: Solver -> Clause -> IO Bool
-locked Solver{..} c@Clause{..} =  (c ==) <$> (getNthClause reason . lit2var =<< getNth lits 1)
+locked s c = (c ==) <$> (getNthClause (reason s) . lit2var =<< getNth (lits c) 1)
 
--- | stats
+-------------------------------------------------------------------------------- Statistics
+
+-- | stat index
 data StatIndex =
     NumOfBackjump
   | NumOfRestart
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 
+-- | returns the value of 'StatIndex'
+{-# INLINE getStat #-}
+getStat :: Solver -> StatIndex -> IO Int
+getStat (stats -> v) (fromEnum -> i) = getNth v i
+
+-- | sets to 'StatIndex'
+{-# INLINE setStat #-}
+setStat :: Solver -> StatIndex -> Int -> IO ()
+setStat (stats -> v) (fromEnum -> i) x = setNth v i x
+
+-- | increments a stat data corresponding to 'StatIndex'
+{-# INLINE incrementStat #-}
 incrementStat :: Solver -> StatIndex -> Int -> IO ()
-incrementStat (config -> collectStats -> False) _ _ = return ()
 incrementStat (stats -> v) (fromEnum -> i) k = modifyNth v (+ k) i
 
+-- | returns the statistics as list
+{-# INLINABLE getStats #-}
 getStats :: Solver -> IO [(StatIndex, Int)]
-getStats (config -> collectStats -> False) = return []
 getStats (stats -> v) = mapM (\i -> (i, ) <$> getNth v (fromEnum i)) [minBound .. maxBound :: StatIndex]
 
 -------------------------------------------------------------------------------- State Modifiers
@@ -303,8 +325,13 @@ clauseNew s@Solver{..} ps isLearnt = do
 {-# INLINABLE enqueue #-}
 enqueue :: Solver -> Lit -> Clause -> IO Bool
 enqueue s@Solver{..} p from = do
-  -- putStrLn . ("ssigns " ++) . show . map lit2int =<< asList trail
-  -- putStrLn =<< dump ("enqueue " ++ show (lit2int p) ++ " ") from
+{-
+  -- bump psedue lbd of @from@
+  when (from /= NullClause && learnt from) $ do
+    l <- getInt (lbd from)
+    k <- (12 +) <$> decisionLevel s
+    when (k < l) $ setInt (lbd from) k
+-}
   let signumP = if positiveLit p then lTrue else lFalse
   let v = lit2var p
   val <- valueVar s v
@@ -313,7 +340,7 @@ enqueue s@Solver{..} p from = do
         return $ val == signumP
     else do
         -- New fact, store it
-        setNth assigns v $! signumP
+        setNth assigns v signumP
         setNth level v =<< decisionLevel s
         setNthClause reason v from     -- NOTE: @from@ might be NULL!
         pushToStack trail p
@@ -325,8 +352,8 @@ enqueue s@Solver{..} p from = do
 -- __Pre-condition:__ propagation queue is empty
 {-# INLINE assume #-}
 assume :: Solver -> Lit -> IO Bool
-assume s@Solver{..} p = do
-  pushToStack trailLim =<< sizeOfStack trail
+assume s p = do
+  pushToStack (trailLim s) =<< sizeOfStack (trail s)
   enqueue s p NullClause
 
 -- | #M22: Revert to the states at given level (keeping all assignment at 'level' but not beyond).
@@ -400,15 +427,20 @@ instance VarOrder Solver where
 
 -------------------------------------------------------------------------------- Activities
 
+varActivityThreshold :: Double
+varActivityThreshold = 1e100
+
+claActivityThreshold :: Double
+claActivityThreshold = 1e20
+
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 {-# INLINE varBumpActivity #-}
 varBumpActivity :: Solver -> Var -> IO ()
-varBumpActivity s@Solver{..} !x = do
+varBumpActivity s@Solver{..} x = do
   !a <- (+) <$> getNthDouble x activities <*> getDouble varInc
-  if 1e100 < a
-    then varRescaleActivity s
-    else setNthDouble x activities a
-  update s x
+  setNthDouble x activities a
+  when (varActivityThreshold < a) $ varRescaleActivity s
+  update s x                    -- update the position in heap
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE varDecayActivity #-}
@@ -420,22 +452,25 @@ varDecayActivity Solver{..} = modifyDouble varInc (/ variableDecayRate config)
 {-# INLINE varRescaleActivity #-}
 varRescaleActivity :: Solver -> IO ()
 varRescaleActivity Solver{..} = do
-  forM_ [1 .. nVars] $ \i -> modifyNthDouble i activities (* 1e-100)
-  modifyDouble varInc (* 1e-100)
+  forM_ [1 .. nVars] $ \i -> modifyNthDouble i activities (/ varActivityThreshold)
+  modifyDouble varInc (/ varActivityThreshold)
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE claBumpActivity #-}
 claBumpActivity :: Solver -> Clause -> IO ()
-claBumpActivity s@Solver{..} Clause{..} = do
-  a <- (+) <$> getDouble activity <*> getDouble claInc
-  if 1e100 < a
-    then claRescaleActivity s
-    else setDouble activity a
+claBumpActivity s Clause{..} = do
+  dl <- decisionLevel s
+  a <- (fromIntegral dl +) <$> getDouble activity
+  setDouble activity a
+  -- setBool protected True
+  when (claActivityThreshold <= a) $ claRescaleActivity s
 
+{-
 -- | __Fig. 14 (p.19)__
 {-# INLINE claDecayActivity #-}
 claDecayActivity :: Solver -> IO ()
 claDecayActivity Solver{..} = modifyDouble claInc (/ clauseDecayRate config)
+-}
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE claRescaleActivity #-}
@@ -448,17 +483,36 @@ claRescaleActivity Solver{..} = do
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
       c <- getNthClause vec i
-      modifyDouble (activity c) (* 1e-20) -- not 1e-100
+      modifyDouble (activity c) (/ claActivityThreshold)
       loopOnVector $ i + 1
   loopOnVector 0
-  modifyDouble claInc (* 1e-20)           -- not 1e-100
+  -- modifyDouble claInc (/ claActivityThreshold)
+
+-- | __Fig. 14 (p.19)__
+{-# INLINE claRescaleActivityAfterRestart #-}
+claRescaleActivityAfterRestart :: Solver -> IO ()
+claRescaleActivityAfterRestart Solver{..} = do
+  vec <- getClauseVector learnts
+  n <- numberOfClauses learnts
+  let
+    loopOnVector :: Int -> IO ()
+    loopOnVector ((< n) -> False) = return ()
+    loopOnVector i = do
+      c <- getNthClause vec i
+      d <- sizeOfClause c
+      if d < 9
+        then modifyDouble (activity c) sqrt
+        else setDouble (activity c) 0
+      setBool (protected c) False
+      loopOnVector $ i + 1
+  loopOnVector 0
 
 -------------------------------------------------------------------------------- VarHeap
 
 -- | 'VarHeap' is a heap tree built from two 'Vec'
 -- This implementation is identical wtih that in Minisat-1.14
--- Note: the zero-th element of 'heap' is used for holding the number of elements
--- Note: VarHeap itself is not a 'VarOrder', because it requires a pointer to solver
+-- Note: the zero-th element of @heap@ is used for holding the number of elements
+-- Note: VarHeap itself is not a @VarOrder@, because it requires a pointer to solver
 data VarHeap = VarHeap
                 {
                   heap :: Vec -- order to var
@@ -466,9 +520,15 @@ data VarHeap = VarHeap
                 }
 
 newVarHeap :: Int -> IO VarHeap
-newVarHeap n = VarHeap <$> newSizedVecIntFromList lst <*> newSizedVecIntFromList lst
-  where
-    lst = [1 .. n]
+newVarHeap n = do
+  v1 <- newVec (n + 1)
+  v2 <- newVec (n + 1)
+  let
+    loop :: Int -> IO ()
+    loop ((<= n) -> False) = setNth v1 0 n >> setNth v2 0 n
+    loop i = setNth v1 i i >> setNth v2 i i >> loop (i + 1)
+  loop 1
+  return $ VarHeap v1 v2
 
 {-# INLINE numElementsInHeap #-}
 numElementsInHeap :: Solver -> IO Int

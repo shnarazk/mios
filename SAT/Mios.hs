@@ -1,13 +1,13 @@
+-- | Minisat-based Implementation and Optimization Study on SAT solver
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE Trustworthy #-}
--- | Minisat-based Implementation and Optimization Study
 
-module SAT.Solver.Mios
+module SAT.Mios
        (
-         -- * SAT solver interface
+         -- * Interface to the core of solver
          versionId
        , CNFDescription (..)
-       , module SAT.Solver.Mios.OptionParser
+       , module SAT.Mios.OptionParser
        , runSolver
        , solveSAT
        , solveSATWithConfiguration
@@ -21,7 +21,7 @@ module SAT.Solver.Mios
        , executeSolver
        , executeValidatorOn
        , executeValidator
-         -- * output
+         -- * File IO
        , dumpAssigmentAsCNF
        )
        where
@@ -30,18 +30,17 @@ import Control.Monad ((<=<), unless, void, when)
 import Data.Char
 import qualified Data.ByteString.Char8 as B
 import Data.List
-import qualified Data.Vector.Unboxed as U
 import Numeric (showFFloat)
 import System.CPUTime
 import System.Exit
 import System.IO
 
-import SAT.Solver.Mios.Types
-import SAT.Solver.Mios.Internal
-import SAT.Solver.Mios.Solver
-import SAT.Solver.Mios.M114
-import SAT.Solver.Mios.OptionParser
-import SAT.Solver.Mios.Validator
+import SAT.Mios.Types
+import SAT.Mios.Internal
+import SAT.Mios.Solver
+import SAT.Mios.Main
+import SAT.Mios.OptionParser
+import SAT.Mios.Validator
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ _ = return 0
@@ -73,7 +72,7 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
     hPutStrLn stderr $ cnfFile ++ " was loaded: #v = " ++ show (nVars s, _numberOfVariables desc) ++ " #c = " ++ show (nc, _numberOfClauses desc)
   res <- simplifyDB s
   -- when (_confVerbose opts) $ hPutStrLn stderr $ "`simplifyDB`: " ++ show res
-  result <- solve s []
+  result <- if res then solve s [] else return False
   case result of
     True  | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "SATISFIABLE"
     False | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "UNSATISFIABLE"
@@ -182,9 +181,14 @@ validateAssignment desc cls asg = do
   mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . map int2lit)) cls
   s `validate` asg
 
--- | usage
+-- | dumps an assigment to file.
+-- 2nd arg is
 --
--- @do y <- solve s ... ; dumpAssigmentAsCNF "result.cnf" y <$> model s @
+-- * @True@ if the assigment is satisfiable assigment
+--
+-- * @False@ if not
+--
+-- >>> do y <- solve s ... ; dumpAssigmentAsCNF "result.cnf" y <$> model s
 --
 dumpAssigmentAsCNF :: FilePath -> Bool -> [Int] -> IO ()
 dumpAssigmentAsCNF fname False _ = do
