@@ -17,7 +17,7 @@ license:                GPL-3
 license-file:           LICENSE
 author:                 Shuji Narazaki <narazaki@nagasaki-u.ac.jp>
 maintainer:             Shuji Narazaki <narazaki@nagasaki-u.ac.jp>
-category:               Artificial Intelligence, Constraint Solver
+category:               Artificial Intelligence, Constraints
 build-type:             Simple
 cabal-version:          >=1.16
 
