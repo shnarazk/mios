@@ -26,7 +26,7 @@ Flag llvm
   Default:	        False
 
 Flag lib
-  Description:	        Build SAT.Solver library
+  Description:	        Build the solver library
   Default:	        True
 
 library
