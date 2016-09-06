@@ -129,7 +129,7 @@ data ClauseExtManager = ClauseExtManager
     _nActives     :: !IntSingleton               -- number of active clause
   , _purged       :: !BoolSingleton              -- whether it needs gc
   , _clauseVector :: IORef.IORef C.ClauseVector -- clause list
-  , _keyVector    :: IORef.IORef Vec            -- Int list
+  , _keyVector    :: IORef.IORef (Vec Int)      -- Int list
   }
 
 instance ClauseManager ClauseExtManager where
@@ -137,7 +137,7 @@ instance ClauseManager ClauseExtManager where
   newManager initialSize = do
     i <- newInt 0
     v <- C.newClauseVector initialSize
-    b <- newVec (MV.length v)
+    b <- newVec (MV.length v) 0
     ClauseExtManager i <$> newBool False <*> IORef.newIORef v <*> IORef.newIORef b
   {-# SPECIALIZE INLINE numberOfClauses :: ClauseExtManager -> IO Int #-}
   numberOfClauses !m = getInt (_nActives m)
@@ -226,7 +226,7 @@ purifyManager ClauseExtManager{..} = do
 
 -- | returns the associated Int vector
 {-# INLINE getKeyVector #-}
-getKeyVector :: ClauseExtManager -> IO Vec
+getKeyVector :: ClauseExtManager -> IO (Vec Int)
 getKeyVector ClauseExtManager{..} = IORef.readIORef _keyVector
 
 -- | O(1) inserter

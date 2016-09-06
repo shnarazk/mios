@@ -27,7 +27,7 @@ newtype Stack = Stack (UV.IOVector Int)
 
 instance VectorFamily Stack Int where
   dump str v = (str ++) . show <$> asList v
-  {-# SPECIALIZE INLINE asVec :: Stack -> Vec #-}
+  {-# SPECIALIZE INLINE asVec :: Stack -> Vec Int #-}
   asVec (Stack v) = UV.unsafeTail v
   asList (Stack v) = do
     (n : l) <- asList v
@@ -77,7 +77,7 @@ shrinkStack (Stack v) k = UV.unsafeModify v (subtract k) 0
 
 -- | converts Stack to sized Vec; this is the method to get the internal vector
 {-# INLINE asSizedVec #-}
-asSizedVec :: Stack -> Vec
+asSizedVec :: Stack -> Vec Int
 asSizedVec (Stack v) = v
 
 {-

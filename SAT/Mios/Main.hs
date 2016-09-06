@@ -47,7 +47,7 @@ removeWatch (watches -> w) c = do
 -- | __Fig. 8. (p.12)__ create a new LEARNT clause and adds it to watcher lists
 -- This is a strippped-down version of 'newClause' in Solver
 {-# INLINABLE newLearntClause #-}
-newLearntClause :: Solver -> Vec -> IO ()
+newLearntClause :: Solver -> Vec Int -> IO ()
 newLearntClause s@Solver{..} ps = do
   good <- getBool ok
   when good $ do
@@ -725,7 +725,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
             case () of
              _ | k2 == nVars -> do
                    -- Model found:
-                   forM_ [0 .. nVars - 1] $ \i -> setNthBool model i . (lTrue ==) =<< getNth assigns (i + 1)
+                   forM_ [0 .. nVars - 1] $ \i -> setNth model i . (lTrue ==) =<< getNth assigns (i + 1)
                    return LTrue
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts

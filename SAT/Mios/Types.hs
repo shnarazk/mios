@@ -67,13 +67,10 @@ class VectorFamily s t | s -> t where
   {-# MINIMAL dump #-}
 
 -- | provides 'clear' and 'size'
-instance VectorFamily Vec Int where
-  clear = error "Vec.clear"
-  {-# SPECIALIZE INLINE asList :: Vec -> IO [Int] #-}
+instance UV.Unbox a => VectorFamily (Vec a) a where
+  clear _ = error "Vec.clear"
   asList v = forM [0 .. UV.length v - 1] $ UV.unsafeRead v
   dump str v = (str ++) . show <$> asList v
-  {-# SPECIALIZE INLINE asVec :: Vec -> Vec #-}
-  asVec = id
 
 -- | represents "Var"
 type Var = Int

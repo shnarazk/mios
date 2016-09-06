@@ -19,7 +19,7 @@ import SAT.Mios.Solver
 -- | validates the assignment even if the implementation of 'Solver' is wrong; we re-implement some functions here.
 validate :: Traversable t => Solver -> t Int -> IO Bool
 validate s (toList -> map int2lit -> lst) = do
-  assignment <- newVec $ 1 + nVars s
+  assignment <- newVec (1 + nVars s) (0 :: Int)
   vec <- getClauseVector (clauses s)
   nc <- numberOfClauses (clauses s)
   let

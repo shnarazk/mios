@@ -44,7 +44,7 @@ data Clause = Clause
 --              , rank       :: !IntSingleton    -- ^ goodness like LBD; computed in 'Ranking'
               , activity   :: !DoubleSingleton -- ^ activity of this clause
               , protected  :: !BoolSingleton   -- ^ protected from reduce
-              , lits       :: !Vec             -- ^ which this clause consists of
+              , lits       :: !(Vec Int)       -- ^ which this clause consists of
               }
   | NullClause                              -- as null pointer
 --  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
@@ -65,7 +65,7 @@ instance VectorFamily Clause Lit where
     a <- show <$> getDouble activity
     (len:ls) <- asList lits
     return $ mes ++ "C" ++ show len ++ "{" ++ intercalate "," [show learnt, a, show . map lit2int . take len $ ls] ++ "}"
-  {-# SPECIALIZE INLINE asVec :: Clause -> Vec #-}
+  {-# SPECIALIZE INLINE asVec :: Clause -> Vec Int #-}
   asVec Clause{..} = UV.unsafeTail lits
   {-# SPECIALIZE INLINE asList :: Clause -> IO [Int] #-}
   asList NullClause = return []
@@ -91,10 +91,10 @@ instance VectorFamily Clause Lit where
 -- | copies /vec/ and return a new 'Clause'
 -- Since 1.0.100 DIMACS reader should use a scratch buffer allocated statically.
 {-# INLINE newClauseFromVec #-}
-newClauseFromVec :: Bool -> Vec -> IO Clause
+newClauseFromVec :: Bool -> Vec Int -> IO Clause
 newClauseFromVec l vec = do
   n <- getNth vec 0
-  v <- newVec $ n + 1
+  v <- newVec (n + 1) (0 :: Int)
   forM_ [0 .. n] $ \i -> setNth v i =<< getNth vec i
   Clause l <$> {- newInt 0 <*> -} newDouble 0 <*> newBool False <*> return v
 
