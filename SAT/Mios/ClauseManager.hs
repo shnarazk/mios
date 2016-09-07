@@ -32,7 +32,6 @@ module SAT.Mios.ClauseManager
 
 import Control.Monad (forM, unless, when)
 import qualified Data.IORef as IORef
-import qualified Data.List as L
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
 import SAT.Mios.Types
@@ -275,7 +274,7 @@ getNthWatcher :: WatcherList -> Lit -> ClauseExtManager
 getNthWatcher = V.unsafeIndex
 
 instance VectorFamily WatcherList C.Clause where
-  dump mes wl = (mes ++) . L.concat <$> forM [1 .. V.length wl - 1] (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i))
+  dump mes wl = (mes ++) . concat <$> forM [1 .. V.length wl - 1] (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i))
 
 -- | purges all expirable clauses in 'WatcherList'
 {-# INLINE garbageCollect #-}

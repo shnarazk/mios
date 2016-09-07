@@ -30,7 +30,7 @@ import Control.Monad (forM_)
 import GHC.Prim (tagToEnum#, reallyUnsafePtrEquality#)
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
-import Data.List (intercalate)
+-- import Data.List (intercalate)
 import SAT.Mios.Types
 
 -- | __Fig. 7.(p.11)__
@@ -60,11 +60,14 @@ instance Show Clause where
 -- | supports a restricted set of 'VectorFamily' methods
 instance VectorFamily Clause Lit where
   dump mes NullClause = return $ mes ++ "Null"
+  dump mes Clause{..} = return "a clause"
+{-
   dump mes Clause{..} = do
     a <- show <$> get' activity
     n <- sizeOf lits
     l <- asList lits
     return $ mes ++ "C" ++ show n ++ "{" ++ intercalate "," [show learnt, a, show (map lit2int l)] ++ "}"
+-}
   {-# SPECIALIZE INLINE asUVector :: Clause -> UVector Int #-}
   asUVector = asUVector . lits
   {-# SPECIALIZE INLINE asList :: Clause -> IO [Int] #-}
