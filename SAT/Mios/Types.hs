@@ -12,9 +12,9 @@
 module SAT.Mios.Types
        (
          -- Singleton
-         module SAT.Mios.Data.Singleton
+         module SAT.Mios.Singleton
          -- Fixed Unboxed Mutable Int Vector
-       , module SAT.Mios.Data.Vec
+       , module SAT.Mios.Vec
          -- Abstract interfaces
        , VectorFamily (..)
          -- *  Variable
@@ -46,8 +46,8 @@ module SAT.Mios.Types
 import Control.Monad (forM)
 import Data.Bits
 import qualified Data.Vector.Unboxed.Mutable as UV
-import SAT.Mios.Data.Singleton
-import SAT.Mios.Data.Vec
+import SAT.Mios.Singleton
+import SAT.Mios.Vec
 
 -- | Public interface as /Container/
 class VectorFamily s t | s -> t where
@@ -55,10 +55,6 @@ class VectorFamily s t | s -> t where
   -- | erases all elements in it
   clear :: s -> IO ()
   clear = error "no default method for clear"
-  -- * Debug
-  -- | dump the contents
-  dump :: Show t => String -> s -> IO String
-  dump msg _ = error $ msg ++ ": no defalut method for dump"
   -- | get a raw data
   asUVector :: s -> UVector Int
   asUVector = error "asVector undefined"
@@ -66,37 +62,30 @@ class VectorFamily s t | s -> t where
   asList :: s -> IO [t]
   asList = error "asList undefined"
   {-# MINIMAL dump #-}
+  -- * Debug
+  -- | dump the contents
+  dump :: Show t => String -> s -> IO String
+  dump msg _ = error $ msg ++ ": no defalut method for dump"
 
 -- | provides 'clear' and 'size'
 
 instance VectorFamily (Vec Bool 'OneBased) Bool where
-  clear _ = error "Vec clear"
-  asList (Vec v) = forM [0 .. UV.length v - 1] $ UV.unsafeRead v
+  asList (Vec v) = forM [1 .. UV.length v] $ getNth v
   dump str _ = return $ str ++ "Vec dump"
 
 instance UV.Unbox a => VectorFamily (UVector a) a where
-  clear _ = error "Vec.clear"
   asList v = forM [0 .. UV.length v - 1] $ UV.unsafeRead v
   dump str v = (str ++) . show <$> asList v
 
 instance VectorFamily (Vec Int 'ZeroBased) Int where
-  clear _ = error "Vec clear"
   asUVector (Vec a) = a
+  asList (Vec v) = forM [1 .. UV.length v - 1] $ getNth v
   dump str _ = return $ str ++ "Vec dump"
 
 instance VectorFamily (Vec Int 'OneBased) Int where
-  clear _ = error "Vec clear"
+  clear (Vec v) = setNth v 0 0
   asUVector (Vec a) = UV.unsafeTail a
-  dump str _ = return $ str ++ "Vec dump"
-
-instance VectorFamily (Vec Int 'WithSize) Int where
-  clear _ = error "Vec clear"
-  asUVector (Vec a) = UV.unsafeTail a
-  dump str _ = return $ str ++ "Vec dump"
-
-instance VectorFamily (Vec Int 'AsStack) Int where
-  clear _ = error "Vec clear"
-  asUVector (Vec a) = UV.unsafeTail a
+  asList (Vec v) = forM [1 .. UV.length v - 1] $ getNth v
   dump str _ = return $ str ++ "Vec dump"
 
 -- | represents "Var"

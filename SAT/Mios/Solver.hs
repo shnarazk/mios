@@ -55,41 +55,41 @@ data Solver = Solver
               {
                 -- Public Interface
                 model      :: !(Vec Bool 'OneBased)  -- ^ If found, this vector has the model
-              , conflict   :: !(Vec Int 'AsStack) -- ^ set of literals in the case of conflicts
+              , conflict   :: !Stack                 -- ^ set of literals in the case of conflicts
                 -- Clause Database
-              , clauses    :: !ClauseExtManager   -- ^ List of problem constraints.
-              , learnts    :: !ClauseExtManager   -- ^ List of learnt clauses.
-              , watches    :: !WatcherList        -- ^ a list of constraint wathing 'p', literal-indexed
+              , clauses    :: !ClauseExtManager      -- ^ List of problem constraints.
+              , learnts    :: !ClauseExtManager      -- ^ List of learnt clauses.
+              , watches    :: !WatcherList           -- ^ a list of constraint wathing 'p', literal-indexed
                 -- Assignment Management
-              , assigns    :: !(Vec Int 'OneBased) -- ^ The current assignments indexed on variables
-              , phases     :: !(Vec Int 'OneBased) -- ^ The last assignments indexed on variables
-              , trail      :: !(Vec Int 'AsStack) -- ^ List of assignments in chronological order
-              , trailLim   :: !(Vec Int 'AsStack) -- ^ Separator indices for different decision levels in 'trail'.
-              , qHead      :: !IntSingleton       -- ^ 'trail' is divided at qHead; assignments and queue
-              , reason     :: !ClauseVector       -- ^ For each variable, the constraint that implied its value; var-indexed
-              , level      :: !(Vec Int 'OneBased) -- ^ For each variable, the decision level it was assigned
+              , assigns    :: !(Vec Int 'OneBased)   -- ^ The current assignments indexed on variables
+              , phases     :: !(Vec Int 'OneBased)   -- ^ The last assignments indexed on variables
+              , trail      :: !Stack                 -- ^ List of assignments in chronological order
+              , trailLim   :: !Stack                 -- ^ Separator indices for different decision levels in 'trail'.
+              , qHead      :: !IntSingleton          -- ^ 'trail' is divided at qHead; assignments and queue
+              , reason     :: !ClauseVector          -- ^ For each variable, the constraint that implied its value; var-indexed
+              , level      :: !(Vec Int 'OneBased)   -- ^ For each variable, the decision level it was assigned
                 -- Variable Order
               , activities :: !(Vec Double 'OneBased) -- ^ Heuristic measurement of the activity of a variable
-              , order      :: !VarHeap            -- ^ Keeps track of the dynamic variable order.
+              , order      :: !VarHeap                -- ^ Keeps track of the dynamic variable order.
                 -- Configuration
-              , config     :: !MiosConfiguration  -- ^ search paramerters
-              , nVars      :: !Int                -- ^ number of variables
---            , claInc     :: !DoubleSingleton    -- ^ Clause activity increment amount to bump with.
---            , varDecay   :: !DoubleSingleton    -- ^ used to set 'varInc'
-              , varInc     :: !DoubleSingleton    -- ^ Variable activity increment amount to bump with.
-              , rootLevel  :: !IntSingleton       -- ^ Separates incremental and search assumptions.
+              , config     :: !MiosConfiguration      -- ^ search paramerters
+              , nVars      :: !Int                    -- ^ number of variables
+--            , claInc     :: !DoubleSingleton        -- ^ Clause activity increment amount to bump with.
+--            , varDecay   :: !DoubleSingleton        -- ^ used to set 'varInc'
+              , varInc     :: !DoubleSingleton        -- ^ Variable activity increment amount to bump with.
+              , rootLevel  :: !IntSingleton           -- ^ Separates incremental and search assumptions.
                 -- Working Memory
-              , ok         :: !BoolSingleton      -- ^ return value holder
-              , an'seen    :: !(Vec Int 'OneBased) -- ^ scratch var for 'analyze'
-              , an'toClear :: !(Vec Int 'AsStack) -- ^ ditto
-              , an'stack   :: !(Vec Int 'AsStack) -- ^ ditto
-              , pr'seen    :: !(Vec Int 'OneBased) -- ^ used in propagate
-              , litsLearnt :: !(Vec Int 'AsStack) -- ^ used to create a learnt clause
-              , lastDL     :: !(Vec Int 'AsStack) -- ^ last decision level used in analyze
-              , stats      :: !(Vec Int 'ZeroBased)  -- ^ statistics information holder
+              , ok         :: !BoolSingleton          -- ^ return value holder
+              , an'seen    :: !(Vec Int 'OneBased)    -- ^ scratch var for 'analyze'
+              , an'toClear :: !Stack                  -- ^ ditto
+              , an'stack   :: !Stack                  -- ^ ditto
+              , pr'seen    :: !(Vec Int 'OneBased)    -- ^ used in propagate
+              , litsLearnt :: !Stack                  -- ^ used to create a learnt clause
+              , lastDL     :: !Stack                  -- ^ last decision level used in analyze
+              , stats      :: !(Vec Int 'ZeroBased)   -- ^ statistics information holder
 {-
-              , lbd'seen   :: !Vec               -- ^ used in lbd computation
-              , lbd'key    :: !IntSingleton      -- ^ used in lbd computation
+              , lbd'seen   :: !Vec                    -- ^ used in lbd computation
+              , lbd'key    :: !IntSingleton           -- ^ used in lbd computation
 -}
               }
 
@@ -142,7 +142,7 @@ newSolver conf (CNFDescription nv nc _) = do
 -- | returns the number of current assigments
 {-# INLINE nAssigns #-}
 nAssigns :: Solver -> IO Int
-nAssigns = sizeOfStack . trail
+nAssigns = sizeOf . trail
 
 -- | returns the number of constraints (clauses)
 {-# INLINE nClauses #-}
@@ -161,7 +161,7 @@ getModel s = zipWith (\n b -> if b then n else negate n) [1 .. ] <$> asList (mod
 -- | returns the current decision level
 {-# INLINE decisionLevel #-}
 decisionLevel :: Solver -> IO Int
-decisionLevel = sizeOfStack . trailLim
+decisionLevel = sizeOf . trailLim
 
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Var'
 {-# INLINE valueVar #-}
@@ -212,7 +212,7 @@ getStats (stats -> v) = mapM (\i -> (i, ) <$> getNth v (fromEnum i)) [minBound .
 -- | returns @False@ if a conflict has occured.
 -- This function is called only before the solving phase to register the given clauses.
 {-# INLINABLE addClause #-}
-addClause :: Solver -> Vec Int 'AsStack -> IO Bool
+addClause :: Solver -> Stack -> IO Bool
 addClause s@Solver{..} vecLits = do
   result <- clauseNew s vecLits False
   case result of
@@ -232,7 +232,7 @@ addClause s@Solver{..} vecLits = do
 -- first be unbound by backtracking. (Note that none of the learnt-clause specific things
 -- needs to done for a user defined contraint type.)
 {-# INLINABLE clauseNew #-}
-clauseNew :: Solver -> Vec Int 'AsStack -> Bool -> IO (Bool, Clause)
+clauseNew :: Solver -> Stack -> Bool -> IO (Bool, Clause)
 clauseNew s@Solver{..} ps isLearnt = do
   -- now ps[0] is the number of living literals
   exit <- do
@@ -251,7 +251,7 @@ clauseNew s@Solver{..} ps isLearnt = do
              _ -> handle (j + 1) l n
       loopForLearnt :: Int -> IO Bool
       loopForLearnt i = do
-        n <- getNth ps 0
+        n <- sizeOf ps
         if n < i
           then return False
           else do
@@ -262,14 +262,14 @@ clauseNew s@Solver{..} ps isLearnt = do
                 else loopForLearnt $ i + 1
       loop :: Int -> IO Bool
       loop i = do
-        n <- getNth ps 0
+        n <- sizeOf ps
         if n < i
           then return False
           else do
               l <- getNth ps i     -- check the i-th literal's satisfiability
-              sat <- valueLit s l                                      -- any literal in ps is true
+              sat <- valueLit s l  -- any literal in ps is true
               case sat of
-               1  -> setNth ps 0 0 >> return True
+               1  -> clear ps >> return True
                -1 -> do
                  swapBetween ps i n
                  modifyNth ps (subtract 1) 0
@@ -280,7 +280,7 @@ clauseNew s@Solver{..} ps isLearnt = do
                    then return True
                    else loop $ i + 1
     if isLearnt then loopForLearnt 1 else loop 1
-  k <- getNth ps 0
+  k <- sizeOf ps
   case k of
    0 -> return (exit, NullClause)
    1 -> do
@@ -344,7 +344,7 @@ enqueue s@Solver{..} p from = do
         setNth assigns v signumP
         setNth level v =<< decisionLevel s
         setNthClause reason v from     -- NOTE: @from@ might be NULL!
-        pushToStack trail p
+        pushTo trail p
         return True
 
 -- | __Fig. 12 (p.17)__
@@ -354,7 +354,7 @@ enqueue s@Solver{..} p from = do
 {-# INLINE assume #-}
 assume :: Solver -> Lit -> IO Bool
 assume s p = do
-  pushToStack (trailLim s) =<< sizeOfStack (trail s)
+  pushTo (trailLim s) =<< sizeOf (trail s)
   enqueue s p NullClause
 
 -- | #M22: Revert to the states at given level (keeping all assignment at 'level' but not beyond).
@@ -366,8 +366,8 @@ cancelUntil s@Solver{..} lvl = do
     let tr = asUVector trail
     let tl = asUVector trailLim
     lim <- getNth tl lvl
-    ts <- sizeOfStack trail
-    ls <- sizeOfStack trailLim
+    ts <- sizeOf trail
+    ls <- sizeOf trailLim
     let
       loopOnTrail :: Int -> IO ()
       loopOnTrail ((lim <=) -> False) = return ()
@@ -384,9 +384,9 @@ cancelUntil s@Solver{..} lvl = do
         -- insertHeap s x              -- insertVerOrder
         loopOnTrail $ c - 1
     loopOnTrail $ ts - 1
-    shrinkStack trail (ts - lim)
-    shrinkStack trailLim (ls - lvl)
-    setInt qHead =<< sizeOfStack trail
+    shrinkBy trail (ts - lim)
+    shrinkBy trailLim (ls - lvl)
+    setInt qHead =<< sizeOf trail
 
 -------------------------------------------------------------------------------- VarOrder
 
@@ -516,8 +516,8 @@ claRescaleActivityAfterRestart Solver{..} = do
 -- Note: VarHeap itself is not a @VarOrder@, because it requires a pointer to solver
 data VarHeap = VarHeap
                 {
-                  heap :: !(Vec Int 'WithSize) -- order to var
-                , idxs :: !(Vec Int 'WithSize) -- var to order (index)
+                  heap :: !Stack  -- order to var
+                , idxs :: !Stack  -- var to order (index)
                 }
 
 newVarHeap :: Int -> IO VarHeap

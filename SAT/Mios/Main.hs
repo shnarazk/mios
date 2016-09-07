@@ -48,7 +48,7 @@ removeWatch (watches -> w) c = do
 -- | __Fig. 8. (p.12)__ create a new LEARNT clause and adds it to watcher lists
 -- This is a strippped-down version of 'newClause' in Solver
 {-# INLINABLE newLearntClause #-}
-newLearntClause :: Solver -> Vec Int 'AsStack -> IO ()
+newLearntClause :: Solver -> Stack -> IO ()
 newLearntClause s@Solver{..} ps = do
   good <- getBool ok
   when good $ do
@@ -140,8 +140,8 @@ simplify s c = do
 analyze :: Solver -> Clause -> IO Int
 analyze s@Solver{..} confl = do
   -- litvec
-  clearStack litsLearnt
-  pushToStack litsLearnt 0 -- reserve the first place for the unassigned literal
+  clear litsLearnt
+  pushTo litsLearnt 0 -- reserve the first place for the unassigned literal
   dl <- decisionLevel s
   let
     litsVec = asUVector litsLearnt
@@ -178,10 +178,10 @@ analyze s@Solver{..} confl = do
                   then do
                       -- glucose heuristics
                       r <- getNthClause reason v
-                      when (r /= NullClause && learnt r) $ pushToStack lastDL q
+                      when (r /= NullClause && learnt r) $ pushTo lastDL q
                       -- end of glucose heuristics
                       loopOnLiterals (j + 1) b (pc + 1)
-                  else pushToStack litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
+                  else pushTo litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
             else loopOnLiterals (j + 1) b pc
       (b', pathC') <- loopOnLiterals (if p == bottomLit then 0 else 1) bl pathC
       let
@@ -198,25 +198,25 @@ analyze s@Solver{..} confl = do
       if 1 < pathC'
         then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
         else setNth litsVec 0 (negateLit nextP) >> return b'
-  ti <- subtract 1 <$> sizeOfStack trail
+  ti <- subtract 1 <$> sizeOf trail
   levelToReturn <- loopOnClauseChain confl bottomLit ti 0 0
   -- Simplify phase (implemented only @expensive_ccmin@ path)
-  n <- sizeOfStack litsLearnt
-  clearStack an'stack           -- analyze_stack.clear();
-  clearStack an'toClear         -- out_learnt.copyTo(analyze_toclear);
-  pushToStack an'toClear =<< getNth litsVec 0
+  n <- sizeOf litsLearnt
+  clear an'stack           -- analyze_stack.clear();
+  clear an'toClear         -- out_learnt.copyTo(analyze_toclear);
+  pushTo an'toClear =<< getNth litsVec 0
   let
     merger :: Int -> Int -> IO Int
     merger ((< n) -> False) b = return b
     merger i b = do
       l <- getNth litsVec i
-      pushToStack an'toClear l
+      pushTo an'toClear l
       -- restrict the search depth (range) to 32
       merger (i + 1) . setBit b . (31 .&.) =<< getNth level (lit2var l)
   levels <- merger 1 0
   let
     loopOnLits :: Int -> Int -> IO ()
-    loopOnLits ((< n) -> False) n' = shrinkStack litsLearnt $ n - n'
+    loopOnLits ((< n) -> False) n' = shrinkBy litsLearnt $ n - n'
     loopOnLits i j = do
       l <- getNth litsVec i
       c1 <- (NullClause ==) <$> getNthClause reason (lit2var l)
@@ -229,8 +229,8 @@ analyze s@Solver{..} confl = do
              else loopOnLits (i + 1) j
   loopOnLits 1 1                -- the first literal is specail
   -- glucose heuristics
-  nld <- sizeOfStack lastDL
-  r <- sizeOfStack litsLearnt -- this is not the right value
+  nld <- sizeOf lastDL
+  r <- sizeOf litsLearnt -- this is not the right value
   let
     vec = asUVector lastDL
     loopOnLastDL :: Int -> IO ()
@@ -241,9 +241,9 @@ analyze s@Solver{..} confl = do
       when (r < r') $ varBumpActivity s v
       loopOnLastDL $ i + 1
   loopOnLastDL 0
-  clearStack lastDL
+  clear lastDL
   -- Clear seen
-  k <- sizeOfStack an'toClear
+  k <- sizeOf an'toClear
   let
     vec' = asUVector an'toClear
     cleaner :: Int -> IO ()
@@ -268,18 +268,18 @@ analyze s@Solver{..} confl = do
 analyzeRemovable :: Solver -> Lit -> Int -> IO Bool
 analyzeRemovable Solver{..} p minLevel = do
   -- assert (reason[var(p)]!= NullCaulse);
-  clearStack an'stack      -- analyze_stack.clear()
-  pushToStack an'stack p   -- analyze_stack.push(p);
-  top <- sizeOfStack an'toClear
+  clear an'stack      -- analyze_stack.clear()
+  pushTo an'stack p   -- analyze_stack.push(p);
+  top <- sizeOf an'toClear
   let
     loopOnStack :: IO Bool
     loopOnStack = do
-      k <- sizeOfStack an'stack  -- int top = analyze_toclear.size();
+      k <- sizeOf an'stack  -- int top = analyze_toclear.size();
       if 0 == k
         then return True
         else do -- assert(reason[var(analyze_stack.last())] != GClause_NULL);
-            sl <- lastOfStack an'stack
-            popFromStack an'stack             -- analyze_stack.pop();
+            sl <- lastOf an'stack
+            popFrom an'stack             -- analyze_stack.pop();
             c <- getNthClause reason (lit2var sl) -- getRoot sl
             nl <- sizeOfClause c
             let
@@ -297,16 +297,16 @@ analyzeRemovable Solver{..} p minLevel = do
                       if c3 && testBit minLevel (l' .&. 31) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
                         then do
                             setNth an'seen v' 1        -- analyze_seen[var(p)] = 1;
-                            pushToStack an'stack p'    -- analyze_stack.push(p);
-                            pushToStack an'toClear p'  -- analyze_toclear.push(p);
+                            pushTo an'stack p'    -- analyze_stack.push(p);
+                            pushTo an'toClear p'  -- analyze_toclear.push(p);
                             loopOnLit $ i + 1
                         else do
                             -- loopOnLit (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
-                            top' <- sizeOfStack an'toClear
+                            top' <- sizeOf an'toClear
                             let vec = asUVector an'toClear
                             forM_ [top .. top' - 1] $ \j -> do x <- getNth vec j; setNth an'seen (lit2var x) 0
                             -- analyze_toclear.shrink(analyze_toclear.size() - top); note: shrink n == repeat n pop
-                            shrinkStack an'toClear $ top' - top
+                            shrinkBy an'toClear $ top' - top
                             return False
                   else loopOnLit $ i + 1
             loopOnLit 1
@@ -323,7 +323,7 @@ analyzeRemovable Solver{..} p minLevel = do
 --
 analyzeFinal :: Solver -> Clause -> Bool -> IO ()
 analyzeFinal Solver{..} confl skipFirst = do
-  clearStack conflict
+  clear conflict
   rl <- getInt rootLevel
   unless (rl == 0) $ do
     n <- sizeOfClause confl
@@ -337,8 +337,8 @@ analyzeFinal Solver{..} confl skipFirst = do
         when (0 < lvl) $ setNth an'seen x 1
         loopOnConfl $ i + 1
     loopOnConfl $ if skipFirst then 1 else 0
-    tls <- sizeOfStack trailLim
-    trs <- sizeOfStack trail
+    tls <- sizeOf trailLim
+    trs <- sizeOf trail
     tlz <- getNth (asUVector trailLim) 0
     let
       trailVec = asUVector trail
@@ -351,7 +351,7 @@ analyzeFinal Solver{..} confl skipFirst = do
         when (saw == 1) $ do
           (r :: Clause) <- getNthClause reason x
           if r == NullClause
-            then pushToStack conflict (negateLit l)
+            then pushTo conflict (negateLit l)
             else do
                 k <- sizeOfClause r
                 let
@@ -427,7 +427,7 @@ propagate s@Solver{..} = do
         forClause :: Clause -> Int -> Int -> IO Clause
         forClause confl i@((< end) -> False) j = do
           shrinkManager ws (i - j)
-          while confl =<< ((<) <$> getInt qHead <*> sizeOfStack trail)
+          while confl =<< ((<) <$> getInt qHead <*> sizeOf trail)
         forClause confl i j = do
           (l :: Lit) <- getNth bvec i
           bv <- if l == 0 then return lFalse else valueLit s l
@@ -465,7 +465,7 @@ propagate s@Solver{..} = do
                             then do
                                 ((== 0) <$> decisionLevel s) >>= (`when` setBool ok False)
                                 -- #BBCP
-                                setInt qHead =<< sizeOfStack trail
+                                setInt qHead =<< sizeOf trail
                                 -- Copy the remaining watches:
                                 let
                                   copy i'@((< end) -> False) j' = forClause c i' j'
@@ -486,7 +486,7 @@ propagate s@Solver{..} = do
                             else forLit $ k + 1
                       forLit 2
       forClause confl 0 0
-  while NullClause =<< ((<) <$> getInt qHead <*> sizeOfStack trail)
+  while NullClause =<< ((<) <$> getInt qHead <*> sizeOf trail)
 
 -- | #M22
 -- reduceDB: () -> [void]
@@ -637,7 +637,7 @@ simplifyDB s@Solver{..} = do
         then setBool ok False >> return False
         else do
             -- Clear watcher lists:
-            n <- sizeOfStack trail
+            n <- sizeOf trail
             let
               vec = asUVector trail
               loopOnLit ((< n) -> False) = return ()
@@ -710,7 +710,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                   backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
                   (s `cancelUntil`) . max backtrackLevel =<< getInt rootLevel
                   newLearntClause s litsLearnt
-                  k <- sizeOfStack litsLearnt
+                  k <- sizeOf litsLearnt
                   when (k == 1) $ do
                     (v :: Var) <- lit2var <$> getNth (asUVector litsLearnt) 0
                     setNth level v 0
@@ -726,7 +726,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
             case () of
              _ | k2 == nVars -> do
                    -- Model found:
-                   forM_ [0 .. nVars - 1] $ \i -> setNth model i . (lTrue ==) =<< getNth assigns (i + 1)
+                   forM_ [1 .. nVars] $ \i -> setNth model i . (lTrue ==) =<< getNth assigns i
                    return LTrue
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
@@ -763,7 +763,7 @@ solve s@Solver{..} assumps = do
         then do                 -- conflict analyze
             (confl :: Clause) <- getNthClause reason (lit2var a)
             analyzeFinal s confl True
-            pushToStack conflict (negateLit a)
+            pushTo conflict (negateLit a)
             cancelUntil s 0
             return False
         else do
@@ -801,11 +801,11 @@ unsafeEnqueue s@Solver{..} p from = do
   setNth assigns v $! if positiveLit p then lTrue else lFalse
   setNth level v =<< decisionLevel s
   setNthClause reason v from     -- NOTE: @from@ might be NULL!
-  pushToStack trail p
+  pushTo trail p
 
 -- __Pre-condition:__ propagation queue is empty
 {-# INLINE unsafeAssume #-}
 unsafeAssume :: Solver -> Lit -> IO ()
 unsafeAssume s@Solver{..} p = do
-  pushToStack trailLim =<< sizeOfStack trail
+  pushTo trailLim =<< sizeOf trail
   unsafeEnqueue s p NullClause

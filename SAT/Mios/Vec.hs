@@ -8,7 +8,7 @@
 {-# LANGUAGE Trustworthy #-}
 
 -- | Mutable Unboxed Vector
-module SAT.Mios.Data.Vec
+module SAT.Mios.Vec
        (
          UVector
        , Vec (..)
@@ -17,15 +17,9 @@ module SAT.Mios.Data.Vec
          -- * for Vec Int
 --       , newSizedVecFromUVector
          -- * Stack
-       , newStack
+       , StackFamily (..)
+       , Stack
        , newStackFromList
-       , clearStack
-       , sizeOfStack
-       , pushToStack
-       , popFromStack
-       , lastOfStack
-       , shrinkStack
-       , asSizedVec
        )
        where
 
@@ -104,27 +98,11 @@ instance MiosVector (UVector Double) Double where
 
 --------------------------------------------------------------------------------
 
--- | returns a new 'UVector' from a @[Int]@
-{-# INLINE newStackFromList #-}
-newStackFromList :: [Int] -> IO (Vec Int 'AsStack)
-newStackFromList !l = Vec <$> U.unsafeThaw (U.fromList (length l : l))
-
--- | returns a new 'UVector' from a @[Int]@
-{-# INLINE newSizedVecFromList #-}
-newSizedVecFromList :: [Int] -> IO (UVector Int)
-newSizedVecFromList !l = U.unsafeThaw $ U.fromList (length l : l)
-
-
--- | returns a new 'UVector' from a Unboxed Int UVector
-{-# INLINE newSizedVecFromUVector #-}
-newSizedVecFromUVector :: U.Vector Int -> IO (UVector Int)
-newSizedVecFromUVector = U.unsafeThaw
-
---------------------------------------------------------------------------------
-
-data VecKind = ZeroBased | OneBased | AsStack | WithSize
+data VecKind = ZeroBased | OneBased
 
 newtype Vec a (b :: VecKind) = Vec (UVector a)
+
+type Stack = Vec Int 'OneBased
 
 instance MiosVector (Vec Int 'ZeroBased) Int where
   newVec n x = Vec <$> newVec n x
@@ -145,7 +123,10 @@ instance MiosVector (Vec Double 'ZeroBased) Double where
   vecGrow (Vec v) n = Vec <$> UV.unsafeGrow v n
 
 instance MiosVector (Vec Int 'OneBased) Int where
-  newVec n x = Vec <$> newVec n x
+  newVec n x = do
+    v <- newVec (n + 1) x
+    setNth v 0 0
+    return (Vec v)
   getNth (Vec v) = UV.unsafeRead v
   setNth (Vec v) = UV.unsafeWrite v
   modifyNth (Vec v) = UV.unsafeModify v
@@ -163,25 +144,7 @@ instance MiosVector (Vec Bool 'OneBased) Bool where
   vecGrow (Vec v) n = Vec <$> UV.unsafeGrow v n
 
 instance MiosVector (Vec Double 'OneBased) Double where
-  newVec n x = Vec <$> newVec n x
-  getNth (Vec v) = UV.unsafeRead v
-  setNth (Vec v) = UV.unsafeWrite v
-  modifyNth (Vec v) = UV.unsafeModify v
-  swapBetween (Vec v) = UV.unsafeSwap v
-  setAll (Vec v) = UV.set v
-  vecGrow (Vec v) n = Vec <$> UV.unsafeGrow v n
-
-instance MiosVector (Vec Int 'AsStack) Int where
-  newVec n x = Vec <$> newVec n x
-  getNth (Vec v) = UV.unsafeRead v
-  setNth (Vec v) = UV.unsafeWrite v
-  modifyNth (Vec v) = UV.unsafeModify v
-  swapBetween (Vec v) = UV.unsafeSwap v
-  setAll (Vec v) = UV.set v
-  vecGrow (Vec v) n = Vec <$> UV.unsafeGrow v n
-
-instance MiosVector (Vec Int 'WithSize) Int where
-  newVec n x = Vec <$> newVec n x
+  newVec n x = Vec <$> newVec (n + 1) x
   getNth (Vec v) = UV.unsafeRead v
   setNth (Vec v) = UV.unsafeWrite v
   modifyNth (Vec v) = UV.unsafeModify v
@@ -191,49 +154,26 @@ instance MiosVector (Vec Int 'WithSize) Int where
 
 -------------------------------------------------------------------------------- Stack
 
--- | returns the number of elements
-{-# INLINE sizeOfStack #-}
-sizeOfStack :: Vec Int 'AsStack -> IO Int
-sizeOfStack (Vec v) = UV.unsafeRead v 0
+class StackFamily s t | s -> t where
+  newStack :: Int -> IO s
+  sizeOf :: s -> IO t
+  pushTo :: s -> t-> IO ()
+  popFrom :: s -> IO ()
+  lastOf :: s -> IO t
+  shrinkBy :: s -> Int -> IO ()
+  
+instance StackFamily Stack Int where
+  newStack n = newVec n 0
+  sizeOf (Vec v) = getNth v 0
+  pushTo (Vec v) x = do
+    i <- (+ 1) <$> UV.unsafeRead v 0
+    UV.unsafeWrite v i x
+    UV.unsafeWrite v 0 i
+  popFrom (Vec v) = UV.unsafeModify v (subtract 1) 0
+  lastOf (Vec v) = UV.unsafeRead v =<< UV.unsafeRead v 0
+  shrinkBy (Vec v) k = UV.unsafeModify v (subtract k) 0
 
--- | clear stack
-{-# INLINE clearStack #-}
-clearStack :: Vec Int 'AsStack -> IO ()
-clearStack (Vec v) = UV.unsafeWrite v 0 0
-
--- | returns a new stack which size is @size@
-{-# INLINABLE newStack #-}
-newStack :: Int -> IO (Vec Int 'AsStack)
-newStack n = do
-  v <- UV.new $ n + 1
-  UV.set v 0
-  return $ Vec v
-
--- | pushs an int to 'Stack'
-{-# INLINE pushToStack #-}
-pushToStack :: Vec Int 'AsStack -> Int -> IO ()
-pushToStack (Vec v) x = do
-  i <- (+ 1) <$> UV.unsafeRead v 0
-  UV.unsafeWrite v i x
-  UV.unsafeWrite v 0 i
-
--- | drops the first element from 'Stack'
-{-# INLINE popFromStack #-}
-popFromStack :: Vec Int 'AsStack -> IO ()
-popFromStack (Vec v) = UV.unsafeModify v (subtract 1) 0
-
--- | peeks the last element in 'Stack'
-{-# INLINE lastOfStack #-}
-lastOfStack :: Vec Int 'AsStack -> IO Int
-lastOfStack (Vec v) = UV.unsafeRead v =<< UV.unsafeRead v 0
-
--- | Shrink the stack. The given arg means the number of discards.
--- therefore, shrink s n == for [1 .. n] $ \_ -> pop s
-{-# INLINE shrinkStack #-}
-shrinkStack :: Vec Int 'AsStack -> Int -> IO ()
-shrinkStack (Vec v) k = UV.unsafeModify v (subtract k) 0
-
--- | converts Stack to sized Vec; this is the method to get the internal vector
-{-# INLINE asSizedVec #-}
-asSizedVec :: Vec Int 'AsStack -> Vec Int 'WithSize
-asSizedVec (Vec v) = Vec v
+-- | returns a new 'UVector' from a @[Int]@
+{-# INLINE newStackFromList #-}
+newStackFromList :: [Int] -> IO Stack
+newStackFromList !l = Vec <$> U.unsafeThaw (U.fromList (length l : l))

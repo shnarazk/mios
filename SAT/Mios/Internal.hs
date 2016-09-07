@@ -4,10 +4,8 @@ module SAT.Mios.Internal
          versionId
        , MiosConfiguration (..)
        , defaultConfiguration
---       , module Plumbing
        )
        where
---import SAT.Mios.Data.Stack as Plumbing
 
 -- | version name
 versionId :: String

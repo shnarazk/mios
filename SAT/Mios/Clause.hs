@@ -41,11 +41,11 @@ import SAT.Mios.Types
 -- TODO: GADTs is better?
 data Clause = Clause
               {
-                learnt     :: !Bool                -- ^ whether this is a learnt clause
---              , rank       :: !IntSingleton      -- ^ goodness like LBD; computed in 'Ranking'
-              , activity   :: !DoubleSingleton     -- ^ activity of this clause
-              , protected  :: !BoolSingleton       -- ^ protected from reduce
-              , lits       :: !(Vec Int 'WithSize) -- ^ which this clause consists of
+                learnt     :: !Bool             -- ^ whether this is a learnt clause
+--              , rank       :: !IntSingleton   -- ^ goodness like LBD; computed in 'Ranking'
+              , activity   :: !DoubleSingleton  -- ^ activity of this clause
+              , protected  :: !BoolSingleton    -- ^ protected from reduce
+              , lits       :: !Stack            -- ^ which this clause consists of
               }
   | NullClause                              -- as null pointer
 --  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
@@ -64,15 +64,14 @@ instance VectorFamily Clause Lit where
   dump mes NullClause = return $ mes ++ "Null"
   dump mes Clause{..} = do
     a <- show <$> getDouble activity
-    (len:ls) <- asList lits
-    return $ mes ++ "C" ++ show len ++ "{" ++ intercalate "," [show learnt, a, show . map lit2int . take len $ ls] ++ "}"
+    n <- sizeOf lits
+    l <- asList lits
+    return $ mes ++ "C" ++ show n ++ "{" ++ intercalate "," [show learnt, a, show (map lit2int l)] ++ "}"
   {-# SPECIALIZE INLINE asUVector :: Clause -> UVector Int #-}
   asUVector = asUVector . lits
   {-# SPECIALIZE INLINE asList :: Clause -> IO [Int] #-}
   asList NullClause = return []
-  asList Clause{..} = do
-    (n : ls)  <- asList lits
-    return $ take n ls
+  asList Clause{..} = take <$> sizeOf lits <*> asList lits
 
 -- returns True if it is a 'BinaryClause'
 -- FIXME: this might be discarded in minisat 2.2
@@ -92,10 +91,10 @@ instance VectorFamily Clause Lit where
 -- | copies /vec/ and return a new 'Clause'
 -- Since 1.0.100 DIMACS reader should use a scratch buffer allocated statically.
 {-# INLINE newClauseFromStack #-}
-newClauseFromStack :: Bool -> Vec Int 'AsStack -> IO Clause
+newClauseFromStack :: Bool -> Stack -> IO Clause
 newClauseFromStack l vec = do
-  n <- getNth vec 0
-  v <- newVec (n + 1) (0 :: Int)
+  n <- sizeOf vec
+  v <- newStack n
   forM_ [0 .. n] $ \i -> setNth v i =<< getNth vec i
   Clause l <$> {- newInt 0 <*> -} newDouble 0 <*> newBool False <*> return v
 
@@ -103,7 +102,7 @@ newClauseFromStack l vec = do
 {-# INLINE sizeOfClause #-}
 sizeOfClause :: Clause -> IO Int
 -- sizeOfClause (BinaryClause _) = return 1
-sizeOfClause !c = getNth (lits c) 0
+sizeOfClause = sizeOf . lits
 
 -- | drop the last /N/ literals in a 'Clause' to eliminate unsatisfied literals
 {-# INLINABLE shrinkClause #-}
