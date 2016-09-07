@@ -6,6 +6,7 @@
   , RecordWildCards
   , ViewPatterns
   #-}
+{-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE Trustworthy #-}
 
 -- | A shrinkable vector of 'C.Clause'
@@ -126,10 +127,10 @@ instance VectorFamily SimpleManager C.Clause where
 -- | Clause + Blocking Literal
 data ClauseExtManager = ClauseExtManager
   {
-    _nActives     :: !IntSingleton               -- number of active clause
-  , _purged       :: !BoolSingleton              -- whether it needs gc
-  , _clauseVector :: IORef.IORef C.ClauseVector -- clause list
-  , _keyVector    :: IORef.IORef (Vec Int)      -- Int list
+    _nActives     :: !IntSingleton                         -- number of active clause
+  , _purged       :: !BoolSingleton                        -- whether it needs gc
+  , _clauseVector :: IORef.IORef C.ClauseVector            -- clause list
+  , _keyVector    :: IORef.IORef (Vec Int 'ZeroBased)      -- Int list
   }
 
 instance ClauseManager ClauseExtManager where
@@ -226,7 +227,7 @@ purifyManager ClauseExtManager{..} = do
 
 -- | returns the associated Int vector
 {-# INLINE getKeyVector #-}
-getKeyVector :: ClauseExtManager -> IO (Vec Int)
+getKeyVector :: ClauseExtManager -> IO (Vec Int 'ZeroBased)
 getKeyVector ClauseExtManager{..} = IORef.readIORef _keyVector
 
 -- | O(1) inserter

@@ -4,6 +4,7 @@
   , ScopedTypeVariables
   , ViewPatterns
   #-}
+{-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE Safe #-}
 
 -- | This is a part of MIOS; main heuristics
@@ -34,7 +35,7 @@ ranking' = sizeOfClause
 {-# INLINABLE removeWatch #-}
 removeWatch :: Solver -> Clause -> IO ()
 removeWatch (watches -> w) c = do
-  let lvec = asVec c
+  let lvec = asUVector c
   l1 <- negateLit <$> getNth lvec 0
   markClause (getNthWatcher w l1) c
   l2 <- negateLit <$> getNth lvec 1
@@ -47,7 +48,7 @@ removeWatch (watches -> w) c = do
 -- | __Fig. 8. (p.12)__ create a new LEARNT clause and adds it to watcher lists
 -- This is a strippped-down version of 'newClause' in Solver
 {-# INLINABLE newLearntClause #-}
-newLearntClause :: Solver -> Vec Int -> IO ()
+newLearntClause :: Solver -> Vec Int 'AsStack -> IO ()
 newLearntClause s@Solver{..} ps = do
   good <- getBool ok
   when good $ do
@@ -60,8 +61,8 @@ newLearntClause s@Solver{..} ps = do
        unsafeEnqueue s l NullClause
      _ -> do
        -- allocate clause:
-       c <- newClauseFromVec True ps
-       let vec = asVec c
+       c <- newClauseFromStack True ps
+       let vec = asUVector c
        -- Pick a second literal to watch:
        let
          findMax :: Int -> Int -> Int -> IO Int
@@ -100,7 +101,7 @@ simplify :: Solver -> Clause -> IO Bool
 simplify s c = do
   n <- sizeOfClause c
   let
-    lvec = asVec c
+    lvec = asUVector c
     loop ::Int -> IO Bool
     loop ((< n) -> False) = return False
     loop i = do
@@ -143,8 +144,8 @@ analyze s@Solver{..} confl = do
   pushToStack litsLearnt 0 -- reserve the first place for the unassigned literal
   dl <- decisionLevel s
   let
-    litsVec = asVec litsLearnt
-    trailVec = asVec trail
+    litsVec = asUVector litsLearnt
+    trailVec = asUVector trail
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
       when (learnt c) $ do
@@ -161,7 +162,7 @@ analyze s@Solver{..} confl = do
 -}
       sc <- sizeOfClause c
       let
-        lvec = asVec c
+        lvec = asUVector c
         loopOnLiterals :: Int -> Int -> Int -> IO (Int, Int)
         loopOnLiterals ((< sc) -> False) b pc = return (b, pc) -- b = btLevel, pc = pathC
         loopOnLiterals j b pc = do
@@ -231,7 +232,7 @@ analyze s@Solver{..} confl = do
   nld <- sizeOfStack lastDL
   r <- sizeOfStack litsLearnt -- this is not the right value
   let
-    vec = asVec lastDL
+    vec = asUVector lastDL
     loopOnLastDL :: Int -> IO ()
     loopOnLastDL ((< nld) -> False) = return ()
     loopOnLastDL i = do
@@ -244,7 +245,7 @@ analyze s@Solver{..} confl = do
   -- Clear seen
   k <- sizeOfStack an'toClear
   let
-    vec' = asVec an'toClear
+    vec' = asUVector an'toClear
     cleaner :: Int -> IO ()
     cleaner ((< k) -> False) = return ()
     cleaner i = do
@@ -282,7 +283,7 @@ analyzeRemovable Solver{..} p minLevel = do
             c <- getNthClause reason (lit2var sl) -- getRoot sl
             nl <- sizeOfClause c
             let
-              cvec = asVec c
+              cvec = asUVector c
               loopOnLit :: Int -> IO Bool -- loopOnLit (int i = 1; i < c.size(); i++){
               loopOnLit ((< nl) -> False) = loopOnStack
               loopOnLit i = do
@@ -302,7 +303,7 @@ analyzeRemovable Solver{..} p minLevel = do
                         else do
                             -- loopOnLit (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
                             top' <- sizeOfStack an'toClear
-                            let vec = asVec an'toClear
+                            let vec = asUVector an'toClear
                             forM_ [top .. top' - 1] $ \j -> do x <- getNth vec j; setNth an'seen (lit2var x) 0
                             -- analyze_toclear.shrink(analyze_toclear.size() - top); note: shrink n == repeat n pop
                             shrinkStack an'toClear $ top' - top
@@ -327,7 +328,7 @@ analyzeFinal Solver{..} confl skipFirst = do
   unless (rl == 0) $ do
     n <- sizeOfClause confl
     let
-      lvec = asVec confl
+      lvec = asUVector confl
       loopOnConfl :: Int -> IO ()
       loopOnConfl ((< n) -> False) = return ()
       loopOnConfl i = do
@@ -338,9 +339,9 @@ analyzeFinal Solver{..} confl skipFirst = do
     loopOnConfl $ if skipFirst then 1 else 0
     tls <- sizeOfStack trailLim
     trs <- sizeOfStack trail
-    tlz <- getNth (asVec trailLim) 0
+    tlz <- getNth (asUVector trailLim) 0
     let
-      trailVec = asVec trail
+      trailVec = asUVector trail
       loopOnTrail :: Int -> IO ()
       loopOnTrail ((tlz <=) -> False) = return ()
       loopOnTrail i = do
@@ -354,7 +355,7 @@ analyzeFinal Solver{..} confl skipFirst = do
             else do
                 k <- sizeOfClause r
                 let
-                  cvec = asVec r
+                  cvec = asUVector r
                   loopOnLits :: Int -> IO ()
                   loopOnLits ((< k) -> False) = return ()
                   loopOnLits j = do
@@ -365,7 +366,7 @@ analyzeFinal Solver{..} confl skipFirst = do
                 loopOnLits 1
         setNth an'seen x 0
         loopOnTrail $ i - 1
-    loopOnTrail =<< if tls <= rl then return (trs - 1) else getNth (asVec trailLim) rl
+    loopOnTrail =<< if tls <= rl then return (trs - 1) else getNth (asUVector trailLim) rl
 
 -- | M114:
 -- propagate : [void] -> [Clause+]
@@ -396,7 +397,7 @@ propagate s@Solver{..} = do
           loop $ i + 1
       loop 1
 -}
-    trailVec = asVec trail
+    trailVec = asUVector trail
     while :: Clause -> Bool -> IO Clause
     while confl False = {- bumpAllVar >> -} return confl
     while confl True = do
@@ -414,7 +415,7 @@ propagate s@Solver{..} = do
         checkAllLiteralsIn c = do
           nc <- sizeOfClause c
           let
-            vec = asVec c
+            vec = asuVector c
             loop :: Int -> IO ()
             loop((< nc) -> False) = return ()
             loop i = do
@@ -441,7 +442,7 @@ propagate s@Solver{..} = do
                 -- checkAllLiteralsIn c
                 (c :: Clause) <- getNthClause cvec i
                 let
-                  lits = asVec c
+                  lits = asUVector c
                   falseLit = negateLit p
                 -- Make sure the false literal is data[1]
                 ((falseLit ==) <$> getNth lits 0) >>= (`when` swapBetween lits 0 1)
@@ -638,7 +639,7 @@ simplifyDB s@Solver{..} = do
             -- Clear watcher lists:
             n <- sizeOfStack trail
             let
-              vec = asVec trail
+              vec = asUVector trail
               loopOnLit ((< n) -> False) = return ()
               loopOnLit i = do
                 l <- getNth vec i
@@ -708,10 +709,10 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
 --                    when (d < 0.95) $ modifyDouble varDecay (+ 0.01)
                   backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
                   (s `cancelUntil`) . max backtrackLevel =<< getInt rootLevel
-                  newLearntClause s $ asSizedVec litsLearnt
+                  newLearntClause s litsLearnt
                   k <- sizeOfStack litsLearnt
                   when (k == 1) $ do
-                    (v :: Var) <- lit2var <$> getNth (asVec litsLearnt) 0
+                    (v :: Var) <- lit2var <$> getNth (asUVector litsLearnt) 0
                     setNth level v 0
                   varDecayActivity s
                   -- claDecayActivity s

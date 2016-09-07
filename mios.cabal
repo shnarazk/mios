@@ -42,7 +42,7 @@ library
                         SAT.Mios.ClauseManager
                         SAT.Mios.Data.Vec
                         SAT.Mios.Data.Singleton
-                        SAT.Mios.Data.Stack
+--                        SAT.Mios.Data.Stack
                         SAT.Mios.Internal
                         SAT.Mios.Main
                         SAT.Mios.OptionParser
@@ -77,7 +77,7 @@ executable mios-gv
                         SAT.Mios.ClauseManager
                         SAT.Mios.Data.Vec
                         SAT.Mios.Data.Singleton
-                        SAT.Mios.Data.Stack
+--                        SAT.Mios.Data.Stack
                         SAT.Mios.Internal
                         SAT.Mios.Main
                         SAT.Mios.OptionParser

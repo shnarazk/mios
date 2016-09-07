@@ -1,5 +1,6 @@
 -- | Minisat-based Implementation and Optimization Study on SAT solver
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE Trustworthy #-}
 
 module SAT.Mios
@@ -110,7 +111,7 @@ executeSolver _ = return ()
 runSolver :: Traversable t => MiosConfiguration -> CNFDescription -> t [Int] -> IO (Either [Int] [Int])
 runSolver m d c = do
   s <- newSolver m d
-  mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . map int2lit)) c
+  mapM_ ((s `addClause`) <=< (newStackFromList . map int2lit)) c
   noConf <- simplifyDB s
   if noConf
     then do
@@ -134,7 +135,7 @@ solveSATWithConfiguration :: Traversable m => MiosConfiguration -> CNFDescriptio
 solveSATWithConfiguration conf desc cls = do
   s <- newSolver conf desc
   -- mapM_ (const (newVar s)) [0 .. _numberOfVariables desc - 1]
-  mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . map int2lit)) cls
+  mapM_ ((s `addClause`) <=< (newStackFromList . map int2lit)) cls
   noConf <- simplifyDB s
   if noConf
     then do
@@ -178,7 +179,7 @@ executeValidator _  = return ()
 validateAssignment :: (Traversable m, Traversable n) => CNFDescription -> m [Int] -> n Int -> IO Bool
 validateAssignment desc cls asg = do
   s <- newSolver defaultConfiguration desc
-  mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . map int2lit)) cls
+  mapM_ ((s `addClause`) <=< (newStackFromList . map int2lit)) cls
   s `validate` asg
 
 -- | dumps an assigment to file.
@@ -267,7 +268,7 @@ parseInt st = do
     c | '0' <= c && c <= '9'  -> loop st 0
     _ -> error "PARSE ERROR! Unexpected char"
 
-readClause :: Solver -> Vec Int -> Vec Bool -> B.ByteString -> IO B.ByteString
+readClause :: Solver -> Vec Int 'AsStack -> Vec Bool 'OneBased -> B.ByteString -> IO B.ByteString
 readClause s buffer pvec stream = do
   let
     loop :: Int -> B.ByteString -> IO B.ByteString

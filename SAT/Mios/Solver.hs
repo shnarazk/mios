@@ -5,6 +5,7 @@
   , TupleSections
   , ViewPatterns
   #-}
+{-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE Safe #-}
 
 -- | This is a part of MIOS; main data
@@ -53,39 +54,39 @@ import SAT.Mios.ClauseManager
 data Solver = Solver
               {
                 -- Public Interface
-                model      :: !(Vec Bool)        -- ^ If found, this vector has the model
-              , conflict   :: !Stack             -- ^ set of literals in the case of conflicts
+                model      :: !(Vec Bool 'OneBased)  -- ^ If found, this vector has the model
+              , conflict   :: !(Vec Int 'AsStack) -- ^ set of literals in the case of conflicts
                 -- Clause Database
-              , clauses    :: !ClauseExtManager  -- ^ List of problem constraints.
-              , learnts    :: !ClauseExtManager  -- ^ List of learnt clauses.
-              , watches    :: !WatcherList       -- ^ a list of constraint wathing 'p', literal-indexed
+              , clauses    :: !ClauseExtManager   -- ^ List of problem constraints.
+              , learnts    :: !ClauseExtManager   -- ^ List of learnt clauses.
+              , watches    :: !WatcherList        -- ^ a list of constraint wathing 'p', literal-indexed
                 -- Assignment Management
-              , assigns    :: !(Vec Int)         -- ^ The current assignments indexed on variables; var-indexed
-              , phases     :: !(Vec Int)         -- ^ The last assignments indexed on variables; var-indexed
-              , trail      :: !Stack             -- ^ List of assignments in chronological order; var-indexed
-              , trailLim   :: !Stack             -- ^ Separator indices for different decision levels in 'trail'.
-              , qHead      :: !IntSingleton      -- ^ 'trail' is divided at qHead; assignments and queue
-              , reason     :: !ClauseVector      -- ^ For each variable, the constraint that implied its value; var-indexed
-              , level      :: !(Vec Int)         -- ^ For each variable, the decision level it was assigned; var-indexed
+              , assigns    :: !(Vec Int 'OneBased) -- ^ The current assignments indexed on variables
+              , phases     :: !(Vec Int 'OneBased) -- ^ The last assignments indexed on variables
+              , trail      :: !(Vec Int 'AsStack) -- ^ List of assignments in chronological order
+              , trailLim   :: !(Vec Int 'AsStack) -- ^ Separator indices for different decision levels in 'trail'.
+              , qHead      :: !IntSingleton       -- ^ 'trail' is divided at qHead; assignments and queue
+              , reason     :: !ClauseVector       -- ^ For each variable, the constraint that implied its value; var-indexed
+              , level      :: !(Vec Int 'OneBased) -- ^ For each variable, the decision level it was assigned
                 -- Variable Order
-              , activities :: !(Vec Double)      -- ^ Heuristic measurement of the activity of a variable; var-indexed
-              , order      :: !VarHeap           -- ^ Keeps track of the dynamic variable order.
+              , activities :: !(Vec Double 'OneBased) -- ^ Heuristic measurement of the activity of a variable
+              , order      :: !VarHeap            -- ^ Keeps track of the dynamic variable order.
                 -- Configuration
-              , config     :: !MiosConfiguration -- ^ search paramerters
-              , nVars      :: !Int               -- ^ number of variables
---            , claInc     :: !DoubleSingleton   -- ^ Clause activity increment amount to bump with.
---            , varDecay   :: !DoubleSingleton   -- ^ used to set 'varInc'
-              , varInc     :: !DoubleSingleton   -- ^ Variable activity increment amount to bump with.
-              , rootLevel  :: !IntSingleton      -- ^ Separates incremental and search assumptions.
+              , config     :: !MiosConfiguration  -- ^ search paramerters
+              , nVars      :: !Int                -- ^ number of variables
+--            , claInc     :: !DoubleSingleton    -- ^ Clause activity increment amount to bump with.
+--            , varDecay   :: !DoubleSingleton    -- ^ used to set 'varInc'
+              , varInc     :: !DoubleSingleton    -- ^ Variable activity increment amount to bump with.
+              , rootLevel  :: !IntSingleton       -- ^ Separates incremental and search assumptions.
                 -- Working Memory
-              , ok         :: !BoolSingleton     -- ^ return value holder
-              , an'seen    :: !(Vec Int)         -- ^ scratch var for 'analyze'; var-indexed
-              , an'toClear :: !Stack             -- ^ ditto
-              , an'stack   :: !Stack             -- ^ ditto
-              , pr'seen    :: !(Vec Int)         -- ^ used in propagate
-              , litsLearnt :: !Stack             -- ^ used to create a learnt clause
-              , lastDL     :: !Stack             -- ^ last decision level used in analyze
-              , stats      :: !(Vec Int)         -- ^ statistics information holder
+              , ok         :: !BoolSingleton      -- ^ return value holder
+              , an'seen    :: !(Vec Int 'OneBased) -- ^ scratch var for 'analyze'
+              , an'toClear :: !(Vec Int 'AsStack) -- ^ ditto
+              , an'stack   :: !(Vec Int 'AsStack) -- ^ ditto
+              , pr'seen    :: !(Vec Int 'OneBased) -- ^ used in propagate
+              , litsLearnt :: !(Vec Int 'AsStack) -- ^ used to create a learnt clause
+              , lastDL     :: !(Vec Int 'AsStack) -- ^ last decision level used in analyze
+              , stats      :: !(Vec Int 'ZeroBased)  -- ^ statistics information holder
 {-
               , lbd'seen   :: !Vec               -- ^ used in lbd computation
               , lbd'key    :: !IntSingleton      -- ^ used in lbd computation
@@ -211,7 +212,7 @@ getStats (stats -> v) = mapM (\i -> (i, ) <$> getNth v (fromEnum i)) [minBound .
 -- | returns @False@ if a conflict has occured.
 -- This function is called only before the solving phase to register the given clauses.
 {-# INLINABLE addClause #-}
-addClause :: Solver -> Vec Int -> IO Bool
+addClause :: Solver -> Vec Int 'AsStack -> IO Bool
 addClause s@Solver{..} vecLits = do
   result <- clauseNew s vecLits False
   case result of
@@ -231,7 +232,7 @@ addClause s@Solver{..} vecLits = do
 -- first be unbound by backtracking. (Note that none of the learnt-clause specific things
 -- needs to done for a user defined contraint type.)
 {-# INLINABLE clauseNew #-}
-clauseNew :: Solver -> Vec Int -> Bool -> IO (Bool, Clause)
+clauseNew :: Solver -> Vec Int 'AsStack -> Bool -> IO (Bool, Clause)
 clauseNew s@Solver{..} ps isLearnt = do
   -- now ps[0] is the number of living literals
   exit <- do
@@ -287,8 +288,8 @@ clauseNew s@Solver{..} ps isLearnt = do
      (, NullClause) <$> enqueue s l NullClause
    _ -> do
      -- allocate clause:
-     c <- newClauseFromVec isLearnt ps
-     let vec = asVec c
+     c <- newClauseFromStack isLearnt ps
+     let vec = asUVector c
      when isLearnt $ do
        -- Pick a second literal to watch:
        let
@@ -362,8 +363,8 @@ cancelUntil :: Solver -> Int -> IO ()
 cancelUntil s@Solver{..} lvl = do
   dl <- decisionLevel s
   when (lvl < dl) $ do
-    let tr = asVec trail
-    let tl = asVec trailLim
+    let tr = asUVector trail
+    let tl = asUVector trailLim
     lim <- getNth tl lvl
     ts <- sizeOfStack trail
     ls <- sizeOfStack trailLim
@@ -515,8 +516,8 @@ claRescaleActivityAfterRestart Solver{..} = do
 -- Note: VarHeap itself is not a @VarOrder@, because it requires a pointer to solver
 data VarHeap = VarHeap
                 {
-                  heap :: !(Vec Int) -- order to var
-                , idxs :: !(Vec Int) -- var to order (index)
+                  heap :: !(Vec Int 'WithSize) -- order to var
+                , idxs :: !(Vec Int 'WithSize) -- var to order (index)
                 }
 
 newVarHeap :: Int -> IO VarHeap

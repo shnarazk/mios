@@ -5,6 +5,7 @@
   , FunctionalDependencies
   , MultiParamTypeClasses
   #-}
+{-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE Trustworthy #-}
 
 -- | Basic data types used throughout mios.
@@ -59,18 +60,44 @@ class VectorFamily s t | s -> t where
   dump :: Show t => String -> s -> IO String
   dump msg _ = error $ msg ++ ": no defalut method for dump"
   -- | get a raw data
-  asVec :: s -> UV.IOVector Int
-  asVec = error "asVector undefined"
+  asUVector :: s -> UVector Int
+  asUVector = error "asVector undefined"
   -- | converts into a list
   asList :: s -> IO [t]
   asList = error "asList undefined"
   {-# MINIMAL dump #-}
 
 -- | provides 'clear' and 'size'
-instance UV.Unbox a => VectorFamily (Vec a) a where
+
+instance VectorFamily (Vec Bool 'OneBased) Bool where
+  clear _ = error "Vec clear"
+  asList (Vec v) = forM [0 .. UV.length v - 1] $ UV.unsafeRead v
+  dump str _ = return $ str ++ "Vec dump"
+
+instance UV.Unbox a => VectorFamily (UVector a) a where
   clear _ = error "Vec.clear"
   asList v = forM [0 .. UV.length v - 1] $ UV.unsafeRead v
   dump str v = (str ++) . show <$> asList v
+
+instance VectorFamily (Vec Int 'ZeroBased) Int where
+  clear _ = error "Vec clear"
+  asUVector (Vec a) = a
+  dump str _ = return $ str ++ "Vec dump"
+
+instance VectorFamily (Vec Int 'OneBased) Int where
+  clear _ = error "Vec clear"
+  asUVector (Vec a) = UV.unsafeTail a
+  dump str _ = return $ str ++ "Vec dump"
+
+instance VectorFamily (Vec Int 'WithSize) Int where
+  clear _ = error "Vec clear"
+  asUVector (Vec a) = UV.unsafeTail a
+  dump str _ = return $ str ++ "Vec dump"
+
+instance VectorFamily (Vec Int 'AsStack) Int where
+  clear _ = error "Vec clear"
+  asUVector (Vec a) = UV.unsafeTail a
+  dump str _ = return $ str ++ "Vec dump"
 
 -- | represents "Var"
 type Var = Int
