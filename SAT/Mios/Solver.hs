@@ -65,7 +65,7 @@ data Solver = Solver
               , trail      :: !Stack             -- ^ List of assignments in chronological order
               , trailLim   :: !Stack             -- ^ Separator indices for different decision levels in 'trail'.
               , qHead      :: !Int'              -- ^ 'trail' is divided at qHead; assignments and queue
-              , reason     :: !ClauseVector      -- ^ For each variable, the constraint that implied its value; var-indexed
+              , reason     :: !ClauseVector      -- ^ For each variable, the constraint that implied its value
               , level      :: !(Vec Int)         -- ^ For each variable, the decision level it was assigned
                 -- Variable Order
               , activities :: !(Vec Double)      -- ^ Heuristic measurement of the activity of a variable
@@ -97,38 +97,38 @@ newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
 newSolver conf (CNFDescription nv nc _) = do
   Solver
     -- Public Interface
-    <$> newVec nv False                               -- model
-    <*> newStack nv                                   -- coflict
+    <$> newVec nv False                                 -- model
+    <*> newStack nv                                     -- coflict
     -- Clause Database
-    <*> newManager nc                                 -- clauses
-    <*> newManager nc                                 -- learnts
-    <*> newWatcherList nv 2                           -- watches
+    <*> newManager nc                                   -- clauses
+    <*> newManager nc                                   -- learnts
+    <*> newWatcherList nv 2                             -- watches
     -- Assignment Management
-    <*> newVec (nv + 1) lBottom                       -- assigns
-    <*> newVec (nv + 1) lBottom                       -- phases
-    <*> newStack nv                                   -- trail
-    <*> newStack nv                                   -- trailLim
-    <*> new' 0                                        -- qHead
-    <*> newClauseVector (nv + 1)                      -- reason
-    <*> newVec (nv + 1) (-1)                          -- level
+    <*> newVec nv lBottom                               -- assigns
+    <*> newVec nv lBottom                               -- phases
+    <*> newStack nv                                     -- trail
+    <*> newStack nv                                     -- trailLim
+    <*> new' 0                                          -- qHead
+    <*> newClauseVector (nv + 1)                        -- reason
+    <*> newVec nv (-1)                                  -- level
     -- Variable Order
-    <*> newVec (nv + 1) 0                             -- activities
-    <*> newVarHeap nv                                 -- order
+    <*> newVec nv 0                                     -- activities
+    <*> newVarHeap nv                                   -- order
     -- Configuration
-    <*> return conf                                   -- config
-    <*> return nv                                     -- nVars
---  <*> newDouble 1.0                                 -- claInc
---  <*> newDouble (variableDecayRate conf)            -- varDecay
-    <*> new' 1.0                                      -- varInc
-    <*> new' 0                                        -- rootLevel
+    <*> return conf                                     -- config
+    <*> return nv                                       -- nVars
+--  <*> new' 1.0                                        -- claInc
+--  <*> new' (variableDecayRate conf)                   -- varDecay
+    <*> new' 1.0                                        -- varInc
+    <*> new' 0                                          -- rootLevel
     -- Working Memory
-    <*> new' True                                     -- ok
-    <*> newVec (nv + 1) 0                             -- an'seen
-    <*> newStack nv                                   -- an'toClear
-    <*> newStack nv                                   -- an'stack
-    <*> newVec (nv + 1) (-1)                          -- pr'seen
-    <*> newStack nv                                   -- litsLearnt
-    <*> newStack nv                                   -- lastDL
+    <*> new' True                                       -- ok
+    <*> newVec nv 0                                     -- an'seen
+    <*> newStack nv                                     -- an'toClear
+    <*> newStack nv                                     -- an'stack
+    <*> newVec nv (-1)                                  -- pr'seen
+    <*> newStack nv                                     -- litsLearnt
+    <*> newStack nv                                     -- lastDL
     <*> newVec (1 + fromEnum (maxBound :: StatIndex)) 0 -- stats
 {-
 --    <*> newVec nv                                     -- lbd'seen
