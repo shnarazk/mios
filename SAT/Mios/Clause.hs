@@ -41,11 +41,11 @@ import SAT.Mios.Types
 -- TODO: GADTs is better?
 data Clause = Clause
               {
-                learnt     :: !Bool             -- ^ whether this is a learnt clause
---              , rank       :: !IntSingleton   -- ^ goodness like LBD; computed in 'Ranking'
-              , activity   :: !DoubleSingleton  -- ^ activity of this clause
-              , protected  :: !BoolSingleton    -- ^ protected from reduce
-              , lits       :: !Stack            -- ^ which this clause consists of
+                learnt     :: !Bool     -- ^ whether this is a learnt clause
+--              , rank     :: !Int'     -- ^ goodness like LBD; computed in 'Ranking'
+              , activity   :: !Double'  -- ^ activity of this clause
+              , protected  :: !Bool'    -- ^ protected from reduce
+              , lits       :: !Stack    -- ^ which this clause consists of
               }
   | NullClause                              -- as null pointer
 --  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
@@ -63,7 +63,7 @@ instance Show Clause where
 instance VectorFamily Clause Lit where
   dump mes NullClause = return $ mes ++ "Null"
   dump mes Clause{..} = do
-    a <- show <$> getDouble activity
+    a <- show <$> get' activity
     n <- sizeOf lits
     l <- asList lits
     return $ mes ++ "C" ++ show n ++ "{" ++ intercalate "," [show learnt, a, show (map lit2int l)] ++ "}"
@@ -96,7 +96,7 @@ newClauseFromStack l vec = do
   n <- sizeOf vec
   v <- newStack n
   forM_ [0 .. n] $ \i -> setNth v i =<< getNth vec i
-  Clause l <$> {- newInt 0 <*> -} newDouble 0 <*> newBool False <*> return v
+  Clause l <$> {- new' 0 <*> -} new' 0.0 <*> new' False <*> return v
 
 -- | returns the number of literals in a clause, even if the given clause is a binary clause
 {-# INLINE sizeOfClause #-}

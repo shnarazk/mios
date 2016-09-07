@@ -5,16 +5,12 @@
   , FunctionalDependencies
   , MultiParamTypeClasses
   #-}
-{-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE Trustworthy #-}
 
 -- | Basic data types used throughout mios.
 module SAT.Mios.Types
        (
-         -- Singleton
-         module SAT.Mios.Singleton
-         -- Fixed Unboxed Mutable Int Vector
-       , module SAT.Mios.Vec
+         module SAT.Mios.Vec
          -- Abstract interfaces
        , VectorFamily (..)
          -- *  Variable
@@ -46,7 +42,6 @@ module SAT.Mios.Types
 import Control.Monad (forM)
 import Data.Bits
 import qualified Data.Vector.Unboxed.Mutable as UV
-import SAT.Mios.Singleton
 import SAT.Mios.Vec
 
 -- | Public interface as /Container/
@@ -69,7 +64,7 @@ class VectorFamily s t | s -> t where
 
 -- | provides 'clear' and 'size'
 
-instance VectorFamily (Vec Bool 'OneBased) Bool where
+instance VectorFamily (Vec Bool) Bool where
   asList (Vec v) = forM [1 .. UV.length v] $ getNth v
   dump str _ = return $ str ++ "Vec dump"
 
@@ -77,12 +72,7 @@ instance UV.Unbox a => VectorFamily (UVector a) a where
   asList v = forM [0 .. UV.length v - 1] $ UV.unsafeRead v
   dump str v = (str ++) . show <$> asList v
 
-instance VectorFamily (Vec Int 'ZeroBased) Int where
-  asUVector (Vec a) = a
-  asList (Vec v) = forM [1 .. UV.length v - 1] $ getNth v
-  dump str _ = return $ str ++ "Vec dump"
-
-instance VectorFamily (Vec Int 'OneBased) Int where
+instance VectorFamily (Vec Int) Int where
   clear (Vec v) = setNth v 0 0
   asUVector (Vec a) = UV.unsafeTail a
   asList (Vec v) = forM [1 .. UV.length v - 1] $ getNth v

@@ -1,6 +1,5 @@
 -- | Minisat-based Implementation and Optimization Study on SAT solver
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE Safe #-}
 
 module SAT.Mios
@@ -268,7 +267,7 @@ parseInt st = do
     c | '0' <= c && c <= '9'  -> loop st 0
     _ -> error "PARSE ERROR! Unexpected char"
 
-readClause :: Solver -> Stack -> Vec Bool 'OneBased -> B.ByteString -> IO B.ByteString
+readClause :: Solver -> Stack -> Vec Bool -> B.ByteString -> IO B.ByteString
 readClause s buffer bvec stream = do
   let
     loop :: Int -> B.ByteString -> IO B.ByteString

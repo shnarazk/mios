@@ -4,7 +4,6 @@
   , ScopedTypeVariables
   , ViewPatterns
   #-}
-{-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE Safe #-}
 
 -- | This is a part of MIOS; main heuristics
@@ -50,7 +49,7 @@ removeWatch (watches -> w) c = do
 {-# INLINABLE newLearntClause #-}
 newLearntClause :: Solver -> Stack -> IO ()
 newLearntClause s@Solver{..} ps = do
-  good <- getBool ok
+  good <- get' ok
   when good $ do
     -- ps is a 'SizedVectorInt'; ps[0] is the number of active literals
     -- Since this solver must generate only healthy learnt clauses, we need not to run misc check in 'newClause'
@@ -76,7 +75,7 @@ newLearntClause s@Solver{..} ps = do
              else findMax (i + 1) j val
        swapBetween vec 1 =<< findMax 0 0 0 -- Let @max_i@ be the index of the literal with highest decision level
        -- Bump, enqueue, store clause:
-       setDouble (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
+       set' (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
        -- Add clause to all managers
        pushClause learnts c
        l <- getNth vec 0
@@ -87,7 +86,7 @@ newLearntClause s@Solver{..} ps = do
        unsafeEnqueue s l c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
        -- setRank s c
-       setBool (protected c) True
+       set' (protected c) True
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
 -- simplify its representation (returns @False@) or state that the constraint is
@@ -152,13 +151,13 @@ analyze s@Solver{..} confl = do
         claBumpActivity s c
 {-
         -- update LBD like #Glucose4.0
-        d <- getInt (lbd c)
+        d <- get' (lbd c)
         when (2 < d) $ do
           nblevels <- lbdOf s c
           when (nblevels + 1 < d) $ do -- improve the LBD
-            when (d <= 30) $ setBool (protected c) True -- 30 is `lbLBDFrozenClause`
+            when (d <= 30) $ set' (protected c) True -- 30 is `lbLBDFrozenClause`
             -- seems to be interesting: keep it fro the next round
-            setInt (lbd c) nblevels    -- Update it
+            set' (lbd c) nblevels    -- Update it
 -}
       sc <- sizeOfClause c
       let
@@ -324,7 +323,7 @@ analyzeRemovable Solver{..} p minLevel = do
 analyzeFinal :: Solver -> Clause -> Bool -> IO ()
 analyzeFinal Solver{..} confl skipFirst = do
   clear conflict
-  rl <- getInt rootLevel
+  rl <- get' rootLevel
   unless (rl == 0) $ do
     n <- sizeOfClause confl
     let
@@ -401,14 +400,14 @@ propagate s@Solver{..} = do
     while :: Clause -> Bool -> IO Clause
     while confl False = {- bumpAllVar >> -} return confl
     while confl True = do
-      (p :: Lit) <- getNth trailVec =<< getInt qHead
-      modifyInt qHead (+ 1)
+      (p :: Lit) <- getNth trailVec =<< get' qHead
+      modify' qHead (+ 1)
       let (ws :: ClauseExtManager) = getNthWatcher watches p
       end <- numberOfClauses ws
       cvec <- getClauseVector ws
       bvec <- getKeyVector ws
 --      rc <- getNthClause reason $ lit2var p
---      byGlue <- if (rc /= NullClause) && learnt rc then (== 2) <$> getInt (lbd rc) else return False
+--      byGlue <- if (rc /= NullClause) && learnt rc then (== 2) <$> get' (lbd rc) else return False
       let
 {-
         checkAllLiteralsIn :: Clause -> IO () -- not in use
@@ -427,7 +426,7 @@ propagate s@Solver{..} = do
         forClause :: Clause -> Int -> Int -> IO Clause
         forClause confl i@((< end) -> False) j = do
           shrinkManager ws (i - j)
-          while confl =<< ((<) <$> getInt qHead <*> sizeOf trail)
+          while confl =<< ((<) <$> get' qHead <*> sizeOf trail)
         forClause confl i j = do
           (l :: Lit) <- getNth bvec i
           bv <- if l == 0 then return lFalse else valueLit s l
@@ -463,9 +462,9 @@ propagate s@Solver{..} = do
                           result <- enqueue s first c
                           if not result
                             then do
-                                ((== 0) <$> decisionLevel s) >>= (`when` setBool ok False)
+                                ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
                                 -- #BBCP
-                                setInt qHead =<< sizeOf trail
+                                set' qHead =<< sizeOf trail
                                 -- Copy the remaining watches:
                                 let
                                   copy i'@((< end) -> False) j' = forClause c i' j'
@@ -486,7 +485,7 @@ propagate s@Solver{..} = do
                             else forLit $ k + 1
                       forLit 2
       forClause confl 0 0
-  while NullClause =<< ((<) <$> getInt qHead <*> sizeOf trail)
+  while NullClause =<< ((<) <$> get' qHead <*> sizeOf trail)
 
 -- | #M22
 -- reduceDB: () -> [void]
@@ -554,9 +553,9 @@ sortClauses s cm nneeds = do
     assignKey ((< n) -> False) m = return m
     assignKey i m = do
       c <- getNthClause vec i
-      k <- (\k -> if k == 2 then return k else fromEnum <$> getBool (protected c)) =<< sizeOfClause c
+      k <- (\k -> if k == 2 then return k else fromEnum <$> get' (protected c)) =<< sizeOfClause c
       case k of
-        1 -> setBool (protected c) False >> setNth keys i (shiftL 2 indexWidth + i) >> assignKey (i + 1) (m + 1)
+        1 -> set' (protected c) False >> setNth keys i (shiftL 2 indexWidth + i) >> assignKey (i + 1) (m + 1)
         2 -> setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
         _ -> do
             l <- locked s c      -- this is expensive
@@ -564,7 +563,7 @@ sortClauses s cm nneeds = do
               then setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
               else do
                   d <- ranking' c
-                  b <- floor . (activityScale *) . (1 -) . logBase claActivityThreshold . max 1 <$> getDouble (activity c)
+                  b <- floor . (activityScale *) . (1 -) . logBase claActivityThreshold . max 1 <$> get' (activity c)
                   setNth keys i $ shiftL (min rankMax d) (activityWidth + indexWidth) + shiftL b indexWidth + i
                   assignKey (i + 1) m
   limit <- min n . (+ nneeds) <$> assignKey 0 0
@@ -629,12 +628,12 @@ sortClauses s cm nneeds = do
 {-# INLINABLE simplifyDB #-}
 simplifyDB :: Solver -> IO Bool
 simplifyDB s@Solver{..} = do
-  good <- getBool ok
+  good <- get' ok
   if good
     then do
       p <- propagate s
       if p /= NullClause
-        then setBool ok False >> return False
+        then set' ok False >> return False
         else do
             -- Clear watcher lists:
             n <- sizeOf trail
@@ -696,7 +695,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
         then do
             -- CONFLICT
             incrementStat s NumOfBackjump 1
-            r <- getInt rootLevel
+            r <- get' rootLevel
             if d == r
               then do
                   -- Contradiction found:
@@ -705,10 +704,10 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
               else do
 --                  u <- (== 0) . (flip mod 5000) <$> getNth stats (fromEnum NumOfBackjump)
 --                  when u $ do
---                    d <- getDouble varDecay
---                    when (d < 0.95) $ modifyDouble varDecay (+ 0.01)
+--                    d <- get' varDecay
+--                    when (d < 0.95) $ modify' varDecay (+ 0.01)
                   backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
-                  (s `cancelUntil`) . max backtrackLevel =<< getInt rootLevel
+                  (s `cancelUntil`) . max backtrackLevel =<< get' rootLevel
                   newLearntClause s litsLearnt
                   k <- sizeOf litsLearnt
                   when (k == 1) $ do
@@ -730,7 +729,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                    return LTrue
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
-                   (s `cancelUntil`) =<< getInt rootLevel -- force a restart
+                   (s `cancelUntil`) =<< get' rootLevel -- force a restart
                    claRescaleActivityAfterRestart s
                    incrementStat s NumOfRestart 1
                    return Bottom
@@ -742,7 +741,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                unsafeAssume s $ var2lit v (0 < oldVal) -- cannot return @False@
                -- >> #phasesaving
                loop conflictC
-  good <- getBool ok
+  good <- get' ok
   if good then loop 0 else return LFalse
 
 -- | __Fig. 16. (p.20)__
@@ -779,7 +778,7 @@ solve s@Solver{..} assumps = do
   if not x
     then return False
     else do
-        setInt rootLevel =<< decisionLevel s
+        set' rootLevel =<< decisionLevel s
         -- SOLVE:
         nc <- fromIntegral <$> nClauses s
         let

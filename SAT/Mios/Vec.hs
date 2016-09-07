@@ -4,7 +4,6 @@
   , FunctionalDependencies
   , MultiParamTypeClasses
   #-}
-{-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE Trustworthy #-}
 
 -- | Mutable Unboxed Vector
@@ -12,21 +11,23 @@ module SAT.Mios.Vec
        (
          UVector
        , Vec (..)
-       , VecKind (..)
        , MiosVector (..)
-         -- * for Vec Int
---       , newSizedVecFromUVector
          -- * Stack
        , StackFamily (..)
        , Stack
        , newStackFromList
+         -- * SingleStroage
+       , SingleStorage (..)
+       , Bool'
+       , Double'
+       , Int'
        )
        where
 
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as UV
 
--- | Mutable unboxed Vector
+-- | A thin abstract layer for Mutable unboxed Vector
 
 type UVector a = UV.IOVector a
 
@@ -37,10 +38,11 @@ class MiosVector v a | v -> a where
   modifyNth :: v -> (a -> a) -> Int -> IO ()
   swapBetween :: v -> Int -> Int -> IO ()
   setAll :: v -> a -> IO ()
-  vecGrow :: v -> Int -> IO v
+  growVec :: v -> Int -> IO v
 
 instance MiosVector (UVector Int) Int where
   {-# SPECIALIZE INLINE newVec :: Int -> Int -> IO (UVector Int) #-}
+  newVec n 0 = UV.new n
   newVec n x = do
     v <- UV.new n
     UV.set v x
@@ -55,8 +57,8 @@ instance MiosVector (UVector Int) Int where
   swapBetween = UV.unsafeSwap
   {-# SPECIALIZE INLINE setAll :: UVector Int -> Int -> IO () #-}
   setAll = UV.set
-  {-# SPECIALIZE INLINE vecGrow :: UVector Int -> Int -> IO (UVector Int) #-}
-  vecGrow = UV.unsafeGrow
+  {-# SPECIALIZE INLINE growVec :: UVector Int -> Int -> IO (UVector Int) #-}
+  growVec = UV.unsafeGrow
 
 instance MiosVector (UVector Bool) Bool where
   {-# SPECIALIZE INLINE newVec :: Int -> Bool -> IO (UVector Bool) #-}
@@ -74,8 +76,8 @@ instance MiosVector (UVector Bool) Bool where
   swapBetween = UV.unsafeSwap
   {-# SPECIALIZE INLINE setAll :: UVector Bool -> Bool -> IO () #-}
   setAll = UV.set
-  {-# SPECIALIZE INLINE vecGrow :: (UVector Bool) -> Int -> IO (UVector Bool) #-}
-  vecGrow = UV.unsafeGrow
+  {-# SPECIALIZE INLINE growVec :: UVector Bool -> Int -> IO (UVector Bool) #-}
+  growVec = UV.unsafeGrow
 
 instance MiosVector (UVector Double) Double where
   {-# SPECIALIZE INLINE newVec :: Int -> Double -> IO (UVector Double) #-}
@@ -93,70 +95,65 @@ instance MiosVector (UVector Double) Double where
   swapBetween = UV.unsafeSwap
   {-# SPECIALIZE INLINE setAll :: UVector Double -> Double -> IO () #-}
   setAll = UV.set
-  {-# SPECIALIZE INLINE vecGrow :: (UVector Double) -> Int -> IO (UVector Double) #-}
-  vecGrow = UV.unsafeGrow
+  {-# SPECIALIZE INLINE growVec :: UVector Double -> Int -> IO (UVector Double) #-}
+  growVec = UV.unsafeGrow
 
 --------------------------------------------------------------------------------
 
-data VecKind = ZeroBased | OneBased
+newtype Vec a  = Vec (UVector a)
 
-newtype Vec a (b :: VecKind) = Vec (UVector a)
-
-type Stack = Vec Int 'OneBased
-
-instance MiosVector (Vec Int 'ZeroBased) Int where
-  newVec n x = Vec <$> newVec n x
-  getNth (Vec v) = UV.unsafeRead v
-  setNth (Vec v) = UV.unsafeWrite v
-  modifyNth (Vec v) = UV.unsafeModify v
-  swapBetween (Vec v) = UV.unsafeSwap v
-  setAll (Vec v) = UV.set v
-  vecGrow (Vec v) n = Vec <$> UV.unsafeGrow v n
-
-instance MiosVector (Vec Double 'ZeroBased) Double where
-  newVec n x = Vec <$> newVec n x
-  getNth (Vec v) = UV.unsafeRead v
-  setNth (Vec v) = UV.unsafeWrite v
-  modifyNth (Vec v) = UV.unsafeModify v
-  swapBetween (Vec v) = UV.unsafeSwap v
-  setAll (Vec v) = UV.set v
-  vecGrow (Vec v) n = Vec <$> UV.unsafeGrow v n
-
-instance MiosVector (Vec Int 'OneBased) Int where
-  newVec n x = do
-    v <- newVec (n + 1) x
-    setNth v 0 0
-    return (Vec v)
-  getNth (Vec v) = UV.unsafeRead v
-  setNth (Vec v) = UV.unsafeWrite v
-  modifyNth (Vec v) = UV.unsafeModify v
-  swapBetween (Vec v) = UV.unsafeSwap v
-  setAll (Vec v) = UV.set v
-  vecGrow (Vec v) n = Vec <$> UV.unsafeGrow v n
-
-instance MiosVector (Vec Bool 'OneBased) Bool where
-  newVec n x = Vec <$> newVec n x
-  getNth (Vec v) = UV.unsafeRead v
-  setNth (Vec v) = UV.unsafeWrite v
-  modifyNth (Vec v) = UV.unsafeModify v
-  swapBetween (Vec v) = UV.unsafeSwap v
-  setAll (Vec v) = UV.set v
-  vecGrow (Vec v) n = Vec <$> UV.unsafeGrow v n
-
-instance MiosVector (Vec Double 'OneBased) Double where
+instance MiosVector (Vec Int) Int where
   newVec n x = Vec <$> newVec (n + 1) x
+  {-# SPECIALIZE INLINE getNth :: Vec Int -> Int -> IO Int #-}
   getNth (Vec v) = UV.unsafeRead v
+  {-# SPECIALIZE INLINE setNth :: Vec Int -> Int -> Int -> IO () #-}
   setNth (Vec v) = UV.unsafeWrite v
+  {-# SPECIALIZE INLINE modifyNth :: Vec Int -> (Int -> Int) -> Int -> IO () #-}
   modifyNth (Vec v) = UV.unsafeModify v
+  {-# SPECIALIZE INLINE swapBetween :: Vec Int -> Int -> Int -> IO () #-}
   swapBetween (Vec v) = UV.unsafeSwap v
+  {-# SPECIALIZE INLINE setAll :: Vec Int -> Int -> IO () #-}
   setAll (Vec v) = UV.set v
-  vecGrow (Vec v) n = Vec <$> UV.unsafeGrow v n
+  {-# SPECIALIZE INLINE growVec :: Vec Int -> Int -> IO (Vec Int) #-}
+  growVec (Vec v) n = Vec <$> UV.unsafeGrow v n
+
+instance MiosVector (Vec Bool) Bool where
+  newVec n x = Vec <$> newVec (n + 1) x
+  {-# SPECIALIZE INLINE getNth :: Vec Bool -> Int -> IO Bool #-}
+  getNth (Vec v) = UV.unsafeRead v
+  {-# SPECIALIZE INLINE setNth :: Vec Bool -> Int -> Bool -> IO () #-}
+  setNth (Vec v) = UV.unsafeWrite v
+  {-# SPECIALIZE INLINE modifyNth :: Vec Bool -> (Bool -> Bool) -> Int -> IO () #-}
+  modifyNth (Vec v) = UV.unsafeModify v
+  {-# SPECIALIZE INLINE swapBetween :: Vec Bool -> Int -> Int -> IO () #-}
+  swapBetween (Vec v) = UV.unsafeSwap v
+  {-# SPECIALIZE INLINE setAll :: Vec Bool -> Bool -> IO () #-}
+  setAll (Vec v) = UV.set v
+  {-# SPECIALIZE INLINE growVec :: Vec Bool -> Int -> IO (Vec Bool) #-}
+  growVec (Vec v) n = Vec <$> UV.unsafeGrow v n
+
+instance MiosVector (Vec Double) Double where
+  newVec n x = Vec <$> newVec (n + 1) x
+  {-# SPECIALIZE INLINE getNth :: Vec Double -> Int -> IO Double #-}
+  getNth (Vec v) = UV.unsafeRead v
+  {-# SPECIALIZE INLINE setNth :: Vec Double -> Int -> Double -> IO () #-}
+  setNth (Vec v) = UV.unsafeWrite v
+  {-# SPECIALIZE INLINE modifyNth :: Vec Double -> (Double -> Double) -> Int -> IO () #-}
+  modifyNth (Vec v) = UV.unsafeModify v
+  {-# SPECIALIZE INLINE swapBetween :: Vec Double -> Int -> Int -> IO () #-}
+  swapBetween (Vec v) = UV.unsafeSwap v
+  {-# SPECIALIZE INLINE setAll :: Vec Double -> Double -> IO () #-}
+  setAll (Vec v) = UV.set v
+  {-# SPECIALIZE INLINE growVec :: Vec Double -> Int -> IO (Vec Double) #-}
+  growVec (Vec v) n = Vec <$> UV.unsafeGrow v n
 
 -------------------------------------------------------------------------------- Stack
 
+type Stack = Vec Int
+
 class StackFamily s t | s -> t where
   newStack :: Int -> IO s
-  sizeOf :: s -> IO t
+  sizeOf :: s -> IO Int
   pushTo :: s -> t-> IO ()
   popFrom :: s -> IO ()
   lastOf :: s -> IO t
@@ -164,16 +161,77 @@ class StackFamily s t | s -> t where
   
 instance StackFamily Stack Int where
   newStack n = newVec n 0
+  {-# SPECIALIZE INLINE sizeOf :: Stack -> IO Int #-}
   sizeOf (Vec v) = getNth v 0
+  {-# SPECIALIZE INLINE pushTo :: Stack -> Int -> IO () #-}
   pushTo (Vec v) x = do
     i <- (+ 1) <$> UV.unsafeRead v 0
     UV.unsafeWrite v i x
     UV.unsafeWrite v 0 i
+  {-# SPECIALIZE INLINE popFrom :: Stack -> IO () #-}
   popFrom (Vec v) = UV.unsafeModify v (subtract 1) 0
+  {-# SPECIALIZE INLINE lastOf :: Stack -> IO Int #-}
   lastOf (Vec v) = UV.unsafeRead v =<< UV.unsafeRead v 0
+  {-# SPECIALIZE INLINE shrinkBy :: Stack -> Int -> IO () #-}
   shrinkBy (Vec v) k = UV.unsafeModify v (subtract k) 0
 
--- | returns a new 'UVector' from a @[Int]@
+-- | returns a new 'Stack' from a @[Int]@
 {-# INLINE newStackFromList #-}
 newStackFromList :: [Int] -> IO Stack
 newStackFromList !l = Vec <$> U.unsafeThaw (U.fromList (length l : l))
+
+-------------------------------------------------------------------------------- Single storage
+
+class SingleStorage s t | s -> t, t -> s where
+  new' :: t -> IO s
+  get' :: s -> IO t
+  set' :: s -> t -> IO ()
+  modify' :: s -> (t -> t) -> IO ()
+
+-- | mutable Int
+type Int' = UV.IOVector Int
+
+instance SingleStorage Int' Int where
+  {-# SPECIALIZE INLINE new' :: Int -> IO Int' #-}
+  new' k = do
+    s <- UV.new 1
+    UV.unsafeWrite s 0 k
+    return s
+  {-# SPECIALIZE INLINE get' :: Int' -> IO Int #-}
+  get' val = UV.unsafeRead val 0
+  {-# SPECIALIZE INLINE set' :: Int' -> Int -> IO () #-}
+  set' val !x = UV.unsafeWrite val 0 x
+  {-# SPECIALIZE INLINE modify' :: Int' -> (Int -> Int) -> IO () #-}
+  modify' val f = UV.unsafeModify val f 0
+
+-- | mutable Bool
+type Bool' = UV.IOVector Bool
+
+instance SingleStorage Bool' Bool where
+  {-# SPECIALIZE INLINE new' :: Bool -> IO Bool' #-}
+  new' k = do
+    s <- UV.new 1
+    UV.unsafeWrite s 0 k
+    return s
+  {-# SPECIALIZE INLINE get' :: Bool' -> IO Bool #-}
+  get' val = UV.unsafeRead val 0
+  {-# SPECIALIZE INLINE set' :: Bool' -> Bool -> IO () #-}
+  set' val !x = UV.unsafeWrite val 0 x
+  {-# SPECIALIZE INLINE modify' :: Bool' -> (Bool -> Bool) -> IO () #-}
+  modify' val f = UV.unsafeModify val f 0
+
+-- | mutable Double
+type Double' = UV.IOVector Double
+
+instance SingleStorage Double' Double where
+  {-# SPECIALIZE INLINE new' :: Double -> IO Double' #-}
+  new' k = do
+    s <- UV.new 1
+    UV.unsafeWrite s 0 k
+    return s
+  {-# SPECIALIZE INLINE get' :: Double' -> IO Double #-}
+  get' val = UV.unsafeRead val 0
+  {-# SPECIALIZE INLINE set' :: Double' -> Double -> IO () #-}
+  set' val !x = UV.unsafeWrite val 0 x
+  {-# SPECIALIZE INLINE modify' :: Double' -> (Double -> Double) -> IO () #-}
+  modify' val f = UV.unsafeModify val f 0

@@ -54,42 +54,42 @@ import SAT.Mios.ClauseManager
 data Solver = Solver
               {
                 -- Public Interface
-                model      :: !(Vec Bool 'OneBased)  -- ^ If found, this vector has the model
-              , conflict   :: !Stack                 -- ^ set of literals in the case of conflicts
+                model      :: !(Vec Bool)        -- ^ If found, this vector has the model
+              , conflict   :: !Stack             -- ^ set of literals in the case of conflicts
                 -- Clause Database
-              , clauses    :: !ClauseExtManager      -- ^ List of problem constraints.
-              , learnts    :: !ClauseExtManager      -- ^ List of learnt clauses.
-              , watches    :: !WatcherList           -- ^ a list of constraint wathing 'p', literal-indexed
+              , clauses    :: !ClauseExtManager  -- ^ List of problem constraints.
+              , learnts    :: !ClauseExtManager  -- ^ List of learnt clauses.
+              , watches    :: !WatcherList       -- ^ a list of constraint wathing 'p', literal-indexed
                 -- Assignment Management
-              , assigns    :: !(Vec Int 'OneBased)   -- ^ The current assignments indexed on variables
-              , phases     :: !(Vec Int 'OneBased)   -- ^ The last assignments indexed on variables
-              , trail      :: !Stack                 -- ^ List of assignments in chronological order
-              , trailLim   :: !Stack                 -- ^ Separator indices for different decision levels in 'trail'.
-              , qHead      :: !IntSingleton          -- ^ 'trail' is divided at qHead; assignments and queue
-              , reason     :: !ClauseVector          -- ^ For each variable, the constraint that implied its value; var-indexed
-              , level      :: !(Vec Int 'OneBased)   -- ^ For each variable, the decision level it was assigned
+              , assigns    :: !(Vec Int)         -- ^ The current assignments indexed on variables
+              , phases     :: !(Vec Int)         -- ^ The last assignments indexed on variables
+              , trail      :: !Stack             -- ^ List of assignments in chronological order
+              , trailLim   :: !Stack             -- ^ Separator indices for different decision levels in 'trail'.
+              , qHead      :: !Int'              -- ^ 'trail' is divided at qHead; assignments and queue
+              , reason     :: !ClauseVector      -- ^ For each variable, the constraint that implied its value; var-indexed
+              , level      :: !(Vec Int)         -- ^ For each variable, the decision level it was assigned
                 -- Variable Order
-              , activities :: !(Vec Double 'OneBased) -- ^ Heuristic measurement of the activity of a variable
-              , order      :: !VarHeap                -- ^ Keeps track of the dynamic variable order.
+              , activities :: !(Vec Double)      -- ^ Heuristic measurement of the activity of a variable
+              , order      :: !VarHeap           -- ^ Keeps track of the dynamic variable order.
                 -- Configuration
-              , config     :: !MiosConfiguration      -- ^ search paramerters
-              , nVars      :: !Int                    -- ^ number of variables
---            , claInc     :: !DoubleSingleton        -- ^ Clause activity increment amount to bump with.
---            , varDecay   :: !DoubleSingleton        -- ^ used to set 'varInc'
-              , varInc     :: !DoubleSingleton        -- ^ Variable activity increment amount to bump with.
-              , rootLevel  :: !IntSingleton           -- ^ Separates incremental and search assumptions.
+              , config     :: !MiosConfiguration -- ^ search paramerters
+              , nVars      :: !Int               -- ^ number of variables
+--            , claInc     :: !Double'           -- ^ Clause activity increment amount to bump with.
+--            , varDecay   :: !Double'           -- ^ used to set 'varInc'
+              , varInc     :: !Double'           -- ^ Variable activity increment amount to bump with.
+              , rootLevel  :: !Int'              -- ^ Separates incremental and search assumptions.
                 -- Working Memory
-              , ok         :: !BoolSingleton          -- ^ return value holder
-              , an'seen    :: !(Vec Int 'OneBased)    -- ^ scratch var for 'analyze'
-              , an'toClear :: !Stack                  -- ^ ditto
-              , an'stack   :: !Stack                  -- ^ ditto
-              , pr'seen    :: !(Vec Int 'OneBased)    -- ^ used in propagate
-              , litsLearnt :: !Stack                  -- ^ used to create a learnt clause
-              , lastDL     :: !Stack                  -- ^ last decision level used in analyze
-              , stats      :: !(Vec Int 'ZeroBased)   -- ^ statistics information holder
+              , ok         :: !Bool'             -- ^ return value holder
+              , an'seen    :: !(Vec Int)         -- ^ scratch var for 'analyze'
+              , an'toClear :: !Stack             -- ^ ditto
+              , an'stack   :: !Stack             -- ^ ditto
+              , pr'seen    :: !(Vec Int)         -- ^ used in propagate
+              , litsLearnt :: !Stack             -- ^ used to create a learnt clause
+              , lastDL     :: !Stack             -- ^ last decision level used in analyze
+              , stats      :: !(UVector Int)     -- ^ statistics information holder
 {-
-              , lbd'seen   :: !Vec                    -- ^ used in lbd computation
-              , lbd'key    :: !IntSingleton           -- ^ used in lbd computation
+              , lbd'seen   :: !Vec               -- ^ used in lbd computation
+              , lbd'key    :: !Int'              -- ^ used in lbd computation
 -}
               }
 
@@ -109,7 +109,7 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> newVec (nv + 1) lBottom                       -- phases
     <*> newStack nv                                   -- trail
     <*> newStack nv                                   -- trailLim
-    <*> newInt 0                                      -- qHead
+    <*> new' 0                                        -- qHead
     <*> newClauseVector (nv + 1)                      -- reason
     <*> newVec (nv + 1) (-1)                          -- level
     -- Variable Order
@@ -120,10 +120,10 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> return nv                                     -- nVars
 --  <*> newDouble 1.0                                 -- claInc
 --  <*> newDouble (variableDecayRate conf)            -- varDecay
-    <*> newDouble 1.0                                 -- varInc
-    <*> newInt 0                                      -- rootLevel
+    <*> new' 1.0                                      -- varInc
+    <*> new' 0                                        -- rootLevel
     -- Working Memory
-    <*> newBool True                                  -- ok
+    <*> new' True                                     -- ok
     <*> newVec (nv + 1) 0                             -- an'seen
     <*> newStack nv                                   -- an'toClear
     <*> newStack nv                                   -- an'stack
@@ -146,7 +146,7 @@ nAssigns = sizeOf . trail
 
 -- | returns the number of constraints (clauses)
 {-# INLINE nClauses #-}
-nClauses  :: Solver -> IO Int
+nClauses :: Solver -> IO Int
 nClauses = numberOfClauses . clauses
 
 -- | returns the number of learnt clauses
@@ -329,9 +329,9 @@ enqueue s@Solver{..} p from = do
 {-
   -- bump psedue lbd of @from@
   when (from /= NullClause && learnt from) $ do
-    l <- getInt (lbd from)
+    l <- get' (lbd from)
     k <- (12 +) <$> decisionLevel s
-    when (k < l) $ setInt (lbd from) k
+    when (k < l) $ set' (lbd from) k
 -}
   let signumP = if positiveLit p then lTrue else lFalse
   let v = lit2var p
@@ -386,7 +386,7 @@ cancelUntil s@Solver{..} lvl = do
     loopOnTrail $ ts - 1
     shrinkBy trail (ts - lim)
     shrinkBy trailLim (ls - lvl)
-    setInt qHead =<< sizeOf trail
+    set' qHead =<< sizeOf trail
 
 -------------------------------------------------------------------------------- VarOrder
 
@@ -438,7 +438,7 @@ claActivityThreshold = 1e20
 {-# INLINE varBumpActivity #-}
 varBumpActivity :: Solver -> Var -> IO ()
 varBumpActivity s@Solver{..} x = do
-  !a <- (+) <$> getNth activities x <*> getDouble varInc
+  !a <- (+) <$> getNth activities x <*> get' varInc
   setNth activities x a
   when (varActivityThreshold < a) $ varRescaleActivity s
   update s x                    -- update the position in heap
@@ -446,7 +446,7 @@ varBumpActivity s@Solver{..} x = do
 -- | __Fig. 14 (p.19)__
 {-# INLINE varDecayActivity #-}
 varDecayActivity :: Solver -> IO ()
-varDecayActivity Solver{..} = modifyDouble varInc (/ variableDecayRate config)
+varDecayActivity Solver{..} = modify' varInc (/ variableDecayRate config)
 -- varDecayActivity Solver{..} = modifyDouble varInc . (flip (/)) =<< getDouble varDecay
 
 -- | __Fig. 14 (p.19)__
@@ -454,16 +454,16 @@ varDecayActivity Solver{..} = modifyDouble varInc (/ variableDecayRate config)
 varRescaleActivity :: Solver -> IO ()
 varRescaleActivity Solver{..} = do
   forM_ [1 .. nVars] $ \i -> modifyNth activities (/ varActivityThreshold) i
-  modifyDouble varInc (/ varActivityThreshold)
+  modify' varInc (/ varActivityThreshold)
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE claBumpActivity #-}
 claBumpActivity :: Solver -> Clause -> IO ()
 claBumpActivity s Clause{..} = do
   dl <- decisionLevel s
-  a <- (fromIntegral dl +) <$> getDouble activity
-  setDouble activity a
-  -- setBool protected True
+  a <- (fromIntegral dl +) <$> get' activity
+  set' activity a
+  -- set' protected True
   when (claActivityThreshold <= a) $ claRescaleActivity s
 
 {-
@@ -484,7 +484,7 @@ claRescaleActivity Solver{..} = do
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
       c <- getNthClause vec i
-      modifyDouble (activity c) (/ claActivityThreshold)
+      modify' (activity c) (/ claActivityThreshold)
       loopOnVector $ i + 1
   loopOnVector 0
   -- modifyDouble claInc (/ claActivityThreshold)
@@ -502,9 +502,9 @@ claRescaleActivityAfterRestart Solver{..} = do
       c <- getNthClause vec i
       d <- sizeOfClause c
       if d < 9
-        then modifyDouble (activity c) sqrt
-        else setDouble (activity c) 0
-      setBool (protected c) False
+        then modify' (activity c) sqrt
+        else set' (activity c) 0
+      set' (protected c) False
       loopOnVector $ i + 1
   loopOnVector 0
 
