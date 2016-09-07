@@ -6,7 +6,6 @@
   , RecordWildCards
   , ViewPatterns
   #-}
-{-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE Trustworthy #-}
 
 -- | Clause, supporting pointer-based equality
@@ -31,7 +30,6 @@ import Control.Monad (forM_)
 import GHC.Prim (tagToEnum#, reallyUnsafePtrEquality#)
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
-import qualified Data.Vector.Unboxed.Mutable as UV
 import Data.List (intercalate)
 import SAT.Mios.Types
 

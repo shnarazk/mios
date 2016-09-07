@@ -5,7 +5,6 @@
   , TupleSections
   , ViewPatterns
   #-}
-{-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE Safe #-}
 
 -- | This is a part of MIOS; main data

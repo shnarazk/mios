@@ -6,7 +6,6 @@
   , RecordWildCards
   , ViewPatterns
   #-}
-{-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE Trustworthy #-}
 
 -- | A shrinkable vector of 'C.Clause'
