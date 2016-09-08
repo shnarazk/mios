@@ -216,10 +216,8 @@ addClause :: Solver -> Stack -> IO Bool
 addClause s@Solver{..} vecLits = do
   result <- clauseNew s vecLits False
   case result of
-   (False, _) -> return False   -- Conflict occured
-   (True, c)  -> do
-     unless (c == NullClause) $ pushClause clauses c
-     return True                -- No conflict
+   Left b  -> return b   -- No new clause was returned becaues a confilct occured or the clause is a literal
+   Right c -> pushClause clauses c >> return True
 
 -- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists
 -- Constructor function for clauses. Returns @False@ if top-level conflict is determined.
@@ -231,8 +229,12 @@ addClause s@Solver{..} vecLits = do
 -- For the propagation to work, the second watch must be put on the literal which will
 -- first be unbound by backtracking. (Note that none of the learnt-clause specific things
 -- needs to done for a user defined contraint type.)
+--
+-- * @Left False@ if the clause is in a confilct
+-- * @Left True@ if the clause is satisfied
+-- * @Right clause@ if the clause is enqueued successfully
 {-# INLINABLE clauseNew #-}
-clauseNew :: Solver -> Stack -> Bool -> IO (Bool, Clause)
+clauseNew :: Solver -> Stack -> Bool -> IO (Either Bool Clause)
 clauseNew s@Solver{..} ps isLearnt = do
   -- now ps[0] is the number of living literals
   exit <- do
@@ -282,10 +284,10 @@ clauseNew s@Solver{..} ps isLearnt = do
     if isLearnt then loopForLearnt 1 else loop 1
   k <- sizeOf ps
   case k of
-   0 -> return (exit, NullClause)
+   0 -> return (Left exit)
    1 -> do
      l <- getNth ps 1
-     (, NullClause) <$> enqueue s l NullClause
+     Left <$> enqueue s l NullClause
    _ -> do
      -- allocate clause:
      c <- newClauseFromStack isLearnt ps
@@ -316,7 +318,7 @@ clauseNew s@Solver{..} ps isLearnt = do
      pushClauseWithKey (getNthWatcher watches l0) c 0
      l1 <- negateLit <$> getNth vec 1
      pushClauseWithKey (getNthWatcher watches l1) c 0
-     return (True, c)
+     return (Right c)
 
 -- | __Fig. 9 (p.14)__
 -- Puts a new fact on the propagation queue, as well as immediately updating the variable's value
