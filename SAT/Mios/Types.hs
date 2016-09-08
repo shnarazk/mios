@@ -39,7 +39,6 @@ module SAT.Mios.Types
        )
        where
 
-import Control.Monad (forM)
 import Data.Bits
 import qualified Data.Vector.Unboxed.Mutable as UV
 import SAT.Mios.Vec

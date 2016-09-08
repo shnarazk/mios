@@ -26,7 +26,6 @@ module SAT.Mios.Clause
        )
        where
 
-import Control.Monad (forM_)
 import GHC.Prim (tagToEnum#, reallyUnsafePtrEquality#)
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
@@ -96,7 +95,10 @@ newClauseFromStack :: Bool -> Stack -> IO Clause
 newClauseFromStack l vec = do
   n <- sizeOf vec
   v <- newStack n
-  forM_ [0 .. n] $ \i -> setNth v i =<< getNth vec i
+  let
+    loop ((<= n) -> False) = return ()
+    loop i = (setNth v i =<< getNth vec i) >> loop (i + 1)
+  loop 0
   Clause l <$> {- new' 0 <*> -} new' 0.0 <*> new' False <*> return v
 
 -- | returns the number of literals in a clause, even if the given clause is a binary clause

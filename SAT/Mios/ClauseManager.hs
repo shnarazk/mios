@@ -30,7 +30,7 @@ module SAT.Mios.ClauseManager
        )
        where
 
-import Control.Monad (forM, unless, when)
+import Control.Monad (unless, when)
 import qualified Data.IORef as IORef
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
@@ -266,7 +266,7 @@ type WatcherList = V.Vector ClauseExtManager
 -- | /n/ is the number of 'Var', /m/ is default size of each watcher list
 -- | For /n/ vars, we need [0 .. 2 + 2 * n - 1] slots, namely /2 * (n + 1)/-length vector
 newWatcherList :: Int -> Int -> IO WatcherList
-newWatcherList n m = V.fromList <$> forM [0 .. int2lit (negate n) + 1] (\_ -> newManager m)
+newWatcherList n m = V.fromList <$> mapM (\_ -> newManager m) [0 .. int2lit (negate n) + 1]
 
 -- | returns the watcher List :: "ClauseManager" for "Literal" /l/
 {-# INLINE getNthWatcher #-}
@@ -274,7 +274,7 @@ getNthWatcher :: WatcherList -> Lit -> ClauseExtManager
 getNthWatcher = V.unsafeIndex
 
 instance VectorFamily WatcherList C.Clause where
-  dump mes wl = (mes ++) . concat <$> forM [1 .. V.length wl - 1] (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i))
+  dump mes wl = return "" -- (mes ++) . concat <$> mapM (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i)) [1 .. V.length wl - 1]
 
 -- | purges all expirable clauses in 'WatcherList'
 {-# INLINE garbageCollect #-}

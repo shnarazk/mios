@@ -44,7 +44,7 @@ module SAT.Mios.Solver
        )
         where
 
-import Control.Monad ((<=<), forM_, unless, when)
+import Control.Monad (unless, when)
 import SAT.Mios.Types
 import SAT.Mios.Internal
 import SAT.Mios.Clause
@@ -463,7 +463,10 @@ varDecayActivity Solver{..} = modify' varInc (/ variableDecayRate config)
 {-# INLINE varRescaleActivity #-}
 varRescaleActivity :: Solver -> IO ()
 varRescaleActivity Solver{..} = do
-  forM_ [1 .. nVars] $ \i -> modifyNth activities (/ varActivityThreshold) i
+  let
+    loop ((<= nVars) -> False) = return ()
+    loop i = modifyNth activities (/ varActivityThreshold) i >> loop (i + 1)
+  loop 1
   modify' varInc (/ varActivityThreshold)
 
 -- | __Fig. 14 (p.19)__
