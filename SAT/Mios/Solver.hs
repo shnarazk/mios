@@ -53,7 +53,7 @@ import SAT.Mios.ClauseManager
 data Solver = Solver
               {
                 -- Public Interface
-                model      :: !(Vec Bool)        -- ^ If found, this vector has the model
+                model      :: !(Vec Int)         -- ^ If found, this vector has the model
               , conflict   :: !Stack             -- ^ set of literals in the case of conflicts
                 -- Clause Database
               , clauses    :: !ClauseExtManager  -- ^ List of problem constraints.
@@ -97,7 +97,7 @@ newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
 newSolver conf (CNFDescription nv nc _) = do
   Solver
     -- Public Interface
-    <$> newVec nv False                    -- model
+    <$> newVec nv 0                        -- model
     <*> newStack nv                        -- coflict
     -- Clause Database
     <*> newManager nc                      -- clauses
@@ -155,7 +155,7 @@ nLearnts = numberOfClauses . learnts
 
 -- | return the model as a list of literal
 getModel :: Solver -> IO [Int]
-getModel s = zipWith (\n b -> if b then n else negate n) [1 .. ] <$> asList (model s)
+getModel s = asList (model s)
 
 -- | returns the current decision level
 {-# INLINE decisionLevel #-}

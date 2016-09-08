@@ -725,7 +725,13 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
             case () of
              _ | k2 == nVars -> do
                    -- Model found:
-                   forM_ [1 .. nVars] $ \i -> setNth model i . (lTrue ==) =<< getNth assigns i
+                   let
+                     toInt :: Var -> IO Lit
+                     toInt v = (\p -> if lTrue == p then v else negate v) <$> valueVar s v
+                     setModel :: Int -> IO ()
+                     setModel ((<= nVars) -> False) = return ()
+                     setModel v = (setNth model v =<< toInt v) >> setModel (v + 1)
+                   setModel 1
                    return LTrue
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
