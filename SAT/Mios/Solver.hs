@@ -20,6 +20,7 @@ module SAT.Mios.Solver
        , decisionLevel
        , valueVar
        , valueLit
+--       , oldLit
        , locked
          -- * State Modifiers
        , addClause
@@ -170,7 +171,14 @@ valueVar = getNth . assigns
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit'
 {-# INLINE valueLit #-}
 valueLit :: Solver -> Lit -> IO Int -- FIXME: LiftedBool
-valueLit (assigns -> a) !p = (\x -> if positiveLit p then x else negate x) <$> getNth a (lit2var p)
+valueLit (assigns -> a) p = (\x -> if positiveLit p then x else negate x) <$> getNth a (lit2var p)
+
+{-
+-- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit' in phases
+{-# INLINE oldLit #-}
+oldLit :: Solver -> Lit -> IO Lit
+oldLit (phases -> a) (lit2var -> v) = (var2lit v . (== 1)) <$> getNth a v
+-}
 
 -- | __Fig. 7. (p.11)__
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__
@@ -249,7 +257,7 @@ clauseNew s@Solver{..} ps isLearnt = do
                    swapBetween ps j n
                    modifyNth ps (subtract 1) 0
                    handle j l (n - 1)
-             _ | - y == l -> setNth ps 0 0 >> return True -- p and negateLit p occurs in ps
+             _ | - y == l -> clear ps >> return True -- p and negateLit p occurs in ps
              _ -> handle (j + 1) l n
       loopForLearnt :: Int -> IO Bool
       loopForLearnt i = do
@@ -289,7 +297,7 @@ clauseNew s@Solver{..} ps isLearnt = do
      l <- getNth ps 1
      Left <$> enqueue s l NullClause
    _ -> do
-     -- allocate clause:
+    -- allocate clause:
      c <- newClauseFromStack isLearnt ps
      let vec = asUVector c
      when isLearnt $ do

@@ -53,7 +53,7 @@ newLearntClause s@Solver{..} ps = do
   when good $ do
     -- ps is a 'SizedVectorInt'; ps[0] is the number of active literals
     -- Since this solver must generate only healthy learnt clauses, we need not to run misc check in 'newClause'
-    k <- getNth ps 0
+    k <- sizeOf ps
     case k of
      1 -> do
        l <- getNth ps 1
@@ -67,9 +67,9 @@ newLearntClause s@Solver{..} ps = do
          findMax :: Int -> Int -> Int -> IO Int
          findMax ((< k) -> False) j _ = return j
          findMax i j val = do
-           v' <- lit2var <$> getNth vec i
-           a <- getNth assigns v'
-           b <- getNth level v'
+           v <- lit2var <$> getNth vec i
+           a <- getNth assigns v
+           b <- getNth level v
            if (a /= lBottom) && (val < b)
              then findMax (i + 1) i b
              else findMax (i + 1) j val
