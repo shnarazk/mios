@@ -299,6 +299,7 @@ clauseNew s@Solver{..} ps isLearnt = do
          findMax ((< k) -> False) j _ = return j
          findMax i j val = do
            v' <- lit2var <$> getNth vec i
+           varBumpActivity s v' -- this is a just good chance to bump activities of literals in this clause
            a <- getNth assigns v'
            b <- getNth level v'
            if (a /= lBottom) && (val < b)
@@ -312,7 +313,6 @@ clauseNew s@Solver{..} ps isLearnt = do
        -- unless (length x == length (nub x)) $ error "new clause contains a element doubly"
        -- Bumping:
        claBumpActivity s c -- newly learnt clauses should be considered active
-       forM_ [0 .. k -1] $ varBumpActivity s . lit2var <=< getNth vec -- variables in conflict clauses are bumped
      -- Add clause to watcher lists:
      l0 <- negateLit <$> getNth vec 0
      pushClauseWithKey (getNthWatcher watches l0) c 0
