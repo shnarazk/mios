@@ -219,7 +219,7 @@ parseClauses :: Solver -> CNFDescription -> B.ByteString -> IO ()
 parseClauses s (CNFDescription nv nc _) bs = do
   let maxLit = int2lit $ negate nv
   buffer <- newVec (maxLit + 1) 0
-  polvec <- newVec (maxLit + 1) False
+  polvec <- newVec (maxLit + 1) 0
   let
     loop :: Int -> B.ByteString -> IO ()
     loop ((< nc) -> False) _ = return ()
@@ -233,7 +233,7 @@ parseClauses s (CNFDescription nv nc _) bs = do
     checkPolarity v = do
       p <- getNth polvec $ var2lit v True
       n <- getNth polvec $ var2lit v False
-      when (p == False || n == False) $ setNth asg v $ if p then lTrue else lFalse
+      when (p == lFalse || n == lFalse) $ setNth asg v p
       checkPolarity $ v + 1
   checkPolarity 1
 
@@ -267,7 +267,7 @@ parseInt st = do
     c | '0' <= c && c <= '9'  -> loop st 0
     _ -> error "PARSE ERROR! Unexpected char"
 
-readClause :: Solver -> Stack -> Vec Bool -> B.ByteString -> IO B.ByteString
+readClause :: Solver -> Stack -> Vec Int -> B.ByteString -> IO B.ByteString
 readClause s buffer bvec stream = do
   let
     loop :: Int -> B.ByteString -> IO B.ByteString
@@ -282,7 +282,7 @@ readClause s buffer bvec stream = do
         else do
             let l = int2lit k
             setNth buffer i l
-            setNth bvec l True
+            setNth bvec l lTrue
             loop (i + 1) b'
   loop 1 . skipComments . skipWhitespace $ stream
 

@@ -687,11 +687,11 @@ simplifyDB s@Solver{..} = do
 --   all variables are decision variables, that means that the clause set is satisfiable. 'l_False'
 --   if the clause set is unsatisfiable. 'l_Undef' if the bound on number of conflicts is reached.
 {-# INLINABLE search #-}
-search :: Solver -> Int -> Int -> IO LiftedBool
+search :: Solver -> Int -> Int -> IO Int
 search s@Solver{..} nOfConflicts nOfLearnts = do
   -- clear model
   let
-    loop :: Int -> IO LiftedBool
+    loop :: Int -> IO Int
     loop conflictC = do
       !confl <- propagate s
       d <- decisionLevel s
@@ -704,7 +704,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
               then do
                   -- Contradiction found:
                   analyzeFinal s confl False
-                  return LFalse
+                  return lFalse
               else do
 --                  u <- (== 0) . (flip mod 5000) <$> getNth stats (fromEnum NumOfBackjump)
 --                  when u $ do
@@ -736,13 +736,13 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                      setModel ((<= nVars) -> False) = return ()
                      setModel v = (setNth model v =<< toInt v) >> setModel (v + 1)
                    setModel 1
-                   return LTrue
+                   return lTrue
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
                    (s `cancelUntil`) =<< get' rootLevel -- force a restart
                    claRescaleActivityAfterRestart s
                    incrementStat s NumOfRestart 1
-                   return Bottom
+                   return lBottom
              _ -> do
                -- New variable decision:
                v <- select s -- many have heuristic for polarity here
@@ -752,7 +752,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                -- >> #phasesaving
                loop conflictC
   good <- get' ok
-  if good then loop 0 else return LFalse
+  if good then loop 0 else return lFalse
 
 -- | __Fig. 16. (p.20)__
 -- Main solve method.
@@ -795,9 +795,9 @@ solve s@Solver{..} assumps = do
           while :: Double -> Double -> IO Bool
           while nOfConflicts nOfLearnts = do
             status <- search s (floor nOfConflicts) (floor nOfLearnts)
-            if status == Bottom
+            if status == lBottom
               then while (1.5 * nOfConflicts) (1.1 * nOfLearnts)
-              else cancelUntil s 0 >> return (status == LTrue)
+              else cancelUntil s 0 >> return (status == lTrue)
         while 100 (nc / 3.0)
 
 --

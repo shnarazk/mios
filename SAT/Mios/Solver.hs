@@ -170,7 +170,7 @@ valueVar = getNth . assigns
 
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit'
 {-# INLINE valueLit #-}
-valueLit :: Solver -> Lit -> IO Int -- FIXME: LiftedBool
+valueLit :: Solver -> Lit -> IO Int
 valueLit (assigns -> a) p = (\x -> if positiveLit p then x else negate x) <$> getNth a (lit2var p)
 
 {-

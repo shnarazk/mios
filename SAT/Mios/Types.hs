@@ -11,8 +11,6 @@
 module SAT.Mios.Types
        (
          module SAT.Mios.Vec
-         -- Abstract interfaces
-       , VectorFamily (..)
          -- *  Variable
        , Var
        , bottomVar
@@ -28,8 +26,8 @@ module SAT.Mios.Types
        , var2lit
        , negateLit
          -- * Assignment
-       , LiftedBool (..)
-       , lbool
+--       , LiftedBool (..)
+--       , lbool
        , lFalse
        , lTrue
        , lBottom
@@ -40,42 +38,7 @@ module SAT.Mios.Types
        where
 
 import Data.Bits
-import qualified Data.Vector.Unboxed.Mutable as UV
 import SAT.Mios.Vec
-
--- | Public interface as /Container/
-class VectorFamily s t | s -> t where
-  -- * Size operations
-  -- | erases all elements in it
-  clear :: s -> IO ()
-  clear = error "no default method for clear"
-  -- | get a raw data
-  asUVector :: s -> UVector Int
-  asUVector = error "asVector undefined"
-  -- | converts into a list
-  asList :: s -> IO [t]
-  asList = error "asList undefined"
-  {-# MINIMAL dump #-}
-  -- * Debug
-  -- | dump the contents
-  dump :: Show t => String -> s -> IO String
-  dump msg _ = error $ msg ++ ": no defalut method for dump"
-
--- | provides 'clear' and 'size'
-
-instance VectorFamily (Vec Bool) Bool where
-  asList (Vec v) = forM [1 .. UV.length v] $ getNth v
-  dump str _ = return $ str ++ "Vec dump"
-
-instance UV.Unbox a => VectorFamily (UVector a) a where
-  asList v = forM [0 .. UV.length v - 1] $ UV.unsafeRead v
-  dump str v = (str ++) . show <$> asList v
-
-instance VectorFamily (Vec Int) Int where
-  clear (Vec v) = setNth v 0 0
-  asUVector (Vec a) = UV.unsafeTail a
-  asList (Vec v) = forM [1 .. UV.length v - 1] $ getNth v
-  dump str _ = return $ str ++ "Vec dump"
 
 -- | represents "Var"
 type Var = Int
@@ -199,6 +162,7 @@ lit2int l = case divMod l 2 of
   (i, 0) -> i
   (i, _) -> - i
 
+{-
 -- | Lifted Boolean domain (p.7) that extends 'Bool' with "⊥" means /undefined/
 -- design note: _|_ should be null = 0; True literals are coded to even numbers. So it should be 2.
 data LiftedBool = Bottom | LFalse | LTrue
@@ -219,6 +183,7 @@ instance Enum LiftedBool where
 lbool :: Bool -> LiftedBool
 lbool True = LTrue
 lbool False = LFalse
+-}
 
 -- | A contant representing False
 lFalse:: Int
