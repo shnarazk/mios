@@ -14,7 +14,7 @@ module SAT.Mios.Main
        )
         where
 
-import Control.Monad (forM_, unless, void, when)
+import Control.Monad (unless, void, when)
 import Data.Bits
 import Data.Foldable (foldrM)
 import SAT.Mios.Types
@@ -302,8 +302,12 @@ analyzeRemovable Solver{..} p minLevel = do
                         else do
                             -- loopOnLit (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
                             top' <- sizeOf an'toClear
-                            let vec = asUVector an'toClear
-                            forM_ [top .. top' - 1] $ \j -> do x <- getNth vec j; setNth an'seen (lit2var x) 0
+                            let
+                              vec = asUVector an'toClear
+                              clearAll :: Int -> IO ()
+                              clearAll ((< top') -> False) = return ()
+                              clearAll j = do x <- getNth vec j; setNth an'seen (lit2var x) 0; clearAll (j + 1)
+                            clearAll top
                             -- analyze_toclear.shrink(analyze_toclear.size() - top); note: shrink n == repeat n pop
                             shrinkBy an'toClear $ top' - top
                             return False
