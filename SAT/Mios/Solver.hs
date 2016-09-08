@@ -97,42 +97,42 @@ newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
 newSolver conf (CNFDescription nv nc _) = do
   Solver
     -- Public Interface
-    <$> newVec nv False                                 -- model
-    <*> newStack nv                                     -- coflict
+    <$> newVec nv False                    -- model
+    <*> newStack nv                        -- coflict
     -- Clause Database
-    <*> newManager nc                                   -- clauses
-    <*> newManager nc                                   -- learnts
-    <*> newWatcherList nv 2                             -- watches
+    <*> newManager nc                      -- clauses
+    <*> newManager nc                      -- learnts
+    <*> newWatcherList nv 2                -- watches
     -- Assignment Management
-    <*> newVec nv lBottom                               -- assigns
-    <*> newVec nv lBottom                               -- phases
-    <*> newStack nv                                     -- trail
-    <*> newStack nv                                     -- trailLim
-    <*> new' 0                                          -- qHead
-    <*> newClauseVector (nv + 1)                        -- reason
-    <*> newVec nv (-1)                                  -- level
+    <*> newVec nv lBottom                  -- assigns
+    <*> newVec nv lBottom                  -- phases
+    <*> newStack nv                        -- trail
+    <*> newStack nv                        -- trailLim
+    <*> new' 0                             -- qHead
+    <*> newClauseVector (nv + 1)           -- reason
+    <*> newVec nv (-1)                     -- level
     -- Variable Order
-    <*> newVec nv 0                                     -- activities
-    <*> newVarHeap nv                                   -- order
+    <*> newVec nv 0                        -- activities
+    <*> newVarHeap nv                      -- order
     -- Configuration
-    <*> return conf                                     -- config
-    <*> return nv                                       -- nVars
---  <*> new' 1.0                                        -- claInc
---  <*> new' (variableDecayRate conf)                   -- varDecay
-    <*> new' 1.0                                        -- varInc
-    <*> new' 0                                          -- rootLevel
+    <*> return conf                        -- config
+    <*> return nv                          -- nVars
+--  <*> new' 1.0                           -- claInc
+--  <*> new' (variableDecayRate conf)      -- varDecay
+    <*> new' 1.0                           -- varInc
+    <*> new' 0                             -- rootLevel
     -- Working Memory
-    <*> new' True                                       -- ok
-    <*> newVec nv 0                                     -- an'seen
-    <*> newStack nv                                     -- an'toClear
-    <*> newStack nv                                     -- an'stack
-    <*> newVec nv (-1)                                  -- pr'seen
-    <*> newStack nv                                     -- litsLearnt
-    <*> newStack nv                                     -- lastDL
-    <*> newVec (1 + fromEnum (maxBound :: StatIndex)) 0 -- stats
+    <*> new' True                          -- ok
+    <*> newVec nv 0                        -- an'seen
+    <*> newStack nv                        -- an'toClear
+    <*> newStack nv                        -- an'stack
+    <*> newVec nv (-1)                     -- pr'seen
+    <*> newStack nv                        -- litsLearnt
+    <*> newStack nv                        -- lastDL
+    <*> newVec (fromEnum EndOfStatIndex) 0 -- stats
 {-
---    <*> newVec nv                                     -- lbd'seen
---    <*> newInt 0                                      -- lbd'key
+--    <*> newVec nv                        -- lbd'seen
+--    <*> newInt 0                         -- lbd'key
 -}
 
 --------------------------------------------------------------------------------
@@ -184,6 +184,7 @@ locked s c = (c ==) <$> (getNthClause (reason s) . lit2var =<< getNth (lits c) 1
 data StatIndex =
     NumOfBackjump
   | NumOfRestart
+  | EndOfStatIndex              -- Don't use this dummy.
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 
 -- | returns the value of 'StatIndex'
