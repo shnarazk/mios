@@ -6,11 +6,11 @@
   #-}
 {-# LANGUAGE Safe #-}
 
--- | Clause Rank evalaution
+-- | Clause Rank evalaution (NOT-IN-USE)
 module SAT.Mios.Ranking
        (
          -- * Rank of Clause
-       , ranking
+         ranking
 --       , rankBySizeOffset
 --       , setRank
 --       , updateRank
@@ -21,25 +21,25 @@ module SAT.Mios.Ranking
        )
         where
 
--- import SAT.Mios.Types
+import SAT.Mios.Types
 import SAT.Mios.Clause
-import SAT.Mios.Mutables
+import SAT.Mios.Solver
 
 -- | specialized version of ranking
 {-# INLINE ranking' #-}
 ranking' :: Clause -> IO Int
-ranking' = sizeOfClause
+ranking' = getSize
 
 -- | returns size of clause with offset
 {-# INLINE rankBySize #-}
 rankBySize :: Bool -> Solver -> Clause -> IO Int
-rankBySize _ _ = sizeOfClause
+rankBySize _ _ = getSize
 
 -- | returns size of clause with offset
 {-# INLINE rankBySizeOffset #-}
 rankBySizeOffset :: Bool -> Solver -> Clause -> IO Int
 rankBySizeOffset True _ c = do
-  n <- sizeOfClause c
+  n <- getSize c
   return $ if n < 12 then n else 12 + n
 rankBySizeOffset False s _ = (12 +) <$> decisionLevel s
 

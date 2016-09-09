@@ -203,7 +203,7 @@ lBottom = 0
 -- with the highest activity.
 class VarOrder o where
   -- | constructor
-  newVarOrder :: (VectorFamily v1 Bool, VectorFamily v2 Double) => v1 -> v2 -> IO o
+  newVarOrder :: (VecFamily v1 Bool, VecFamily v2 Double) => v1 -> v2 -> IO o
   newVarOrder _ _ = error "newVarOrder undefined"
 
   -- | Called when a new variable is created.

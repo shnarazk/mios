@@ -120,7 +120,6 @@ runSolver m d c = do
             else Left .  map lit2int <$> asList (conflict s)
     else return $ Left []
 
-
 -- | the easiest interface for Haskell programs
 -- This returns the result @::[[Int]]@ for a given @(CNFDescription, [[Int]])@
 -- The first argument @target@ can be build by @Just target <- cnfFromFile targetfile@.

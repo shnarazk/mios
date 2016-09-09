@@ -109,7 +109,7 @@ instance ClauseManager SimpleManager where
       MV.unsafeWrite v i =<< MV.unsafeRead v n
       set' _nActives n
 
-instance VectorFamily SimpleManager C.Clause where
+instance ContainerFamily SimpleManager C.Clause where
   dump mes SimpleManager{..} = do
     n <- get' _nActives
     if n == 0
@@ -212,11 +212,11 @@ purifyManager ClauseExtManager{..} = do
       loop :: Int -> Int -> IO Int
       loop ((< n) -> False) n' = return n'
       loop i j = do
-        c <- C.getNthClause vec i
+        c <- getNth vec i
         if c /= C.NullClause
           then do
               unless (i == j) $ do
-                C.setNthClause vec j c
+                setNth vec j c
                 setNth keys j =<< getNth keys i
               loop (i + 1) (j + 1)
           else loop (i + 1) j
@@ -248,7 +248,7 @@ pushClauseWithKey !ClauseExtManager{..} !c k = do
     else MV.unsafeWrite v n c >> setNth b n k
   modify' _nActives (1 +)
 
-instance VectorFamily ClauseExtManager C.Clause where
+instance ContainerFamily ClauseExtManager C.Clause where
   dump mes ClauseExtManager{..} = do
     n <- get' _nActives
     if n == 0
@@ -273,7 +273,7 @@ newWatcherList n m = V.fromList <$> mapM (\_ -> newManager m) [0 .. int2lit (neg
 getNthWatcher :: WatcherList -> Lit -> ClauseExtManager
 getNthWatcher = V.unsafeIndex
 
-instance VectorFamily WatcherList C.Clause where
+instance ContainerFamily WatcherList C.Clause where
   dump mes wl = return "" -- (mes ++) . concat <$> mapM (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i)) [1 .. V.length wl - 1]
 
 -- | purges all expirable clauses in 'WatcherList'

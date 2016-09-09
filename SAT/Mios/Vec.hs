@@ -9,12 +9,13 @@
 -- | Abstraction Layer for Mutable Unboxed Vectors
 module SAT.Mios.Vec
        (
+         -- * public interface
+         ContainerFamily (..)
          -- * Unboxed Vector
-         UVector
+       , UVector
          -- * Vector
-       , VectorFamily (..)
-       , Vec (..)
        , VecFamily (..)
+       , Vec (..)
          -- * Stack
        , StackFamily (..)
        , Stack
@@ -30,62 +31,55 @@ module SAT.Mios.Vec
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as UV
 
--- | Public interface as /Container/
-class VectorFamily s t | s -> t where
+-- | interface on container
+class ContainerFamily s t | s -> t where
   -- * Size operations
   -- | erases all elements in it
   clear :: s -> IO ()
-  clear = error "no default method for clear"
   -- | get a raw data
   asUVector :: s -> UVector Int
-  asUVector = error "asVector undefined"
   -- | converts into a list
   asList :: s -> IO [t]
-  asList = error "asList undefined"
-  {-# MINIMAL dump #-}
   -- * Debug
   -- | dump the contents
   dump :: Show t => String -> s -> IO String
+  {-# MINIMAL dump #-}
+  clear = error "no default method for clear"
+  asUVector = error "asVector undefined"
+  asList = error "asList undefined"
   dump msg _ = error $ msg ++ ": no defalut method for dump"
 
 -- | provides 'clear' and 'size'
 
-{-
-instance VectorFamily (Vec Bool) Bool where
-  asList (Vec v) = mapM (getNth v) [1 .. UV.length v]
-  dump str _ = return $ str ++ "Vec dump"
--}
-
-instance UV.Unbox a => VectorFamily (UVector a) a where
+instance UV.Unbox a => ContainerFamily (UVector a) a where
   asList v = mapM (UV.unsafeRead v) [0 .. UV.length v - 1]
   dump str v = (str ++) . show <$> asList v
 
-instance VectorFamily (Vec Int) Int where
+instance ContainerFamily (Vec Int) Int where
   clear (Vec v) = setNth v 0 0
   asUVector (Vec a) = UV.unsafeTail a
   asList (Vec v) = mapM (getNth v) [1 .. UV.length v - 1]
   dump str _ = return $ str ++ "Vec dump"
 
 -- | A thin abstract layer for Mutable unboxed Vector
-
 type UVector a = UV.IOVector a
 
+-- | interface on 'UVector'
 class VecFamily v a | v -> a where
-  newVec :: Int -> a -> IO v
   getNth ::v -> Int -> IO a
   setNth :: v -> Int -> a -> IO ()
-  modifyNth :: v -> (a -> a) -> Int -> IO ()
   swapBetween :: v -> Int -> Int -> IO ()
+  modifyNth :: v -> (a -> a) -> Int -> IO ()
+  newVec :: Int -> a -> IO v
   setAll :: v -> a -> IO ()
   growVec :: v -> Int -> IO v
+  {-# MINIMAL getNth, setNth, swapBetween #-}
+  modifyNth = undefined
+  newVec = undefined
+  setAll = undefined
+  growVec = undefined
 
 instance VecFamily (UVector Int) Int where
-  {-# SPECIALIZE INLINE newVec :: Int -> Int -> IO (UVector Int) #-}
-  newVec n 0 = UV.new n
-  newVec n x = do
-    v <- UV.new n
-    UV.set v x
-    return v
   {-# SPECIALIZE INLINE getNth :: UVector Int -> Int -> IO Int #-}
   getNth = UV.unsafeRead
   {-# SPECIALIZE INLINE setNth :: UVector Int -> Int -> Int -> IO () #-}
@@ -94,36 +88,18 @@ instance VecFamily (UVector Int) Int where
   modifyNth = UV.unsafeModify
   {-# SPECIALIZE INLINE swapBetween:: UVector Int -> Int -> Int -> IO () #-}
   swapBetween = UV.unsafeSwap
+  {-# SPECIALIZE INLINE newVec :: Int -> Int -> IO (UVector Int) #-}
+  newVec n 0 = UV.new n
+  newVec n x = do
+    v <- UV.new n
+    UV.set v x
+    return v
   {-# SPECIALIZE INLINE setAll :: UVector Int -> Int -> IO () #-}
   setAll = UV.set
   {-# SPECIALIZE INLINE growVec :: UVector Int -> Int -> IO (UVector Int) #-}
   growVec = UV.unsafeGrow
 
-instance VecFamily (UVector Bool) Bool where
-  {-# SPECIALIZE INLINE newVec :: Int -> Bool -> IO (UVector Bool) #-}
-  newVec n x = do
-    v <- UV.new n
-    UV.set v x
-    return v
-  {-# SPECIALIZE INLINE getNth :: UVector Bool -> Int -> IO Bool #-}
-  getNth = UV.unsafeRead
-  {-# SPECIALIZE INLINE setNth :: UVector Bool -> Int -> Bool -> IO () #-}
-  setNth = UV.unsafeWrite
-  {-# SPECIALIZE INLINE modifyNth :: UVector Bool -> (Bool -> Bool) -> Int -> IO () #-}
-  modifyNth = UV.unsafeModify
-  {-# SPECIALIZE INLINE swapBetween:: UVector Bool -> Int -> Int -> IO () #-}
-  swapBetween = UV.unsafeSwap
-  {-# SPECIALIZE INLINE setAll :: UVector Bool -> Bool -> IO () #-}
-  setAll = UV.set
-  {-# SPECIALIZE INLINE growVec :: UVector Bool -> Int -> IO (UVector Bool) #-}
-  growVec = UV.unsafeGrow
-
 instance VecFamily (UVector Double) Double where
-  {-# SPECIALIZE INLINE newVec :: Int -> Double -> IO (UVector Double) #-}
-  newVec n x = do
-    v <- UV.new n
-    UV.set v x
-    return v
   {-# SPECIALIZE INLINE getNth :: UVector Double -> Int -> IO Double #-}
   getNth = UV.unsafeRead
   {-# SPECIALIZE INLINE setNth :: UVector Double -> Int -> Double -> IO () #-}
@@ -132,6 +108,11 @@ instance VecFamily (UVector Double) Double where
   modifyNth = UV.unsafeModify
   {-# SPECIALIZE INLINE swapBetween:: UVector Double -> Int -> Int -> IO () #-}
   swapBetween = UV.unsafeSwap
+  {-# SPECIALIZE INLINE newVec :: Int -> Double -> IO (UVector Double) #-}
+  newVec n x = do
+    v <- UV.new n
+    UV.set v x
+    return v
   {-# SPECIALIZE INLINE setAll :: UVector Double -> Double -> IO () #-}
   setAll = UV.set
   {-# SPECIALIZE INLINE growVec :: UVector Double -> Int -> IO (UVector Double) #-}
@@ -139,10 +120,10 @@ instance VecFamily (UVector Double) Double where
 
 --------------------------------------------------------------------------------
 
+-- | another abstraction layer on 'UVector'
 newtype Vec a  = Vec (UVector a)
 
 instance VecFamily (Vec Int) Int where
-  newVec n x = Vec <$> newVec (n + 1) x
   {-# SPECIALIZE INLINE getNth :: Vec Int -> Int -> IO Int #-}
   getNth (Vec v) = UV.unsafeRead v
   {-# SPECIALIZE INLINE setNth :: Vec Int -> Int -> Int -> IO () #-}
@@ -151,30 +132,14 @@ instance VecFamily (Vec Int) Int where
   modifyNth (Vec v) = UV.unsafeModify v
   {-# SPECIALIZE INLINE swapBetween :: Vec Int -> Int -> Int -> IO () #-}
   swapBetween (Vec v) = UV.unsafeSwap v
+  {-# SPECIALIZE INLINE newVec :: Int -> Int -> IO (Vec Int) #-}
+  newVec n x = Vec <$> newVec (n + 1) x
   {-# SPECIALIZE INLINE setAll :: Vec Int -> Int -> IO () #-}
   setAll (Vec v) = UV.set v
   {-# SPECIALIZE INLINE growVec :: Vec Int -> Int -> IO (Vec Int) #-}
   growVec (Vec v) n = Vec <$> UV.unsafeGrow v n
 
-{-
-instance VecFamily (Vec Bool) Bool where
-  newVec n x = Vec <$> newVec (n + 1) x
-  {-# SPECIALIZE INLINE getNth :: Vec Bool -> Int -> IO Bool #-}
-  getNth (Vec v) = UV.unsafeRead v
-  {-# SPECIALIZE INLINE setNth :: Vec Bool -> Int -> Bool -> IO () #-}
-  setNth (Vec v) = UV.unsafeWrite v
-  {-# SPECIALIZE INLINE modifyNth :: Vec Bool -> (Bool -> Bool) -> Int -> IO () #-}
-  modifyNth (Vec v) = UV.unsafeModify v
-  {-# SPECIALIZE INLINE swapBetween :: Vec Bool -> Int -> Int -> IO () #-}
-  swapBetween (Vec v) = UV.unsafeSwap v
-  {-# SPECIALIZE INLINE setAll :: Vec Bool -> Bool -> IO () #-}
-  setAll (Vec v) = UV.set v
-  {-# SPECIALIZE INLINE growVec :: Vec Bool -> Int -> IO (Vec Bool) #-}
-  growVec (Vec v) n = Vec <$> UV.unsafeGrow v n
--}
-
 instance VecFamily (Vec Double) Double where
-  newVec n x = Vec <$> newVec (n + 1) x
   {-# SPECIALIZE INLINE getNth :: Vec Double -> Int -> IO Double #-}
   getNth (Vec v) = UV.unsafeRead v
   {-# SPECIALIZE INLINE setNth :: Vec Double -> Int -> Double -> IO () #-}
@@ -183,6 +148,8 @@ instance VecFamily (Vec Double) Double where
   modifyNth (Vec v) = UV.unsafeModify v
   {-# SPECIALIZE INLINE swapBetween :: Vec Double -> Int -> Int -> IO () #-}
   swapBetween (Vec v) = UV.unsafeSwap v
+  {-# SPECIALIZE INLINE newVec :: Int -> Double -> IO (Vec Double) #-}
+  newVec n x = Vec <$> newVec (n + 1) x
   {-# SPECIALIZE INLINE setAll :: Vec Double -> Double -> IO () #-}
   setAll (Vec v) = UV.set v
   {-# SPECIALIZE INLINE growVec :: Vec Double -> Int -> IO (Vec Double) #-}
@@ -190,20 +157,33 @@ instance VecFamily (Vec Double) Double where
 
 -------------------------------------------------------------------------------- Stack
 
+-- | alias of @Vec Int@
 type Stack = Vec Int
 
+-- | interface for 'stack'
 class StackFamily s t | s -> t where
+  getSize :: s -> IO Int
+  setSize :: s -> Int -> IO ()
   newStack :: Int -> IO s
-  sizeOf :: s -> IO Int
   pushTo :: s -> t-> IO ()
   popFrom :: s -> IO ()
   lastOf :: s -> IO t
   shrinkBy :: s -> Int -> IO ()
+  {-# MINIMAL getSize #-}
+  setSize = undefined
+  newStack = undefined
+  pushTo = undefined
+  popFrom = undefined
+  lastOf = undefined
+  shrinkBy = undefined
   
 instance StackFamily Stack Int where
+  {-# SPECIALIZE INLINE getSize :: Stack -> IO Int #-}
+  getSize (Vec v) = getNth v 0
+  {-# SPECIALIZE INLINE setSize :: Stack -> Int -> IO () #-}
+  setSize (Vec v) = setNth v 0
+  {-# SPECIALIZE INLINE newStack :: Int -> IO Stack #-}
   newStack n = newVec n 0
-  {-# SPECIALIZE INLINE sizeOf :: Stack -> IO Int #-}
-  sizeOf (Vec v) = getNth v 0
   {-# SPECIALIZE INLINE pushTo :: Stack -> Int -> IO () #-}
   pushTo (Vec v) x = do
     i <- (+ 1) <$> UV.unsafeRead v 0
@@ -223,6 +203,7 @@ newStackFromList !l = Vec <$> U.unsafeThaw (U.fromList (length l : l))
 
 -------------------------------------------------------------------------------- Single storage
 
+-- | interface for single mutable data
 class SingleStorage s t | s -> t, t -> s where
   new' :: t -> IO s
   get' :: s -> IO t

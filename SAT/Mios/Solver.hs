@@ -142,7 +142,7 @@ newSolver conf (CNFDescription nv nc _) = do
 -- | returns the number of current assigments
 {-# INLINE nAssigns #-}
 nAssigns :: Solver -> IO Int
-nAssigns = sizeOf . trail
+nAssigns = getSize . trail
 
 -- | returns the number of constraints (clauses)
 {-# INLINE nClauses #-}
@@ -161,7 +161,7 @@ getModel s = asList (model s)
 -- | returns the current decision level
 {-# INLINE decisionLevel #-}
 decisionLevel :: Solver -> IO Int
-decisionLevel = sizeOf . trailLim
+decisionLevel = getSize . trailLim
 
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Var'
 {-# INLINE valueVar #-}
@@ -184,7 +184,7 @@ oldLit (phases -> a) (lit2var -> v) = (var2lit v . (== 1)) <$> getNth a v
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__
 {-# INLINE locked #-}
 locked :: Solver -> Clause -> IO Bool
-locked s c = (c ==) <$> (getNthClause (reason s) . lit2var =<< getNth (lits c) 1)
+locked s c = (c ==) <$> (getNth (reason s) . lit2var =<< getNth (lits c) 1)
 
 -------------------------------------------------------------------------------- Statistics
 
@@ -261,7 +261,7 @@ clauseNew s@Solver{..} ps isLearnt = do
              _ -> handle (j + 1) l n
       loopForLearnt :: Int -> IO Bool
       loopForLearnt i = do
-        n <- sizeOf ps
+        n <- getSize ps
         if n < i
           then return False
           else do
@@ -272,7 +272,7 @@ clauseNew s@Solver{..} ps isLearnt = do
                 else loopForLearnt $ i + 1
       loop :: Int -> IO Bool
       loop i = do
-        n <- sizeOf ps
+        n <- getSize ps
         if n < i
           then return False
           else do
@@ -290,7 +290,7 @@ clauseNew s@Solver{..} ps isLearnt = do
                    then return True
                    else loop $ i + 1
     if isLearnt then loopForLearnt 1 else loop 1
-  k <- sizeOf ps
+  k <- getSize ps
   case k of
    0 -> return (Left exit)
    1 -> do
@@ -353,7 +353,7 @@ enqueue s@Solver{..} p from = do
         -- New fact, store it
         setNth assigns v signumP
         setNth level v =<< decisionLevel s
-        setNthClause reason v from     -- NOTE: @from@ might be NULL!
+        setNth reason v from     -- NOTE: @from@ might be NULL!
         pushTo trail p
         return True
 
@@ -364,7 +364,7 @@ enqueue s@Solver{..} p from = do
 {-# INLINE assume #-}
 assume :: Solver -> Lit -> IO Bool
 assume s p = do
-  pushTo (trailLim s) =<< sizeOf (trail s)
+  pushTo (trailLim s) =<< getSize (trail s)
   enqueue s p NullClause
 
 -- | #M22: Revert to the states at given level (keeping all assignment at 'level' but not beyond).
@@ -376,8 +376,8 @@ cancelUntil s@Solver{..} lvl = do
     let tr = asUVector trail
     let tl = asUVector trailLim
     lim <- getNth tl lvl
-    ts <- sizeOf trail
-    ls <- sizeOf trailLim
+    ts <- getSize trail
+    ls <- getSize trailLim
     let
       loopOnTrail :: Int -> IO ()
       loopOnTrail ((lim <=) -> False) = return ()
@@ -388,7 +388,7 @@ cancelUntil s@Solver{..} lvl = do
         -- #reason to set reason Null
         -- if we don't clear @reason[x] :: Clause@ here, @reason[x]@ remains as locked.
         -- This means we can't reduce it from clause DB and affects the performance.
-        setNthClause reason x NullClause -- 'analyze` uses reason without checking assigns
+        setNth reason x NullClause -- 'analyze` uses reason without checking assigns
         -- FIXME: #polarity https://github.com/shnarazk/minisat/blosb/master/core/Solver.cc#L212
         undo s x
         -- insertHeap s x              -- insertVerOrder
@@ -396,7 +396,7 @@ cancelUntil s@Solver{..} lvl = do
     loopOnTrail $ ts - 1
     shrinkBy trail (ts - lim)
     shrinkBy trailLim (ls - lvl)
-    set' qHead =<< sizeOf trail
+    set' qHead =<< getSize trail
 
 -------------------------------------------------------------------------------- VarOrder
 
@@ -441,6 +441,7 @@ instance VarOrder Solver where
 varActivityThreshold :: Double
 varActivityThreshold = 1e100
 
+-- | value for rescaling clause activity
 claActivityThreshold :: Double
 claActivityThreshold = 1e20
 
@@ -496,7 +497,7 @@ claRescaleActivity Solver{..} = do
     loopOnVector :: Int -> IO ()
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
-      c <- getNthClause vec i
+      c <- getNth vec i
       modify' (activity c) (/ claActivityThreshold)
       loopOnVector $ i + 1
   loopOnVector 0
@@ -512,8 +513,8 @@ claRescaleActivityAfterRestart Solver{..} = do
     loopOnVector :: Int -> IO ()
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
-      c <- getNthClause vec i
-      d <- sizeOfClause c
+      c <- getNth vec i
+      d <- getSize c
       if d < 9
         then modify' (activity c) sqrt
         else set' (activity c) 0
@@ -523,7 +524,7 @@ claRescaleActivityAfterRestart Solver{..} = do
 
 -------------------------------------------------------------------------------- VarHeap
 
--- | 'VarHeap' is a heap tree built from two 'Vec'
+-- | @VarHeap@ is a heap tree built from two 'Vec'
 -- This implementation is identical wtih that in Minisat-1.14
 -- Note: the zero-th element of @heap@ is used for holding the number of elements
 -- Note: VarHeap itself is not a @VarOrder@, because it requires a pointer to solver
@@ -535,11 +536,11 @@ data VarHeap = VarHeap
 
 newVarHeap :: Int -> IO VarHeap
 newVarHeap n = do
-  v1 <- newVec (n + 1) 0
-  v2 <- newVec (n + 1) 0
+  v1 <- newVec n 0
+  v2 <- newVec n 0
   let
     loop :: Int -> IO ()
-    loop ((<= n) -> False) = setNth v1 0 n >> setNth v2 0 n
+    loop ((<= n) -> False) = setSize v1 n >> setSize v2 n
     loop i = setNth v1 i i >> setNth v2 i i >> loop (i + 1)
   loop 1
   return $ VarHeap v1 v2
@@ -607,7 +608,7 @@ insertHeap s@(order -> VarHeap to at) v = do
   n <- (1 +) <$> getNth to 0
   setNth at v n
   setNth to n v
-  setNth to 0 n
+  setSize to n
   percolateUp s n
 
 -- | renamed from 'getmin'

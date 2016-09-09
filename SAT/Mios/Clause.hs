@@ -14,15 +14,10 @@ module SAT.Mios.Clause
          Clause (..)
 --       , isLit
 --       , getLit
-       , shrinkClause
        , newClauseFromStack
-       , sizeOfClause
          -- * Vector of Clause
        , ClauseVector
        , newClauseVector
-       , getNthClause
-       , setNthClause
-       , swapClauses
        )
        where
 
@@ -57,13 +52,13 @@ instance Show Clause where
   show _ = "a clause"
 
 -- | supports a restricted set of 'VectorFamily' methods
-instance VectorFamily Clause Lit where
+instance ContainerFamily Clause Lit where
   dump mes NullClause = return $ mes ++ "Null"
   dump mes Clause{..} = return "a clause"
 {-
   dump mes Clause{..} = do
     a <- show <$> get' activity
-    n <- sizeOf lits
+    n <- getSize lits
     l <- asList lits
     return $ mes ++ "C" ++ show n ++ "{" ++ intercalate "," [show learnt, a, show (map lit2int l)] ++ "}"
 -}
@@ -71,7 +66,16 @@ instance VectorFamily Clause Lit where
   asUVector = asUVector . lits
   {-# SPECIALIZE INLINE asList :: Clause -> IO [Int] #-}
   asList NullClause = return []
-  asList Clause{..} = take <$> sizeOf lits <*> asList lits
+  asList Clause{..} = take <$> getSize lits <*> asList lits
+
+instance StackFamily Clause () where
+  -- | returns the number of literals in a clause, even if the given clause is a binary clause
+  {-# SPECIALIZE INLINE getSize :: Clause -> IO Int #-}
+  getSize = getSize . lits
+  -- getSize (BinaryClause _) = return 1
+  -- | drop the last /N/ literals in a 'Clause' to eliminate unsatisfied literals
+  {-# SPECIALIZE INLINE shrinkBy :: Clause -> Int -> IO () #-}
+  shrinkBy c n = modifyNth (lits c) (subtract n) 0
 
 -- returns True if it is a 'BinaryClause'
 -- FIXME: this might be discarded in minisat 2.2
@@ -93,7 +97,7 @@ instance VectorFamily Clause Lit where
 {-# INLINE newClauseFromStack #-}
 newClauseFromStack :: Bool -> Stack -> IO Clause
 newClauseFromStack l vec = do
-  n <- sizeOf vec
+  n <- getSize vec
   v <- newStack n
   let
     loop ((<= n) -> False) = return ()
@@ -101,23 +105,12 @@ newClauseFromStack l vec = do
   loop 0
   Clause l <$> {- new' 0 <*> -} new' 0.0 <*> new' False <*> return v
 
--- | returns the number of literals in a clause, even if the given clause is a binary clause
-{-# INLINE sizeOfClause #-}
-sizeOfClause :: Clause -> IO Int
--- sizeOfClause (BinaryClause _) = return 1
-sizeOfClause = sizeOf . lits
-
--- | drop the last /N/ literals in a 'Clause' to eliminate unsatisfied literals
-{-# INLINABLE shrinkClause #-}
-shrinkClause :: Int -> Clause -> IO ()
-shrinkClause n !c = modifyNth (lits c) (subtract n) 0
-
 --------------------------------------------------------------------------------
 
 -- | Mutable 'Clause' Vector
 type ClauseVector = MV.IOVector Clause
 
-instance VectorFamily ClauseVector Clause where
+instance ContainerFamily ClauseVector Clause where
   asList cv = V.toList <$> V.freeze cv
   dump mes cv = do
     l <- asList cv
@@ -131,17 +124,10 @@ newClauseVector n = do
   MV.set v NullClause
   return v
 
--- | returns the nth 'Clause'
-{-# INLINE getNthClause #-}
-getNthClause :: ClauseVector -> Int -> IO Clause
-getNthClause = MV.unsafeRead
-
--- | sets the nth 'Clause'
-{-# INLINE setNthClause #-}
-setNthClause :: ClauseVector -> Int -> Clause -> IO ()
-setNthClause = MV.unsafeWrite
-
--- | swaps the two 'Clause's
-{-# INLINE swapClauses #-}
-swapClauses :: ClauseVector -> Int -> Int -> IO ()
-swapClauses = MV.unsafeSwap
+instance VecFamily ClauseVector Clause where
+  {-# SPECIALIZE INLINE getNth :: ClauseVector -> Int -> IO Clause #-}
+  getNth = MV.unsafeRead
+  {-# SPECIALIZE INLINE setNth :: ClauseVector -> Int -> Clause -> IO () #-}
+  setNth = MV.unsafeWrite
+  {-# SPECIALIZE INLINE swapBetween :: ClauseVector -> Int -> Int -> IO () #-}
+  swapBetween = MV.unsafeSwap

@@ -40,8 +40,7 @@ validate s (toList -> map int2lit -> lst) = do
     loopOnVector :: Int -> IO Bool
     loopOnVector ((< nc) -> False) = return True
     loopOnVector i = do
-      c <- getNthClause vec i
-      sat' <- satAny =<< asList c
+      sat' <- satAny =<< asList =<< getNth vec i
       if sat' then loopOnVector (i + 1) else return False
   if null lst
     then error "validator got an empty assignment."
