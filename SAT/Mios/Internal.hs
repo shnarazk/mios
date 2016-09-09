@@ -9,7 +9,7 @@ module SAT.Mios.Internal
 
 -- | version name
 versionId :: String
-versionId = "mios 1.3.0 -- https://github.com/shnarazk/mios" -- no more LBD
+versionId = "mios 1.4.0 -- https://github.com/shnarazk/mios"
 
 -- | solver's parameters; random decision rate was dropped.
 data MiosConfiguration = MiosConfiguration
