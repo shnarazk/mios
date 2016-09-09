@@ -147,7 +147,6 @@ instance ClauseManager ClauseExtManager where
   {-# SPECIALIZE INLINE getClauseVector :: ClauseExtManager -> IO C.ClauseVector #-}
   getClauseVector !m = IORef.readIORef (_clauseVector m)
   -- | O(1) insertion function
-  {-# SPECIALIZE INLINE pushClause :: ClauseExtManager -> C.Clause -> IO () #-}
   pushClause !ClauseExtManager{..} !c = do
     -- checkConsistency m c
     !n <- get' _nActives
@@ -186,7 +185,7 @@ instance ClauseManager ClauseExtManager where
 -}
 
 -- | sets the expire flag to a clause
-{-# INLINE markClause #-}
+{-# INLINABLE markClause #-}
 markClause :: ClauseExtManager -> C.Clause -> IO ()
 markClause ClauseExtManager{..} c = do
   !n <- get' _nActives
@@ -200,7 +199,7 @@ markClause ClauseExtManager{..} c = do
     seekIndex 0
     set' _purged True
 
-{-# INLINE purifyManager #-}
+{-# INLINABLE purifyManager #-}
 purifyManager :: ClauseExtManager -> IO ()
 purifyManager ClauseExtManager{..} = do
   diry <- get' _purged
@@ -229,7 +228,7 @@ getKeyVector :: ClauseExtManager -> IO (UVector Int)
 getKeyVector ClauseExtManager{..} = IORef.readIORef _keyVector
 
 -- | O(1) inserter
-{-# INLINE pushClauseWithKey #-}
+{-# INLINABLE pushClauseWithKey #-}
 pushClauseWithKey :: ClauseExtManager -> C.Clause -> Lit -> IO ()
 pushClauseWithKey !ClauseExtManager{..} !c k = do
   -- checkConsistency m c
@@ -274,7 +273,7 @@ getNthWatcher :: WatcherList -> Lit -> ClauseExtManager
 getNthWatcher = V.unsafeIndex
 
 instance ContainerFamily WatcherList C.Clause where
-  dump mes wl = return "" -- (mes ++) . concat <$> mapM (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i)) [1 .. V.length wl - 1]
+  dump _ _ = return "" -- (mes ++) . concat <$> mapM (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i)) [1 .. V.length wl - 1]
 
 -- | purges all expirable clauses in 'WatcherList'
 {-# INLINE garbageCollect #-}

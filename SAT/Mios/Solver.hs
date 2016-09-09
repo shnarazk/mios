@@ -12,6 +12,7 @@ module SAT.Mios.Solver
        (
          -- * Solver
          Solver (..)
+       , VarOrder
        , newSolver
          -- * Misc Accessors
        , nAssigns
@@ -156,7 +157,7 @@ nLearnts = numberOfClauses . learnts
 
 -- | return the model as a list of literal
 getModel :: Solver -> IO [Int]
-getModel s = asList (model s)
+getModel = asList . model
 
 -- | returns the current decision level
 {-# INLINE decisionLevel #-}
@@ -455,13 +456,13 @@ varBumpActivity s@Solver{..} x = do
   update s x                    -- update the position in heap
 
 -- | __Fig. 14 (p.19)__
-{-# INLINE varDecayActivity #-}
+{-# INLINABLE varDecayActivity #-}
 varDecayActivity :: Solver -> IO ()
 varDecayActivity Solver{..} = modify' varInc (/ variableDecayRate config)
 -- varDecayActivity Solver{..} = modifyDouble varInc . (flip (/)) =<< getDouble varDecay
 
 -- | __Fig. 14 (p.19)__
-{-# INLINE varRescaleActivity #-}
+{-# INLINABLE varRescaleActivity #-}
 varRescaleActivity :: Solver -> IO ()
 varRescaleActivity Solver{..} = do
   let
@@ -488,7 +489,7 @@ claDecayActivity Solver{..} = modifyDouble claInc (/ clauseDecayRate config)
 -}
 
 -- | __Fig. 14 (p.19)__
-{-# INLINE claRescaleActivity #-}
+{-# INLINABLE claRescaleActivity #-}
 claRescaleActivity :: Solver -> IO ()
 claRescaleActivity Solver{..} = do
   vec <- getClauseVector learnts
@@ -504,7 +505,7 @@ claRescaleActivity Solver{..} = do
   -- modifyDouble claInc (/ claActivityThreshold)
 
 -- | __Fig. 14 (p.19)__
-{-# INLINE claRescaleActivityAfterRestart #-}
+{-# INLINABLE claRescaleActivityAfterRestart #-}
 claRescaleActivityAfterRestart :: Solver -> IO ()
 claRescaleActivityAfterRestart Solver{..} = do
   vec <- getClauseVector learnts
@@ -547,7 +548,7 @@ newVarHeap n = do
 
 {-# INLINE numElementsInHeap #-}
 numElementsInHeap :: Solver -> IO Int
-numElementsInHeap (order -> heap -> h) = getNth h 0
+numElementsInHeap = getSize . heap . order
 
 {-# INLINE inHeap #-}
 inHeap :: Solver -> Var -> IO Bool
@@ -602,7 +603,7 @@ percolateDown Solver{..} start = do
         else setNth to i v >> setNth at v i       -- end
   loop start
 
-{-# INLINE insertHeap #-}
+{-# INLINABLE insertHeap #-}
 insertHeap :: Solver -> Var -> IO ()
 insertHeap s@(order -> VarHeap to at) v = do
   n <- (1 +) <$> getNth to 0
@@ -612,7 +613,7 @@ insertHeap s@(order -> VarHeap to at) v = do
   percolateUp s n
 
 -- | renamed from 'getmin'
-{-# INLINE getHeapRoot #-}
+{-# INLINABLE getHeapRoot #-}
 getHeapRoot :: Solver -> IO Int
 getHeapRoot s@(order -> VarHeap to at) = do
   r <- getNth to 1

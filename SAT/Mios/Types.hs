@@ -20,7 +20,7 @@ module SAT.Mios.Types
        , lit2int
        , int2lit
        , bottomLit
-       , newLit
+--       , newLit
        , positiveLit
        , lit2var
        , var2lit
@@ -69,9 +69,11 @@ type Lit = Int
 bottomLit :: Lit
 bottomLit = 0
 
+{-
 -- | converts "Var" into 'Lit'
 newLit :: Var -> Lit
 newLit = error "newLit undefined"
+-}
 
 -- | returns @True@ if the literal is positive
 {-# INLINE positiveLit #-}
@@ -90,7 +92,7 @@ positiveLit = even
 -- 4
 {-# INLINE negateLit #-}
 negateLit :: Lit -> Lit
-negateLit !l = complementBit l 0 -- if even l then l + 1 else l - 1
+negateLit l = complementBit l 0 -- if even l then l + 1 else l - 1
 
 ----------------------------------------
 ----------------- Var

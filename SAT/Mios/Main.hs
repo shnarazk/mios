@@ -134,7 +134,7 @@ simplify s c = do
 --     rest of literals. There may be others from the same level though.
 --
 -- @analyze@ is invoked from @search@
--- {-# INLINEABLE analyze #-}
+{-# INLINABLE analyze #-}
 analyze :: Solver -> Clause -> IO Int
 analyze s@Solver{..} confl = do
   -- litvec
@@ -262,7 +262,7 @@ analyze s@Solver{..} confl = do
 -- *  @an'toClear@ is initialized by @ps@ in @analyze@ (a copy of 'learnt').
 --   This is used only in this function and @analyze@.
 --
-{-# INLINEABLE analyzeRemovable #-}
+{-# INLINABLE analyzeRemovable #-}
 analyzeRemovable :: Solver -> Lit -> Int -> IO Bool
 analyzeRemovable Solver{..} p minLevel = do
   -- assert (reason[var(p)]!= NullCaulse);
@@ -323,6 +323,7 @@ analyzeRemovable Solver{..} p minLevel = do
 --   making assumptions). If 'skip_first' is TRUE, the first literal of 'confl' is ignored (needed
 --   if conflict arose before search even started).
 --
+{-# INLINABLE analyzeFinal #-}
 analyzeFinal :: Solver -> Clause -> Bool -> IO ()
 analyzeFinal Solver{..} confl skipFirst = do
   clear conflict
@@ -759,6 +760,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
 -- __Pre-condition:__ If assumptions are used, 'simplifyDB' must be
 -- called right before using this method. If not, a top-level conflict (resulting in a
 -- non-usable internal state) cannot be distinguished from a conflict under assumptions.
+{-# INLINABLE solve #-}
 solve :: (Foldable t) => Solver -> t Lit -> IO Bool
 solve s@Solver{..} assumps = do
   -- PUSH INCREMENTAL ASSUMPTIONS:

@@ -54,7 +54,7 @@ instance Show Clause where
 -- | supports a restricted set of 'VectorFamily' methods
 instance ContainerFamily Clause Lit where
   dump mes NullClause = return $ mes ++ "Null"
-  dump mes Clause{..} = return "a clause"
+  dump mes Clause{..} = return $ mes ++ "a clause"
 {-
   dump mes Clause{..} = do
     a <- show <$> get' activity
@@ -64,7 +64,6 @@ instance ContainerFamily Clause Lit where
 -}
   {-# SPECIALIZE INLINE asUVector :: Clause -> UVector Int #-}
   asUVector = asUVector . lits
-  {-# SPECIALIZE INLINE asList :: Clause -> IO [Int] #-}
   asList NullClause = return []
   asList Clause{..} = take <$> getSize lits <*> asList lits
 
@@ -94,7 +93,7 @@ instance StackFamily Clause () where
 
 -- | copies /vec/ and return a new 'Clause'
 -- Since 1.0.100 DIMACS reader should use a scratch buffer allocated statically.
-{-# INLINE newClauseFromStack #-}
+{-# INLINABLE newClauseFromStack #-}
 newClauseFromStack :: Bool -> Stack -> IO Clause
 newClauseFromStack l vec = do
   n <- getSize vec
