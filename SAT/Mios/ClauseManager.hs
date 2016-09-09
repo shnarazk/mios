@@ -184,7 +184,7 @@ instance ClauseManager ClauseExtManager where
   removeNthClause = error "removeNthClause is not implemented on ClauseExtManager"
 -}
 
--- | sets the expire flag to a clause
+-- | sets the expire flag to a clause.
 {-# INLINABLE markClause #-}
 markClause :: ClauseExtManager -> C.Clause -> IO ()
 markClause ClauseExtManager{..} c = do
@@ -222,7 +222,7 @@ purifyManager ClauseExtManager{..} = do
     set' _nActives =<< loop 0 0
     set' _purged False
 
--- | returns the associated Int vector
+-- | returns the associated Int vector.
 {-# INLINE getKeyVector #-}
 getKeyVector :: ClauseExtManager -> IO (UVector Int)
 getKeyVector ClauseExtManager{..} = IORef.readIORef _keyVector
@@ -262,12 +262,12 @@ instance ContainerFamily ClauseExtManager C.Clause where
 -- | Vector of 'ClauseExtManager'
 type WatcherList = V.Vector ClauseExtManager
 
--- | /n/ is the number of 'Var', /m/ is default size of each watcher list
+-- | /n/ is the number of 'Var', /m/ is default size of each watcher list.
 -- | For /n/ vars, we need [0 .. 2 + 2 * n - 1] slots, namely /2 * (n + 1)/-length vector
 newWatcherList :: Int -> Int -> IO WatcherList
 newWatcherList n m = V.fromList <$> mapM (\_ -> newManager m) [0 .. int2lit (negate n) + 1]
 
--- | returns the watcher List :: "ClauseManager" for "Literal" /l/
+-- | returns the watcher List for "Literal" /l/.
 {-# INLINE getNthWatcher #-}
 getNthWatcher :: WatcherList -> Lit -> ClauseExtManager
 getNthWatcher = V.unsafeIndex
@@ -275,7 +275,7 @@ getNthWatcher = V.unsafeIndex
 instance ContainerFamily WatcherList C.Clause where
   dump _ _ = return "" -- (mes ++) . concat <$> mapM (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i)) [1 .. V.length wl - 1]
 
--- | purges all expirable clauses in 'WatcherList'
+-- | purges all expirable clauses in 'WatcherList'.
 {-# INLINE garbageCollect #-}
 garbageCollect :: WatcherList -> IO ()
 garbageCollect = V.mapM_ purifyManager
