@@ -51,7 +51,6 @@ instance Show Clause where
   show NullClause = "NullClause"
   show _ = "a clause"
 
--- | supports a restricted set of 'VectorFamily' methods
 instance ContainerFamily Clause Lit where
   dump mes NullClause = return $ mes ++ "Null"
   dump mes Clause{..} = return $ mes ++ "a clause"
@@ -67,7 +66,8 @@ instance ContainerFamily Clause Lit where
   asList NullClause = return []
   asList Clause{..} = take <$> getSize lits <*> asList lits
 
-instance StackFamily Clause () where
+-- | 'Clause' may change the literals in it, if some literal is satisifed at level = 0.
+instance StackFamily Clause Lit where
   -- | returns the number of literals in a clause, even if the given clause is a binary clause
   {-# SPECIALIZE INLINE getSize :: Clause -> IO Int #-}
   getSize = getSize . lits
