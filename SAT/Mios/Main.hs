@@ -76,7 +76,7 @@ newLearntClause s@Solver{..} ps = do
        -- Bump, enqueue, store clause:
        set' (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
        -- Add clause to all managers
-       pushClause learnts c
+       pushTo learnts c
        l <- getNth vec 0
        pushClauseWithKey (getNthWatcher watches (negateLit l)) c 0
        l1 <- negateLit <$> getNth vec 1
@@ -407,7 +407,7 @@ propagate s@Solver{..} = do
       (p :: Lit) <- getNth trailVec =<< get' qHead
       modify' qHead (+ 1)
       let (ws :: ClauseExtManager) = getNthWatcher watches p
-      end <- numberOfClauses ws
+      end <- getSize ws
       cvec <- getClauseVector ws
       bvec <- getKeyVector ws
 --      rc <- getNth reason $ lit2var p
@@ -429,7 +429,7 @@ propagate s@Solver{..} = do
 -}
         forClause :: Clause -> Int -> Int -> IO Clause
         forClause confl i@((< end) -> False) j = do
-          shrinkManager ws (i - j)
+          shrinkBy ws (i - j)
           while confl =<< ((<) <$> get' qHead <*> getSize trail)
         forClause confl i j = do
           (l :: Lit) <- getNth bvec i
@@ -509,7 +509,7 @@ reduceDB s@Solver{..} = do
   k <- sortClauses s learnts (div n 2) -- k is the number of clauses not to be purged
   loop k                               -- CAVEAT: `vec` is a zero-based vector
   garbageCollect watches
-  shrinkManager learnts (n - k)
+  shrinkBy learnts (n - k)
 
 -- | (Good to Bad) Quick sort the key vector based on their activities and returns number of privileged clauses.
 -- this function uses the same metrix as reduceDB_lt in glucose 4.0:
@@ -547,7 +547,7 @@ sortClauses s cm nneeds = do
     activityScale = fromIntegral activityMax
     indexMax :: Int
     indexMax = (2 ^ indexWidth - 1) -- 67,108,863 for 26
-  n <- numberOfClauses cm
+  n <- getSize cm
   -- when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds mios's " ++ show indexWidth ++" bit manage capacity"
   vec <- getClauseVector cm
   keys <- getKeyVector cm
@@ -657,10 +657,10 @@ simplifyDB s@Solver{..} = do
               for t = do
                 let ptr = if t == 0 then learnts else clauses
                 vec' <- getClauseVector ptr
-                n' <- numberOfClauses ptr
+                n' <- getSize ptr
                 let
                   loopOnVector :: Int -> Int -> IO Bool
-                  loopOnVector ((< n') -> False) j = shrinkManager ptr (n' - j) >> return True
+                  loopOnVector ((< n') -> False) j = shrinkBy ptr (n' - j) >> return True
                   loopOnVector i j = do
                         c <- getNth vec' i
                         l <- locked s c
@@ -723,7 +723,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
             when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
-            k1 <- numberOfClauses learnts
+            k1 <- getSize learnts
             k2 <- nAssigns s
             when (k1 - k2 >= nOfLearnts) $ reduceDB s -- Reduce the set of learnt clauses
             case () of

@@ -40,11 +40,8 @@ import qualified SAT.Mios.Clause as C
 -- | Resizable vector of 'C.Clause'.
 class ClauseManager a where
   newManager      :: Int -> IO a
-  numberOfClauses :: a -> IO Int
   clearManager    :: a -> IO ()
-  shrinkManager   :: a -> Int -> IO ()
   getClauseVector :: a -> IO C.ClauseVector
-  pushClause      :: a -> C.Clause -> IO ()
 --  removeClause    :: a -> C.Clause -> IO ()
 --  removeNthClause :: a -> Int -> IO ()
 
@@ -131,6 +128,29 @@ data ClauseExtManager = ClauseExtManager
   , _keyVector    :: IORef.IORef (UVector Int)     -- Int list
   }
 
+instance StackFamily ClauseExtManager C.Clause where
+  {-# SPECIALIZE INLINE getSize :: ClauseExtManager -> IO Int #-}
+  getSize m = get' (_nActives m)
+  {-# SPECIALIZE INLINE shrinkBy :: ClauseExtManager -> Int -> IO () #-}
+  shrinkBy m k = modify' (_nActives m) (subtract k)
+  pushTo ClauseExtManager{..} c = do
+    -- checkConsistency m c
+    !n <- get' _nActives
+    !v <- IORef.readIORef _clauseVector
+    !b <- IORef.readIORef _keyVector
+    if MV.length v - 1 <= n
+      then do
+          let len = max 8 $ MV.length v
+          v' <- MV.unsafeGrow v len
+          b' <- growVec b len
+          MV.unsafeWrite v' n c
+          setNth b' n 0
+          IORef.writeIORef _clauseVector v'
+          IORef.writeIORef _keyVector b'
+      else MV.unsafeWrite v n c >> setNth b n 0
+    modify' _nActives (1 +)
+
+
 instance ClauseManager ClauseExtManager where
   {-# SPECIALIZE INLINE newManager :: Int -> IO ClauseExtManager #-}
   newManager initialSize = do
@@ -138,14 +158,15 @@ instance ClauseManager ClauseExtManager where
     v <- C.newClauseVector initialSize
     b <- newVec (MV.length v) 0
     ClauseExtManager i <$> new' False <*> IORef.newIORef v <*> IORef.newIORef b
-  {-# SPECIALIZE INLINE numberOfClauses :: ClauseExtManager -> IO Int #-}
-  numberOfClauses !m = get' (_nActives m)
+--  {-# SPECIALIZE INLINE numberOfClauses :: ClauseExtManager -> IO Int #-}
+--  numberOfClauses !m = get' (_nActives m)
   {-# SPECIALIZE INLINE clearManager :: ClauseExtManager -> IO () #-}
   clearManager !m = set' (_nActives m) 0
-  {-# SPECIALIZE INLINE shrinkManager :: ClauseExtManager -> Int -> IO () #-}
-  shrinkManager !m k = modify' (_nActives m) (subtract k)
+--  {-# SPECIALIZE INLINE shrinkManager :: ClauseExtManager -> Int -> IO () #-}
+--  shrinkManager !m k = modify' (_nActives m) (subtract k)
   {-# SPECIALIZE INLINE getClauseVector :: ClauseExtManager -> IO C.ClauseVector #-}
   getClauseVector !m = IORef.readIORef (_clauseVector m)
+{-
   -- | O(1) insertion function
   pushClause !ClauseExtManager{..} !c = do
     -- checkConsistency m c
@@ -163,6 +184,7 @@ instance ClauseManager ClauseExtManager where
           IORef.writeIORef _keyVector b'
       else MV.unsafeWrite v n c >> setNth b n 0
     modify' _nActives (1 +)
+-}
 {-
   -- | O(n) but lightweight remove-and-compact function
   -- __Pre-conditions:__ the clause manager is empty or the clause is stored in it.

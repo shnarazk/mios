@@ -148,12 +148,12 @@ nAssigns = getSize . trail
 -- | returns the number of constraints (clauses).
 {-# INLINE nClauses #-}
 nClauses :: Solver -> IO Int
-nClauses = numberOfClauses . clauses
+nClauses = getSize . clauses
 
 -- | returns the number of learnt clauses.
 {-# INLINE nLearnts #-}
 nLearnts :: Solver -> IO Int
-nLearnts = numberOfClauses . learnts
+nLearnts = getSize . learnts
 
 -- | returns the model as a list of literal.
 getModel :: Solver -> IO [Int]
@@ -226,7 +226,7 @@ addClause s@Solver{..} vecLits = do
   result <- clauseNew s vecLits False
   case result of
    Left b  -> return b   -- No new clause was returned becaues a confilct occured or the clause is a literal
-   Right c -> pushClause clauses c >> return True
+   Right c -> pushTo clauses c >> return True
 
 -- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists.
 -- Constructor function for clauses. Returns @False@ if top-level conflict is determined.
@@ -493,7 +493,7 @@ claDecayActivity Solver{..} = modifyDouble claInc (/ clauseDecayRate config)
 claRescaleActivity :: Solver -> IO ()
 claRescaleActivity Solver{..} = do
   vec <- getClauseVector learnts
-  n <- numberOfClauses learnts
+  n <- getSize learnts
   let
     loopOnVector :: Int -> IO ()
     loopOnVector ((< n) -> False) = return ()
@@ -509,7 +509,7 @@ claRescaleActivity Solver{..} = do
 claRescaleActivityAfterRestart :: Solver -> IO ()
 claRescaleActivityAfterRestart Solver{..} = do
   vec <- getClauseVector learnts
-  n <- numberOfClauses learnts
+  n <- getSize learnts
   let
     loopOnVector :: Int -> IO ()
     loopOnVector ((< n) -> False) = return ()
