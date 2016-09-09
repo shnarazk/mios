@@ -37,7 +37,7 @@ import qualified Data.Vector.Mutable as MV
 import SAT.Mios.Types
 import qualified SAT.Mios.Clause as C
 
--- | resizable clause vector
+-- | Resizable vector of 'C.Clause'.
 class ClauseManager a where
   newManager      :: Int -> IO a
   numberOfClauses :: a -> IO Int
