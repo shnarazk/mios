@@ -47,10 +47,10 @@ library
                         SAT.Mios.Solver
                         SAT.Mios.Types
                         SAT.Mios.Validator
-                        SAT.Mios.Util.CNFIO
-                        SAT.Mios.Util.CNFIO.MinisatReader
-                        SAT.Mios.Util.CNFIO.Reader
-                        SAT.Mios.Util.CNFIO.Writer
+                        SAT.Mios.Util.DIMACS
+                        SAT.Mios.Util.DIMACS.MinisatReader
+                        SAT.Mios.Util.DIMACS.Reader
+                        SAT.Mios.Util.DIMACS.Writer
                         SAT.Mios.Util.BoolExp
   build-depends:        base ==4.9.*, vector >=0.11, ghc-prim >=0.5, bytestring >=0.10
   if flag(llvm)
@@ -79,8 +79,8 @@ executable mios
                         SAT.Mios.Solver
                         SAT.Mios.Types
                         SAT.Mios.Validator
-                        SAT.Mios.Util.CNFIO
-                        SAT.Mios.Util.CNFIO.MinisatReader
-                        SAT.Mios.Util.CNFIO.Reader
-                        SAT.Mios.Util.CNFIO.Writer
+                        SAT.Mios.Util.DIMACS
+                        SAT.Mios.Util.DIMACS.MinisatReader
+                        SAT.Mios.Util.DIMACS.Reader
+                        SAT.Mios.Util.DIMACS.Writer
                         SAT.Mios.Util.BoolExp
