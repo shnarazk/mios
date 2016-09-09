@@ -210,7 +210,7 @@ instance StackFamily Stack Int where
   {-# SPECIALIZE INLINE shrinkBy :: Stack -> Int -> IO () #-}
   shrinkBy (Vec v) k = UV.unsafeModify v (subtract k) 0
 
--- | returns a new 'Stack' from a @[Int]@
+-- | returns a new 'Stack' from a @[Int]@.
 {-# INLINABLE newStackFromList #-}
 newStackFromList :: [Int] -> IO Stack
 newStackFromList !l = Vec <$> U.unsafeThaw (U.fromList (length l : l))
