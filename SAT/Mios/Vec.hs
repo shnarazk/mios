@@ -62,7 +62,7 @@ instance ContainerFamily (Vec Int) Int where
 -- | A thin abstract layer for Mutable unboxed Vector
 type UVector a = UV.IOVector a
 
--- | interface on vectors
+-- | interface on vectors.
 class VecFamily v a | v -> a where
   -- | returns the /n/-th value (index starts from zero in any case).
   getNth ::v -> Int -> IO a
@@ -125,7 +125,9 @@ instance VecFamily (UVector Double) Double where
 
 --------------------------------------------------------------------------------
 
--- | Another abstraction layer on 'UVector'
+-- | Another abstraction layer on 'UVector'.
+--
+-- __Note__: the 0-th element of @Vec Int@ is reserved for internal tasks. If you want to use it, use @UVector Int@.
 newtype Vec a  = Vec (UVector a)
 
 instance VecFamily (Vec Int) Int where
