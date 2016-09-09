@@ -20,7 +20,7 @@ module SAT.Mios.Vec
        , StackFamily (..)
        , Stack
        , newStackFromList
-         -- * SingleStroage
+         -- * SingleStorage
        , SingleStorage (..)
        , Bool'
        , Double'
@@ -31,7 +31,7 @@ module SAT.Mios.Vec
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as UV
 
--- | interface on container
+-- | Interface on containers
 class ContainerFamily s t | s -> t where
   -- * Size operations
   -- | erases all elements in it
@@ -49,8 +49,6 @@ class ContainerFamily s t | s -> t where
   asList = error "asList undefined"
   dump msg _ = error $ msg ++ ": no defalut method for dump"
 
--- | provides 'clear' and 'size'
-
 instance UV.Unbox a => ContainerFamily (UVector a) a where
   asList v = mapM (UV.unsafeRead v) [0 .. UV.length v - 1]
   dump str v = (str ++) . show <$> asList v
@@ -64,14 +62,21 @@ instance ContainerFamily (Vec Int) Int where
 -- | A thin abstract layer for Mutable unboxed Vector
 type UVector a = UV.IOVector a
 
--- | interface on 'UVector'
+-- | interface on vectors
 class VecFamily v a | v -> a where
+  -- | returns the /n/-th value (index starts from zero in any case).
   getNth ::v -> Int -> IO a
+  -- | sets the /n/-th value.
   setNth :: v -> Int -> a -> IO ()
+  -- | swaps two elements.
   swapBetween :: v -> Int -> Int -> IO ()
+  -- | calls the update function.
   modifyNth :: v -> (a -> a) -> Int -> IO ()
+  -- | returns a new vector.
   newVec :: Int -> a -> IO v
+  -- | sets all elements.
   setAll :: v -> a -> IO ()
+  -- | extends the size of stack by /n/; note: values in new elements aren't initialized maybe.
   growVec :: v -> Int -> IO v
   {-# MINIMAL getNth, setNth, swapBetween #-}
   modifyNth = undefined
@@ -120,7 +125,7 @@ instance VecFamily (UVector Double) Double where
 
 --------------------------------------------------------------------------------
 
--- | another abstraction layer on 'UVector'
+-- | Another abstraction layer on 'UVector'
 newtype Vec a  = Vec (UVector a)
 
 instance VecFamily (Vec Int) Int where
@@ -157,17 +162,24 @@ instance VecFamily (Vec Double) Double where
 
 -------------------------------------------------------------------------------- Stack
 
--- | alias of @Vec Int@
+-- | Alias of @Vec Int@
 type Stack = Vec Int
 
--- | interface for 'stack'
+-- | Interface on stacks
 class StackFamily s t | s -> t where
+  -- | returns the number of active elements.
   getSize :: s -> IO Int
+  -- | set the number of active elements.
   setSize :: s -> Int -> IO ()
+  -- | returns a new stack. 
   newStack :: Int -> IO s
+  -- | pushs an value to the tail of the stack.
   pushTo :: s -> t-> IO ()
+  -- | pops the last element.
   popFrom :: s -> IO ()
+  -- | peeks the last element.
   lastOf :: s -> IO t
+  -- | shrinks the stack.
   shrinkBy :: s -> Int -> IO ()
   {-# MINIMAL getSize #-}
   setSize = undefined
@@ -203,14 +215,18 @@ newStackFromList !l = Vec <$> U.unsafeThaw (U.fromList (length l : l))
 
 -------------------------------------------------------------------------------- Single storage
 
--- | interface for single mutable data
+-- | Interface for single mutable data
 class SingleStorage s t | s -> t, t -> s where
+  -- | allocates and returns an new data.
   new' :: t -> IO s
+  -- | gets the value.
   get' :: s -> IO t
+  -- | sets the value.
   set' :: s -> t -> IO ()
+  -- | calls an update function on it.
   modify' :: s -> (t -> t) -> IO ()
 
--- | mutable Int
+-- | Mutable Int
 type Int' = UV.IOVector Int
 
 instance SingleStorage Int' Int where
@@ -226,7 +242,7 @@ instance SingleStorage Int' Int where
   {-# SPECIALIZE INLINE modify' :: Int' -> (Int -> Int) -> IO () #-}
   modify' val f = UV.unsafeModify val f 0
 
--- | mutable Bool
+-- | Mutable Bool
 type Bool' = UV.IOVector Bool
 
 instance SingleStorage Bool' Bool where
@@ -242,7 +258,7 @@ instance SingleStorage Bool' Bool where
   {-# SPECIALIZE INLINE modify' :: Bool' -> (Bool -> Bool) -> IO () #-}
   modify' val f = UV.unsafeModify val f 0
 
--- | mutable Double
+-- | Mutable Double
 type Double' = UV.IOVector Double
 
 instance SingleStorage Double' Double where

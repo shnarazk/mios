@@ -12,8 +12,9 @@ module SAT.Mios.Solver
        (
          -- * Solver
          Solver (..)
-       , VarOrder
+       , VarHeap
        , newSolver
+       , getModel
          -- * Misc Accessors
        , nAssigns
        , nClauses
@@ -28,7 +29,6 @@ module SAT.Mios.Solver
        , enqueue
        , assume
        , cancelUntil
-       , getModel
          -- * Activities
        , claBumpActivity
 --       , claDecayActivity
@@ -84,7 +84,7 @@ data Solver = Solver
               , an'seen    :: !(Vec Int)         -- ^ scratch var for 'analyze'
               , an'toClear :: !Stack             -- ^ ditto
               , an'stack   :: !Stack             -- ^ ditto
-              , pr'seen    :: !(Vec Int)         -- ^ used in propagate
+--              , pr'seen    :: !(Vec Int)         -- ^ used in propagate
               , litsLearnt :: !Stack             -- ^ used to create a learnt clause
               , lastDL     :: !Stack             -- ^ last decision level used in analyze
               , stats      :: !(UVector Int)     -- ^ statistics information holder
@@ -94,7 +94,7 @@ data Solver = Solver
 -}
               }
 
--- | returns an everything-is-initialized solver from the arguments
+-- | returns an everything-is-initialized solver from the arguments.
 newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
 newSolver conf (CNFDescription nv nc _) = do
   Solver
@@ -128,7 +128,7 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> newVec nv 0                        -- an'seen
     <*> newStack nv                        -- an'toClear
     <*> newStack nv                        -- an'stack
-    <*> newVec nv (-1)                     -- pr'seen
+--    <*> newVec nv (-1)                     -- pr'seen
     <*> newStack nv                        -- litsLearnt
     <*> newStack nv                        -- lastDL
     <*> newVec (fromEnum EndOfStatIndex) 0 -- stats
@@ -140,42 +140,42 @@ newSolver conf (CNFDescription nv nc _) = do
 --------------------------------------------------------------------------------
 -- Accessors
 
--- | returns the number of current assigments
+-- | returns the number of current assigments.
 {-# INLINE nAssigns #-}
 nAssigns :: Solver -> IO Int
 nAssigns = getSize . trail
 
--- | returns the number of constraints (clauses)
+-- | returns the number of constraints (clauses).
 {-# INLINE nClauses #-}
 nClauses :: Solver -> IO Int
 nClauses = numberOfClauses . clauses
 
--- | returns the number of learnt clauses
+-- | returns the number of learnt clauses.
 {-# INLINE nLearnts #-}
 nLearnts :: Solver -> IO Int
 nLearnts = numberOfClauses . learnts
 
--- | return the model as a list of literal
+-- | returns the model as a list of literal.
 getModel :: Solver -> IO [Int]
 getModel = asList . model
 
--- | returns the current decision level
+-- | returns the current decision level.
 {-# INLINE decisionLevel #-}
 decisionLevel :: Solver -> IO Int
 decisionLevel = getSize . trailLim
 
--- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Var'
+-- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Var'.
 {-# INLINE valueVar #-}
 valueVar :: Solver -> Var -> IO Int
 valueVar = getNth . assigns
 
--- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit'
+-- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit'.
 {-# INLINE valueLit #-}
 valueLit :: Solver -> Lit -> IO Int
 valueLit (assigns -> a) p = (\x -> if positiveLit p then x else negate x) <$> getNth a (lit2var p)
 
 {-
--- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit' in phases
+-- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit' in phases.
 {-# INLINE oldLit #-}
 oldLit :: Solver -> Lit -> IO Lit
 oldLit (phases -> a) (lit2var -> v) = (var2lit v . (== 1)) <$> getNth a v
@@ -191,27 +191,27 @@ locked s c = (c ==) <$> (getNth (reason s) . lit2var =<< getNth (lits c) 1)
 
 -- | stat index
 data StatIndex =
-    NumOfBackjump
-  | NumOfRestart
-  | EndOfStatIndex              -- Don't use this dummy.
+    NumOfBackjump               -- ^ the number of backjump
+  | NumOfRestart                -- ^ the number of restart
+  | EndOfStatIndex              -- ^ Don't use this dummy.
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 
--- | returns the value of 'StatIndex'
+-- | returns the value of 'StatIndex'.
 {-# INLINE getStat #-}
 getStat :: Solver -> StatIndex -> IO Int
 getStat (stats -> v) (fromEnum -> i) = getNth v i
 
--- | sets to 'StatIndex'
+-- | sets to 'StatIndex'.
 {-# INLINE setStat #-}
 setStat :: Solver -> StatIndex -> Int -> IO ()
 setStat (stats -> v) (fromEnum -> i) x = setNth v i x
 
--- | increments a stat data corresponding to 'StatIndex'
+-- | increments a stat data corresponding to 'StatIndex'.
 {-# INLINE incrementStat #-}
 incrementStat :: Solver -> StatIndex -> Int -> IO ()
 incrementStat (stats -> v) (fromEnum -> i) k = modifyNth v (+ k) i
 
--- | returns the statistics as list
+-- | returns the statistics as a list.
 {-# INLINABLE getStats #-}
 getStats :: Solver -> IO [(StatIndex, Int)]
 getStats (stats -> v) = mapM (\i -> (i, ) <$> getNth v (fromEnum i)) [minBound .. maxBound :: StatIndex]
@@ -228,7 +228,7 @@ addClause s@Solver{..} vecLits = do
    Left b  -> return b   -- No new clause was returned becaues a confilct occured or the clause is a literal
    Right c -> pushClause clauses c >> return True
 
--- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists
+-- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists.
 -- Constructor function for clauses. Returns @False@ if top-level conflict is determined.
 -- @outClause@ may be set to Null if the new clause is already satisfied under the current
 -- top-level assignment.
@@ -442,7 +442,7 @@ instance VarOrder Solver where
 varActivityThreshold :: Double
 varActivityThreshold = 1e100
 
--- | value for rescaling clause activity
+-- | value for rescaling clause activity.
 claActivityThreshold :: Double
 claActivityThreshold = 1e20
 
@@ -525,10 +525,10 @@ claRescaleActivityAfterRestart Solver{..} = do
 
 -------------------------------------------------------------------------------- VarHeap
 
--- | @VarHeap@ is a heap tree built from two 'Vec'
--- This implementation is identical wtih that in Minisat-1.14
--- Note: the zero-th element of @heap@ is used for holding the number of elements
--- Note: VarHeap itself is not a @VarOrder@, because it requires a pointer to solver
+-- | A heap tree built from two 'Vec'.
+-- This implementation is identical wtih that in Minisat-1.14.
+-- Note: the zero-th element of @heap@ is used for holding the number of elements.
+-- Note: VarHeap itself is not a @VarOrder@, because it requires a pointer to solver.
 data VarHeap = VarHeap
                 {
                   heap :: !Stack  -- order to var
@@ -612,7 +612,7 @@ insertHeap s@(order -> VarHeap to at) v = do
   setSize to n
   percolateUp s n
 
--- | renamed from 'getmin'
+-- | returns the value on the root (renamed from @getmin@).
 {-# INLINABLE getHeapRoot #-}
 getHeapRoot :: Solver -> IO Int
 getHeapRoot s@(order -> VarHeap to at) = do

@@ -6,7 +6,7 @@
   #-}
 {-# LANGUAGE Safe #-}
 
--- | This is a part of MIOS; main heuristics
+-- | This is a part of MIOS; main heuristics.
 module SAT.Mios.Main
        (
          simplifyDB
@@ -24,7 +24,7 @@ import SAT.Mios.ClauseManager
 import SAT.Mios.Solver
 -- import SAT.Mios.Ranking
 
--- | define a special version of ranking instead of importing Ranking module
+-- | a special version of ranking instead of importing Ranking module.
 {-# INLINE ranking' #-}
 ranking' :: Clause -> IO Int
 ranking' = getSize
@@ -43,7 +43,7 @@ removeWatch (watches -> w) c = do
 -- Operations on 'Clause'
 --------------------------------------------------------------------------------
 
--- | __Fig. 8. (p.12)__ create a new LEARNT clause and adds it to watcher lists
+-- | __Fig. 8. (p.12)__ create a new LEARNT clause and adds it to watcher lists.
 -- This is a strippped-down version of 'newClause' in Solver
 {-# INLINABLE newLearntClause #-}
 newLearntClause :: Solver -> Stack -> IO ()
@@ -801,7 +801,7 @@ solve s@Solver{..} assumps = do
               else cancelUntil s 0 >> return (status == lTrue)
         while 100 (nc / 3.0)
 
--- | 'enqueue' is defined in 'Solver'; most functions in M114 use @unsafeEnqueue@
+-- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
 {-# INLINABLE unsafeEnqueue #-}
 unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
 unsafeEnqueue s@Solver{..} p from = do
@@ -811,7 +811,7 @@ unsafeEnqueue s@Solver{..} p from = do
   setNth reason v from     -- NOTE: @from@ might be NULL!
   pushTo trail p
 
--- | __Pre-condition:__ propagation queue is empty
+-- | __Pre-condition:__ propagation queue is empty.
 {-# INLINE unsafeAssume #-}
 unsafeAssume :: Solver -> Lit -> IO ()
 unsafeAssume s@Solver{..} p = do
