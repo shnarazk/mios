@@ -54,39 +54,44 @@ import SAT.Mios.ClauseManager
 -- | __Fig. 2.(p.9)__ Internal State of the solver
 data Solver = Solver
               {
-                -- Public Interface
+{-            Public Interface -}
                 model      :: !(Vec Int)         -- ^ If found, this vector has the model
-              , conflict   :: !Stack             -- ^ set of literals in the case of conflicts
-                -- Clause Database
+              , conflicts  :: !Stack             -- ^ Set of literals in the case of conflicts
+{-            Clause Database -}
               , clauses    :: !ClauseExtManager  -- ^ List of problem constraints.
               , learnts    :: !ClauseExtManager  -- ^ List of learnt clauses.
-              , watches    :: !WatcherList       -- ^ a list of constraint wathing 'p', literal-indexed
-                -- Assignment Management
+              , watches    :: !WatcherList       -- ^ list of constraint wathing 'p', literal-indexed
+{-            Assignment Management -}
               , assigns    :: !(Vec Int)         -- ^ The current assignments indexed on variables
               , phases     :: !(Vec Int)         -- ^ The last assignments indexed on variables
               , trail      :: !Stack             -- ^ List of assignments in chronological order
               , trailLim   :: !Stack             -- ^ Separator indices for different decision levels in 'trail'.
-              , qHead      :: !Int'              -- ^ 'trail' is divided at qHead; assignments and queue
+              , qHead      :: !Int'              -- ^ 'trail' is divided at qHead; assignment part and queue part
               , reason     :: !ClauseVector      -- ^ For each variable, the constraint that implied its value
               , level      :: !(Vec Int)         -- ^ For each variable, the decision level it was assigned
-                -- Variable Order
+{-            Variable Order -}
               , activities :: !(Vec Double)      -- ^ Heuristic measurement of the activity of a variable
               , order      :: !VarHeap           -- ^ Keeps track of the dynamic variable order.
-                -- Configuration
+{-            Configuration -}
               , config     :: !MiosConfiguration -- ^ search paramerters
               , nVars      :: !Int               -- ^ number of variables
---            , claInc     :: !Double'           -- ^ Clause activity increment amount to bump with.
---            , varDecay   :: !Double'           -- ^ used to set 'varInc'
+{-
+              -- , claInc     :: !Double'           -- ^ Clause activity increment amount to bump with.
+              -- , varDecay   :: !Double'           -- ^ used to set 'varInc'
+-}
               , varInc     :: !Double'           -- ^ Variable activity increment amount to bump with.
               , rootLevel  :: !Int'              -- ^ Separates incremental and search assumptions.
-                -- Working Memory
-              , ok         :: !Bool'             -- ^ return value holder
-              , an'seen    :: !(Vec Int)         -- ^ scratch var for 'analyze'
-              , an'toClear :: !Stack             -- ^ ditto
-              , an'stack   :: !Stack             -- ^ ditto
---              , pr'seen    :: !(Vec Int)         -- ^ used in propagate
-              , litsLearnt :: !Stack             -- ^ used to create a learnt clause
-              , lastDL     :: !Stack             -- ^ last decision level used in analyze
+{-            Working Memory -}
+              , ok         :: !Bool'             -- ^ /return value/ holder
+              , an'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.analyze'
+              , an'toClear :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
+              , an'stack   :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
+              , an'lastDL  :: !Stack             -- ^ last decision level used in 'SAT.Mios.Main.analyze'
+              , litsLearnt :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze' and 'SAT.Mios.Main.search' to create a learnt clause
+
+{-
+              -- , pr'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.propagate'
+-}
               , stats      :: !(UVector Int)     -- ^ statistics information holder
 {-
               , lbd'seen   :: !Vec               -- ^ used in lbd computation
@@ -403,6 +408,7 @@ cancelUntil s@Solver{..} lvl = do
 
 -- | Interfate to select a decision var based on variable activity.
 instance VarOrder Solver where
+{-
   -- | __Fig. 6. (p.10)__
   -- Creates a new SAT variable in the solver.
   newVar _ = return 0
@@ -417,6 +423,7 @@ instance VarOrder Solver where
     -- newVar order
     -- growQueueSized (i + 1) propQ
     -- return i
+-}
   {-# SPECIALIZE INLINE update :: Solver -> Var -> IO () #-}
   update = increaseHeap
   {-# SPECIALIZE INLINE undo :: Solver -> Var -> IO () #-}

@@ -117,7 +117,7 @@ runSolver m d c = do
         x <- solve s []
         if x
             then Right <$> getModel s
-            else Left .  map lit2int <$> asList (conflict s)
+            else Left .  map lit2int <$> asList (conflicts s)
     else return $ Left []
 
 -- | the easiest interface for Haskell programs

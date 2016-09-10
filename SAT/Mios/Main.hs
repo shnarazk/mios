@@ -18,7 +18,6 @@ import Control.Monad (unless, void, when)
 import Data.Bits
 import Data.Foldable (foldrM)
 import SAT.Mios.Types
-import SAT.Mios.Internal
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
 import SAT.Mios.Solver
@@ -176,7 +175,7 @@ analyze s@Solver{..} confl = do
                   then do
                       -- glucose heuristics
                       r <- getNth reason v
-                      when (r /= NullClause && learnt r) $ pushTo lastDL q
+                      when (r /= NullClause && learnt r) $ pushTo an'lastDL q
                       -- end of glucose heuristics
                       loopOnLiterals (j + 1) b (pc + 1)
                   else pushTo litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
@@ -227,10 +226,10 @@ analyze s@Solver{..} confl = do
              else loopOnLits (i + 1) j
   loopOnLits 1 1                -- the first literal is specail
   -- glucose heuristics
-  nld <- get' lastDL
+  nld <- get' an'lastDL
   r <- get' litsLearnt -- this is not the right value
   let
-    vec = asUVector lastDL
+    vec = asUVector an'lastDL
     loopOnLastDL :: Int -> IO ()
     loopOnLastDL ((< nld) -> False) = return ()
     loopOnLastDL i = do
@@ -239,7 +238,7 @@ analyze s@Solver{..} confl = do
       when (r < r') $ varBumpActivity s v
       loopOnLastDL $ i + 1
   loopOnLastDL 0
-  reset lastDL
+  reset an'lastDL
   -- Clear seen
   k <- get' an'toClear
   let
@@ -326,7 +325,7 @@ analyzeRemovable Solver{..} p minLevel = do
 {-# INLINABLE analyzeFinal #-}
 analyzeFinal :: Solver -> Clause -> Bool -> IO ()
 analyzeFinal Solver{..} confl skipFirst = do
-  reset conflict
+  reset conflicts
   rl <- get' rootLevel
   unless (rl == 0) $ do
     n <- get' confl
@@ -354,7 +353,7 @@ analyzeFinal Solver{..} confl skipFirst = do
         when (saw == 1) $ do
           (r :: Clause) <- getNth reason x
           if r == NullClause
-            then pushTo conflict (negateLit l)
+            then pushTo conflicts (negateLit l)
             else do
                 k <- get' r
                 let
@@ -773,7 +772,7 @@ solve s@Solver{..} assumps = do
         then do                 -- conflict analyze
             (confl :: Clause) <- getNth reason (lit2var a)
             analyzeFinal s confl True
-            pushTo conflict (negateLit a)
+            pushTo conflicts (negateLit a)
             cancelUntil s 0
             return False
         else do
