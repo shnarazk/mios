@@ -41,7 +41,6 @@ library
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
                         SAT.Mios.Vec
-                        SAT.Mios.Internal
                         SAT.Mios.Main
                         SAT.Mios.OptionParser
                         SAT.Mios.Solver
@@ -73,14 +72,8 @@ executable mios
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
                         SAT.Mios.Vec
-                        SAT.Mios.Internal
                         SAT.Mios.Main
                         SAT.Mios.OptionParser
                         SAT.Mios.Solver
                         SAT.Mios.Types
                         SAT.Mios.Validator
-                        SAT.Mios.Util.DIMACS
-                        SAT.Mios.Util.DIMACS.MinisatReader
-                        SAT.Mios.Util.DIMACS.Reader
-                        SAT.Mios.Util.DIMACS.Writer
-                        SAT.Mios.Util.BoolExp

@@ -47,7 +47,6 @@ module SAT.Mios.Solver
 
 import Control.Monad (unless, when)
 import SAT.Mios.Types
-import SAT.Mios.Internal
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
 

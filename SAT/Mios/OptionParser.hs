@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE Safe #-}
 
 -- | command line option parser for mios
@@ -18,7 +17,7 @@ module SAT.Mios.OptionParser
 
 import System.Console.GetOpt (ArgDescr(..), ArgOrder(..), getOpt, OptDescr(..), usageInfo)
 import System.Environment (getArgs)
-import SAT.Mios.Internal (MiosConfiguration (..), defaultConfiguration)
+import SAT.Mios.Types (MiosConfiguration (..), defaultConfiguration)
 
 -- | configuration swithces
 data MiosProgramOption = MiosProgramOption

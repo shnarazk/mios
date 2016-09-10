@@ -36,11 +36,14 @@ import System.Exit
 import System.IO
 
 import SAT.Mios.Types
-import SAT.Mios.Internal
 import SAT.Mios.Solver
 import SAT.Mios.Main
 import SAT.Mios.OptionParser
 import SAT.Mios.Validator
+
+-- | version name
+versionId :: String
+versionId = "mios 1.4.0 -- https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ _ = return 0
