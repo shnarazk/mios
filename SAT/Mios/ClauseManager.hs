@@ -13,8 +13,6 @@ module SAT.Mios.ClauseManager
        (
          -- * higher level interface for ClauseVector
          ClauseManager (..)
---       -- * vector of clauses
---       , SimpleManager
          -- * Manager with an extra Int (used as sort key or blocking literal)
        , ClauseExtManager
        , pushClauseWithKey
@@ -26,7 +24,6 @@ module SAT.Mios.ClauseManager
        , newWatcherList
        , getNthWatcher
        , garbageCollect
---       , numberOfRegisteredClauses
        )
        where
 
@@ -161,11 +158,6 @@ instance ClauseManager ClauseExtManager where
     v <- C.newClauseVector initialSize
     b <- newVec (MV.length v) 0
     ClauseExtManager i <$> new' False <*> IORef.newIORef v <*> IORef.newIORef b
---  {-# SPECIALIZE INLINE numberOfClauses :: ClauseExtManager -> IO Int #-}
---  numberOfClauses !m = get' (_nActives m)
-  -- | sets the number of clauses in it to zero
---  {-# SPECIALIZE INLINE shrinkManager :: ClauseExtManager -> Int -> IO () #-}
---  shrinkManager !m k = modify' (_nActives m) (subtract k)
   -- | returns the internal 'C.ClauseVector'.
   {-# SPECIALIZE INLINE getClauseVector :: ClauseExtManager -> IO C.ClauseVector #-}
   getClauseVector !m = IORef.readIORef (_clauseVector m)
@@ -312,42 +304,4 @@ garbageCollect = V.mapM_ purifyManager
 {-
 numberOfRegisteredClauses :: WatcherList -> IO Int
 numberOfRegisteredClauses ws = sum <$> V.mapM numberOfClauses ws
--}
-
-{-
--------------------------------------------------------------------------------- debugging stuff
-
-checkConsistency :: ClauseManager a => a -> C.Clause -> IO ()
-checkConsistency manager c = do
-  nc <- numberOfClauses manager
-  vec <- getClauseVector manager
-  let
-    loop :: Int -> IO ()
-    loop i = do
-      when (i < nc) $ do
-        c' <- MV.unsafeRead vec i
-        when (c' == c) $ error "insert a clause to a ClauseMananger twice"
-        loop $ i + 1
-  loop 0
-
-checkClauseOrder :: ClauseManager a => a -> IO ()
-checkClauseOrder manager = do
-  putStr "checking..."
-  nc <- numberOfClauses manager
-  vec <- getClauseVector manager
-  let
-    nthActivity :: Int -> IO Double
-    nthActivity i = getDouble . C.activity =<< MV.unsafeRead vec i
-    report :: Int -> Int -> IO ()
-    report i j = (putStr . (++ ", ") . show =<< nthActivity i) >> when (i < j) (report (i + 1) j)
-    loop :: Int -> Double -> IO ()
-    loop i v = do
-      when (i < nc) $ do
-        c <- MV.unsafeRead vec i
-        a <- getDouble (C.activity c)
-        when (c == C.NullClause) $ error "null is included"
-        when (v < a) $ report 0 i >> error ("unsorted clause vector: " ++ show (nc, i))
-        loop (i + 1) a
-  loop 0 =<< nthActivity 0
-  putStrLn "done"
 -}
