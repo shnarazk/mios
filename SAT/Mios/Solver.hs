@@ -258,7 +258,7 @@ clauseNew s@Solver{..} ps isLearnt = do
                    swapBetween ps j n
                    modifyNth ps (subtract 1) 0
                    handle j l (n - 1)
-             _ | - y == l -> clear ps >> return True -- p and negateLit p occurs in ps
+             _ | - y == l -> reset ps >> return True -- p and negateLit p occurs in ps
              _ -> handle (j + 1) l n
       loopForLearnt :: Int -> IO Bool
       loopForLearnt i = do
@@ -280,7 +280,7 @@ clauseNew s@Solver{..} ps isLearnt = do
               l <- getNth ps i     -- check the i-th literal's satisfiability
               sat <- valueLit s l  -- any literal in ps is true
               case sat of
-               1  -> clear ps >> return True
+               1  -> reset ps >> return True
                -1 -> do
                  swapBetween ps i n
                  modifyNth ps (subtract 1) 0

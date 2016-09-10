@@ -36,7 +36,7 @@ import qualified Data.Vector.Unboxed.Mutable as UV
 class ContainerFamily s t | s -> t where
   -- * Size operations
   -- | erases all elements in it
-  clear :: s -> IO ()
+  reset:: s -> IO ()
   -- | get a raw data
   asUVector :: s -> UVector Int
   -- | converts into a list
@@ -45,7 +45,7 @@ class ContainerFamily s t | s -> t where
   -- | dump the contents
   dump :: Show t => String -> s -> IO String
   {-# MINIMAL dump #-}
-  clear = error "no default method for clear"
+  reset = error "no default method for reset"
   asUVector = error "asVector undefined"
   asList = error "asList undefined"
   dump msg _ = error $ msg ++ ": no defalut method for dump"
@@ -55,7 +55,7 @@ instance UV.Unbox a => ContainerFamily (UVector a) a where
   dump str v = (str ++) . show <$> asList v
 
 instance ContainerFamily (Vec Int) Int where
-  clear (Vec v) = setNth v 0 0
+  reset (Vec v) = setNth v 0 0
   asUVector (Vec a) = UV.unsafeTail a
   asList (Vec v) = mapM (getNth v) [1 .. UV.length v - 1]
   dump str _ = return $ str ++ "Vec dump"
@@ -63,7 +63,7 @@ instance ContainerFamily (Vec Int) Int where
 -- | A thin abstract layer for Mutable unboxed Vector
 type UVector a = UV.IOVector a
 
--- | interface on vectors.
+-- | Interface on vectors.
 class VecFamily v a | v -> a where
   -- | returns the /n/-th value (index starts from zero in any case).
   getNth ::v -> Int -> IO a

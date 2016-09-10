@@ -138,7 +138,7 @@ simplify s c = do
 analyze :: Solver -> Clause -> IO Int
 analyze s@Solver{..} confl = do
   -- litvec
-  clear litsLearnt
+  reset litsLearnt
   pushTo litsLearnt 0 -- reserve the first place for the unassigned literal
   dl <- decisionLevel s
   let
@@ -200,8 +200,8 @@ analyze s@Solver{..} confl = do
   levelToReturn <- loopOnClauseChain confl bottomLit ti 0 0
   -- Simplify phase (implemented only @expensive_ccmin@ path)
   n <- get' litsLearnt
-  clear an'stack           -- analyze_stack.clear();
-  clear an'toClear         -- out_learnt.copyTo(analyze_toclear);
+  reset an'stack           -- analyze_stack.clear();
+  reset an'toClear         -- out_learnt.copyTo(analyze_toclear);
   pushTo an'toClear =<< getNth litsVec 0
   let
     merger :: Int -> Int -> IO Int
@@ -239,7 +239,7 @@ analyze s@Solver{..} confl = do
       when (r < r') $ varBumpActivity s v
       loopOnLastDL $ i + 1
   loopOnLastDL 0
-  clear lastDL
+  reset lastDL
   -- Clear seen
   k <- get' an'toClear
   let
@@ -266,7 +266,7 @@ analyze s@Solver{..} confl = do
 analyzeRemovable :: Solver -> Lit -> Int -> IO Bool
 analyzeRemovable Solver{..} p minLevel = do
   -- assert (reason[var(p)]!= NullCaulse);
-  clear an'stack      -- analyze_stack.clear()
+  reset an'stack      -- analyze_stack.clear()
   pushTo an'stack p   -- analyze_stack.push(p);
   top <- get' an'toClear
   let
@@ -326,7 +326,7 @@ analyzeRemovable Solver{..} p minLevel = do
 {-# INLINABLE analyzeFinal #-}
 analyzeFinal :: Solver -> Clause -> Bool -> IO ()
 analyzeFinal Solver{..} confl skipFirst = do
-  clear conflict
+  reset conflict
   rl <- get' rootLevel
   unless (rl == 0) $ do
     n <- get' confl
@@ -646,8 +646,8 @@ simplifyDB s@Solver{..} = do
               loopOnLit ((< n) -> False) = return ()
               loopOnLit i = do
                 l <- getNth vec i
-                clearManager . getNthWatcher watches $ l
-                clearManager . getNthWatcher watches $ negateLit l
+                reset . getNthWatcher watches $ l
+                reset . getNthWatcher watches $ negateLit l
                 loopOnLit $ i + 1
             loopOnLit 0
             -- Remove satisfied clauses:

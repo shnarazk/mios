@@ -40,7 +40,6 @@ import qualified SAT.Mios.Clause as C
 -- | Resizable vector of 'C.Clause'.
 class ClauseManager a where
   newManager      :: Int -> IO a
-  clearManager    :: a -> IO ()
   getClauseVector :: a -> IO C.ClauseVector
 --  removeClause    :: a -> C.Clause -> IO ()
 --  removeNthClause :: a -> Int -> IO ()
@@ -61,8 +60,6 @@ instance ClauseManager SimpleManager where
     SimpleManager i <$> IORef.newIORef v
   {-# SPECIALIZE INLINE numberOfClauses :: SimpleManager -> IO Int #-}
   numberOfClauses SimpleManager{..} = getInt _nActives
-  {-# SPECIALIZE INLINE clearManager :: SimpleManager -> IO () #-}
-  clearManager SimpleManager{..} = set' _nActives 0
   {-# SPECIALIZE INLINE shrinkManager :: SimpleManager -> Int -> IO () #-}
   shrinkManager SimpleManager{..} k = modifyInt _nActives (subtract k)
   {-# SPECIALIZE INLINE getClauseVector :: SimpleManager -> IO C.ClauseVector #-}
@@ -167,8 +164,6 @@ instance ClauseManager ClauseExtManager where
 --  {-# SPECIALIZE INLINE numberOfClauses :: ClauseExtManager -> IO Int #-}
 --  numberOfClauses !m = get' (_nActives m)
   -- | sets the number of clauses in it to zero
-  {-# SPECIALIZE INLINE clearManager :: ClauseExtManager -> IO () #-}
-  clearManager !m = set' (_nActives m) 0
 --  {-# SPECIALIZE INLINE shrinkManager :: ClauseExtManager -> Int -> IO () #-}
 --  shrinkManager !m k = modify' (_nActives m) (subtract k)
   -- | returns the internal 'C.ClauseVector'.
@@ -278,6 +273,8 @@ pushClauseWithKey !ClauseExtManager{..} !c k = do
   modify' _nActives (1 +)
 
 instance ContainerFamily ClauseExtManager C.Clause where
+  {-# SPECIALIZE INLINE reset :: ClauseExtManager -> IO () #-}
+  reset m = set' (_nActives m) 0
   dump mes ClauseExtManager{..} = do
     n <- get' _nActives
     if n == 0
