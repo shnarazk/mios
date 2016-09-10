@@ -27,7 +27,7 @@ import SAT.Mios.Solver
 -- | a special version of ranking instead of importing Ranking module.
 {-# INLINE ranking' #-}
 ranking' :: Clause -> IO Int
-ranking' = getSize
+ranking' = get'
 
 -- | #114: __RemoveWatch__
 {-# INLINABLE removeWatch #-}
@@ -52,7 +52,7 @@ newLearntClause s@Solver{..} ps = do
   when good $ do
     -- ps is a 'SizedVectorInt'; ps[0] is the number of active literals
     -- Since this solver must generate only healthy learnt clauses, we need not to run misc check in 'newClause'
-    k <- getSize ps
+    k <- get' ps
     case k of
      1 -> do
        l <- getNth ps 1
@@ -97,7 +97,7 @@ newLearntClause s@Solver{..} ps = do
 {-# INLINABLE simplify #-}
 simplify :: Solver -> Clause -> IO Bool
 simplify s c = do
-  n <- getSize c
+  n <- get' c
   let
     lvec = asUVector c
     loop ::Int -> IO Bool
@@ -158,7 +158,7 @@ analyze s@Solver{..} confl = do
             -- seems to be interesting: keep it fro the next round
             set' (lbd c) nblevels    -- Update it
 -}
-      sc <- getSize c
+      sc <- get' c
       let
         lvec = asUVector c
         loopOnLiterals :: Int -> Int -> Int -> IO (Int, Int)
@@ -196,10 +196,10 @@ analyze s@Solver{..} confl = do
       if 1 < pathC'
         then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
         else setNth litsVec 0 (negateLit nextP) >> return b'
-  ti <- subtract 1 <$> getSize trail
+  ti <- subtract 1 <$> get' trail
   levelToReturn <- loopOnClauseChain confl bottomLit ti 0 0
   -- Simplify phase (implemented only @expensive_ccmin@ path)
-  n <- getSize litsLearnt
+  n <- get' litsLearnt
   clear an'stack           -- analyze_stack.clear();
   clear an'toClear         -- out_learnt.copyTo(analyze_toclear);
   pushTo an'toClear =<< getNth litsVec 0
@@ -227,8 +227,8 @@ analyze s@Solver{..} confl = do
              else loopOnLits (i + 1) j
   loopOnLits 1 1                -- the first literal is specail
   -- glucose heuristics
-  nld <- getSize lastDL
-  r <- getSize litsLearnt -- this is not the right value
+  nld <- get' lastDL
+  r <- get' litsLearnt -- this is not the right value
   let
     vec = asUVector lastDL
     loopOnLastDL :: Int -> IO ()
@@ -241,7 +241,7 @@ analyze s@Solver{..} confl = do
   loopOnLastDL 0
   clear lastDL
   -- Clear seen
-  k <- getSize an'toClear
+  k <- get' an'toClear
   let
     vec' = asUVector an'toClear
     cleaner :: Int -> IO ()
@@ -268,18 +268,18 @@ analyzeRemovable Solver{..} p minLevel = do
   -- assert (reason[var(p)]!= NullCaulse);
   clear an'stack      -- analyze_stack.clear()
   pushTo an'stack p   -- analyze_stack.push(p);
-  top <- getSize an'toClear
+  top <- get' an'toClear
   let
     loopOnStack :: IO Bool
     loopOnStack = do
-      k <- getSize an'stack  -- int top = analyze_toclear.size();
+      k <- get' an'stack  -- int top = analyze_toclear.size();
       if 0 == k
         then return True
         else do -- assert(reason[var(analyze_stack.last())] != GClause_NULL);
             sl <- lastOf an'stack
             popFrom an'stack             -- analyze_stack.pop();
             c <- getNth reason (lit2var sl) -- getRoot sl
-            nl <- getSize c
+            nl <- get' c
             let
               cvec = asUVector c
               loopOnLit :: Int -> IO Bool -- loopOnLit (int i = 1; i < c.size(); i++){
@@ -300,7 +300,7 @@ analyzeRemovable Solver{..} p minLevel = do
                             loopOnLit $ i + 1
                         else do
                             -- loopOnLit (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
-                            top' <- getSize an'toClear
+                            top' <- get' an'toClear
                             let
                               vec = asUVector an'toClear
                               clearAll :: Int -> IO ()
@@ -329,7 +329,7 @@ analyzeFinal Solver{..} confl skipFirst = do
   clear conflict
   rl <- get' rootLevel
   unless (rl == 0) $ do
-    n <- getSize confl
+    n <- get' confl
     let
       lvec = asUVector confl
       loopOnConfl :: Int -> IO ()
@@ -340,8 +340,8 @@ analyzeFinal Solver{..} confl skipFirst = do
         when (0 < lvl) $ setNth an'seen x 1
         loopOnConfl $ i + 1
     loopOnConfl $ if skipFirst then 1 else 0
-    tls <- getSize trailLim
-    trs <- getSize trail
+    tls <- get' trailLim
+    trs <- get' trail
     tlz <- getNth (asUVector trailLim) 0
     let
       trailVec = asUVector trail
@@ -356,7 +356,7 @@ analyzeFinal Solver{..} confl skipFirst = do
           if r == NullClause
             then pushTo conflict (negateLit l)
             else do
-                k <- getSize r
+                k <- get' r
                 let
                   cvec = asUVector r
                   loopOnLits :: Int -> IO ()
@@ -407,7 +407,7 @@ propagate s@Solver{..} = do
       (p :: Lit) <- getNth trailVec =<< get' qHead
       modify' qHead (+ 1)
       let (ws :: ClauseExtManager) = getNthWatcher watches p
-      end <- getSize ws
+      end <- get' ws
       cvec <- getClauseVector ws
       bvec <- getKeyVector ws
 --      rc <- getNth reason $ lit2var p
@@ -430,7 +430,7 @@ propagate s@Solver{..} = do
         forClause :: Clause -> Int -> Int -> IO Clause
         forClause confl i@((< end) -> False) j = do
           shrinkBy ws (i - j)
-          while confl =<< ((<) <$> get' qHead <*> getSize trail)
+          while confl =<< ((<) <$> get' qHead <*> get' trail)
         forClause confl i j = do
           (l :: Lit) <- getNth bvec i
           bv <- if l == 0 then return lFalse else valueLit s l
@@ -456,7 +456,7 @@ propagate s@Solver{..} = do
                   then setNth cvec j c >> setNth bvec j first >> forClause confl (i + 1) (j + 1)
                   else do
                       -- Look for new watch
-                      cs <- getSize c
+                      cs <- get' c
                       let
                         forLit :: Int -> IO Clause
                         forLit ((< cs) -> False) = do
@@ -468,7 +468,7 @@ propagate s@Solver{..} = do
                             then do
                                 ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
                                 -- #BBCP
-                                set' qHead =<< getSize trail
+                                set' qHead =<< get' trail
                                 -- Copy the remaining watches:
                                 let
                                   copy i'@((< end) -> False) j' = forClause c i' j'
@@ -489,7 +489,7 @@ propagate s@Solver{..} = do
                             else forLit $ k + 1
                       forLit 2
       forClause confl 0 0
-  while NullClause =<< ((<) <$> get' qHead <*> getSize trail)
+  while NullClause =<< ((<) <$> get' qHead <*> get' trail)
 
 -- | #M22
 -- reduceDB: () -> [void]
@@ -547,7 +547,7 @@ sortClauses s cm nneeds = do
     activityScale = fromIntegral activityMax
     indexMax :: Int
     indexMax = (2 ^ indexWidth - 1) -- 67,108,863 for 26
-  n <- getSize cm
+  n <- get' cm
   -- when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds mios's " ++ show indexWidth ++" bit manage capacity"
   vec <- getClauseVector cm
   keys <- getKeyVector cm
@@ -557,7 +557,7 @@ sortClauses s cm nneeds = do
     assignKey ((< n) -> False) m = return m
     assignKey i m = do
       c <- getNth vec i
-      k <- (\k -> if k == 2 then return k else fromEnum <$> get' (protected c)) =<< getSize c
+      k <- (\k -> if k == 2 then return k else fromEnum <$> get' (protected c)) =<< get' c
       case k of
         1 -> set' (protected c) False >> setNth keys i (shiftL 2 indexWidth + i) >> assignKey (i + 1) (m + 1)
         2 -> setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
@@ -640,7 +640,7 @@ simplifyDB s@Solver{..} = do
         then set' ok False >> return False
         else do
             -- Clear watcher lists:
-            n <- getSize trail
+            n <- get' trail
             let
               vec = asUVector trail
               loopOnLit ((< n) -> False) = return ()
@@ -657,7 +657,7 @@ simplifyDB s@Solver{..} = do
               for t = do
                 let ptr = if t == 0 then learnts else clauses
                 vec' <- getClauseVector ptr
-                n' <- getSize ptr
+                n' <- get' ptr
                 let
                   loopOnVector :: Int -> Int -> IO Bool
                   loopOnVector ((< n') -> False) j = shrinkBy ptr (n' - j) >> return True
@@ -713,7 +713,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                   backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
                   (s `cancelUntil`) . max backtrackLevel =<< get' rootLevel
                   newLearntClause s litsLearnt
-                  k <- getSize litsLearnt
+                  k <- get' litsLearnt
                   when (k == 1) $ do
                     (v :: Var) <- lit2var <$> getNth (asUVector litsLearnt) 0
                     setNth level v 0
@@ -723,7 +723,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
             when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
-            k1 <- getSize learnts
+            k1 <- get' learnts
             k2 <- nAssigns s
             when (k1 - k2 >= nOfLearnts) $ reduceDB s -- Reduce the set of learnt clauses
             case () of
@@ -815,5 +815,5 @@ unsafeEnqueue s@Solver{..} p from = do
 {-# INLINE unsafeAssume #-}
 unsafeAssume :: Solver -> Lit -> IO ()
 unsafeAssume s@Solver{..} p = do
-  pushTo trailLim =<< getSize trail
+  pushTo trailLim =<< get' trail
   unsafeEnqueue s p NullClause

@@ -143,17 +143,17 @@ newSolver conf (CNFDescription nv nc _) = do
 -- | returns the number of current assigments.
 {-# INLINE nAssigns #-}
 nAssigns :: Solver -> IO Int
-nAssigns = getSize . trail
+nAssigns = get' . trail
 
 -- | returns the number of constraints (clauses).
 {-# INLINE nClauses #-}
 nClauses :: Solver -> IO Int
-nClauses = getSize . clauses
+nClauses = get' . clauses
 
 -- | returns the number of learnt clauses.
 {-# INLINE nLearnts #-}
 nLearnts :: Solver -> IO Int
-nLearnts = getSize . learnts
+nLearnts = get' . learnts
 
 -- | returns the model as a list of literal.
 getModel :: Solver -> IO [Int]
@@ -162,7 +162,7 @@ getModel = asList . model
 -- | returns the current decision level.
 {-# INLINE decisionLevel #-}
 decisionLevel :: Solver -> IO Int
-decisionLevel = getSize . trailLim
+decisionLevel = get' . trailLim
 
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Var'.
 {-# INLINE valueVar #-}
@@ -262,7 +262,7 @@ clauseNew s@Solver{..} ps isLearnt = do
              _ -> handle (j + 1) l n
       loopForLearnt :: Int -> IO Bool
       loopForLearnt i = do
-        n <- getSize ps
+        n <- get' ps
         if n < i
           then return False
           else do
@@ -273,7 +273,7 @@ clauseNew s@Solver{..} ps isLearnt = do
                 else loopForLearnt $ i + 1
       loop :: Int -> IO Bool
       loop i = do
-        n <- getSize ps
+        n <- get' ps
         if n < i
           then return False
           else do
@@ -291,7 +291,7 @@ clauseNew s@Solver{..} ps isLearnt = do
                    then return True
                    else loop $ i + 1
     if isLearnt then loopForLearnt 1 else loop 1
-  k <- getSize ps
+  k <- get' ps
   case k of
    0 -> return (Left exit)
    1 -> do
@@ -365,7 +365,7 @@ enqueue s@Solver{..} p from = do
 {-# INLINE assume #-}
 assume :: Solver -> Lit -> IO Bool
 assume s p = do
-  pushTo (trailLim s) =<< getSize (trail s)
+  pushTo (trailLim s) =<< get' (trail s)
   enqueue s p NullClause
 
 -- | #M22: Revert to the states at given level (keeping all assignment at 'level' but not beyond).
@@ -377,8 +377,8 @@ cancelUntil s@Solver{..} lvl = do
     let tr = asUVector trail
     let tl = asUVector trailLim
     lim <- getNth tl lvl
-    ts <- getSize trail
-    ls <- getSize trailLim
+    ts <- get' trail
+    ls <- get' trailLim
     let
       loopOnTrail :: Int -> IO ()
       loopOnTrail ((lim <=) -> False) = return ()
@@ -397,7 +397,7 @@ cancelUntil s@Solver{..} lvl = do
     loopOnTrail $ ts - 1
     shrinkBy trail (ts - lim)
     shrinkBy trailLim (ls - lvl)
-    set' qHead =<< getSize trail
+    set' qHead =<< get' trail
 
 -------------------------------------------------------------------------------- VarOrder
 
@@ -493,7 +493,7 @@ claDecayActivity Solver{..} = modifyDouble claInc (/ clauseDecayRate config)
 claRescaleActivity :: Solver -> IO ()
 claRescaleActivity Solver{..} = do
   vec <- getClauseVector learnts
-  n <- getSize learnts
+  n <- get' learnts
   let
     loopOnVector :: Int -> IO ()
     loopOnVector ((< n) -> False) = return ()
@@ -509,13 +509,13 @@ claRescaleActivity Solver{..} = do
 claRescaleActivityAfterRestart :: Solver -> IO ()
 claRescaleActivityAfterRestart Solver{..} = do
   vec <- getClauseVector learnts
-  n <- getSize learnts
+  n <- get' learnts
   let
     loopOnVector :: Int -> IO ()
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
       c <- getNth vec i
-      d <- getSize c
+      d <- get' c
       if d < 9
         then modify' (activity c) sqrt
         else set' (activity c) 0
@@ -541,14 +541,14 @@ newVarHeap n = do
   v2 <- newVec n 0
   let
     loop :: Int -> IO ()
-    loop ((<= n) -> False) = setSize v1 n >> setSize v2 n
+    loop ((<= n) -> False) = set' v1 n >> set' v2 n
     loop i = setNth v1 i i >> setNth v2 i i >> loop (i + 1)
   loop 1
   return $ VarHeap v1 v2
 
 {-# INLINE numElementsInHeap #-}
 numElementsInHeap :: Solver -> IO Int
-numElementsInHeap = getSize . heap . order
+numElementsInHeap = get' . heap . order
 
 {-# INLINE inHeap #-}
 inHeap :: Solver -> Var -> IO Bool
@@ -609,7 +609,7 @@ insertHeap s@(order -> VarHeap to at) v = do
   n <- (1 +) <$> getNth to 0
   setNth at v n
   setNth to n v
-  setSize to n
+  set' to n
   percolateUp s n
 
 -- | returns the value on the root (renamed from @getmin@).

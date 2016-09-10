@@ -128,9 +128,15 @@ data ClauseExtManager = ClauseExtManager
   , _keyVector    :: IORef.IORef (UVector Int)     -- Int list
   }
 
+-- | 'ClauseExtManager' is a 'SingleStorage` on the numeber of clauses in it.
+instance SingleStorage ClauseExtManager Int where
+  {-# SPECIALIZE INLINE get' :: ClauseExtManager -> IO Int #-}
+  get' m = get' (_nActives m)
+  {-# SPECIALIZE INLINE set' :: ClauseExtManager -> Int -> IO () #-}
+  set' m = set' (_nActives m)
+
+-- | 'ClauseExtManager' is a 'StackFamily` on clauses.
 instance StackFamily ClauseExtManager C.Clause where
-  {-# SPECIALIZE INLINE getSize :: ClauseExtManager -> IO Int #-}
-  getSize m = get' (_nActives m)
   {-# SPECIALIZE INLINE shrinkBy :: ClauseExtManager -> Int -> IO () #-}
   shrinkBy m k = modify' (_nActives m) (subtract k)
   pushTo ClauseExtManager{..} c = do
@@ -150,8 +156,8 @@ instance StackFamily ClauseExtManager C.Clause where
       else MV.unsafeWrite v n c >> setNth b n 0
     modify' _nActives (1 +)
 
-
 instance ClauseManager ClauseExtManager where
+  -- | returns a new instance.
   {-# SPECIALIZE INLINE newManager :: Int -> IO ClauseExtManager #-}
   newManager initialSize = do
     i <- new' 0
@@ -160,10 +166,12 @@ instance ClauseManager ClauseExtManager where
     ClauseExtManager i <$> new' False <*> IORef.newIORef v <*> IORef.newIORef b
 --  {-# SPECIALIZE INLINE numberOfClauses :: ClauseExtManager -> IO Int #-}
 --  numberOfClauses !m = get' (_nActives m)
+  -- | sets the number of clauses in it to zero
   {-# SPECIALIZE INLINE clearManager :: ClauseExtManager -> IO () #-}
   clearManager !m = set' (_nActives m) 0
 --  {-# SPECIALIZE INLINE shrinkManager :: ClauseExtManager -> Int -> IO () #-}
 --  shrinkManager !m k = modify' (_nActives m) (subtract k)
+  -- | returns the internal 'C.ClauseVector'.
   {-# SPECIALIZE INLINE getClauseVector :: ClauseExtManager -> IO C.ClauseVector #-}
   getClauseVector !m = IORef.readIORef (_clauseVector m)
 {-
@@ -244,7 +252,7 @@ purifyManager ClauseExtManager{..} = do
     set' _nActives =<< loop 0 0
     set' _purged False
 
--- | returns the associated Int vector.
+-- | returns the associated Int vector, which holds /blocking literals/.
 {-# INLINE getKeyVector #-}
 getKeyVector :: ClauseExtManager -> IO (UVector Int)
 getKeyVector ClauseExtManager{..} = IORef.readIORef _keyVector
@@ -281,7 +289,9 @@ instance ContainerFamily ClauseExtManager C.Clause where
 
 -------------------------------------------------------------------------------- WatcherList
 
--- | Vector of 'ClauseExtManager'
+-- | Immutable Vector of 'ClauseExtManager'
+--
+-- __Note:__ this is not a 'VecFamily` that provides 'getNth`, since it's immutable.
 type WatcherList = V.Vector ClauseExtManager
 
 -- | /n/ is the number of 'Var', /m/ is default size of each watcher list.

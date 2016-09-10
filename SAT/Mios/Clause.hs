@@ -57,21 +57,28 @@ instance ContainerFamily Clause Lit where
 {-
   dump mes Clause{..} = do
     a <- show <$> get' activity
-    n <- getSize lits
+    n <- get' lits
     l <- asList lits
     return $ mes ++ "C" ++ show n ++ "{" ++ intercalate "," [show learnt, a, show (map lit2int l)] ++ "}"
 -}
   {-# SPECIALIZE INLINE asUVector :: Clause -> UVector Int #-}
   asUVector = asUVector . lits
   asList NullClause = return []
-  asList Clause{..} = take <$> getSize lits <*> asList lits
+  asList Clause{..} = take <$> get' lits <*> asList lits
 
--- | 'Clause' may change the literals in it, if some literal is satisifed at level = 0.
-instance StackFamily Clause Lit where
+-- | 'Clause' is a 'SingleStorage' on the number of literals in it.
+instance SingleStorage Clause Int where
   -- | returns the number of literals in a clause, even if the given clause is a binary clause
-  {-# SPECIALIZE INLINE getSize :: Clause -> IO Int #-}
-  getSize = getSize . lits
+  {-# SPECIALIZE INLINE get' :: Clause -> IO Int #-}
+  get' = get' . lits
   -- getSize (BinaryClause _) = return 1
+  -- | sets the number of literals in a clause, even if the given clause is a binary clause
+  {-# SPECIALIZE INLINE set' :: Clause -> Int -> IO () #-}
+  set' c n = set' (lits c) n
+  -- getSize (BinaryClause _) = return 1
+
+-- | 'Clause' is a 'Stackfamily'on literals since literals in it will be discared if satisifed at level = 0.
+instance StackFamily Clause Lit where
   -- | drop the last /N/ literals in a 'Clause' to eliminate unsatisfied literals
   {-# SPECIALIZE INLINE shrinkBy :: Clause -> Int -> IO () #-}
   shrinkBy c n = modifyNth (lits c) (subtract n) 0
@@ -96,7 +103,7 @@ instance StackFamily Clause Lit where
 {-# INLINABLE newClauseFromStack #-}
 newClauseFromStack :: Bool -> Stack -> IO Clause
 newClauseFromStack l vec = do
-  n <- getSize vec
+  n <- get' vec
   v <- newStack n
   let
     loop ((<= n) -> False) = return ()

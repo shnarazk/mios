@@ -21,7 +21,7 @@ validate :: Traversable t => Solver -> t Int -> IO Bool
 validate s (toList -> map int2lit -> lst) = do
   assignment <- newVec (1 + nVars s) (0 :: Int) :: IO (Vec Int)
   vec <- getClauseVector (clauses s)
-  nc <- getSize (clauses s)
+  nc <- get' (clauses s)
   let
     inject :: Lit -> IO ()
     inject l = setNth assignment (lit2var l) $ if positiveLit l then lTrue else lFalse

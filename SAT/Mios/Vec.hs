@@ -1,5 +1,6 @@
 {-# LANGUAGE
     BangPatterns
+  , FlexibleContexts
   , FlexibleInstances
   , FunctionalDependencies
   , MultiParamTypeClasses
@@ -16,15 +17,15 @@ module SAT.Mios.Vec
          -- * Vector
        , VecFamily (..)
        , Vec (..)
-         -- * Stack
-       , StackFamily (..)
-       , Stack
-       , newStackFromList
          -- * SingleStorage
        , SingleStorage (..)
        , Bool'
        , Double'
        , Int'
+         -- * Stack
+       , StackFamily (..)
+       , Stack
+       , newStackFromList
        )
        where
 
@@ -162,63 +163,10 @@ instance VecFamily (Vec Double) Double where
   {-# SPECIALIZE INLINE growVec :: Vec Double -> Int -> IO (Vec Double) #-}
   growVec (Vec v) n = Vec <$> UV.unsafeGrow v n
 
--------------------------------------------------------------------------------- Stack
-
--- | Alias of @Vec Int@. The 0-th element holds the number of elements.
-type Stack = Vec Int
-
--- | Interface on stacks
-class StackFamily s t | s -> t where
-  -- | returns the number of active elements.
-  getSize :: s -> IO Int
-  -- | set the number of active elements.
-  setSize :: s -> Int -> IO ()
-  -- | returns a new stack. 
-  newStack :: Int -> IO s
-  -- | pushs an value to the tail of the stack.
-  pushTo :: s -> t-> IO ()
-  -- | pops the last element.
-  popFrom :: s -> IO ()
-  -- | peeks the last element.
-  lastOf :: s -> IO t
-  -- | shrinks the stack.
-  shrinkBy :: s -> Int -> IO ()
-  {-# MINIMAL getSize #-}
-  setSize = undefined
-  newStack = undefined
-  pushTo = undefined
-  popFrom = undefined
-  lastOf = undefined
-  shrinkBy = undefined
-  
-instance StackFamily Stack Int where
-  {-# SPECIALIZE INLINE getSize :: Stack -> IO Int #-}
-  getSize (Vec v) = getNth v 0
-  {-# SPECIALIZE INLINE setSize :: Stack -> Int -> IO () #-}
-  setSize (Vec v) = setNth v 0
-  {-# SPECIALIZE INLINE newStack :: Int -> IO Stack #-}
-  newStack n = newVec n 0
-  {-# SPECIALIZE INLINE pushTo :: Stack -> Int -> IO () #-}
-  pushTo (Vec v) x = do
-    i <- (+ 1) <$> UV.unsafeRead v 0
-    UV.unsafeWrite v i x
-    UV.unsafeWrite v 0 i
-  {-# SPECIALIZE INLINE popFrom :: Stack -> IO () #-}
-  popFrom (Vec v) = UV.unsafeModify v (subtract 1) 0
-  {-# SPECIALIZE INLINE lastOf :: Stack -> IO Int #-}
-  lastOf (Vec v) = UV.unsafeRead v =<< UV.unsafeRead v 0
-  {-# SPECIALIZE INLINE shrinkBy :: Stack -> Int -> IO () #-}
-  shrinkBy (Vec v) k = UV.unsafeModify v (subtract k) 0
-
--- | returns a new 'Stack' from @[Int]@.
-{-# INLINABLE newStackFromList #-}
-newStackFromList :: [Int] -> IO Stack
-newStackFromList !l = Vec <$> U.unsafeThaw (U.fromList (length l : l))
-
 -------------------------------------------------------------------------------- Single storage
 
 -- | Interface for single mutable data
-class SingleStorage s t | s -> t, t -> s where
+class SingleStorage s t | s -> t where
   -- | allocates and returns an new data.
   new' :: t -> IO s
   -- | gets the value.
@@ -227,8 +175,12 @@ class SingleStorage s t | s -> t, t -> s where
   set' :: s -> t -> IO ()
   -- | calls an update function on it.
   modify' :: s -> (t -> t) -> IO ()
+  {-# MINIMAL get', set' #-}
+  new' = undefined
+  modify' = undefined
 
 -- | Mutable Int
+-- __Note:__  Int' is the same with 'Stack'
 type Int' = UV.IOVector Int
 
 instance SingleStorage Int' Int where
@@ -275,3 +227,55 @@ instance SingleStorage Double' Double where
   set' val !x = UV.unsafeWrite val 0 x
   {-# SPECIALIZE INLINE modify' :: Double' -> (Double -> Double) -> IO () #-}
   modify' val f = UV.unsafeModify val f 0
+
+-------------------------------------------------------------------------------- Stack
+
+-- | Interface on stacks
+class SingleStorage s Int => StackFamily s t | s -> t where
+  -- | returns a new stack.
+  newStack :: Int -> IO s
+  -- | pushs an value to the tail of the stack.
+  pushTo :: s -> t-> IO ()
+  -- | pops the last element.
+  popFrom :: s -> IO ()
+  -- | peeks the last element.
+  lastOf :: s -> IO t
+  -- | shrinks the stack.
+  shrinkBy :: s -> Int -> IO ()
+  newStack = undefined
+  pushTo = undefined
+  popFrom = undefined
+  lastOf = undefined
+  shrinkBy = undefined
+
+-- | Alias of @Vec Int@. The 0-th element holds the number of elements.
+type Stack = Vec Int
+
+instance SingleStorage Stack Int where
+  {-# SPECIALIZE INLINE get' :: Stack -> IO Int #-}
+  get' (Vec v) = UV.unsafeRead v 0
+  {-# SPECIALIZE INLINE set' :: Stack -> Int -> IO () #-}
+  set' (Vec v) !x = UV.unsafeWrite v 0 x
+  {-# SPECIALIZE INLINE modify' :: Stack -> (Int -> Int) -> IO () #-}
+  modify' (Vec v) f = UV.unsafeModify v f 0
+
+instance StackFamily Stack Int where
+  {-# SPECIALIZE INLINE newStack :: Int -> IO Stack #-}
+  newStack n = newVec n 0
+  {-# SPECIALIZE INLINE pushTo :: Stack -> Int -> IO () #-}
+  pushTo (Vec v) x = do
+    i <- (+ 1) <$> UV.unsafeRead v 0
+    UV.unsafeWrite v i x
+    UV.unsafeWrite v 0 i
+  {-# SPECIALIZE INLINE popFrom :: Stack -> IO () #-}
+  popFrom (Vec v) = UV.unsafeModify v (subtract 1) 0
+  {-# SPECIALIZE INLINE lastOf :: Stack -> IO Int #-}
+  lastOf (Vec v) = UV.unsafeRead v =<< UV.unsafeRead v 0
+  {-# SPECIALIZE INLINE shrinkBy :: Stack -> Int -> IO () #-}
+  shrinkBy (Vec v) k = UV.unsafeModify v (subtract k) 0
+
+-- | returns a new 'Stack' from @[Int]@.
+{-# INLINABLE newStackFromList #-}
+newStackFromList :: [Int] -> IO Stack
+newStackFromList !l = Vec <$> U.unsafeThaw (U.fromList (length l : l))
+
