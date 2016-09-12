@@ -61,8 +61,8 @@ instance VecFamily Clause Lit where
   asUVector = asUVector . lits
   asList NullClause = return []
   asList Clause{..} = take <$> get' lits <*> asList lits
-  dump mes NullClause = return $ mes ++ "Null"
-  dump mes Clause{..} = return $ mes ++ "a clause"
+  -- dump mes NullClause = return $ mes ++ "Null"
+  -- dump mes Clause{..} = return $ mes ++ "a clause"
 {-
   dump mes Clause{..} = do
     a <- show <$> get' activity
@@ -130,10 +130,12 @@ instance VecFamily ClauseVector Clause where
   {-# SPECIALIZE INLINE swapBetween :: ClauseVector -> Int -> Int -> IO () #-}
   swapBetween = MV.unsafeSwap
   asList cv = V.toList <$> V.freeze cv
+{-
   dump mes cv = do
     l <- asList cv
     sts <- mapM (dump ",") (l :: [Clause])
     return $ mes ++ tail (concat sts)
+-}
 
 -- | returns a new 'ClauseVector'.
 newClauseVector  :: Int -> IO ClauseVector

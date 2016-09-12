@@ -200,6 +200,7 @@ instance VecFamily ClauseExtManager C.Clause where
   setNth = error "no setNth method for ClauseExtManager"
   {-# SPECIALIZE INLINE reset :: ClauseExtManager -> IO () #-}
   reset m = set' (_nActives m) 0
+{-
   dump mes ClauseExtManager{..} = do
     n <- get' _nActives
     if n == 0
@@ -208,6 +209,7 @@ instance VecFamily ClauseExtManager C.Clause where
           l <- take n <$> (asList =<< IORef.readIORef _clauseVector)
           sts <- mapM (dump ",") (l :: [C.Clause])
           return $ mes ++ "[" ++ show n ++ "]" ++ tail (concat sts)
+-}
 
 -------------------------------------------------------------------------------- WatcherList
 
@@ -230,4 +232,4 @@ instance VecFamily WatcherList C.Clause where
   setNth = error "no setNth method for WatcherList"
   {-# SPECIALIZE INLINE reset :: WatcherList -> IO () #-}
   reset = V.mapM_ purifyManager
-  dump _ _ = return "" -- (mes ++) . concat <$> mapM (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i)) [1 .. V.length wl - 1]
+--  dump _ _ = (mes ++) . concat <$> mapM (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i)) [1 .. V.length wl - 1]

@@ -52,10 +52,8 @@ class VecFamily v a | v -> a where
   setAll :: v -> a -> IO ()
   -- | extends the size of stack by /n/; note: values in new elements aren't initialized maybe.
   growBy :: v -> Int -> IO v
-  -- | (FOR DEBUG) converts to a list.
+  -- | converts to a list.
   asList :: v -> IO [a]
-  -- | (FOR DEBUG) dump the contents.
-  dump :: Show a => String -> v -> IO String
   {-# MINIMAL getNth, setNth #-}
   reset = error "no default method: reset"
   asUVector = error "no default method: asUVector"
@@ -65,7 +63,11 @@ class VecFamily v a | v -> a where
   setAll = error "no default method: setAll"
   asList = error "no default method: asList"
   growBy = error "no default method: growBy"
-  dump msg _ = error $ msg ++ ": no defalut method for dump"
+{-
+  -- | (FOR DEBUG) dump the contents.
+  dump :: Show a => String -> v -> IO String
+  dump msg v = (msg ++) . show <$> asList v
+-}
 
 -------------------------------------------------------------------------------- UVector
 
@@ -92,7 +94,6 @@ instance VecFamily (UVector Int) Int where
   {-# SPECIALIZE INLINE growBy :: UVector Int -> Int -> IO (UVector Int) #-}
   growBy = UV.unsafeGrow
   asList v = mapM (UV.unsafeRead v) [0 .. UV.length v - 1]
-  dump str v = (str ++) . show <$> asList v
 
 instance VecFamily (UVector Double) Double where
   {-# SPECIALIZE INLINE getNth :: UVector Double -> Int -> IO Double #-}
@@ -113,7 +114,6 @@ instance VecFamily (UVector Double) Double where
   {-# SPECIALIZE INLINE growBy :: UVector Double -> Int -> IO (UVector Double) #-}
   growBy = UV.unsafeGrow
   asList v = mapM (UV.unsafeRead v) [0 .. UV.length v - 1]
-  dump str v = (str ++) . show <$> asList v
 
 -------------------------------------------------------------------------------- Vec
 
@@ -142,7 +142,6 @@ instance VecFamily (Vec Int) Int where
   {-# SPECIALIZE INLINE growBy :: Vec Int -> Int -> IO (Vec Int) #-}
   growBy (Vec v) n = Vec <$> UV.unsafeGrow v n
   asList (Vec v) = mapM (getNth v) [1 .. UV.length v - 1]
-  dump str _ = return $ str ++ "Vec dump"
 
 instance VecFamily (Vec Double) Double where
   {-# SPECIALIZE INLINE getNth :: Vec Double -> Int -> IO Double #-}
