@@ -507,7 +507,7 @@ reduceDB s@Solver{..} = do
     loop i = (removeWatch s =<< getNth vec i) >> loop (i + 1)
   k <- sortClauses s learnts (div n 2) -- k is the number of clauses not to be purged
   loop k                               -- CAVEAT: `vec` is a zero-based vector
-  garbageCollect watches
+  reset watches
   shrinkBy learnts (n - k)
 
 -- | (Good to Bad) Quick sort the key vector based on their activities and returns number of privileged clauses.
@@ -669,7 +669,7 @@ simplifyDB s@Solver{..} = do
                           else setNth vec' j c >> loopOnVector (i + 1) (j + 1)
                 loopOnVector 0 0
             ret <- for 0
-            garbageCollect watches
+            reset watches
             return ret
     else return False
 

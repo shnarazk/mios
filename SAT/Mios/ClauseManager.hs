@@ -23,7 +23,6 @@ module SAT.Mios.ClauseManager
        , WatcherList
        , newWatcherList
        , getNthWatcher
-       , garbageCollect
        )
        where
 
@@ -223,13 +222,11 @@ newWatcherList n m = V.fromList <$> mapM (\_ -> newManager m) [0 .. int2lit (neg
 getNthWatcher :: WatcherList -> Lit -> ClauseExtManager
 getNthWatcher = V.unsafeIndex
 
+-- | 'WatcherList' is an 'Lit'-indexed collection of 'C.Clause'.
 instance ContainerFamily WatcherList C.Clause where
+  {-# SPECIALIZE INLINE reset :: WatcherList -> IO () #-}
+  reset = V.mapM_ purifyManager
   dump _ _ = return "" -- (mes ++) . concat <$> mapM (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i)) [1 .. V.length wl - 1]
-
--- | purges all expirable clauses in 'WatcherList'.
-{-# INLINE garbageCollect #-}
-garbageCollect :: WatcherList -> IO ()
-garbageCollect = V.mapM_ purifyManager
 
 {-
 numberOfRegisteredClauses :: WatcherList -> IO Int
