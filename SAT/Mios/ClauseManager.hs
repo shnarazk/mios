@@ -71,7 +71,7 @@ instance StackFamily ClauseExtManager C.Clause where
       then do
           let len = max 8 $ MV.length v
           v' <- MV.unsafeGrow v len
-          b' <- growVec b len
+          b' <- growBy b len
           MV.unsafeWrite v' n c
           setNth b' n 0
           IORef.writeIORef _clauseVector v'
@@ -102,7 +102,7 @@ instance ClauseManager ClauseExtManager where
       then do
           let len = max 8 $ MV.length v
           v' <- MV.unsafeGrow v len
-          b' <- growVec b len
+          b' <- growBy b len
           MV.unsafeWrite v' n c
           setNth b' n 0
           IORef.writeIORef _clauseVector v'
@@ -186,7 +186,7 @@ pushClauseWithKey !ClauseExtManager{..} !c k = do
     then do
         let len = max 8 $ MV.length v
         v' <- MV.unsafeGrow v len
-        b' <- growVec b len
+        b' <- growBy b len
         MV.unsafeWrite v' n c
         setNth b' n k
         IORef.writeIORef _clauseVector v'
@@ -195,7 +195,9 @@ pushClauseWithKey !ClauseExtManager{..} !c k = do
   modify' _nActives (1 +)
 
 -- | 'ClauseExtManager' is a collection of 'C.Clause'
-instance ContainerFamily ClauseExtManager C.Clause where
+instance VecFamily ClauseExtManager C.Clause where
+  getNth = error "no getNth method for ClauseExtManager"
+  setNth = error "no setNth method for ClauseExtManager"
   {-# SPECIALIZE INLINE reset :: ClauseExtManager -> IO () #-}
   reset m = set' (_nActives m) 0
   dump mes ClauseExtManager{..} = do
@@ -225,7 +227,9 @@ getNthWatcher :: WatcherList -> Lit -> ClauseExtManager
 getNthWatcher = V.unsafeIndex
 
 -- | 'WatcherList' is an 'Lit'-indexed collection of 'C.Clause'.
-instance ContainerFamily WatcherList C.Clause where
+instance VecFamily WatcherList C.Clause where
+  getNth = error "no getNth method for WatcherList"
+  setNth = error "no setNth method for WatcherList"
   {-# SPECIALIZE INLINE reset :: WatcherList -> IO () #-}
   reset = V.mapM_ purifyManager
   dump _ _ = return "" -- (mes ++) . concat <$> mapM (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i)) [1 .. V.length wl - 1]

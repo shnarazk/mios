@@ -50,8 +50,17 @@ instance Show Clause where
   show NullClause = "NullClause"
   show _ = "a clause"
 
--- | 'Clause' is a collection of 'Lit'.
-instance ContainerFamily Clause Lit where
+-- | 'Clause' is a 'VecFamily' of 'Lit'.
+instance VecFamily Clause Lit where
+  {-# SPECIALIZE INLINE getNth :: Clause -> Int -> IO Int #-}
+  getNth Clause{..} n = error "no getNth for Clause"
+  {-# SPECIALIZE INLINE setNth :: Clause -> Int -> Int -> IO () #-}
+  setNth Clause{..} n x = error "no setNth for Clause"
+  -- | returns a vector of literals in it.
+  {-# SPECIALIZE INLINE asUVector :: Clause -> UVector Int #-}
+  asUVector = asUVector . lits
+  asList NullClause = return []
+  asList Clause{..} = take <$> get' lits <*> asList lits
   dump mes NullClause = return $ mes ++ "Null"
   dump mes Clause{..} = return $ mes ++ "a clause"
 {-
@@ -61,10 +70,6 @@ instance ContainerFamily Clause Lit where
     l <- asList lits
     return $ mes ++ "C" ++ show n ++ "{" ++ intercalate "," [show learnt, a, show (map lit2int l)] ++ "}"
 -}
-  {-# SPECIALIZE INLINE asUVector :: Clause -> UVector Int #-}
-  asUVector = asUVector . lits
-  asList NullClause = return []
-  asList Clause{..} = take <$> get' lits <*> asList lits
 
 -- | 'Clause' is a 'SingleStorage' on the number of literals in it.
 instance SingleStorage Clause Int where
@@ -116,14 +121,6 @@ newClauseFromStack l vec = do
 -- | Mutable 'Clause' Vector
 type ClauseVector = MV.IOVector Clause
 
--- | 'ClauesVector' is a collection of 'Clause'
-instance ContainerFamily ClauseVector Clause where
-  asList cv = V.toList <$> V.freeze cv
-  dump mes cv = do
-    l <- asList cv
-    sts <- mapM (dump ",") (l :: [Clause])
-    return $ mes ++ tail (concat sts)
-
 -- |  'ClauseVector' is a vector of 'Clause'
 instance VecFamily ClauseVector Clause where
   {-# SPECIALIZE INLINE getNth :: ClauseVector -> Int -> IO Clause #-}
@@ -132,6 +129,11 @@ instance VecFamily ClauseVector Clause where
   setNth = MV.unsafeWrite
   {-# SPECIALIZE INLINE swapBetween :: ClauseVector -> Int -> Int -> IO () #-}
   swapBetween = MV.unsafeSwap
+  asList cv = V.toList <$> V.freeze cv
+  dump mes cv = do
+    l <- asList cv
+    sts <- mapM (dump ",") (l :: [Clause])
+    return $ mes ++ tail (concat sts)
 
 -- | returns a new 'ClauseVector'
 newClauseVector  :: Int -> IO ClauseVector
