@@ -1,8 +1,6 @@
 {-# LANGUAGE
     BangPatterns
   , FlexibleContexts
-  , FlexibleInstances
-  , FunctionalDependencies
   , MultiParamTypeClasses
   #-}
 {-# LANGUAGE Safe #-}
