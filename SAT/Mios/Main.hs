@@ -41,8 +41,8 @@ removeWatch (watches -> w) c = do
 -- Operations on 'Clause'
 --------------------------------------------------------------------------------
 
--- | __Fig. 8. (p.12)__ create a new LEARNT clause and adds it to watcher lists.
--- This is a strippped-down version of 'newClause' in Solver
+-- | __Fig. 8. (p.12)__ creates a new LEARNT clause and adds it to watcher lists.
+-- This is a strippped-down version of 'newClause' in Solver.
 {-# INLINABLE newLearntClause #-}
 newLearntClause :: Solver -> Stack -> IO ()
 newLearntClause s@Solver{..} ps = do
