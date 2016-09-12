@@ -43,14 +43,14 @@ module SAT.Mios.Types
 import Data.Bits
 import SAT.Mios.Vec
 
--- | represents "Var"
+-- | represents "Var".
 type Var = Int
 
 -- | Special constant in 'Var' (p.7)
 bottomVar :: Var
 bottomVar = 0
 
--- | converts a usual Int as literal to an internal 'Var' presentation
+-- | converts a usual Int as literal to an internal 'Var' presentation.
 --
 -- >>> int2var 1
 -- 1  -- the first literal is the first variable
@@ -101,7 +101,7 @@ negateLit l = complementBit l 0 -- if even l then l + 1 else l - 1
 ----------------- Var
 ----------------------------------------
 
--- | converts 'Lit' into 'Var'
+-- | converts 'Lit' into 'Var'.
 --
 -- >>> lit2var 2
 -- 1
@@ -115,7 +115,7 @@ negateLit l = complementBit l 0 -- if even l then l + 1 else l - 1
 lit2var :: Lit -> Var
 lit2var !n = shiftR n 1
 
--- | converts a 'Var' to the corresponing literal
+-- | converts a 'Var' to the corresponing literal.
 --
 -- >>> var2lit 1 True
 -- 2
@@ -134,7 +134,7 @@ var2lit !v _ = shiftL v 1 + 1
 ----------------- Int
 ----------------------------------------
 
--- | converts 'Int' into 'Lit' as @lit2int . int2lit == id@
+-- | converts 'Int' into 'Lit' as @lit2int . int2lit == id@.
 --
 -- >>> int2lit 1
 -- 2
@@ -151,7 +151,7 @@ int2lit n
   | 0 < n = 2 * n
   | otherwise = -2 * n + 1
 
--- | converts `Lit' into 'Int' as @int2lit . lit2int == id@
+-- | converts `Lit' into 'Int' as @int2lit . lit2int == id@.
 --
 -- >>> lit2int 2
 -- 1
@@ -241,7 +241,7 @@ data CNFDescription = CNFDescription
   }
   deriving (Eq, Ord, Show)
 
--- | solver's parameters; random decision rate was dropped.
+-- | Solver's parameters; random decision rate was dropped.
 data MiosConfiguration = MiosConfiguration
                          {
                            variableDecayRate  :: !Double  -- ^ decay rate for variable activity
