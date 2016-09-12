@@ -212,8 +212,6 @@ instance VecFamily ClauseExtManager C.Clause where
 -------------------------------------------------------------------------------- WatcherList
 
 -- | Immutable Vector of 'ClauseExtManager'
---
--- __Note:__ this is not a 'VecFamily` that provides 'getNth`, since it's immutable.
 type WatcherList = V.Vector ClauseExtManager
 
 -- | /n/ is the number of 'Var', /m/ is default size of each watcher list.
@@ -228,13 +226,8 @@ getNthWatcher = V.unsafeIndex
 
 -- | 'WatcherList' is an 'Lit'-indexed collection of 'C.Clause'.
 instance VecFamily WatcherList C.Clause where
-  getNth = error "no getNth method for WatcherList"
+  getNth = error "no getNth method for WatcherList" -- getNthWatcher is a pure function
   setNth = error "no setNth method for WatcherList"
   {-# SPECIALIZE INLINE reset :: WatcherList -> IO () #-}
   reset = V.mapM_ purifyManager
   dump _ _ = return "" -- (mes ++) . concat <$> mapM (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i)) [1 .. V.length wl - 1]
-
-{-
-numberOfRegisteredClauses :: WatcherList -> IO Int
-numberOfRegisteredClauses ws = sum <$> V.mapM numberOfClauses ws
--}
