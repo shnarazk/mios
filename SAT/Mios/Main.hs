@@ -21,12 +21,11 @@ import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
 import SAT.Mios.Solver
--- import SAT.Mios.Ranking
 
--- | a special version of ranking instead of importing Ranking module.
-{-# INLINE ranking' #-}
-ranking' :: Clause -> IO Int
-ranking' = get'
+-- | returns a rank of 'Clause'. Smaller value is better.
+{-# INLINE rankOf #-}
+rankOf :: Clause -> IO Int
+rankOf = get'
 
 -- | #114: __RemoveWatch__
 {-# INLINABLE removeWatch #-}
@@ -234,7 +233,7 @@ analyze s@Solver{..} confl = do
     loopOnLastDL ((< nld) -> False) = return ()
     loopOnLastDL i = do
       v <- lit2var <$> getNth vec i
-      r' <- ranking' =<< getNth reason v
+      r' <- rankOf =<< getNth reason v
       when (r < r') $ varBumpActivity s v
       loopOnLastDL $ i + 1
   loopOnLastDL 0
@@ -565,7 +564,7 @@ sortClauses s cm nneeds = do
             if l
               then setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
               else do
-                  d <- ranking' c
+                  d <- rankOf c
                   b <- floor . (activityScale *) . (1 -) . logBase claActivityThreshold . max 1 <$> get' (activity c)
                   setNth keys i $ shiftL (min rankMax d) (activityWidth + indexWidth) + shiftL b indexWidth + i
                   assignKey (i + 1) m
