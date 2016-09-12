@@ -88,22 +88,22 @@ instance StackFamily Clause Lit where
   {-# SPECIALIZE INLINE shrinkBy :: Clause -> Int -> IO () #-}
   shrinkBy c n = modifyNth (lits c) (subtract n) 0
 
--- returns True if it is a 'BinaryClause'
+-- returns True if it is a 'BinaryClause'.
 -- FIXME: this might be discarded in minisat 2.2
 -- isLit :: Clause -> Bool
 -- isLit (BinaryClause _) = True
 -- isLit _ = False
 
--- returns the literal in a BinaryClause
+-- returns the literal in a BinaryClause.
 -- FIXME: this might be discarded in minisat 2.2
 -- getLit :: Clause -> Lit
 -- getLit (BinaryClause x) = x
 
--- coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes
+-- coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes.
 -- liftToClause :: Clause -> Clause
 -- liftToClause (BinaryClause _) = error "So far I use generic function approach instead of lifting"
 
--- | copies /vec/ and return a new 'Clause'
+-- | copies /vec/ and return a new 'Clause'.
 -- Since 1.0.100 DIMACS reader should use a scratch buffer allocated statically.
 {-# INLINABLE newClauseFromStack #-}
 newClauseFromStack :: Bool -> Stack -> IO Clause
@@ -121,7 +121,7 @@ newClauseFromStack l vec = do
 -- | Mutable 'Clause' Vector
 type ClauseVector = MV.IOVector Clause
 
--- |  'ClauseVector' is a vector of 'Clause'
+-- | 'ClauseVector' is a vector of 'Clause'.
 instance VecFamily ClauseVector Clause where
   {-# SPECIALIZE INLINE getNth :: ClauseVector -> Int -> IO Clause #-}
   getNth = MV.unsafeRead
@@ -135,7 +135,7 @@ instance VecFamily ClauseVector Clause where
     sts <- mapM (dump ",") (l :: [Clause])
     return $ mes ++ tail (concat sts)
 
--- | returns a new 'ClauseVector'
+-- | returns a new 'ClauseVector'.
 newClauseVector  :: Int -> IO ClauseVector
 newClauseVector n = do
   v <- MV.new (max 4 n)
