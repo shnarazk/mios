@@ -10,7 +10,7 @@
 -- | Abstraction Layer for Mutable Unboxed Vectors
 module SAT.Mios.Vec
        (
-         -- * public interface
+         -- * Container class
          ContainerFamily (..)
          -- * Unboxed Vector
        , UVector
@@ -35,14 +35,14 @@ import qualified Data.Vector.Unboxed.Mutable as UV
 -- | Interface on containers
 class ContainerFamily s t | s -> t where
   -- * Size operations
-  -- | erases all elements in it
+  -- | erases all elements in it.
   reset:: s -> IO ()
-  -- | get a raw data
+  -- | converts to an Int vector.
   asUVector :: s -> UVector Int
-  -- | converts into a list
+  -- | converts to a list.
   asList :: s -> IO [t]
   -- * Debug
-  -- | dump the contents
+  -- | dump the contents.
   dump :: Show t => String -> s -> IO String
   {-# MINIMAL dump #-}
   reset = error "no default method for reset"

@@ -28,9 +28,8 @@ import qualified Data.Vector.Mutable as MV
 import SAT.Mios.Types
 
 -- | __Fig. 7.(p.11)__
--- clause, null, binary clause.
--- This matches both of @Clause@ and @GClause@ in MiniSat
--- TODO: GADTs is better?
+-- normal, null (and binary) clause.
+-- This matches both of @Clause@ and @GClause@ in MiniSat.
 data Clause = Clause
               {
                 learnt     :: !Bool     -- ^ whether this is a learnt clause
@@ -51,6 +50,7 @@ instance Show Clause where
   show NullClause = "NullClause"
   show _ = "a clause"
 
+-- | 'Clause' is a collection of 'Lit'.
 instance ContainerFamily Clause Lit where
   dump mes NullClause = return $ mes ++ "Null"
   dump mes Clause{..} = return $ mes ++ "a clause"
@@ -111,11 +111,12 @@ newClauseFromStack l vec = do
   loop 0
   Clause l <$> {- new' 0 <*> -} new' 0.0 <*> new' False <*> return v
 
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------- Clause Vector
 
 -- | Mutable 'Clause' Vector
 type ClauseVector = MV.IOVector Clause
 
+-- | 'ClauesVector' is a collection of 'Clause'
 instance ContainerFamily ClauseVector Clause where
   asList cv = V.toList <$> V.freeze cv
   dump mes cv = do
@@ -123,13 +124,7 @@ instance ContainerFamily ClauseVector Clause where
     sts <- mapM (dump ",") (l :: [Clause])
     return $ mes ++ tail (concat sts)
 
--- | returns a new 'ClauseVector'
-newClauseVector  :: Int -> IO ClauseVector
-newClauseVector n = do
-  v <- MV.new (max 4 n)
-  MV.set v NullClause
-  return v
-
+-- |  'ClauseVector' is a vector of 'Clause'
 instance VecFamily ClauseVector Clause where
   {-# SPECIALIZE INLINE getNth :: ClauseVector -> Int -> IO Clause #-}
   getNth = MV.unsafeRead
@@ -137,3 +132,10 @@ instance VecFamily ClauseVector Clause where
   setNth = MV.unsafeWrite
   {-# SPECIALIZE INLINE swapBetween :: ClauseVector -> Int -> Int -> IO () #-}
   swapBetween = MV.unsafeSwap
+
+-- | returns a new 'ClauseVector'
+newClauseVector  :: Int -> IO ClauseVector
+newClauseVector n = do
+  v <- MV.new (max 4 n)
+  MV.set v NullClause
+  return v

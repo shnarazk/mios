@@ -79,6 +79,7 @@ instance StackFamily ClauseExtManager C.Clause where
       else MV.unsafeWrite v n c >> setNth b n 0
     modify' _nActives (1 +)
 
+-- | 'ClauseExtManager' is a 'ClauseManager'
 instance ClauseManager ClauseExtManager where
   -- | returns a new instance.
   {-# SPECIALIZE INLINE newManager :: Int -> IO ClauseExtManager #-}
@@ -193,6 +194,7 @@ pushClauseWithKey !ClauseExtManager{..} !c k = do
     else MV.unsafeWrite v n c >> setNth b n k
   modify' _nActives (1 +)
 
+-- | 'ClauseExtManager' is a collection of 'C.Clause'
 instance ContainerFamily ClauseExtManager C.Clause where
   {-# SPECIALIZE INLINE reset :: ClauseExtManager -> IO () #-}
   reset m = set' (_nActives m) 0
