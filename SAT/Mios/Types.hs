@@ -58,6 +58,7 @@ bottomVar = 0
 -- 2 -- literal @-2@ is corresponding to variable 2
 --
 {-# INLINE int2var #-}
+int2var :: Int -> Int
 int2var = abs
 
 -- | The literal data has an 'index' method which converts the literal to
