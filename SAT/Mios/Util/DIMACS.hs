@@ -1,7 +1,7 @@
 {-# LANGUAGE Safe #-}
 
 -- | Read/Write a CNF file only with ghc standard libraries
-module SAT.Mios.Util.CNFIO
+module SAT.Mios.Util.DIMACS
        (
          -- * Input
          fromFile
@@ -10,22 +10,22 @@ module SAT.Mios.Util.CNFIO
        , clauseListFromMinisatOutput
          -- * Output
        , toFile
-       , toCNFString
-       , asCNFString
-       , asCNFString_
+       , toDIMACSString
+       , asDIMACSString
+       , asDIMACSString_
          -- * Bool Operation
        , module SAT.Mios.Util.BoolExp
        )
        where
-import SAT.Mios.Util.CNFIO.Reader
-import SAT.Mios.Util.CNFIO.Writer
-import SAT.Mios.Util.CNFIO.MinisatReader
+import SAT.Mios.Util.DIMACS.Reader
+import SAT.Mios.Util.DIMACS.Writer
+import SAT.Mios.Util.DIMACS.MinisatReader
 import SAT.Mios.Util.BoolExp
 
 -- | String from BoolFrom
-asCNFString :: BoolForm -> String
-asCNFString = toCNFString . asList
+asDIMACSString :: BoolForm -> String
+asDIMACSString = toDIMACSString . asList
 
 -- | String from BoolFrom
-asCNFString_ :: BoolForm -> String
-asCNFString_ = toCNFString . asList_
+asDIMACSString_ :: BoolForm -> String
+asDIMACSString_ = toDIMACSString . asList_

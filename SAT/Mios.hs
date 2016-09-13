@@ -1,7 +1,7 @@
--- | Minisat-based Implementation and Optimization Study on SAT solver
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Safe #-}
 
+-- | Minisat-based Implementation and Optimization Study on SAT solver
 module SAT.Mios
        (
          -- * Interface to the core of solver
@@ -36,11 +36,14 @@ import System.Exit
 import System.IO
 
 import SAT.Mios.Types
-import SAT.Mios.Internal
 import SAT.Mios.Solver
 import SAT.Mios.Main
 import SAT.Mios.OptionParser
 import SAT.Mios.Validator
+
+-- | version name
+versionId :: String
+versionId = "mios 1.4.0 -- https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ _ = return 0
@@ -52,13 +55,13 @@ reportElapsedTime _ mes t = do
   hPutStrLn stderr $ showFFloat (Just 3) ((fromIntegral (now - t)) / toSecond) " sec"
   return now
 
--- | executes a solver on the given CNF file
--- This is the simplest entry to standalone programs; not for Haskell programs
+-- | executes a solver on the given CNF file.
+-- This is the simplest entry to standalone programs; not for Haskell programs.
 executeSolverOn :: FilePath -> IO ()
 executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just path })
 
--- | executes a solver on the given 'arg :: MiosConfiguration'
--- | This is another entry point for standalone programs.
+-- | executes a solver on the given 'arg :: MiosConfiguration'.
+-- This is another entry point for standalone programs.
 executeSolver :: MiosProgramOption -> IO ()
 executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
   t0 <- reportElapsedTime (_confTimeProbe opts) "" 0
@@ -102,7 +105,7 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
 
 executeSolver _ = return ()
 
--- | new top-level interface that returns
+-- | new top-level interface that returns:
 --
 -- * conflicting literal set :: Left [Int]
 -- * satisfiable assignment :: Right [Int]
@@ -110,31 +113,30 @@ executeSolver _ = return ()
 runSolver :: Traversable t => MiosConfiguration -> CNFDescription -> t [Int] -> IO (Either [Int] [Int])
 runSolver m d c = do
   s <- newSolver m d
-  mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . map int2lit)) c
+  mapM_ ((s `addClause`) <=< (newStackFromList . map int2lit)) c
   noConf <- simplifyDB s
   if noConf
     then do
         x <- solve s []
         if x
             then Right <$> getModel s
-            else Left .  map lit2int <$> asList (conflict s)
+            else Left .  map lit2int <$> asList (conflicts s)
     else return $ Left []
 
-
--- | the easiest interface for Haskell programs
--- This returns the result @::[[Int]]@ for a given @(CNFDescription, [[Int]])@
+-- | The easiest interface for Haskell programs.
+-- This returns the result @::[[Int]]@ for a given @(CNFDescription, [[Int]])@.
 -- The first argument @target@ can be build by @Just target <- cnfFromFile targetfile@.
--- The second part of the first argument is a list of vector, which 0th element is the number of its real elements
+-- The second part of the first argument is a list of vector, which 0th element is the number of its real elements.
 solveSAT :: Traversable m => CNFDescription -> m [Int] -> IO [Int]
 solveSAT = solveSATWithConfiguration defaultConfiguration
 
--- | solves the problem (2rd arg) under the configuration (1st arg)
--- and returns an assignment as list of literals :: Int
+-- | solves the problem (2rd arg) under the configuration (1st arg).
+-- and returns an assignment as list of literals :: Int.
 solveSATWithConfiguration :: Traversable m => MiosConfiguration -> CNFDescription -> m [Int] -> IO [Int]
 solveSATWithConfiguration conf desc cls = do
   s <- newSolver conf desc
   -- mapM_ (const (newVar s)) [0 .. _numberOfVariables desc - 1]
-  mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . map int2lit)) cls
+  mapM_ ((s `addClause`) <=< (newStackFromList . map int2lit)) cls
   noConf <- simplifyDB s
   if noConf
     then do
@@ -144,13 +146,13 @@ solveSATWithConfiguration conf desc cls = do
             else return []
     else return []
 
--- | validates a given assignment from STDIN for the CNF file (2nd arg)
--- this is the entry point for standalone programs
+-- | validates a given assignment from STDIN for the CNF file (2nd arg).
+-- this is the entry point for standalone programs.
 executeValidatorOn :: FilePath -> IO ()
 executeValidatorOn path = executeValidator (miosDefaultOption { _targetFile = Just path })
 
--- | validates a given assignment for the problem (2nd arg)
--- this is another entry point for standalone programs; see app/mios.hs
+-- | validates a given assignment for the problem (2nd arg).
+-- This is another entry point for standalone programs; see app/mios.hs.
 executeValidator :: MiosProgramOption -> IO ()
 executeValidator opts@(_targetFile -> target@(Just cnfFile)) = do
   (desc, cls) <- parseHeader target <$> B.readFile cnfFile
@@ -172,13 +174,13 @@ executeValidator opts@(_targetFile -> target@(Just cnfFile)) = do
 
 executeValidator _  = return ()
 
--- | returns True if a given assignment (2nd arg) satisfies the problem (1st arg)
+-- | returns True if a given assignment (2nd arg) satisfies the problem (1st arg).
 -- if you want to check the @answer@ which a @slover@ returned, run @solver `validate` answer@,
--- where 'validate' @ :: Traversable t => Solver -> t Lit -> IO Bool@
+-- where 'validate' @ :: Traversable t => Solver -> t Lit -> IO Bool@.
 validateAssignment :: (Traversable m, Traversable n) => CNFDescription -> m [Int] -> n Int -> IO Bool
 validateAssignment desc cls asg = do
   s <- newSolver defaultConfiguration desc
-  mapM_ ((s `addClause`) <=< (newSizedVecIntFromList . map int2lit)) cls
+  mapM_ ((s `addClause`) <=< (newStackFromList . map int2lit)) cls
   s `validate` asg
 
 -- | dumps an assigment to file.
@@ -192,13 +194,10 @@ validateAssignment desc cls asg = do
 --
 dumpAssigmentAsCNF :: FilePath -> Bool -> [Int] -> IO ()
 dumpAssigmentAsCNF fname False _ = do
-  withFile fname WriteMode $ \h -> do
-    hPutStrLn h "UNSAT"
+  withFile fname WriteMode $ \h -> hPutStrLn h "UNSAT"
 
 dumpAssigmentAsCNF fname True l = do
-  withFile fname WriteMode $ \h -> do
-    hPutStrLn h "SAT"
-    hPutStrLn h . unwords $ map show l
+  withFile fname WriteMode $ \h -> do hPutStrLn h "SAT"; hPutStrLn h . unwords $ map show l
 
 --------------------------------------------------------------------------------
 -- DIMACS CNF Reader
@@ -218,8 +217,8 @@ parseHeader target bs = if B.head bs == 'p' then (parseP l, B.tail bs') else par
 parseClauses :: Solver -> CNFDescription -> B.ByteString -> IO ()
 parseClauses s (CNFDescription nv nc _) bs = do
   let maxLit = int2lit $ negate nv
-  buffer <- newVec $ maxLit + 1
-  polvec <- newVecBool (maxLit + 1) False
+  buffer <- newVec (maxLit + 1) 0
+  polvec <- newVec (maxLit + 1) 0
   let
     loop :: Int -> B.ByteString -> IO ()
     loop ((< nc) -> False) _ = return ()
@@ -231,9 +230,9 @@ parseClauses s (CNFDescription nv nc _) bs = do
     checkPolarity :: Int -> IO ()
     checkPolarity ((< nv) -> False) = return ()
     checkPolarity v = do
-      p <- getNthBool polvec $ var2lit v True
-      n <- getNthBool polvec $ var2lit v False
-      when (p == False || n == False) $ setNth asg v $ if p then lTrue else lFalse
+      p <- getNth polvec $ var2lit v True
+      n <- getNth polvec $ var2lit v False
+      when (p == lFalse || n == lFalse) $ setNth asg v p
       checkPolarity $ v + 1
   checkPolarity 1
 
@@ -267,8 +266,8 @@ parseInt st = do
     c | '0' <= c && c <= '9'  -> loop st 0
     _ -> error "PARSE ERROR! Unexpected char"
 
-readClause :: Solver -> Vec -> VecBool -> B.ByteString -> IO B.ByteString
-readClause s buffer pvec stream = do
+readClause :: Solver -> Stack -> Vec Int -> B.ByteString -> IO B.ByteString
+readClause s buffer bvec stream = do
   let
     loop :: Int -> B.ByteString -> IO B.ByteString
     loop i b = do
@@ -277,20 +276,17 @@ readClause s buffer pvec stream = do
         then do
             -- putStrLn . ("clause: " ++) . show . map lit2int =<< asList stack
             setNth buffer 0 $ i - 1
-            addClause s buffer
+            void $ addClause s buffer
             return b'
         else do
             let l = int2lit k
             setNth buffer i l
-            setNthBool pvec l True
+            setNth bvec l lTrue
             loop (i + 1) b'
   loop 1 . skipComments . skipWhitespace $ stream
 
-
 showPath :: FilePath -> String
-showPath str
-  | elem '/' str =  take (len - length basename) (repeat ' ') ++ basename
-  |  otherwise = take (len - length basename') (repeat ' ') ++ basename'
+showPath str = replicate (len - length basename) ' ' ++ if elem '/' str then basename else basename'
   where
     len = 50
     basename = reverse . takeWhile (/= '/') . reverse $ str

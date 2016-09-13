@@ -1,11 +1,11 @@
 {-# LANGUAGE Safe #-}
 
--- | Write SAT data to CNF file
-module SAT.Mios.Util.CNFIO.Writer
+-- | Write SAT data to DIMACS file
+module SAT.Mios.Util.DIMACS.Writer
        (
          -- * Interface
          toFile
-       , toCNFString
+       , toDIMACSString
        , toString
        , toLatexString
        )
@@ -13,23 +13,23 @@ module SAT.Mios.Util.CNFIO.Writer
 import Data.List (intercalate, nub, sort)
 import System.IO
 
--- | Write the CNF to file 'f', using 'toCNFString'
+-- | Write the DIMACS to file 'f', using 'toDIMACSString'
 toFile :: FilePath -> [[Int]] -> IO ()
-toFile f l = writeFile f $ toCNFString l
+toFile f l = writeFile f $ toDIMACSString l
 
 -- | Convert [Clause] to String, where Clause is [Int]
 --
--- >>> toCNFString []
+-- >>> toDIMACSString []
 -- "p cnf 0 0\n"
 --
--- >>> toCNFString [[-1, 2], [-3, -4]]
+-- >>> toDIMACSString [[-1, 2], [-3, -4]]
 -- "p cnf 4 2\n-1 2 0\n-3 -4 0\n"
 --
--- >>> toCNFString [[1], [-2], [-3, -4], [1,2,3,4]]
+-- >>> toDIMACSString [[1], [-2], [-3, -4], [1,2,3,4]]
 -- "p cnf 4 4\n1 0\n-2 0\n-3 -4 0\n1 2 3 4 0\n"
 --
-toCNFString :: [[Int]] -> String
-toCNFString l = hdr ++ str
+toDIMACSString :: [[Int]] -> String
+toDIMACSString l = hdr ++ str
   where
     hdr = "p cnf " ++ show numV ++ " " ++ show numC ++ "\n"
     numC = length l

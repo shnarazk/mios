@@ -19,9 +19,9 @@ import SAT.Mios.Solver
 -- | validates the assignment even if the implementation of 'Solver' is wrong; we re-implement some functions here.
 validate :: Traversable t => Solver -> t Int -> IO Bool
 validate s (toList -> map int2lit -> lst) = do
-  assignment <- newVec $ 1 + nVars s
+  assignment <- newVec (1 + nVars s) (0 :: Int) :: IO (Vec Int)
   vec <- getClauseVector (clauses s)
-  nc <- numberOfClauses (clauses s)
+  nc <- get' (clauses s)
   let
     inject :: Lit -> IO ()
     inject l = setNth assignment (lit2var l) $ if positiveLit l then lTrue else lFalse
@@ -40,8 +40,7 @@ validate s (toList -> map int2lit -> lst) = do
     loopOnVector :: Int -> IO Bool
     loopOnVector ((< nc) -> False) = return True
     loopOnVector i = do
-      c <- getNthClause vec i
-      sat' <- satAny =<< asList c
+      sat' <- satAny =<< asList =<< getNth vec i
       if sat' then loopOnVector (i + 1) else return False
   if null lst
     then error "validator got an empty assignment."

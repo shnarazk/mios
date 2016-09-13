@@ -1,7 +1,7 @@
 {-# LANGUAGE Safe #-}
 
 -- | Read an output file of minisat
-module SAT.Mios.Util.CNFIO.MinisatReader
+module SAT.Mios.Util.DIMACS.MinisatReader
        (
          -- * Interface
          fromMinisatOutput

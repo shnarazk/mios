@@ -14,37 +14,29 @@ module SAT.Mios.Clause
          Clause (..)
 --       , isLit
 --       , getLit
-       , shrinkClause
-       , newClauseFromVec
-       , sizeOfClause
+       , newClauseFromStack
          -- * Vector of Clause
        , ClauseVector
        , newClauseVector
-       , getNthClause
-       , setNthClause
-       , swapClauses
        )
        where
 
-import Control.Monad (forM_)
 import GHC.Prim (tagToEnum#, reallyUnsafePtrEquality#)
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
-import qualified Data.Vector.Unboxed.Mutable as UV
-import Data.List (intercalate)
+-- import Data.List (intercalate)
 import SAT.Mios.Types
 
 -- | __Fig. 7.(p.11)__
--- clause, null, binary clause.
--- This matches both of @Clause@ and @GClause@ in MiniSat
--- TODO: GADTs is better?
+-- normal, null (and binary) clause.
+-- This matches both of @Clause@ and @GClause@ in MiniSat.
 data Clause = Clause
               {
-                learnt     :: !Bool            -- ^ whether this is a learnt clause
---              , rank       :: !IntSingleton    -- ^ goodness like LBD; computed in 'Ranking'
-              , activity   :: !DoubleSingleton -- ^ activity of this clause
-              , protected  :: !BoolSingleton   -- ^ protected from reduce
-              , lits       :: !Vec             -- ^ which this clause consists of
+                learnt     :: !Bool     -- ^ whether this is a learnt clause
+--              , rank     :: !Int'     -- ^ goodness like LBD; computed in 'Ranking'
+              , activity   :: !Double'  -- ^ activity of this clause
+              , protected  :: !Bool'    -- ^ protected from reduce
+              , lits       :: !Stack    -- ^ which this clause consists of
               }
   | NullClause                              -- as null pointer
 --  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
@@ -58,87 +50,96 @@ instance Show Clause where
   show NullClause = "NullClause"
   show _ = "a clause"
 
--- | supports a restricted set of 'VectorFamily' methods
-instance VectorFamily Clause Lit where
-  dump mes NullClause = return $ mes ++ "Null"
-  dump mes Clause{..} = do
-    a <- show <$> getDouble activity
-    (len:ls) <- asList lits
-    return $ mes ++ "C" ++ show len ++ "{" ++ intercalate "," [show learnt, a, show . map lit2int . take len $ ls] ++ "}"
-  {-# SPECIALIZE INLINE asVec :: Clause -> Vec #-}
-  asVec Clause{..} = UV.unsafeTail lits
-  {-# SPECIALIZE INLINE asList :: Clause -> IO [Int] #-}
+-- | 'Clause' is a 'VecFamily' of 'Lit'.
+instance VecFamily Clause Lit where
+  {-# SPECIALIZE INLINE getNth :: Clause -> Int -> IO Int #-}
+  getNth Clause{..} n = error "no getNth for Clause"
+  {-# SPECIALIZE INLINE setNth :: Clause -> Int -> Int -> IO () #-}
+  setNth Clause{..} n x = error "no setNth for Clause"
+  -- | returns a vector of literals in it.
+  {-# SPECIALIZE INLINE asUVector :: Clause -> UVector Int #-}
+  asUVector = asUVector . lits
   asList NullClause = return []
-  asList Clause{..} = do
-    (n : ls)  <- asList lits
-    return $ take n ls
+  asList Clause{..} = take <$> get' lits <*> asList lits
+  -- dump mes NullClause = return $ mes ++ "Null"
+  -- dump mes Clause{..} = return $ mes ++ "a clause"
+{-
+  dump mes Clause{..} = do
+    a <- show <$> get' activity
+    n <- get' lits
+    l <- asList lits
+    return $ mes ++ "C" ++ show n ++ "{" ++ intercalate "," [show learnt, a, show (map lit2int l)] ++ "}"
+-}
 
--- returns True if it is a 'BinaryClause'
+-- | 'Clause' is a 'SingleStorage' on the number of literals in it.
+instance SingleStorage Clause Int where
+  -- | returns the number of literals in a clause, even if the given clause is a binary clause
+  {-# SPECIALIZE INLINE get' :: Clause -> IO Int #-}
+  get' = get' . lits
+  -- getSize (BinaryClause _) = return 1
+  -- | sets the number of literals in a clause, even if the given clause is a binary clause
+  {-# SPECIALIZE INLINE set' :: Clause -> Int -> IO () #-}
+  set' c n = set' (lits c) n
+  -- getSize (BinaryClause _) = return 1
+
+-- | 'Clause' is a 'Stackfamily'on literals since literals in it will be discared if satisifed at level = 0.
+instance StackFamily Clause Lit where
+  -- | drop the last /N/ literals in a 'Clause' to eliminate unsatisfied literals
+  {-# SPECIALIZE INLINE shrinkBy :: Clause -> Int -> IO () #-}
+  shrinkBy c n = modifyNth (lits c) (subtract n) 0
+
+-- returns True if it is a 'BinaryClause'.
 -- FIXME: this might be discarded in minisat 2.2
 -- isLit :: Clause -> Bool
 -- isLit (BinaryClause _) = True
 -- isLit _ = False
 
--- returns the literal in a BinaryClause
+-- returns the literal in a BinaryClause.
 -- FIXME: this might be discarded in minisat 2.2
 -- getLit :: Clause -> Lit
 -- getLit (BinaryClause x) = x
 
--- coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes
+-- coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes.
 -- liftToClause :: Clause -> Clause
 -- liftToClause (BinaryClause _) = error "So far I use generic function approach instead of lifting"
 
--- | copies /vec/ and return a new 'Clause'
+-- | copies /vec/ and return a new 'Clause'.
 -- Since 1.0.100 DIMACS reader should use a scratch buffer allocated statically.
-{-# INLINE newClauseFromVec #-}
-newClauseFromVec :: Bool -> Vec -> IO Clause
-newClauseFromVec l vec = do
-  n <- getNth vec 0
-  v <- newVec $ n + 1
-  forM_ [0 .. n] $ \i -> setNth v i =<< getNth vec i
-  Clause l <$> {- newInt 0 <*> -} newDouble 0 <*> newBool False <*> return v
+{-# INLINABLE newClauseFromStack #-}
+newClauseFromStack :: Bool -> Stack -> IO Clause
+newClauseFromStack l vec = do
+  n <- get' vec
+  v <- newStack n
+  let
+    loop ((<= n) -> False) = return ()
+    loop i = (setNth v i =<< getNth vec i) >> loop (i + 1)
+  loop 0
+  Clause l <$> {- new' 0 <*> -} new' 0.0 <*> new' False <*> return v
 
--- | returns the number of literals in a clause, even if the given clause is a binary clause
-{-# INLINE sizeOfClause #-}
-sizeOfClause :: Clause -> IO Int
--- sizeOfClause (BinaryClause _) = return 1
-sizeOfClause !c = getNth (lits c) 0
-
--- | drop the last /N/ literals in a 'Clause' to eliminate unsatisfied literals
-{-# INLINABLE shrinkClause #-}
-shrinkClause :: Int -> Clause -> IO ()
-shrinkClause n !c = modifyNth (lits c) (subtract n) 0
-
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------- Clause Vector
 
 -- | Mutable 'Clause' Vector
 type ClauseVector = MV.IOVector Clause
 
-instance VectorFamily ClauseVector Clause where
+-- | 'ClauseVector' is a vector of 'Clause'.
+instance VecFamily ClauseVector Clause where
+  {-# SPECIALIZE INLINE getNth :: ClauseVector -> Int -> IO Clause #-}
+  getNth = MV.unsafeRead
+  {-# SPECIALIZE INLINE setNth :: ClauseVector -> Int -> Clause -> IO () #-}
+  setNth = MV.unsafeWrite
+  {-# SPECIALIZE INLINE swapBetween :: ClauseVector -> Int -> Int -> IO () #-}
+  swapBetween = MV.unsafeSwap
   asList cv = V.toList <$> V.freeze cv
+{-
   dump mes cv = do
     l <- asList cv
     sts <- mapM (dump ",") (l :: [Clause])
     return $ mes ++ tail (concat sts)
+-}
 
--- | returns a new 'ClauseVector'
+-- | returns a new 'ClauseVector'.
 newClauseVector  :: Int -> IO ClauseVector
 newClauseVector n = do
   v <- MV.new (max 4 n)
   MV.set v NullClause
   return v
-
--- | returns the nth 'Clause'
-{-# INLINE getNthClause #-}
-getNthClause :: ClauseVector -> Int -> IO Clause
-getNthClause = MV.unsafeRead
-
--- | sets the nth 'Clause'
-{-# INLINE setNthClause #-}
-setNthClause :: ClauseVector -> Int -> Clause -> IO ()
-setNthClause = MV.unsafeWrite
-
--- | swaps the two 'Clause's
-{-# INLINE swapClauses #-}
-swapClauses :: ClauseVector -> Int -> Int -> IO ()
-swapClauses = MV.unsafeSwap
