@@ -28,6 +28,10 @@ in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSa
 
 ### > Release Note
 
+##### 1.4.0
+
+* new classes and methods
+
 ##### 1.3.0
 
 * replace LBD heuristics with a simpler metrics, inspired by S. Jabbour, et. al: “*Revisiting the Learned Clauses Database Reduction Strategies*,” 2013.
