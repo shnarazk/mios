@@ -1,6 +1,5 @@
 {-# LANGUAGE
     BangPatterns
-  , FlexibleContexts
   , MultiParamTypeClasses
   #-}
 {-# LANGUAGE Safe #-}

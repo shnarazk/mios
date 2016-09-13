@@ -1,6 +1,5 @@
 {-# LANGUAGE
     BangPatterns
-  , DuplicateRecordFields
   , FlexibleInstances
   , MultiParamTypeClasses
   , RecordWildCards
