@@ -20,6 +20,11 @@ maintainer:             Shuji Narazaki <narazaki@nagasaki-u.ac.jp>
 category:               Artificial Intelligence, Constraints
 build-type:             Simple
 cabal-version:          >=1.16
+extra-source-files:  app/sample.hs
+
+source-repository head
+  type:                 git
+  location:             https://github.com/shnarazk/mios
 
 Flag llvm
   Description:	        Compile with llvm
@@ -35,9 +40,22 @@ library
   else
     buildable:	        False
   default-language:	Haskell2010
-  default-extensions:  Strict
+  default-extensions:   Strict
+  other-extensions:	    BangPatterns
+                            FlexibleContexts
+                            FlexibleInstances
+                            FunctionalDependencies
+                            MagicHash
+                            MultiParamTypeClasses
+                            RecordWildCards
+                            ScopedTypeVariables
+                            TypeFamilies
+                            Trustworthy
+                            TupleSections
+                            Safe
+                            UndecidableInstances
+                            ViewPatterns
   exposed-modules:
-                        SAT.Mios
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
                         SAT.Mios.Vec
@@ -46,29 +64,29 @@ library
                         SAT.Mios.Solver
                         SAT.Mios.Types
                         SAT.Mios.Validator
-                        SAT.Mios.Util.DIMACS
                         SAT.Mios.Util.DIMACS.MinisatReader
                         SAT.Mios.Util.DIMACS.Reader
                         SAT.Mios.Util.DIMACS.Writer
+                        SAT.Mios.Util.DIMACS
                         SAT.Mios.Util.BoolExp
+                        SAT.Mios
   build-depends:        base ==4.9.*, vector >=0.11, ghc-prim >=0.5, bytestring >=0.10
   if flag(llvm)
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O3
   else
-    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -msse4.2
+    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields
 
 executable mios
   main-is:              app/mios.hs
   buildable:	        True
   default-language:	Haskell2010
   default-extensions:  Strict
-  build-depends:        base ==4.9.*, vector >=0.11, ghc-prim >=0.5, bytestring >=0.10
+  build-depends:        base ==4.9.*,  vector >=0.11, ghc-prim >=0.5, bytestring >=0.10
   if flag(llvm)
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O3
   else
-    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -msse4.2
+    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields
   other-modules:
-                        SAT.Mios
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
                         SAT.Mios.Vec
@@ -77,3 +95,4 @@ executable mios
                         SAT.Mios.Solver
                         SAT.Mios.Types
                         SAT.Mios.Validator
+                        SAT.Mios
