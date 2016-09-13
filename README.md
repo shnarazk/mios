@@ -134,7 +134,7 @@ $ mios a.cnf
 an assignment :: [Int]
 
 $ mios --help
-mios 1.3.0 -- https://github.com/shnarazk/mios
+mios 1.4.0 -- https://github.com/shnarazk/mios
 Usage: mios [OPTIONS] target.cnf
   -d 0.95  --variable-decay-rate=0.95  [solver] variable activity decay rate (0.0 - 1.0)
   -:       --validate-assignment       [solver] read an assignment from STDIN and validate it
