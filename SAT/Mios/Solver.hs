@@ -45,7 +45,7 @@ module SAT.Mios.Solver
        )
         where
 
-import Control.Monad (unless, when)
+import Control.Monad (unless, when, (<$!>))
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -89,7 +89,7 @@ data Solver = Solver
               , litsLearnt :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze' and 'SAT.Mios.Main.search' to create a learnt clause
 
 {-
-              -- , pr'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.propagate'
+              , pr'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.propagate'
 -}
               , stats      :: !(UVector Int)     -- ^ statistics information holder
 {-
@@ -110,8 +110,8 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> newManager nc                      -- learnts
     <*> newWatcherList nv 2                -- watches
     -- Assignment Management
-    <*> newVec nv lBottom                  -- assigns
-    <*> newVec nv lBottom                  -- phases
+    <*> newVec nv LiftedBottom             -- assigns
+    <*> newVec nv LiftedBottom             -- phases
     <*> newStack nv                        -- trail
     <*> newStack nv                        -- trailLim
     <*> new' 0                             -- qHead
@@ -123,8 +123,10 @@ newSolver conf (CNFDescription nv nc _) = do
     -- Configuration
     <*> return conf                        -- config
     <*> return nv                          -- nVars
---  <*> new' 1.0                           -- claInc
---  <*> new' (variableDecayRate conf)      -- varDecay
+{-
+    <*> new' 1.0                           -- claInc
+    <*> new' (variableDecayRate conf)      -- varDecay
+-}
     <*> new' 1.0                           -- varInc
     <*> new' 0                             -- rootLevel
     -- Working Memory
@@ -132,13 +134,15 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> newVec nv 0                        -- an'seen
     <*> newStack nv                        -- an'toClear
     <*> newStack nv                        -- an'stack
---    <*> newVec nv (-1)                     -- pr'seen
+    <*> newStack nv                        -- an'lastDL
     <*> newStack nv                        -- litsLearnt
-    <*> newStack nv                        -- lastDL
+{-
+    <*> newVec nv (-1)                     -- pr'seen
+-}
     <*> newVec (fromEnum EndOfStatIndex) 0 -- stats
 {-
---    <*> newVec nv                        -- lbd'seen
---    <*> newInt 0                         -- lbd'key
+    <*> newVec nv                          -- lbd'seen
+    <*> newInt 0                           -- lbd'key
 -}
 
 --------------------------------------------------------------------------------
@@ -176,7 +180,7 @@ valueVar = getNth . assigns
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit'.
 {-# INLINE valueLit #-}
 valueLit :: Solver -> Lit -> IO Int
-valueLit (assigns -> a) p = (\x -> if positiveLit p then x else negate x) <$> getNth a (lit2var p)
+valueLit (assigns -> a) p = (\x -> if positiveLit p then x else negate x) <$!> getNth a (lit2var p)
 
 {-
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit' in phases.
@@ -197,6 +201,7 @@ locked s c = (c ==) <$> (getNth (reason s) . lit2var =<< getNth (lits c) 1)
 data StatIndex =
     NumOfBackjump               -- ^ the number of backjump
   | NumOfRestart                -- ^ the number of restart
+  | NumOfPropagation            -- ^ the number of propagation
   | EndOfStatIndex              -- ^ Don't use this dummy.
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 
@@ -218,7 +223,7 @@ incrementStat (stats -> v) (fromEnum -> i) k = modifyNth v (+ k) i
 -- | returns the statistics as a list.
 {-# INLINABLE getStats #-}
 getStats :: Solver -> IO [(StatIndex, Int)]
-getStats (stats -> v) = mapM (\i -> (i, ) <$> getNth v (fromEnum i)) [minBound .. maxBound :: StatIndex]
+getStats (stats -> v) = mapM (\i -> (i, ) <$> getNth v (fromEnum i)) [minBound .. pred maxBound :: StatIndex]
 
 -------------------------------------------------------------------------------- State Modifiers
 
@@ -315,7 +320,7 @@ clauseNew s@Solver{..} ps isLearnt = do
            varBumpActivity s v' -- this is a just good chance to bump activities of literals in this clause
            a <- getNth assigns v'
            b <- getNth level v'
-           if (a /= lBottom) && (val < b)
+           if (a /= LiftedBottom) && (val < b)
              then findMax (i + 1) i b
              else findMax (i + 1) j val
        -- Let @max_i@ be the index of the literal with highest decision level
@@ -348,10 +353,10 @@ enqueue s@Solver{..} p from = do
     k <- (12 +) <$> decisionLevel s
     when (k < l) $ set' (lbd from) k
 -}
-  let signumP = if positiveLit p then lTrue else lFalse
+  let signumP = if positiveLit p then LiftedTrue else LiftedFalse
   let v = lit2var p
   val <- valueVar s v
-  if val /= lBottom
+  if val /= LiftedBottom
     then do -- Existing consistent assignment -- don't enqueue
         return $ val == signumP
     else do
@@ -389,7 +394,7 @@ cancelUntil s@Solver{..} lvl = do
       loopOnTrail c = do
         x <- lit2var <$> getNth tr c
         setNth phases x =<< getNth assigns x
-        setNth assigns x lBottom
+        setNth assigns x LiftedBottom
         -- #reason to set reason Null
         -- if we don't clear @reason[x] :: Clause@ here, @reason[x]@ remains as locked.
         -- This means we can't reduce it from clause DB and affects the performance.
@@ -416,7 +421,7 @@ instance VarOrder Solver where
     -- Version 0.4:: push watches =<< newVec      -- push'
     -- push undos =<< newVec        -- push'
     -- push reason NullClause       -- push'
-    -- push assigns lBottom
+    -- push assigns LiftedBottom
     -- push level (-1)
     -- push activities (0.0 :: Double)
     -- newVar order
@@ -440,7 +445,7 @@ instance VarOrder Solver where
           else do
               v <- getHeapRoot s
               x <- getNth asg v
-              if x == lBottom then return v else loop
+              if x == LiftedBottom then return v else loop
     loop
 
 -------------------------------------------------------------------------------- Activities

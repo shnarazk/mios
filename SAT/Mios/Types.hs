@@ -1,5 +1,6 @@
 {-# LANGUAGE
     BangPatterns
+  , PatternSynonyms
   , MultiParamTypeClasses
   #-}
 {-# LANGUAGE Safe #-}
@@ -23,11 +24,12 @@ module SAT.Mios.Types
        , var2lit
        , negateLit
          -- * Assignment on the lifted Bool domain
---       , LiftedBool (..)
+       , LiftedBool
 --       , lbool
-       , lFalse
-       , lTrue
-       , lBottom
+       , pattern LiftedFalse
+       , pattern LiftedTrue
+       , pattern LiftedBottom
+       , pattern LiftedConflict
        , VarOrder (..)
          -- * CNF
        , CNFDescription (..)
@@ -168,7 +170,7 @@ lit2int l = case divMod l 2 of
 {-
 -- | Lifted Boolean domain (p.7) that extends 'Bool' with "⊥" means /undefined/
 -- design note: _|_ should be null = 0; True literals are coded to even numbers. So it should be 2.
-data LiftedBool = Bottom | LFalse | LTrue
+data LiftedBool = Bottom | LFalse | LTrue | LConflict
   deriving (Bounded, Eq, Ord, Read, Show)
 
 instance Enum LiftedBool where
@@ -188,17 +190,23 @@ lbool True = LTrue
 lbool False = LFalse
 -}
 
+type LiftedBool = Int
+
 -- | /FALSE/ on the Lifted Bool domain
-lFalse:: Int
-lFalse = -1
+pattern LiftedFalse :: Int
+pattern LiftedFalse = -1
 
 -- | /TRUE/ on the Lifted Bool domain
-lTrue :: Int
-lTrue = 1
+pattern LiftedTrue :: Int
+pattern LiftedTrue = 1
 
 -- | /UNDEFINED/ on the Lifted Bool domain
-lBottom :: Int
-lBottom = 0
+pattern LiftedBottom :: Int
+pattern LiftedBottom = 0
+
+-- | /CONFLICT/ on the Lifted Bool domain
+pattern LiftedConflict :: Int
+pattern LiftedConflict = 2
 
 -- | Assisting ADT for the dynamic variable ordering of the solver.
 -- The constructor takes references to the assignment vector and the activity

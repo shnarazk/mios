@@ -67,7 +67,7 @@ newLearntClause s@Solver{..} ps = do
            v <- lit2var <$> getNth vec i
            a <- getNth assigns v
            b <- getNth level v
-           if (a /= lBottom) && (val < b)
+           if (a /= LiftedBottom) && (val < b)
              then findMax (i + 1) i b
              else findMax (i + 1) j val
        swapBetween vec 1 =<< findMax 0 0 0 -- Let @max_i@ be the index of the literal with highest decision level
@@ -431,8 +431,8 @@ propagate s@Solver{..} = do
           while confl =<< ((<) <$> get' qHead <*> get' trail)
         forClause confl i j = do
           (l :: Lit) <- getNth bvec i
-          bv <- if l == 0 then return lFalse else valueLit s l
-          if bv == lTrue
+          bv <- if l == 0 then return LiftedFalse else valueLit s l
+          if bv == LiftedTrue
             then do
                  unless (i == j) $ do -- NOTE: if i == j, the path doesn't require accesses to cvec!
                    (c :: Clause) <- getNth cvec i
@@ -450,7 +450,7 @@ propagate s@Solver{..} = do
                 -- if 0th watch is true, then clause is already satisfied.
                 (first :: Lit) <- getNth lits 0
                 val <- valueLit s first
-                if val == lTrue
+                if val == LiftedTrue
                   then setNth cvec j c >> setNth bvec j first >> forClause confl (i + 1) (j + 1)
                   else do
                       -- Look for new watch
@@ -479,7 +479,7 @@ propagate s@Solver{..} = do
                         forLit k = do
                           (l :: Lit) <- getNth lits k
                           lv <- valueLit s l
-                          if lv /= lFalse
+                          if lv /= LiftedFalse
                             then do
                                 swapBetween lits 1 k
                                 pushClauseWithKey (getNthWatcher watches (negateLit l)) c l
@@ -702,7 +702,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
               then do
                   -- Contradiction found:
                   analyzeFinal s confl False
-                  return lFalse
+                  return LiftedFalse
               else do
 --                  u <- (== 0) . (flip mod 5000) <$> getNth stats (fromEnum NumOfBackjump)
 --                  when u $ do
@@ -729,18 +729,18 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                    -- Model found:
                    let
                      toInt :: Var -> IO Lit
-                     toInt v = (\p -> if lTrue == p then v else negate v) <$> valueVar s v
+                     toInt v = (\p -> if LiftedTrue == p then v else negate v) <$> valueVar s v
                      setModel :: Int -> IO ()
                      setModel ((<= nVars) -> False) = return ()
                      setModel v = (setNth model v =<< toInt v) >> setModel (v + 1)
                    setModel 1
-                   return lTrue
+                   return LiftedTrue
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
                    (s `cancelUntil`) =<< get' rootLevel -- force a restart
                    claRescaleActivityAfterRestart s
                    incrementStat s NumOfRestart 1
-                   return lBottom
+                   return LiftedBottom
              _ -> do
                -- New variable decision:
                v <- select s -- many have heuristic for polarity here
@@ -750,7 +750,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                -- >> #phasesaving
                loop conflictC
   good <- get' ok
-  if good then loop 0 else return lFalse
+  if good then loop 0 else return LiftedFalse
 
 -- | __Fig. 16. (p.20)__
 -- Main solve method.
@@ -794,9 +794,9 @@ solve s@Solver{..} assumps = do
           while :: Double -> Double -> IO Bool
           while nOfConflicts nOfLearnts = do
             status <- search s (floor nOfConflicts) (floor nOfLearnts)
-            if status == lBottom
+            if status == LiftedBottom
               then while (1.5 * nOfConflicts) (1.1 * nOfLearnts)
-              else cancelUntil s 0 >> return (status == lTrue)
+              else cancelUntil s 0 >> return (status == LiftedTrue)
         while 100 (nc / 3.0)
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
@@ -804,7 +804,7 @@ solve s@Solver{..} assumps = do
 unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
 unsafeEnqueue s@Solver{..} p from = do
   let v = lit2var p
-  setNth assigns v $! if positiveLit p then lTrue else lFalse
+  setNth assigns v $! if positiveLit p then LiftedTrue else LiftedFalse
   setNth level v =<< decisionLevel s
   setNth reason v from     -- NOTE: @from@ might be NULL!
   pushTo trail p

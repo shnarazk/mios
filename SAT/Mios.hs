@@ -52,7 +52,7 @@ reportElapsedTime _ mes t = do
   now <- getCPUTime
   let toSecond = 1000000000000 :: Double
   hPutStr stderr mes
-  hPutStrLn stderr $ showFFloat (Just 3) ((fromIntegral (now - t)) / toSecond) " sec"
+  hPutStrLn stderr $ showFFloat (Just 3) (fromIntegral (now - t) / toSecond) " sec"
   return now
 
 -- | executes a solver on the given CNF file.
@@ -232,7 +232,7 @@ parseClauses s (CNFDescription nv nc _) bs = do
     checkPolarity v = do
       p <- getNth polvec $ var2lit v True
       n <- getNth polvec $ var2lit v False
-      when (p == lFalse || n == lFalse) $ setNth asg v p
+      when (p == LiftedFalse || n == LiftedFalse) $ setNth asg v p
       checkPolarity $ v + 1
   checkPolarity 1
 
@@ -281,7 +281,7 @@ readClause s buffer bvec stream = do
         else do
             let l = int2lit k
             setNth buffer i l
-            setNth bvec l lTrue
+            setNth bvec l LiftedTrue
             loop (i + 1) b'
   loop 1 . skipComments . skipWhitespace $ stream
 
