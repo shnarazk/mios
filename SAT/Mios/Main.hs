@@ -421,7 +421,7 @@ propagate s@Solver{..} = do
                 if val == LiftedTrue
                   then setNth cvec j c >> setNth bvec j first >> forClause confl (i + 1) (j + 1)
                   else do
-                      -- Look for new watch
+                      -- Look for a new watch
                       cs <- get' c
                       let
                         forLit :: Int -> IO Clause
@@ -429,9 +429,10 @@ propagate s@Solver{..} = do
                           -- Did not find watch; clause is unit under assignment:
                           setNth cvec j c
                           setNth bvec j 0
-                          result <- enqueue s first c
-                          if not result
-                            then do
+                          noConflict <- enqueue s first c
+                          if noConflict
+                            then forClause confl (i + 1) (j + 1)
+                            else do
                                 ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
                                 -- #BBCP
                                 set' qHead =<< get' trail
@@ -443,7 +444,6 @@ propagate s@Solver{..} = do
                                     setNth bvec j' =<< getNth bvec i'
                                     copy (i' + 1) (j' + 1)
                                 copy (i + 1) (j + 1)
-                            else forClause confl (i + 1) (j + 1)
                         forLit k = do
                           (l' :: Lit) <- getNth lits k
                           lv <- valueLit s l'
