@@ -385,66 +385,34 @@ propagate :: Solver -> IO Clause
 propagate s@Solver{..} = do
   -- myVal <- getNth stats (fromEnum NumOfBackjump)
   let
-{-
-    myVal = 0
-    bumpAllVar :: IO ()         -- not in use
-    bumpAllVar = do
-      let
-        loop :: Int -> IO ()
-        loop ((<= nVars) -> False) = return ()
-        loop i = do
-          c <- getNth pr'seen i
-          when (c == myVal) $ varBumpActivity s i
-          loop $ i + 1
-      loop 1
--}
     trailVec = asUVector trail
     while :: Clause -> Bool -> IO Clause
     while confl False = {- bumpAllVar >> -} return confl
     while confl True = do
       (p :: Lit) <- getNth trailVec =<< get' qHead
+      let falseLit = negateLit p
       modify' qHead (+ 1)
       let (ws :: ClauseExtManager) = getNthWatcher watches p
       end <- get' ws
       cvec <- getClauseVector ws
       bvec <- getKeyVector ws
---      rc <- getNth reason $ lit2var p
---      byGlue <- if (rc /= NullClause) && learnt rc then (== 2) <$> get' (lbd rc) else return False
       let
-{-
-        checkAllLiteralsIn :: Clause -> IO () -- not in use
-        checkAllLiteralsIn c = do
-          nc <- sizeOfClause c
-          let
-            vec = asuVector c
-            loop :: Int -> IO ()
-            loop((< nc) -> False) = return ()
-            loop i = do
-              (v :: Var) <- lit2var <$> getNth vec i
-              setNth pr'seen v myVal
-              loop $ i + 1
-          loop 0
--}
         forClause :: Clause -> Int -> Int -> IO Clause
         forClause confl i@((< end) -> False) j = do
           shrinkBy ws (i - j)
           while confl =<< ((<) <$> get' qHead <*> get' trail)
         forClause confl i j = do
           (l :: Lit) <- getNth bvec i
+          (c :: Clause) <- getNth cvec i
           bv <- if l == 0 then return LiftedFalse else valueLit s l
           if bv == LiftedTrue
             then do
                  unless (i == j) $ do -- NOTE: if i == j, the path doesn't require accesses to cvec!
-                   (c :: Clause) <- getNth cvec i
                    setNth cvec j c
                    setNth bvec j l
                  forClause confl (i + 1) (j + 1)
             else do
-                -- checkAllLiteralsIn c
-                (c :: Clause) <- getNth cvec i
-                let
-                  lits = asUVector c
-                  falseLit = negateLit p
+                let lits = asUVector c
                 -- Make sure the false literal is data[1]
                 ((falseLit ==) <$> getNth lits 0) >>= (`when` swapBetween lits 0 1)
                 -- if 0th watch is true, then clause is already satisfied.
