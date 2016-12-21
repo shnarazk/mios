@@ -212,7 +212,8 @@ instance VecFamily ClauseExtManager C.Clause where
 
 -------------------------------------------------------------------------------- WatcherList
 
--- | Immutable Vector of 'ClauseExtManager'
+-- | Immutable Vector of 'ClauseExtManager'; an 'Lit'-indexed collection of 'ClauseManager'.
+-- Note: 0-th field is not used in mios;
 type WatcherList = V.Vector ClauseExtManager
 
 -- | /n/ is the number of 'Var', /m/ is default size of each watcher list.
@@ -225,7 +226,6 @@ newWatcherList n m = V.fromList <$> mapM (\_ -> newManager m) [0 .. int2lit (neg
 getNthWatcher :: WatcherList -> Lit -> ClauseExtManager
 getNthWatcher = V.unsafeIndex
 
--- | 'WatcherList' is an 'Lit'-indexed collection of 'C.Clause'.
 instance VecFamily WatcherList C.Clause where
   getNth = error "no getNth method for WatcherList" -- getNthWatcher is a pure function
   setNth = error "no setNth method for WatcherList"
