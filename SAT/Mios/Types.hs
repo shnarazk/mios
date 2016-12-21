@@ -26,10 +26,7 @@ module SAT.Mios.Types
          -- * Assignment on the lifted Bool domain
        , LiftedBool
 --       , lbool
-       , pattern LiftedFalse
-       , pattern LiftedTrue
-       , pattern LiftedBottom
-       , pattern LiftedConflict
+       , Int (LiftedFalse, LiftedTrue, LiftedBottom, LiftedConflict)
        , VarOrder (..)
          -- * CNF
        , CNFDescription (..)

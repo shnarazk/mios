@@ -25,11 +25,14 @@ module SAT.Mios.Vec
        , StackFamily (..)
        , Stack
        , newStackFromList
+         -- * LongStack
+       , LongStack
        )
        where
 
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Unboxed.Mutable as UV
+import qualified Data.IORef as IORef
 
 -- | Interface on vectors.
 class VecFamily v a | v -> a where
@@ -63,11 +66,9 @@ class VecFamily v a | v -> a where
   setAll = error "no default method: setAll"
   asList = error "no default method: asList"
   growBy = error "no default method: growBy"
-{-
   -- | (FOR DEBUG) dump the contents.
   dump :: Show a => String -> v -> IO String
   dump msg v = (msg ++) . show <$> asList v
--}
 
 -------------------------------------------------------------------------------- UVector
 
@@ -274,3 +275,21 @@ instance StackFamily Stack Int where
 {-# INLINABLE newStackFromList #-}
 newStackFromList :: [Int] -> IO Stack
 newStackFromList !l = Vec <$> U.unsafeThaw (U.fromList (length l : l))
+
+-------------------------------------------------------------------------------- LongStack
+-- | FOR DEBUG: an unbounded stack of Int
+type LongStack = IORef.IORef [Int]
+
+instance VecFamily LongStack Int where
+  getNth = undefined
+  setNth = undefined
+  asList = IORef.readIORef
+
+instance SingleStorage LongStack Int where
+  get' v = length <$> IORef.readIORef v
+  set' = undefined
+  modify' = undefined
+
+instance StackFamily LongStack Int where
+  newStack _ = IORef.newIORef []
+  pushTo v x = IORef.modifyIORef v (x:)
