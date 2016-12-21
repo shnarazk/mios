@@ -477,14 +477,14 @@ propagate s@Solver{..} = do
                                 copy (i + 1) (j + 1)
                             else forClause confl (i + 1) (j + 1)
                         forLit k = do
-                          (l :: Lit) <- getNth lits k
-                          lv <- valueLit s l
-                          if lv /= LiftedFalse
-                            then do
+                          (l' :: Lit) <- getNth lits k
+                          lv <- valueLit s l'
+                          if lv == LiftedFalse
+                            then forLit $ k + 1
+                            else do
                                 swapBetween lits 1 k
-                                pushClauseWithKey (getNthWatcher watches (negateLit l)) c l
+                                pushClauseWithKey (getNthWatcher watches (negateLit l')) c l'
                                 forClause confl (i + 1) j
-                            else forLit $ k + 1
                       forLit 2
       forClause confl 0 0
   while NullClause =<< ((<) <$> get' qHead <*> get' trail)
