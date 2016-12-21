@@ -263,7 +263,7 @@ analyze s@Solver{..} confl = do
 {-# INLINABLE analyzeRemovable #-}
 analyzeRemovable :: Solver -> Lit -> Int -> IO Bool
 analyzeRemovable Solver{..} p minLevel = do
-  -- assert (reason[var(p)]!= NullCaulse);
+  -- assert (reason[var(p)]!= NullClause);
   reset an'stack      -- analyze_stack.clear()
   pushTo an'stack p   -- analyze_stack.push(p);
   top <- get' an'toClear
