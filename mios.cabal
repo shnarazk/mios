@@ -34,6 +34,10 @@ Flag lib
   Description:	        Build the solver library
   Default:	        True
 
+Flag prof
+  Description:	        Build the profiler
+  Default:	        False
+
 library
   if flag(lib)
     buildable:	        True
@@ -99,7 +103,10 @@ executable mios-1.4.99.0
 
 executable mios-1.4.99.0-prof
   main-is:              app/mios.hs
-  buildable:	        True
+  if flag(prof)
+    buildable:	        True
+  else
+    buildable:	        False
   default-language:	Haskell2010
   default-extensions:  Strict
   build-depends:        base ==4.9.*,  vector >=0.11, ghc-prim >=0.5, bytestring >=0.10
