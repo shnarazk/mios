@@ -68,6 +68,7 @@ data Solver = Solver
               , qHead      :: !Int'              -- ^ 'trail' is divided at qHead; assignment part and queue part
               , reason     :: !ClauseVector      -- ^ For each variable, the constraint that implied its value
               , level      :: !(Vec Int)         -- ^ For each variable, the decision level it was assigned
+              , bumpFlags  :: !(Vec Int)
 {-            Variable Order -}
               , activities :: !(Vec Double)      -- ^ Heuristic measurement of the activity of a variable
               , order      :: !VarHeap           -- ^ Keeps track of the dynamic variable order.
@@ -117,6 +118,7 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> new' 0                             -- qHead
     <*> newClauseVector (nv + 1)           -- reason
     <*> newVec nv (-1)                     -- level
+    <*> newVec nv 0                        -- bumpFlags
     -- Variable Order
     <*> newVec nv 0                        -- activities
     <*> newVarHeap nv                      -- order
@@ -312,7 +314,7 @@ clauseNew s@Solver{..} ps isLearnt = do
          findMax ((< k) -> False) j _ = return j
          findMax i j val = do
            v' <- lit2var <$> getNth vec i
-           varBumpActivity s v' -- this is a just good chance to bump activities of literals in this clause
+           varBumpActivity' s 1 v' -- this is a just good chance to bump activities of literals in this clause
            a <- getNth assigns v'
            b <- getNth level v'
            if (a /= lBottom) && (val < b)
@@ -377,6 +379,7 @@ assume s p = do
 cancelUntil :: Solver -> Int -> IO ()
 cancelUntil s@Solver{..} lvl = do
   dl <- decisionLevel s
+  varBumpAll s dl
   when (lvl < dl) $ do
     let tr = asUVector trail
     let tl = asUVector trailLim
@@ -455,11 +458,32 @@ claActivityThreshold = 1e20
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 {-# INLINE varBumpActivity #-}
 varBumpActivity :: Solver -> Var -> IO ()
-varBumpActivity s@Solver{..} x = do
-  !a <- (+) <$> getNth activities x <*> get' varInc
-  setNth activities x a
+varBumpActivity solver@Solver{..} v = do
+  -- varBumpActivity' solver 1 v
+  -- print ("bumping ", v)
+  modifyNth bumpFlags (+ 1) v
+
+{-# INLINE varBumpActivity' #-}
+varBumpActivity' :: Solver -> Double -> Var -> IO ()
+varBumpActivity' s@Solver{..} k v = do
+  d <- (k *) <$> get' varInc
+  a <- (d +) <$> getNth activities v
+  setNth activities v a
   when (varActivityThreshold < a) $ varRescaleActivity s
-  update s x                    -- update the position in heap
+  update s v                   -- update the position in heap
+
+-- | Caveat: this function should be called before backjump; this uses trail's index as loop limit.
+varBumpAll :: Solver -> Int -> IO ()
+varBumpAll s@Solver{..} dl = do
+  n <- subtract 1 <$> get' trail
+  let tr = asUVector trail
+  let loop :: Int -> IO ()
+      loop ((0 <=) -> False) = return ()
+      loop i = do v <- lit2var <$> getNth tr i
+                  k <- getNth bumpFlags v
+                  when (0 < k) $ setNth bumpFlags v 0 >> varBumpActivity' s (fromIntegral k) v -- >> print ("done", v, k)
+                  loop $ i - 1
+  loop n
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE varDecayActivity #-}
