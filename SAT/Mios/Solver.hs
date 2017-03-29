@@ -379,7 +379,7 @@ assume s p = do
 cancelUntil :: Solver -> Int -> IO ()
 cancelUntil s@Solver{..} lvl = do
   dl <- decisionLevel s
-  varBumpAll s dl
+  varBumpAll s
   when (lvl < dl) $ do
     let tr = asUVector trail
     let tl = asUVector trailLim
@@ -458,30 +458,27 @@ claActivityThreshold = 1e20
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 {-# INLINE varBumpActivity #-}
 varBumpActivity :: Solver -> Var -> IO ()
-varBumpActivity solver@Solver{..} v = do
-  -- varBumpActivity' solver 1 v
-  -- print ("bumping ", v)
-  modifyNth bumpFlags (+ 1) v
+varBumpActivity Solver{..} v = modifyNth bumpFlags (+ 1) v
 
 {-# INLINE varBumpActivity' #-}
 varBumpActivity' :: Solver -> Double -> Var -> IO ()
 varBumpActivity' s@Solver{..} k v = do
-  d <- (k *) <$> get' varInc
+  d <- ((sqrt k) *) <$> get' varInc
   a <- (d +) <$> getNth activities v
   setNth activities v a
   when (varActivityThreshold < a) $ varRescaleActivity s
   update s v                   -- update the position in heap
 
 -- | Caveat: this function should be called before backjump; this uses trail's index as loop limit.
-varBumpAll :: Solver -> Int -> IO ()
-varBumpAll s@Solver{..} dl = do
+varBumpAll :: Solver -> IO ()
+varBumpAll s@Solver{..} = do
   n <- subtract 1 <$> get' trail
   let tr = asUVector trail
   let loop :: Int -> IO ()
-      loop ((0 <=) -> False) = return ()
+      loop (-1) = return ()
       loop i = do v <- lit2var <$> getNth tr i
                   k <- getNth bumpFlags v
-                  when (0 < k) $ setNth bumpFlags v 0 >> varBumpActivity' s (fromIntegral k) v -- >> print ("done", v, k)
+                  when (0 < k) $ setNth bumpFlags v 0 >> varBumpActivity' s (fromIntegral k) v
                   loop $ i - 1
   loop n
 
