@@ -496,9 +496,8 @@ varDecayActivity Solver{..} = modify' varInc (/ variableDecayRate config)
 {-# INLINABLE varRescaleActivity #-}
 varRescaleActivity :: Solver -> IO ()
 varRescaleActivity Solver{..} = do
-  let
-    loop ((<= nVars) -> False) = return ()
-    loop i = modifyNth activities (/ varActivityThreshold) i >> loop (i + 1)
+  let loop ((<= nVars) -> False) = return ()
+      loop i = modifyNth activities (/ varActivityThreshold) i >> loop (i + 1)
   loop 1
   modify' varInc (/ varActivityThreshold)
 

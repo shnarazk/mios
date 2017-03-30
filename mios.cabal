@@ -32,7 +32,7 @@ Flag llvm
 
 Flag lib
   Description:	        Build the solver library
-  Default:	        True
+  Default:	        False
 
 library
   if flag(lib)
