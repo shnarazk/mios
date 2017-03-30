@@ -69,6 +69,7 @@ data Solver = Solver
               , reason     :: !ClauseVector      -- ^ For each variable, the constraint that implied its value
               , level      :: !(Vec Int)         -- ^ For each variable, the decision level it was assigned
               , bumpFlags  :: !(Vec Int)
+              , bumpStat   :: !Int'
 {-            Variable Order -}
               , activities :: !(Vec Double)      -- ^ Heuristic measurement of the activity of a variable
               , order      :: !VarHeap           -- ^ Keeps track of the dynamic variable order.
@@ -119,6 +120,7 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> newClauseVector (nv + 1)           -- reason
     <*> newVec nv (-1)                     -- level
     <*> newVec nv 0                        -- bumpFlags
+    <*> new' 0
     -- Variable Order
     <*> newVec nv 0                        -- activities
     <*> newVarHeap nv                      -- order
@@ -472,15 +474,17 @@ varBumpActivity' s@Solver{..} k v = do
 -- | Caveat: this function should be called before backjump; this uses trail's index as loop limit.
 varBumpAll :: Solver -> IO ()
 varBumpAll s@Solver{..} = do
-  n <- subtract 1 <$> get' trail
   let tr = asUVector trail
-  let loop :: Int -> IO ()
+      loop :: Int -> IO ()
       loop (-1) = return ()
       loop i = do v <- lit2var <$> getNth tr i
                   k <- getNth bumpFlags v
                   when (0 < k) $ setNth bumpFlags v 0 >> varBumpActivity' s (fromIntegral k) v
-                  loop $ i - 1
-  loop n
+                  loop (i - 1)
+  l <- get' bumpStat
+  l' <- nAssigns s
+  when (l < l') $ loop . subtract 1 =<< get' trail
+  set' bumpStat $ div (l' + l) 2
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE varDecayActivity #-}
