@@ -465,7 +465,7 @@ varBumpActivity Solver{..} v = modifyNth bumpFlags (+ 1) v
 {-# INLINE varBumpActivity' #-}
 varBumpActivity' :: Solver -> Double -> Var -> IO ()
 varBumpActivity' s@Solver{..} k v = do
-  d <- ((sqrt k) *) <$> get' varInc
+  d <- ({- (sqrt k) -} k *) <$> get' varInc
   a <- (d +) <$> getNth activities v
   setNth activities v a
   when (varActivityThreshold < a) $ varRescaleActivity s
