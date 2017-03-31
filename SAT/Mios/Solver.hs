@@ -316,7 +316,7 @@ clauseNew s@Solver{..} ps isLearnt = do
          findMax ((< k) -> False) j _ = return j
          findMax i j val = do
            v' <- lit2var <$> getNth vec i
-           varBumpActivity' s 1 v' -- this is a just good chance to bump activities of literals in this clause
+           varBumpActivity' s v' -- this is a just good chance to bump activities of literals in this clause
            a <- getNth assigns v'
            b <- getNth level v'
            if (a /= lBottom) && (val < b)
@@ -381,7 +381,7 @@ assume s p = do
 cancelUntil :: Solver -> Int -> IO ()
 cancelUntil s@Solver{..} lvl = do
   dl <- decisionLevel s
-  varBumpAll s
+  varBumpAll s (dl - lvl)
   when (lvl < dl) $ do
     let tr = asUVector trail
     let tl = asUVector trailLim
@@ -463,28 +463,37 @@ varBumpActivity :: Solver -> Var -> IO ()
 varBumpActivity Solver{..} v = modifyNth bumpFlags (+ 1) v
 
 {-# INLINE varBumpActivity' #-}
-varBumpActivity' :: Solver -> Double -> Var -> IO ()
-varBumpActivity' s@Solver{..} k v = do
-  d <- ({- (sqrt k) -} k *) <$> get' varInc
-  a <- (d +) <$> getNth activities v
+varBumpActivity' :: Solver -> Var -> IO ()
+varBumpActivity' s@Solver{..} v = do
+  a <- (+) <$> getNth activities v <*> get' varInc
   setNth activities v a
   when (varActivityThreshold < a) $ varRescaleActivity s
   update s v                   -- update the position in heap
 
 -- | Caveat: this function should be called before backjump; this uses trail's index as loop limit.
-varBumpAll :: Solver -> IO ()
-varBumpAll s@Solver{..} = do
+varBumpAll :: Solver -> Int -> IO ()
+varBumpAll s@Solver{..} (fromIntegral -> lvl) = do
   let tr = asUVector trail
+      bump :: Var -> Double -> IO ()
+      bump v k = do
+        d <- ((log (k + 1) / log (lvl + 1)) *) <$> get' varInc
+        a <- (d +) <$> getNth activities v
+        setNth activities v a
+        when (varActivityThreshold < a) $ varRescaleActivity s
       loop :: Int -> IO ()
       loop (-1) = return ()
       loop i = do v <- lit2var <$> getNth tr i
                   k <- getNth bumpFlags v
-                  when (0 < k) $ setNth bumpFlags v 0 >> varBumpActivity' s (fromIntegral k) v
-                  loop (i - 1)
-  l <- get' bumpStat
-  l' <- nAssigns s
-  when (l < l') $ loop . subtract 1 =<< get' trail
-  set' bumpStat $ div (l' + l) 2
+                  when (0 < k) $ do bump v (fromIntegral k)
+                                    setNth bumpFlags v 0
+                                    update s v
+                  loop $ i - 1
+  -- l <- get' bumpStat
+  -- l' <- nAssigns s
+  if True -- && l < l'
+    then do loop . subtract 1 =<< get' trail
+            -- set' bumpStat l'
+    else return () -- set' bumpStat $ div (l' + l) 2
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE varDecayActivity #-}
@@ -655,3 +664,30 @@ getHeapRoot s@(order -> VarHeap to at) = do
   n <- getNth to 0
   when (1 < n) $ percolateDown s 1
   return r
+
+{-
+checkHeapProperty :: Solver -> IO Bool
+checkHeapProperty Solver{..} = do
+  let VarHeap to _ = order
+  n <- get' to
+  let loop ((<= n) -> False) = return True
+      loop i = do
+        a <- getNth activities =<< getNth to i
+        let iL = 2 * i            -- left
+        if iL < n
+          then do let iR = iL + 1     -- right
+                  aL <- getNth activities =<< getNth to iL
+                  aR <- getNth activities =<< getNth to iR
+                  if not (aL <= a && aR <= a)
+                    then do putStrLn $ "unheap!" ++ show (n, (i, a), (iL, aL), (iR, aR))
+                            return False
+                    else loop $ i + 1
+          else if iL == n
+               then do aL <- getNth activities =<< getNth to iL
+                       if not (aL <= a)
+                         then do putStrLn $ "unheap!" ++ show (n, (i, a), (iL, aL))
+                                 return False
+                         else loop $ i + 1
+               else loop $ i + 1
+  loop 1
+-}
