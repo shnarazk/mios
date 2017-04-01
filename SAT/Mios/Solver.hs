@@ -472,28 +472,26 @@ varBumpActivity' s@Solver{..} v = do
 
 -- | Caveat: this function should be called before backjump; this uses trail's index as loop limit.
 varBumpAll :: Solver -> Int -> IO ()
-varBumpAll s@Solver{..} (fromIntegral -> lvl) = do
+varBumpAll s@Solver{..} _ = do
+  -- l <- get' bumpStat
+  -- l' <- nAssigns s
   let tr = asUVector trail
+      -- now = mod l 2 == 0 -- l < l'
       bump :: Var -> Double -> IO ()
-      bump v k = do
-        d <- ((log (k + 1) / log (lvl + 1)) *) <$> get' varInc
-        a <- (d +) <$> getNth activities v
-        setNth activities v a
-        when (varActivityThreshold < a) $ varRescaleActivity s
+      bump v k = do d <- (k *) <$> get' varInc
+                    a <- (d +) <$> getNth activities v
+                    setNth activities v a
+                    when (varActivityThreshold < a) $ varRescaleActivity s
       loop :: Int -> IO ()
       loop (-1) = return ()
       loop i = do v <- lit2var <$> getNth tr i
                   k <- getNth bumpFlags v
-                  when (0 < k) $ do bump v (fromIntegral k)
+                  when (1 < k) $ do bump v (fromIntegral k)
                                     setNth bumpFlags v 0
                                     update s v
                   loop $ i - 1
-  -- l <- get' bumpStat
-  -- l' <- nAssigns s
-  if True -- && l < l'
-    then do loop . subtract 1 =<< get' trail
-            -- set' bumpStat l'
-    else return () -- set' bumpStat $ div (l' + l) 2
+  loop . subtract 1 =<< get' trail
+  -- modify' bumpStat (1 +) -- set' bumpStat $ div (l' + l) 2
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE varDecayActivity #-}
