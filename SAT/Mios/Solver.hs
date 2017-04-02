@@ -316,7 +316,7 @@ clauseNew s@Solver{..} ps isLearnt = do
          findMax ((< k) -> False) j _ = return j
          findMax i j val = do
            v' <- lit2var <$> getNth vec i
-           varBumpActivity' s v' -- this is a just good chance to bump activities of literals in this clause
+           varBumpActivity s v' -- this is a just good chance to bump activities of literals in this clause
            a <- getNth assigns v'
            b <- getNth level v'
            if (a /= lBottom) && (val < b)
@@ -381,7 +381,7 @@ assume s p = do
 cancelUntil :: Solver -> Int -> IO ()
 cancelUntil s@Solver{..} lvl = do
   dl <- decisionLevel s
-  varBumpAll s (dl - lvl)
+  varBumpAll s
   when (lvl < dl) $ do
     let tr = asUVector trail
     let tl = asUVector trailLim
@@ -457,41 +457,40 @@ varActivityThreshold = 1e100
 claActivityThreshold :: Double
 claActivityThreshold = 1e20
 
+useOnlineBump :: Bool
+useOnlineBump = True
+
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 {-# INLINE varBumpActivity #-}
 varBumpActivity :: Solver -> Var -> IO ()
-varBumpActivity Solver{..} v = modifyNth bumpFlags (+ 1) v
-
-{-# INLINE varBumpActivity' #-}
-varBumpActivity' :: Solver -> Var -> IO ()
-varBumpActivity' s@Solver{..} v = do
-  a <- (+) <$> getNth activities v <*> get' varInc
-  setNth activities v a
-  when (varActivityThreshold < a) $ varRescaleActivity s
-  update s v                   -- update the position in heap
+varBumpActivity s@Solver{..} v = do
+  modifyNth bumpFlags (+ 1) v
+  when useOnlineBump $ do
+    a <- (+) <$> getNth activities v <*> get' varInc
+    setNth activities v a
+    when (varActivityThreshold < a) $ varRescaleActivity s
+    update s v                   -- update the position in heap
+    -- setNth bumpFlags v 0
 
 -- | Caveat: this function should be called before backjump; this uses trail's index as loop limit.
-varBumpAll :: Solver -> Int -> IO ()
-varBumpAll s@Solver{..} _ = do
-  -- l <- get' bumpStat
-  -- l' <- nAssigns s
+varBumpAll :: Solver -> IO ()
+varBumpAll s@Solver{..} = do
+  n <- subtract 1 <$> get' trail
   let tr = asUVector trail
-      -- now = mod l 2 == 0 -- l < l'
       bump :: Var -> Double -> IO ()
       bump v k = do d <- (k *) <$> get' varInc
                     a <- (d +) <$> getNth activities v
                     setNth activities v a
                     when (varActivityThreshold < a) $ varRescaleActivity s
+                    update s v
+                    setNth bumpFlags v 0
       loop :: Int -> IO ()
-      loop (-1) = return ()
+      loop ((< n) -> False) = return () -- setNth bumpFlags 0 0
       loop i = do v <- lit2var <$> getNth tr i
                   k <- getNth bumpFlags v
-                  when (1 < k) $ do bump v (fromIntegral k)
-                                    setNth bumpFlags v 0
-                                    update s v
-                  loop $ i - 1
-  loop . subtract 1 =<< get' trail
-  -- modify' bumpStat (1 +) -- set' bumpStat $ div (l' + l) 2
+                  when (0 < k) $ bump v (fromIntegral k)
+                  loop $ i + 1
+  unless useOnlineBump $ loop 0
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE varDecayActivity #-}
