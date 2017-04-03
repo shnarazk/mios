@@ -458,7 +458,7 @@ claActivityThreshold :: Double
 claActivityThreshold = 1e20
 
 useOnlineBump :: Bool
-useOnlineBump = True
+useOnlineBump = False
 
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 {-# INLINE varBumpActivity #-}
