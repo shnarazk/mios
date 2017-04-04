@@ -475,7 +475,7 @@ varBumpActivity s@Solver{..} v = do
 -- | Caveat: this function should be called before backjump; this uses trail's index as loop limit.
 varBumpAll :: Solver -> IO ()
 varBumpAll s@Solver{..} = do
-  n <- subtract 1 <$> get' trail
+  n <- get' trail
   let tr = asUVector trail
       bump :: Var -> Double -> IO ()
       bump v k = do d <- (k *) <$> get' varInc
