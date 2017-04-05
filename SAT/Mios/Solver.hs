@@ -466,7 +466,8 @@ varBumpActivity :: Solver -> Var -> IO ()
 varBumpActivity s@Solver{..} v = do
   modifyNth bumpFlags (+ 1) v
   when useOnlineBump $ do
-    a <- (+) <$> getNth activities v <*> get' varInc
+    a' <- (+) <$> getNth activities v <*> get' varInc
+    let a = a' + fromIntegral v / 100000
     setNth activities v a
     when (varActivityThreshold < a) $ varRescaleActivity s
     update s v                   -- update the position in heap
@@ -479,7 +480,8 @@ varBumpAll s@Solver{..} = do
   let tr = asUVector trail
       bump :: Var -> Double -> IO ()
       bump v k = do d <- (k *) <$> get' varInc
-                    a <- (d +) <$> getNth activities v
+                    a' <- (d +) <$> getNth activities v
+                    let a = a' + fromIntegral v / 100000
                     setNth activities v a
                     when (varActivityThreshold < a) $ varRescaleActivity s
                     update s v
