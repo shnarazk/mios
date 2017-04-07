@@ -474,14 +474,40 @@ varBumpActivity s@Solver{..} v = do
     -- setNth bumpFlags v 0
 
 -- | Caveat: this function should be called before backjump; this uses trail's index as loop limit.
+-- But @pScale@ requires populations after adding a learnt clause :-(
 varBumpAll :: Solver -> IO ()
 varBumpAll s@Solver{..} = do
   n <- get' trail
+  lmax <- get' trailLim
+  d <- sqrt . fromIntegral . (1 +) <$> decisionLevel s
+  let nv' = fromIntegral nVars :: Double
+      pScale :: Int -> IO Double -- population-based literal weighting
+      pScale i = do lv <- getNth level i
+                    pr <- case lv of
+                            0 -> return 1
+                            _ | lmax == lv -> subtract <$> getNth trailLim lv <*> return nVars
+                            _ -> subtract <$> getNth trailLim lv <*> getNth trailLim (lv + 1)
+                    -- when (pr < 0 || nVars < pr) $ error (show (i, lv, pr, n, x))
+{-
+                    let loop :: Int -> Int -> IO ()
+                        loop ((<= nVars) -> False) x = do
+                          when (x /= pr) $ do
+                              lims <- take <$> get' trailLim <*> asList trailLim
+                              print lims
+                              print $ zipWith subtract lims (tail lims ++ [nVars])
+                              print (x, pr)
+                              error "stop"
+                        loop i x = do lv <- getNth level i
+                                      a <- getNth assigns i
+                                      loop (i + 1) $ if a /= lBottom && lv == 8 then x + 1 else x
+                    when (11 < lmax && lv == 8) $ loop 1 0
+-}
+                    return $ 10 * (nv' - fromIntegral pr) / (nv' * d)
   let tr = asUVector trail
-      bump :: Var -> Double -> IO ()
-      bump v k = do d <- (k *) <$> get' varInc
-                    a' <- (d +) <$> getNth activities v
-                    let a = a' + fromIntegral v / 100000
+      bump :: Int -> Double -> IO ()
+      bump v k = do d' <- (k *) <$> get' varInc
+                    d <- (d' +) <$> pScale v
+                    a <- (d +) <$> getNth activities v
                     setNth activities v a
                     when (varActivityThreshold < a) $ varRescaleActivity s
                     update s v
