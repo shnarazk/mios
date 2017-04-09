@@ -458,67 +458,76 @@ claActivityThreshold :: Double
 claActivityThreshold = 1e20
 
 useOnlineBump :: Bool
-useOnlineBump = False
+useOnlineBump = True
 
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 {-# INLINE varBumpActivity #-}
 varBumpActivity :: Solver -> Var -> IO ()
 varBumpActivity s@Solver{..} v = do
-  modifyNth bumpFlags (+ 1) v
-  when useOnlineBump $ do
-    a' <- (+) <$> getNth activities v <*> get' varInc
-    let a = a' + fromIntegral v / 100000
-    setNth activities v a
-    when (varActivityThreshold < a) $ varRescaleActivity s
-    update s v                   -- update the position in heap
-    -- setNth bumpFlags v 0
+  if useOnlineBump
+    then do d <- decisionLevel s
+            let nv' = fromIntegral nVars :: Double
+                pScale :: Int -> IO Double -- population-based literal weighting
+                pScale 0 = return 1
+                pScale 1 = return 1
+                pScale l = do pr <- getNth trailLim (l - 1)
+                              na <- if l == d then get' trail else (pr +) <$> getNth trailLim l
+                              return . abs $ fromIntegral (div na 2 - pr) / fromIntegral na
+            a' <- (+) <$> getNth activities v <*> get' varInc
+            p' <- pScale =<< getNth level v
+            let a = a' + p' / nv' -- * fromIntegral d)
+            setNth activities v a
+            when (varActivityThreshold < a) $ varRescaleActivity s
+            update s v                   -- update the position in heap
+    else modifyNth bumpFlags (+ 1) v
 
 -- | Caveat: this function should be called before backjump; this uses trail's index as loop limit.
 -- But @pScale@ requires populations after adding a learnt clause :-(
 varBumpAll :: Solver -> IO ()
 varBumpAll s@Solver{..} = do
-  n <- get' trail
-  lmax <- get' trailLim
-  d <- sqrt . fromIntegral . (1 +) <$> decisionLevel s
-  let nv' = fromIntegral nVars :: Double
-      pScale :: Int -> IO Double -- population-based literal weighting
-      pScale i = do lv <- getNth level i
-                    pr <- case lv of
-                            0 -> return 1
-                            _ | lmax == lv -> subtract <$> getNth trailLim lv <*> return nVars
-                            _ -> subtract <$> getNth trailLim lv <*> getNth trailLim (lv + 1)
-                    -- when (pr < 0 || nVars < pr) $ error (show (i, lv, pr, n, x))
-{-
-                    let loop :: Int -> Int -> IO ()
-                        loop ((<= nVars) -> False) x = do
-                          when (x /= pr) $ do
-                              lims <- take <$> get' trailLim <*> asList trailLim
-                              print lims
-                              print $ zipWith subtract lims (tail lims ++ [nVars])
-                              print (x, pr)
-                              error "stop"
-                        loop i x = do lv <- getNth level i
-                                      a <- getNth assigns i
-                                      loop (i + 1) $ if a /= lBottom && lv == 8 then x + 1 else x
-                    when (11 < lmax && lv == 8) $ loop 1 0
--}
-                    return $ 10 * (nv' - fromIntegral pr) / (nv' * d)
-  let tr = asUVector trail
-      bump :: Int -> Double -> IO ()
-      bump v k = do d' <- (k *) <$> get' varInc
-                    d <- (d' +) <$> pScale v
-                    a <- (d +) <$> getNth activities v
-                    setNth activities v a
-                    when (varActivityThreshold < a) $ varRescaleActivity s
-                    update s v
-                    setNth bumpFlags v 0
-      loop :: Int -> IO ()
-      loop ((< n) -> False) = return () -- setNth bumpFlags 0 0
-      loop i = do v <- lit2var <$> getNth tr i
-                  k <- getNth bumpFlags v
-                  when (0 < k) $ bump v (fromIntegral k)
-                  loop $ i + 1
-  unless useOnlineBump $ loop 0
+  unless useOnlineBump $ do
+    n <- get' trail
+    lmax <- get' trailLim
+    d <- sqrt . fromIntegral . (1 +) <$> decisionLevel s
+    let nv' = fromIntegral nVars :: Double
+        pScale :: Int -> IO Double -- population-based literal weighting
+        pScale i = do lv <- getNth level i
+                      pr <- case lv of
+                              0 -> return 1
+                              _ | lmax == lv -> subtract <$> getNth trailLim lv <*> return nVars
+                              _ -> subtract <$> getNth trailLim lv <*> getNth trailLim (lv + 1)
+                      -- when (pr < 0 || nVars < pr) $ error (show (i, lv, pr, n, x))
+  {-
+                      let loop :: Int -> Int -> IO ()
+                          loop ((<= nVars) -> False) x = do
+                            when (x /= pr) $ do
+                                lims <- take <$> get' trailLim <*> asList trailLim
+                                print lims
+                                print $ zipWith subtract lims (tail lims ++ [nVars])
+                                print (x, pr)
+                                error "stop"
+                          loop i x = do lv <- getNth level i
+                                        a <- getNth assigns i
+                                        loop (i + 1) $ if a /= lBottom && lv == 8 then x + 1 else x
+                      when (11 < lmax && lv == 8) $ loop 1 0
+  -}
+                      return $ 10 * (nv' - fromIntegral pr) / (nv' * d)
+    let tr = asUVector trail
+        bump :: Int -> Double -> IO ()
+        bump v k = do d' <- (k *) <$> get' varInc
+                      d <- (d' +) <$> pScale v
+                      a <- (d +) <$> getNth activities v
+                      setNth activities v a
+                      when (varActivityThreshold < a) $ varRescaleActivity s
+                      update s v
+                      setNth bumpFlags v 0
+        loop :: Int -> IO ()
+        loop ((< n) -> False) = return () -- setNth bumpFlags 0 0
+        loop i = do v <- lit2var <$> getNth tr i
+                    k <- getNth bumpFlags v
+                    when (0 < k) $ bump v (fromIntegral k)
+                    loop $ i + 1
+    loop 0
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE varDecayActivity #-}
