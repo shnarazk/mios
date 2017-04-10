@@ -487,12 +487,12 @@ varBumpAll s@Solver{..} = do
                     update s v
                     setNth bumpFlags v 0
       loop :: Int -> IO ()
-      loop ((< n) -> False) = return () -- setNth bumpFlags 0 0
+      loop ((0 <=) -> False) = return () -- setNth bumpFlags 0 0
       loop i = do v <- lit2var <$> getNth tr i
                   k <- getNth bumpFlags v
                   when (0 < k) $ bump v (fromIntegral k)
-                  loop $ i + 1
-  unless useOnlineBump $ loop 0
+                  loop $ i - 1
+  unless useOnlineBump $ loop n -- 0
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE varDecayActivity #-}
