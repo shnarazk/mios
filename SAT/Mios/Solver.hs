@@ -492,7 +492,7 @@ varBumpAll s@Solver{..} = do
                   k <- getNth bumpFlags v
                   when (0 < k) $ bump v (fromIntegral k)
                   loop $ i - 1
-  unless useOnlineBump $ loop n -- 0
+  unless useOnlineBump $ loop (n -1) -- 0
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE varDecayActivity #-}
