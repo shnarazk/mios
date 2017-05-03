@@ -257,7 +257,7 @@ addClause s@Solver{..} vecLits = do
 clauseNew :: Solver -> Stack -> Bool -> IO (Either Bool Clause)
 clauseNew s@Solver{..} ps isLearnt = do
   -- now ps[0] is the number of living literals
-  exit <- do
+  ex <- do
     let
       handle :: Int -> Int -> Int -> IO Bool
       handle j l n      -- removes duplicates, but returns @True@ if this clause is satisfied
@@ -304,7 +304,7 @@ clauseNew s@Solver{..} ps isLearnt = do
     if isLearnt then loopForLearnt 1 else loop 1
   k <- get' ps
   case k of
-   0 -> return (Left exit)
+   0 -> return (Left ex)
    1 -> do
      l <- getNth ps 1
      Left <$> enqueue s l NullClause
@@ -330,7 +330,7 @@ clauseNew s@Solver{..} ps isLearnt = do
        swapBetween vec 1 max_i
        -- check literals occurences
        -- x <- asList c
-       -- unless (length x == length (nub x)) $ error "new clause contains a element doubly"
+       -- unless (length x == length (nub x)) $ errorWithoutStackTrace "new clause contains a element doubly"
        -- Bumping:
        claBumpActivity s c -- newly learnt clauses should be considered active
      -- Add clause to watcher lists:
@@ -462,11 +462,11 @@ claActivityThreshold = 1e20
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 {-# INLINE varBumpActivity #-}
 varBumpActivity :: Solver -> Var -> IO ()
-varBumpActivity s@Solver{..} x = do
-  !a <- (+) <$> getNth activities x <*> get' varInc
-  setNth activities x a
+varBumpActivity s@Solver{..} v = do
+  a <- (+) <$> getNth activities v <*> get' varInc
+  setNth activities v a
   when (varActivityThreshold < a) $ varRescaleActivity s
-  update s x                    -- update the position in heap
+  update s v                   -- update the position in heap
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE varDecayActivity #-}

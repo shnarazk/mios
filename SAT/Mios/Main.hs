@@ -91,7 +91,7 @@ newLearntClause s@Solver{..} ps = do
 -- A constraint must /not/ be simplifiable to produce unit information or to be
 -- conflicting; in that case the propagation has not been correctly defined.
 --
--- MIOS NOTE: the original doesn't update watchers; only checks its satisfiabiliy.
+-- MIOS NOTE: the original doesn't update watchers; only checks its satisfiability.
 {-# INLINABLE simplify #-}
 simplify :: Solver -> Clause -> IO Bool
 simplify s c = do
@@ -100,9 +100,8 @@ simplify s c = do
     lvec = asUVector c
     loop ::Int -> IO Bool
     loop ((< n) -> False) = return False
-    loop i = do
-      v <- valueLit s =<< getNth lvec i
-      if v == 1 then return True else loop (i + 1)
+    loop i = do v <- valueLit s =<< getNth lvec i
+                if v == 1 then return True else loop (i + 1)
   loop 0
 
 --------------------------------------------------------------------------------
@@ -144,8 +143,7 @@ analyze s@Solver{..} confl = do
     trailVec = asUVector trail
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
-      when (learnt c) $ do
-        claBumpActivity s c
+      when (learnt c) $ claBumpActivity s c
 {-
         -- update LBD like #Glucose4.0
         d <- get' (lbd c)
@@ -218,11 +216,10 @@ analyze s@Solver{..} confl = do
       c1 <- (NullClause ==) <$> getNth reason (lit2var l)
       if c1
         then setNth litsVec j l >> loopOnLits (i + 1) (j + 1)
-        else do
-           c2 <- not <$> analyzeRemovable s l levels
-           if c2
-             then setNth litsVec j l >> loopOnLits (i + 1) (j + 1)
-             else loopOnLits (i + 1) j
+        else do c2 <- not <$> analyzeRemovable s l levels
+                if c2
+                  then setNth litsVec j l >> loopOnLits (i + 1) (j + 1)
+                  else loopOnLits (i + 1) j
   loopOnLits 1 1                -- the first literal is specail
   -- glucose heuristics
   nld <- get' an'lastDL
@@ -490,7 +487,8 @@ reduceDB s@Solver{..} = do
 -- * 19 bit: converted activity
 -- * remain: clauseVector index
 --
-(rankWidth :: Int, activityWidth :: Int, indexWidth :: Int) = (l, a, w - (l + a + 1))
+rankWidth, activityWidth, indexWidth :: Int
+(rankWidth, activityWidth, indexWidth) = (l, a, w - (l + a + 1))
   where
     w = finiteBitSize (0:: Int)
     (l, a) = case () of
@@ -498,7 +496,7 @@ reduceDB s@Solver{..} = do
       _ | 60 <= w -> (8, 24)   -- 26 bit =>  64M clauses
       _ | 32 <= w -> (6,  7)   -- 18 bit => 256K clauses
       _ | 29 <= w -> (6,  5)   -- 17 bit => 128K clauses
---      _ -> error "Int on your CPU doesn't have sufficient bit width."
+      _ -> errorWithoutStackTrace "Int on your CPU doesn't have sufficient bit width."
 
 {-# INLINABLE sortClauses #-}
 sortClauses :: Solver -> ClauseExtManager -> Int -> IO Int
@@ -514,7 +512,7 @@ sortClauses s cm nneeds = do
     indexMax :: Int
     indexMax = (2 ^ indexWidth - 1) -- 67,108,863 for 26
   n <- get' cm
-  -- when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds mios's " ++ show indexWidth ++" bit manage capacity"
+  -- when (indexMax < n) $ errorWithoutStackTrace $ "## The number of learnt clauses " ++ show n ++ " exceeds mios's " ++ show indexWidth ++" bit manage capacity"
   vec <- getClauseVector cm
   keys <- getKeyVector cm
   -- 1: assign keys
