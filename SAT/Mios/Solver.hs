@@ -1,5 +1,7 @@
 {-# LANGUAGE
     BangPatterns
+  , FlexibleInstances
+  , MultiParamTypeClasses
   , RecordWildCards
   , ScopedTypeVariables
   , TupleSections
@@ -120,7 +122,7 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> newVec nv (-1)                     -- level
     -- Variable Order
     <*> newVec nv 0                        -- activities
-    <*> newVarHeap nv                      -- order
+    <*> newVec nv (0,0)                    -- order
     -- Configuration
     <*> return conf                        -- config
     <*> return nv                          -- nVars
@@ -441,7 +443,7 @@ instance VarOrder Solver where
       -- | returns the most active var (heap-based implementation)
       loop :: IO Var
       loop = do
-        n <- numElementsInHeap s
+        n <- get' (order s)
         if n == 0
           then return 0
           else do
@@ -548,20 +550,24 @@ data VarHeap = VarHeap
                 , idxs :: !Stack  -- var to order (index)
                 }
 
-newVarHeap :: Int -> IO VarHeap
-newVarHeap n = do
-  v1 <- newVec n 0
-  v2 <- newVec n 0
-  let
-    loop :: Int -> IO ()
-    loop ((<= n) -> False) = set' v1 n >> set' v2 n
-    loop i = setNth v1 i i >> setNth v2 i i >> loop (i + 1)
-  loop 1
-  return $ VarHeap v1 v2
+instance VecFamily VarHeap (Int, Int) where
+  getNth _ _ = errorWithoutStackTrace "no getNth for VarHeap"
+  setNth _ _ _ = errorWithoutStackTrace "no getNth for VarHeap"
+  newVec n _ = do
+    v1 <- newVec n 0
+    v2 <- newVec n 0
+    let
+      loop :: Int -> IO ()
+      loop ((<= n) -> False) = set' v1 n >> set' v2 n
+      loop i = setNth v1 i i >> setNth v2 i i >> loop (i + 1)
+    loop 1
+    return $ VarHeap v1 v2
+--  copyVec  (VarHeap h i) = VarHeap <$> copyVec h <*> copyVec i
 
-{-# INLINE numElementsInHeap #-}
-numElementsInHeap :: Solver -> IO Int
-numElementsInHeap = get' . heap . order
+instance SingleStorage VarHeap Int where
+  set' _ _ = errorWithoutStackTrace "no set' for VarHeap"
+  {-# SPECIALIZE INLINE get' :: VarHeap -> IO Int #-}
+  get' = get' . heap
 
 {-# INLINE inHeap #-}
 inHeap :: Solver -> Var -> IO Bool
