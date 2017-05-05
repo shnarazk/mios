@@ -67,7 +67,7 @@ newLearntClause s@Solver{..} ps = do
            v <- lit2var <$> getNth vec i
            a <- getNth assigns v
            b <- getNth level v
-           if (a /= LiftedBottom) && (val < b)
+           if (a /= BottomBool) && (val < b)
              then findMax (i + 1) i b
              else findMax (i + 1) j val
        swapBetween vec 1 =<< findMax 0 0 0 -- Let @max_i@ be the index of the literal with highest decision level
@@ -706,7 +706,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                    (s `cancelUntil`) =<< get' rootLevel -- force a restart
                    claRescaleActivityAfterRestart s
                    incrementStat s NumOfRestart 1
-                   return LiftedBottom
+                   return BottomBool
              _ -> do
                -- New variable decision:
                v <- select s -- many have heuristic for polarity here
@@ -760,7 +760,7 @@ solve s@Solver{..} assumps = do
           while :: Double -> Double -> IO Bool
           while nOfConflicts nOfLearnts = do
             status <- search s (floor nOfConflicts) (floor nOfLearnts)
-            if status == LiftedBottom
+            if status == BottomBool
               then while (1.5 * nOfConflicts) (1.1 * nOfLearnts)
               else cancelUntil s 0 >> return (status == LiftedTrue)
         while 100 (nc / 3.0)

@@ -25,8 +25,9 @@ module SAT.Mios.Types
        , negateLit
          -- * Assignment on the lifted Bool domain
        , LiftedBool
+       , lit2lbool
 --       , lbool
-       , Int (LiftedFalse, LiftedTrue, LiftedBottom, LiftedConflict)
+       , Int (LiftedFalse, LiftedTrue, BottomBool, ConflictBool)
        , VarOrder (..)
          -- * CNF
        , CNFDescription (..)
@@ -39,7 +40,7 @@ module SAT.Mios.Types
 import Data.Bits
 import SAT.Mios.Vec
 
--- | represents "Var".
+-- | represents "Var". This can be used as index for accessing on Var-indexed Vectors.
 type Var = Int
 
 -- | Special constant in 'Var' (p.7)
@@ -53,7 +54,7 @@ bottomVar = 0
 -- >>> int2var 2
 -- 2  -- literal @2@ is variable 2
 -- >>> int2var (-2)
--- 2 -- literal @-2@ is corresponding to variable 2
+-- 2 -- literal @-2@ (note: its internal representation as 'Lit' is 5) is corresponding to variable 2
 --
 {-# INLINE int2var #-}
 int2var :: Int -> Int
@@ -72,7 +73,7 @@ bottomLit = 0
 {-
 -- | converts "Var" into 'Lit'
 newLit :: Var -> Lit
-newLit = error "newLit undefined"
+newLit = errorWithoutStackTrace "newLit undefined"
 -}
 
 -- | returns @True@ if the literal is positive
@@ -198,12 +199,16 @@ pattern LiftedTrue :: Int
 pattern LiftedTrue = 1
 
 -- | /UNDEFINED/ on the Lifted Bool domain
-pattern LiftedBottom :: Int
-pattern LiftedBottom = 0
+pattern BottomBool :: Int
+pattern BottomBool = 0
 
 -- | /CONFLICT/ on the Lifted Bool domain
-pattern LiftedConflict :: Int
-pattern LiftedConflict = 2
+pattern ConflictBool :: Int
+pattern ConflictBool = 2
+
+{-# INLINE lit2lbool #-}
+lit2lbool :: Lit -> LiftedBool
+lit2lbool l = if positiveLit l then LiftedTrue else LiftedFalse
 
 -- | Assisting ADT for the dynamic variable ordering of the solver.
 -- The constructor takes references to the assignment vector and the activity
@@ -213,27 +218,27 @@ class VarOrder o where
 {-
   -- | constructor
   newVarOrder :: (VecFamily v1 Bool, VecFamily v2 Double) => v1 -> v2 -> IO o
-  newVarOrder _ _ = error "newVarOrder undefined"
+  newVarOrder _ _ = errorWithoutStackTrace "newVarOrder undefined"
 
   -- | Called when a new variable is created.
   newVar :: o -> IO Var
-  newVar = error "newVar undefined"
+  newVar = errorWithoutStackTrace "newVar undefined"
 -}
   -- | should be called when a variable has increased in activity.
   update :: o -> Var -> IO ()
-  update _  = error "update undefined"
+  update _  = errorWithoutStackTrace "update undefined"
 {-
   -- | should be called when all variables have been assigned.
   updateAll :: o -> IO ()
-  updateAll = error "updateAll undefined"
+  updateAll = errorWithoutStackTrace "updateAll undefined"
 -}
   -- | should be called when a variable becomes unbound (may be selected again).
   undo :: o -> Var -> IO ()
-  undo _ _  = error "undo undefined"
+  undo _ _  = errorWithoutStackTrace "undo undefined"
 
   -- | returns a new, unassigned var as the next decision.
   select :: o -> IO Var
-  select    = error "select undefined"
+  select    = errorWithoutStackTrace "select undefined"
 
 -- | Misc information on a CNF
 data CNFDescription = CNFDescription
