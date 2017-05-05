@@ -14,7 +14,7 @@ module SAT.Mios.Solver
        (
          -- * Solver
          Solver (..)
-       , VarHeap
+       , VarHeap (..)
        , newSolver
        , getModel
          -- * Misc Accessors
@@ -39,7 +39,6 @@ module SAT.Mios.Solver
        , varDecayActivity
        , claActivityThreshold
          -- * Stats
-       , StatIndex (..)
        , getStat
        , setStat
        , incrementStat
@@ -76,10 +75,6 @@ data Solver = Solver
 {-            Configuration -}
               , config     :: !MiosConfiguration -- ^ search paramerters
               , nVars      :: !Int               -- ^ number of variables
-{-
-              -- , claInc     :: !Double'           -- ^ Clause activity increment amount to bump with.
-              -- , varDecay   :: !Double'           -- ^ used to set 'varInc'
--}
               , varInc     :: !Double'           -- ^ Variable activity increment amount to bump with.
               , rootLevel  :: !Int'              -- ^ Separates incremental and search assumptions.
 {-            Working Memory -}
@@ -90,14 +85,7 @@ data Solver = Solver
               , an'lastDL  :: !Stack             -- ^ last decision level used in 'SAT.Mios.Main.analyze'
               , litsLearnt :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze' and 'SAT.Mios.Main.search' to create a learnt clause
 
-{-
-              , pr'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.propagate'
--}
               , stats      :: !(UVector Int)     -- ^ statistics information holder
-{-
-              , lbd'seen   :: !Vec               -- ^ used in lbd computation
-              , lbd'key    :: !Int'              -- ^ used in lbd computation
--}
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
@@ -125,10 +113,6 @@ newSolver conf (CNFDescription nv nc _) = do
     -- Configuration
     <*> return conf                        -- config
     <*> return nv                          -- nVars
-{-
-    <*> new' 1.0                           -- claInc
-    <*> new' (variableDecayRate conf)      -- varDecay
--}
     <*> new' 1.0                           -- varInc
     <*> new' 0                             -- rootLevel
     -- Working Memory
@@ -138,14 +122,7 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> newStack nv                        -- an'stack
     <*> newStack nv                        -- an'lastDL
     <*> newStack nv                        -- litsLearnt
-{-
-    <*> newVec nv (-1)                     -- pr'seen
--}
-    <*> newVec (fromEnum EndOfStatIndex) 0 -- stats
-{-
-    <*> newVec nv                          -- lbd'seen
-    <*> newInt 0                           -- lbd'key
--}
+    <*> newVec (1 + fromEnum (maxBound :: StatIndex)) 0 -- stats
 
 --------------------------------------------------------------------------------
 -- Accessors
@@ -199,14 +176,6 @@ locked s c = (c ==) <$> (getNth (reason s) . lit2var =<< getNth (lits c) 1)
 
 -------------------------------------------------------------------------------- Statistics
 
--- | stat index
-data StatIndex =
-    NumOfBackjump               -- ^ the number of backjump
-  | NumOfRestart                -- ^ the number of restart
-  | NumOfPropagation            -- ^ the number of propagation
-  | EndOfStatIndex              -- ^ Don't use this dummy.
-  deriving (Bounded, Enum, Eq, Ord, Read, Show)
-
 -- | returns the value of 'StatIndex'.
 {-# INLINE getStat #-}
 getStat :: Solver -> StatIndex -> IO Int
@@ -225,7 +194,7 @@ incrementStat (stats -> v) (fromEnum -> i) k = modifyNth v (+ k) i
 -- | returns the statistics as a list.
 {-# INLINABLE getStats #-}
 getStats :: Solver -> IO [(StatIndex, Int)]
-getStats (stats -> v) = mapM (\i -> (i, ) <$> getNth v (fromEnum i)) [minBound .. pred maxBound :: StatIndex]
+getStats (stats -> v) = mapM (\i -> (i, ) <$> getNth v (fromEnum i)) [minBound .. maxBound :: StatIndex]
 
 -------------------------------------------------------------------------------- State Modifiers
 
@@ -355,7 +324,7 @@ enqueue s@Solver{..} p from = do
     k <- (12 +) <$> decisionLevel s
     when (k < l) $ set' (lbd from) k
 -}
-  let signumP = if positiveLit p then LiftedTrue else LiftedFalse
+  let signumP = lit2lbool p
   let v = lit2var p
   val <- valueVar s v
   if val /= BottomBool

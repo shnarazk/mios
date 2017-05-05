@@ -662,7 +662,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
       if confl /= NullClause
         then do
             -- CONFLICT
-            incrementStat s NumOfBackjump 1
+            incrementStat s NumOfBackjumps 1
             r <- get' rootLevel
             if d == r
               then do
@@ -705,7 +705,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                    -- Reached bound on number of conflicts
                    (s `cancelUntil`) =<< get' rootLevel -- force a restart
                    claRescaleActivityAfterRestart s
-                   incrementStat s NumOfRestart 1
+                   incrementStat s NumOfRestarts 1
                    return BottomBool
              _ -> do
                -- New variable decision:

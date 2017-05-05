@@ -34,6 +34,8 @@ module SAT.Mios.Types
          -- * Solver Configuration
        , MiosConfiguration (..)
        , defaultConfiguration
+         -- * statistics
+       , StatIndex (..)
        )
        where
 
@@ -265,3 +267,16 @@ data MiosConfiguration = MiosConfiguration
 --
 defaultConfiguration :: MiosConfiguration
 defaultConfiguration = MiosConfiguration 0.95 {- 0.999 -} {- 0 -}
+
+-------------------------------------------------------------------------------- statistics
+
+-- | stat index
+data StatIndex =
+    SatisfiabilityValue          -- ^ { -1 : unsatisfiable, 0 : process aborted, 1 : satisfiable }
+  | NumOfBackjumps               -- ^ the number of backjumps
+  | NumOfRestarts                -- ^ the number of restarts
+  | NumOfPropagations            -- ^ the number of propagations
+  | NumOfConflicts               -- ^ the number of conflicts solver found
+  | NumOfLearnts                 -- ^ the number of generated learnt clauses
+  | NumOfExtra
+  deriving (Bounded, Enum, Eq, Ord, Read, Show)
