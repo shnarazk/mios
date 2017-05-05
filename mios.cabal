@@ -80,7 +80,7 @@ library
   else
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields
 
-executable mios14jsai2107
+executable mios-jsai2017-14
   main-is:              app/mios.hs
   buildable:	        True
   default-language:	Haskell2010
