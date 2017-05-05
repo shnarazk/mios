@@ -243,6 +243,30 @@ class SingleStorage s Int => StackFamily s t | s -> t where
   shrinkBy = undefined
 
 -- | Alias of @Vec Int@. The 0-th element holds the number of elements.
+-- _Specification:_
+--
+-- * the 1st element @s[0]@ is a reserved space to hold the number of active elements.
+-- * thus valid index is /1 .. n/, where /n/ is the value stored in #s[0]@.
+-- * thus traversing all elements is like this.
+--
+-- @
+-- n <- get' (s :: Stack)
+-- let loop :: Int -> IO ()
+--     loop ((<= n) -> False) = return ...
+--     loop i = do x <- getNth s i
+--              loop $ i + 1
+-- loop 1
+-- @
+--
+-- or
+--
+-- @
+-- let loop :: Int -> IO ()
+--     loop ((0 <) -> False) = return ...
+--     loop i = do x <- getNth s i
+--              loop $ i - 1
+-- loop n
+-- @
 type Stack = Vec Int
 
 instance SingleStorage Stack Int where
