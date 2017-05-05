@@ -98,7 +98,6 @@ data Solver = Solver
               , lbd'seen   :: !Vec               -- ^ used in lbd computation
               , lbd'key    :: !Int'              -- ^ used in lbd computation
 -}
-              , intForDump :: !LongStack         -- ^ used for dump stats
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
@@ -147,7 +146,6 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> newVec nv                          -- lbd'seen
     <*> newInt 0                           -- lbd'key
 -}
-    <*> newStack 0                         -- intForDump
 
 --------------------------------------------------------------------------------
 -- Accessors
