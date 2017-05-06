@@ -105,7 +105,7 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> newStack nv                        -- trail
     <*> newStack nv                        -- trailLim
     <*> new' 0                             -- qHead
-    <*> newClauseVector (nv + 1)           -- reason
+    <*> newVec (nv + 1) NullClause         -- reason
     <*> newVec nv (-1)                     -- level
     -- Variable Order
     <*> newVec nv 0                        -- activities
