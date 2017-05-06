@@ -84,7 +84,6 @@ data Solver = Solver
               , an'stack   :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
               , an'lastDL  :: !Stack             -- ^ last decision level used in 'SAT.Mios.Main.analyze'
               , litsLearnt :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze' and 'SAT.Mios.Main.search' to create a learnt clause
-
               , stats      :: !(UVector Int)     -- ^ statistics information holder
               }
 
