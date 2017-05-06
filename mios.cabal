@@ -101,7 +101,7 @@ executable mios-jsai2017-14
                         SAT.Mios.Validator
                         SAT.Mios
 
-executable mios14jsai2017-prof
+executable mios-jsai2017-14-prof
   main-is:              app/mios.hs
   if flag(prof)
     buildable:	        True
