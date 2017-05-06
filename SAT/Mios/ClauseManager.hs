@@ -197,6 +197,10 @@ pushClauseWithKey !ClauseExtManager{..} !c k = do
 instance VecFamily ClauseExtManager (C.Clause, Int) where
   getNth = errorWithoutStackTrace "no getNth method for ClauseExtManager"
   setNth = errorWithoutStackTrace "no setNth method for ClauseExtManager"
+  asList cm = do
+    n <- get' cm
+    l <- zip <$> (asList =<< getClauseVector cm) <*> (asList =<< getKeyVector cm)
+    return (take n l)
   {-# SPECIALIZE INLINE reset :: ClauseExtManager -> IO () #-}
   reset m = set' (_nActives m) 0
 {-
@@ -229,6 +233,7 @@ getNthWatcher = V.unsafeIndex
 instance VecFamily WatcherList ClauseExtManager where
   getNth = errorWithoutStackTrace "no getNth method for WatcherList" -- getNthWatcher is a pure function
   setNth = errorWithoutStackTrace "no setNth method for WatcherList"
+  asList w = return $ V.toList w
   {-# SPECIALIZE INLINE reset :: WatcherList -> IO () #-}
   reset = V.mapM_ purifyManager
 --  dump _ _ = (mes ++) . concat <$> mapM (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i)) [1 .. V.length wl - 1]
