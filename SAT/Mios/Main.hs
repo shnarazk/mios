@@ -46,44 +46,38 @@ removeWatch (watches -> w) c = do
 {-# INLINABLE newLearntClause #-}
 newLearntClause :: Solver -> Stack -> IO ()
 newLearntClause s@Solver{..} ps = do
+  -- ps is a 'SizedVectorInt'; ps[0] is the number of active literals
+  -- Since this solver must generate only healthy learnt clauses, we need not to run misc check in 'newClause'
   good <- get' ok
-  when good $ do
-    -- ps is a 'SizedVectorInt'; ps[0] is the number of active literals
-    -- Since this solver must generate only healthy learnt clauses, we need not to run misc check in 'newClause'
-    k <- get' ps
-    case k of
-     1 -> do
-       l <- getNth ps 1
-       unsafeEnqueue s l NullClause
-     _ -> do
-       -- allocate clause:
-       c <- newClauseFromStack True ps
-       let vec = asUVector c
-       -- Pick a second literal to watch:
-       let
-         findMax :: Int -> Int -> Int -> IO Int
-         findMax ((< k) -> False) j _ = return j
-         findMax i j val = do
-           v <- lit2var <$> getNth vec i
-           a <- getNth assigns v
-           b <- getNth level v
-           if (a /= BottomBool) && (val < b)
-             then findMax (i + 1) i b
-             else findMax (i + 1) j val
-       swapBetween vec 1 =<< findMax 0 0 0 -- Let @max_i@ be the index of the literal with highest decision level
-       -- Bump, enqueue, store clause:
-       set' (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
-       -- Add clause to all managers
-       pushTo learnts c
-       l <- getNth vec 0
-       pushClauseWithKey (getNthWatcher watches (negateLit l)) c 0
-       l1 <- negateLit <$> getNth vec 1
-       pushClauseWithKey (getNthWatcher watches l1) c 0
-       -- update the solver state by @l@
-       unsafeEnqueue s l c
-       -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
-       -- setRank s c
-       set' (protected c) True
+  k <- get' ps
+  case k of
+    _ | not good -> return ()
+    1 -> do l <- getNth ps 1
+            unsafeEnqueue s l NullClause
+    _ -> do
+      -- allocate clause:
+      c <- newClauseFromStack True ps
+      let vec = asUVector c
+          -- Pick second literal to watch:
+          findMax :: Int -> Int -> Int -> IO Int
+          findMax ((< k) -> False) j _ = return j
+          findMax i j val = do b <- getNth level . lit2var =<< getNth vec i
+                               -- By starting the loop from i == 1, we can assure there is no 'large' literal.
+                               if val < b then findMax (i + 1) i b else findMax (i + 1) j val
+      swapBetween vec 1 =<< findMax 1 1 0 -- Let @max_i@ be the index of the literal with highest decision level
+      -- Bump, enqueue, store clause to all managers
+      pushTo learnts c
+      l0 <- getNth vec 0
+      pushClauseWithKey (getNthWatcher watches (negateLit l0)) c 0
+      l1 <- getNth vec 1
+      pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
+      set' (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
+      set' (protected c) True
+      -- update the solver state by @l0@
+      -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
+      unsafeEnqueue s l0 c
+      -- setRank s c
+      -- putStrLn =<< dump "L" c
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
 -- simplify its representation (returns @False@) or state that the constraint is
@@ -384,8 +378,8 @@ propagate s@Solver{..} = do
   let
     trailVec = asUVector trail
     while :: Clause -> Bool -> IO Clause
-    while confl False = {- bumpAllVar >> -} return confl
-    while confl True = do
+    while conflC False = {- bumpAllVar >> -} return conflC
+    while conflC True = do
       (p :: Lit) <- getNth trailVec =<< get' qHead
       let falseLit = negateLit p
       modify' qHead (+ 1)
@@ -431,7 +425,6 @@ propagate s@Solver{..} = do
                             then forClause confl (i + 1) (j + 1)
                             else do
                                 ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
-                                -- #BBCP
                                 set' qHead =<< get' trail
                                 -- Copy the remaining watches:
                                 let
@@ -451,7 +444,7 @@ propagate s@Solver{..} = do
                                 pushClauseWithKey (getNthWatcher watches (negateLit l')) c l'
                                 forClause confl (i + 1) j
                       forLit 2
-      forClause confl 0 0
+      forClause conflC 0 0
   while NullClause =<< ((<) <$> get' qHead <*> get' trail)
 
 -- | #M22
