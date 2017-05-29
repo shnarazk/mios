@@ -20,7 +20,7 @@ maintainer:             Shuji Narazaki <narazaki@nagasaki-u.ac.jp>
 category:               Artificial Intelligence, Constraints
 build-type:             Simple
 cabal-version:          >=1.16
-extra-source-files:  app/sample.hs
+extra-source-files:  app/sample.hs, app/solverStream.hs
 
 source-repository head
   type:                 git
