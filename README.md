@@ -30,7 +30,7 @@ in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSa
 
 ##### 1.5.0
 
-* use `ByteArray`, add stat utilities, rewrite code on conflict processing
+* use `ByteArray`, rewrite code on conflict processing
 
 ##### 1.4.0
 

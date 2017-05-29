@@ -38,10 +38,6 @@ Flag prof
   Description:	        Build the profiler
   Default:	        False
 
-Flag utils
-  Description:	        Build misc utilities for developer
-  Default:	        False
-
 library
   if flag(lib)
     buildable:	        True
@@ -69,7 +65,6 @@ library
                         SAT.Mios.Vec
                         SAT.Mios.Main
                         SAT.Mios.OptionParser
-                        SAT.Mios.Sandbox
                         SAT.Mios.Solver
                         SAT.Mios.Types
                         SAT.Mios.Validator
@@ -78,7 +73,6 @@ library
                         SAT.Mios.Util.DIMACS.Writer
                         SAT.Mios.Util.DIMACS
                         SAT.Mios.Util.BoolExp
-                        SAT.Mios.Util.Stat
                         SAT.Mios
   build-depends:        base ==4.9.*, vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
   if flag(llvm)
@@ -127,93 +121,3 @@ executable mios-prof
                         SAT.Mios.Types
                         SAT.Mios.Validator
                         SAT.Mios
-
-executable mios-dump2csv
-  main-is:              utils/dump2csv.hs
-  if flag(utils)
-    buildable:	        True
-  else
-    buildable:	        False
-  default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base ==4.9.*,  vector >= 0.11, bytestring >=0.10
-  ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
-  other-modules:
-                        SAT.Mios.Vec
-                        SAT.Mios.Types
-                        SAT.Mios.Util.Stat
-
-executable mios-averagecsv
-  main-is:              utils/averagecsv.hs
-  if flag(utils)
-    buildable:	        True
-  else
-    buildable:	        False
-  default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base ==4.9.*,  vector >= 0.11, bytestring >=0.10
-  ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
-  other-modules:
-                        SAT.Mios.Vec
-                        SAT.Mios.Types
-                        SAT.Mios.Util.Stat
-
-executable mios-summary
-  main-is:              utils/summary.hs
-  if flag(utils)
-    buildable:	        True
-  else
-    buildable:	        False
-  default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base ==4.9.*, vector >= 0.11, bytestring >=0.10
-  ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
-  other-modules:
-                        SAT.Mios.Vec
-                        SAT.Mios.Types
-                        SAT.Mios.Util.Stat
-
-executable mios-stat2csv
-  main-is:              utils/stat2csv.hs
-  if flag(utils)
-    buildable:	        True
-  else
-    buildable:	        False
-  default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base ==4.9.*, vector >= 0.11, bytestring >=0.10
-  ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
-  other-modules:
-                        SAT.Mios.Vec
-                        SAT.Mios.Types
-                        SAT.Mios.Util.Stat
-
-executable mios-pickup
-  main-is:              utils/pickup.hs
-  if flag(utils)
-    buildable:	        True
-  else
-    buildable:	        False
-  default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base ==4.9.*, vector >= 0.11, bytestring >=0.10
-  ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
-  other-modules:
-                        SAT.Mios.Vec
-                        SAT.Mios.Types
-                        SAT.Mios.Util.Stat
-
-executable mios-numbers
-  main-is:              utils/numbers.hs
-  if flag(utils)
-    buildable:	        True
-  else
-    buildable:	        False
-  default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base ==4.9.*, vector >= 0.11, bytestring >=0.10
-  ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
-  other-modules:
-                        SAT.Mios.Vec
-                        SAT.Mios.Types
-                        SAT.Mios.Util.Stat

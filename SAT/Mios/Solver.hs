@@ -24,7 +24,6 @@ module SAT.Mios.Solver
        , decisionLevel
        , valueVar
        , valueLit
---       , oldLit
        , locked
          -- * State Modifiers
        , addClause
