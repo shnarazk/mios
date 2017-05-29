@@ -36,6 +36,12 @@ module SAT.Mios.Types
        , defaultConfiguration
          -- * statistics
        , StatIndex (..)
+         -- * dump statistics
+       , DumpTag (..)
+       , DumpedValue
+       , MiosStats (..)
+       , QuadLearntC (..)
+       , MiosDump (..)
        )
        where
 
@@ -245,18 +251,25 @@ class VarOrder o where
 -- | Misc information on a CNF
 data CNFDescription = CNFDescription
   {
-    _numberOfVariables :: !Int           -- ^ the number of variables
+    _pathname :: Maybe FilePath          -- ^ given filename
+  , _numberOfVariables :: !Int           -- ^ the number of variables
   , _numberOfClauses :: !Int             -- ^ the number of clauses
-  , _pathname :: Maybe FilePath          -- ^ given filename
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Read, Show)
 
 -- | Solver's parameters; random decision rate was dropped.
-data MiosConfiguration = MiosConfiguration
-                         {
-                           variableDecayRate  :: !Double  -- ^ decay rate for variable activity
---                         , clauseDecayRate    :: !Double  -- ^ decay rate for clause activity
-                         }
+data MiosConfiguration
+  = MiosConfiguration
+    {
+      variableDecayRate :: !Double  -- ^ decay rate for variable activity
+    --, clauseDecayRate :: !Double  -- ^ decay rate for clause activity
+    , propagationLimit  :: !Int     -- ^ a resource limit
+    , gpParameter1      :: !Double  -- ^ 1st param for greedy propagation
+    , gpParameter2      :: !Double  -- ^ 2nd param for greedy propagytion
+    , extraParameter3   :: !Int     -- ^ used in mcb experimentation
+    , extraParameter4   :: !Int     -- ^ used in mcb experimentation
+    }
+  deriving (Eq, Ord, Read, Show)
 
 -- | dafault configuration
 --
@@ -266,7 +279,14 @@ data MiosConfiguration = MiosConfiguration
 -- * Mios-1.2     uses @(0.95, 0.999, 0)@.
 --
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 {- 0.999 -} {- 0 -}
+defaultConfiguration = MiosConfiguration
+                         0.95   -- variableDecayRate
+                         -- {- 0.999 -} {- 0 -}
+                         0      -- propagationLimit
+                         0 -- 6.0    -- gpParameter1
+                         0 -- 0.35   -- gpParameter2
+                         0 -- 1      -- extraParameter3
+                         0      -- extraParameter4
 
 -------------------------------------------------------------------------------- statistics
 
@@ -280,3 +300,29 @@ data StatIndex =
   | NumOfLearnts                 -- ^ the number of generated learnt clauses
   | NumOfExtra
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
+
+data DumpTag = TerminateS
+             | PropagationS
+             | ConflictS
+             | LearntS
+             | BackjumpS
+             | RestartS
+             | LearningRateS
+             | ExtraS
+             deriving (Bounded, Enum, Eq, Ord, Read, Show)
+
+type DumpedValue = (DumpTag, Either Double Int)
+
+newtype MiosStats = MiosStats [DumpedValue]
+  deriving (Eq, Ord, Read, Show)
+
+data QuadLearntC = QuadLearntC (Double, Double, Double) (Double, Double, Double) (Double, Double, Double) (Double, Double, Double)
+  deriving (Eq, Ord, Read, Show)
+
+data MiosDump =
+  MiosDump { _dumpedConf ::  (String, MiosConfiguration)
+           , _dupmedCNFDesc :: CNFDescription
+           , _dumpedStat :: MiosStats
+           , _dumpedLCat :: QuadLearntC        -- quad categorization of learnts
+           }
+  deriving (Eq, Ord, Read, Show)

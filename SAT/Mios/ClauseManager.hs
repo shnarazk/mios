@@ -47,7 +47,7 @@ data ClauseExtManager = ClauseExtManager
     _nActives     :: !Int'                         -- number of active clause
   , _purged       :: !Bool'                        -- whether it needs gc
   , _clauseVector :: IORef.IORef C.ClauseVector    -- clause list
-  , _keyVector    :: IORef.IORef (UVector Int)     -- Int list
+  , _keyVector    :: IORef.IORef (Vec [Int])       -- Int list
   }
 
 -- | 'ClauseExtManager' is a 'SingleStorage` on the numeber of clauses in it.
@@ -170,7 +170,7 @@ purifyManager ClauseExtManager{..} = do
 
 -- | returns the associated Int vector, which holds /blocking literals/.
 {-# INLINE getKeyVector #-}
-getKeyVector :: ClauseExtManager -> IO (UVector Int)
+getKeyVector :: ClauseExtManager -> IO (Vec [Int])
 getKeyVector ClauseExtManager{..} = IORef.readIORef _keyVector
 
 -- | O(1) inserter

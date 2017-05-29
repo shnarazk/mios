@@ -84,12 +84,13 @@ data Solver = Solver
               , an'stack   :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
               , an'lastDL  :: !Stack             -- ^ last decision level used in 'SAT.Mios.Main.analyze'
               , litsLearnt :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze' and 'SAT.Mios.Main.search' to create a learnt clause
-              , stats      :: !(UVector Int)     -- ^ statistics information holder
+              , newLearnts :: !ClauseExtManager  -- ^ keeps new learnt clauses, used in 'SAT.Mios.Main.analyze'
+              , stats      :: !(Vec Int)         -- ^ statistics information holder
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
 newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
-newSolver conf (CNFDescription nv nc _) = do
+newSolver conf (CNFDescription _ nv nc) = do
   Solver
     -- Public Interface
     <$> newVec nv 0                        -- model
@@ -121,6 +122,7 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> newStack nv                        -- an'stack
     <*> newStack nv                        -- an'lastDL
     <*> newStack nv                        -- litsLearnt
+    <*> newManager 4                       -- newLearnts
     <*> newVec (1 + fromEnum (maxBound :: StatIndex)) 0 -- stats
 
 --------------------------------------------------------------------------------
@@ -279,14 +281,14 @@ clauseNew s@Solver{..} ps isLearnt = do
    _ -> do
     -- allocate clause:
      c <- newClauseFromStack isLearnt ps
-     let vec = asUVector c
+     let lstack = lits c
      when isLearnt $ do
        -- Pick a second literal to watch:
        let
          findMax :: Int -> Int -> Int -> IO Int
-         findMax ((< k) -> False) j _ = return j
+         findMax ((<= k) -> False) j _ = return j
          findMax i j val = do
-           v' <- lit2var <$> getNth vec i
+           v' <- lit2var <$> getNth lstack i
            varBumpActivity s v' -- this is a just good chance to bump activities of literals in this clause
            a <- getNth assigns v'
            b <- getNth level v'
@@ -294,18 +296,18 @@ clauseNew s@Solver{..} ps isLearnt = do
              then findMax (i + 1) i b
              else findMax (i + 1) j val
        -- Let @max_i@ be the index of the literal with highest decision level
-       max_i <- findMax 0 0 0
-       swapBetween vec 1 max_i
+       max_i <- findMax 1 1 0
+       swapBetween lstack 2 max_i
        -- check literals occurences
        -- x <- asList c
        -- unless (length x == length (nub x)) $ errorWithoutStackTrace "new clause contains a element doubly"
        -- Bumping:
        claBumpActivity s c -- newly learnt clauses should be considered active
      -- Add clause to watcher lists:
-     l0 <- negateLit <$> getNth vec 0
-     pushClauseWithKey (getNthWatcher watches l0) c 0
-     l1 <- negateLit <$> getNth vec 1
+     l1 <- negateLit <$> getNth lstack 1
      pushClauseWithKey (getNthWatcher watches l1) c 0
+     l2 <- negateLit <$> getNth lstack 2
+     pushClauseWithKey (getNthWatcher watches l2) c 0
      return (Right c)
 
 -- | __Fig. 9 (p.14)__
@@ -353,17 +355,16 @@ cancelUntil :: Solver -> Int -> IO ()
 cancelUntil s@Solver{..} lvl = do
   dl <- decisionLevel s
   when (lvl < dl) $ do
-    let tr = asUVector trail
-    let tl = asUVector trailLim
-    lim <- getNth tl lvl
+    lim <- getNth trailLim (lvl + 1)
     ts <- get' trail
     ls <- get' trailLim
     let
       loopOnTrail :: Int -> IO ()
-      loopOnTrail ((lim <=) -> False) = return ()
+      loopOnTrail ((lim <) -> False) = return ()
       loopOnTrail c = do
-        x <- lit2var <$> getNth tr c
-        setNth phases x =<< getNth assigns x
+        x <- lit2var <$> getNth trail c
+        o <- getNth assigns x
+        when (o == LiftedTrue || o == LiftedFalse) $ setNth phases x o
         setNth assigns x BottomBool
         -- #reason to set reason Null
         -- if we don't clear @reason[x] :: Clause@ here, @reason[x]@ remains as locked.
@@ -373,7 +374,7 @@ cancelUntil s@Solver{..} lvl = do
         undo s x
         -- insertHeap s x              -- insertVerOrder
         loopOnTrail $ c - 1
-    loopOnTrail $ ts - 1
+    loopOnTrail ts
     shrinkBy trail (ts - lim)
     shrinkBy trailLim (ls - lvl)
     set' qHead =<< get' trail
