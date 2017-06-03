@@ -50,7 +50,7 @@ removeWatch (watches -> w) c = do
 -- * (lits c)[1] = the resolvent literal, which present level is larger backjump level.
 -- * successive literals = reason literals, which levels are smaller than the backjump level.
 {-# INLINABLE pushLearntClause #-}
-pushLearntClause :: Solver -> Clause -> Bool -> IO ()
+pushLearntClause :: Solver -> Clause ->Int -> IO ()
 pushLearntClause s@Solver{..} c realResolvent = do
   good <- get' ok
   k <- get' c
@@ -74,9 +74,9 @@ pushLearntClause s@Solver{..} c realResolvent = do
       pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
       l2 <- getNth lstack 2
       pushClauseWithKey (getNthWatcher watches (negateLit l2)) c 0
-      modify' (activity c) (\x -> if x == 0 then 1 {- fromIntegral d -} else x)
+      modify' (activity c) (\x -> if x == 0 then fromIntegral (max 1 realResolvent) {- d -} else x)
       -- new real learnt clauses should be considered as active
-      when realResolvent $ set' (protected c) True
+      when (0 < realResolvent) $ set' (protected c) True
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
 -- simplify its representation (returns @False@) or state that the constraint is
@@ -786,7 +786,7 @@ type SelectorOutput = (Int, Either Lit [Resolvent], [Resolvent])
 dispatch :: Solver -> SelectorOutput -> IO ()
 dispatch s@Solver{..} (bj, lowest, clss) = do
   let register :: Resolvent -> IO ()
-      register ((k, _, _, _), c) = do pushLearntClause s c (k <= bj)
+      register ((k, _, _, _), c) = do pushLearntClause s c (if k <= bj then bj else 0)
                                       set' (activity c) $ fromIntegral bj
       implicate :: Resolvent -> IO ()
       implicate ((k, _, _, t), c)
