@@ -361,9 +361,9 @@ analyzeFinal Solver{..} confl skipFirst = do
 -- memo: @propagate@ is invoked by @search@,`simpleDB` and `solve`
 -- #GreedyPropagation: returns @True@ if a conflict occured, otherwise @False@
 {-# INLINABLE propagate #-}
-propagate :: Solver -> Double -> Double -> IO Bool
+propagate :: Solver -> -> IO Bool
 -- | an implementation based on the standard algorithm
-propagate s@Solver{..} 0 0 = do
+propagate s@Solver{..} = do
   let
     cnflClsManager = getNthWatcher watches 0
     while :: Clause -> Bool -> IO Bool
@@ -583,7 +583,7 @@ simplifyDB s@Solver{..} = do
   good <- get' ok
   if good
     then do
-      conflicting <- propagate s 0 0
+      conflicting <- propagate s
       if conflicting
         then set' ok False >> return False
         else do
@@ -638,7 +638,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
   let
     loop :: Int -> IO Int
     loop conflictC = do
-      conflicting <- propagate s (gpParameter1 config) (gpParameter2 config)
+      conflicting <- propagate s
       d <- decisionLevel s
       if conflicting
         then do confl <- getConflictingClause s
@@ -721,7 +721,7 @@ solve s@Solver{..} assumps = do
             cancelUntil s 0
             return False
         else do
-            conflicting <- propagate s 0 0
+            conflicting <- propagate s
             if conflicting
               then do
                   confl <- getConflictingClause s
