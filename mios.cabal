@@ -74,7 +74,7 @@ library
                         SAT.Mios.Util.DIMACS
                         SAT.Mios.Util.BoolExp
                         SAT.Mios
-  build-depends:        base ==4.9.*, vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
+  build-depends:        base >=4.9, vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
   if flag(llvm)
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O2 -optlc-O2
   else
@@ -85,7 +85,7 @@ executable mios
   buildable:	        True
   default-language:	Haskell2010
   default-extensions:  Strict
-  build-depends:        base ==4.9.*,  vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
+  build-depends:        base >=4.9,  vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
   if flag(llvm)
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O2 -optlc-O2
   else
@@ -109,7 +109,7 @@ executable mios-prof
     buildable:	        False
   default-language:	Haskell2010
   default-extensions:  Strict
-  build-depends:        base ==4.9.*,  vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
+  build-depends:        base >=4.9,  vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
   ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -prof -fprof-auto
   other-modules:
                         SAT.Mios.Clause
