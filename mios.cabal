@@ -76,7 +76,7 @@ library
                         SAT.Mios
   build-depends:        base ==4.9.*, vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
   if flag(llvm)
-    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O3
+    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O2 -optlc-O2
   else
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields
 
@@ -87,7 +87,7 @@ executable mios
   default-extensions:  Strict
   build-depends:        base ==4.9.*,  vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
   if flag(llvm)
-    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O3
+    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O2 -optlc-O2
   else
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields
   other-modules:
