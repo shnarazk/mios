@@ -50,7 +50,7 @@ removeWatch (watches -> w) c = do
 -- * (lits c)[1] = the resolvent literal, which present level is larger backjump level.
 -- * successive literals = reason literals, which levels are smaller than the backjump level.
 {-# INLINABLE pushLearntClause #-}
-pushLearntClause :: Solver -> Clause ->Int -> IO ()
+pushLearntClause :: Solver -> Clause -> Bool-> IO ()
 pushLearntClause s@Solver{..} c realResolvent = do
   good <- get' ok
   k <- get' c
@@ -74,9 +74,8 @@ pushLearntClause s@Solver{..} c realResolvent = do
       pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
       l2 <- getNth lstack 2
       pushClauseWithKey (getNthWatcher watches (negateLit l2)) c 0
-      modify' (activity c) (\x -> if x == 0 then fromIntegral (max 1 realResolvent) {- d -} else x)
       -- new real learnt clauses should be considered as active
-      when (0 < realResolvent) $ set' (protected c) True
+      when realResolvent $ set' (protected c) True
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
 -- simplify its representation (returns @False@) or state that the constraint is
@@ -229,10 +228,9 @@ analyze s@Solver{..} confl = do
                      setNth an'seen v 0
                      cleaner $ i + 1
   cleaner 1
-  -- #GreedyPropagation :start; analyze should store the results into watches[0] directly
   newClause <- newClauseFromStack True litsLearnt
+  set' (activity newClause) (fromIntegral levelToReturn)
   pushClauseWithKey newLearnts newClause levelToReturn
-  -- #GreedyPropagation :end
   return levelToReturn
 
 -- | #M114
@@ -361,7 +359,7 @@ analyzeFinal Solver{..} confl skipFirst = do
 -- memo: @propagate@ is invoked by @search@,`simpleDB` and `solve`
 -- #GreedyPropagation: returns @True@ if a conflict occured, otherwise @False@
 {-# INLINABLE propagate #-}
-propagate :: Solver -> -> IO Bool
+propagate :: Solver -> IO Bool
 -- | an implementation based on the standard algorithm
 propagate s@Solver{..} = do
   let
@@ -659,7 +657,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                       conflictCs <- getClauseVector confs
                       n <- get' confs
                       mapM_ (analyze s <=< getNth conflictCs) [0 .. n - 1]
-                      dispatch s =<< categorizeResolvents s (extraParameter3 config) (extraParameter4 config)
+                      dispatch s =<< categorizeResolvents s -- (extraParameter3 config) (extraParameter4 config)
                       varDecayActivity s
                       -- claDecayActivity s
                       loop $ conflictC + 1
@@ -783,16 +781,14 @@ type Resolvent = ((Int, Double, Lit, Var), Clause)
 type SelectorOutput = (Int, Either Lit [Resolvent], [Resolvent])
 
 -- | the latter part of resolvent categorization
+{-# INLINABLE dispatch #-}
 dispatch :: Solver -> SelectorOutput -> IO ()
 dispatch s@Solver{..} (bj, lowest, clss) = do
   let register :: Resolvent -> IO ()
-      register ((k, _, _, _), c) = do pushLearntClause s c (if k <= bj then bj else 0)
-                                      set' (activity c) $ fromIntegral bj
+      register ((k, _, _, _), c) = pushLearntClause s c (k <= bj)
       implicate :: Resolvent -> IO ()
-      implicate ((k, _, _, t), c)
-        | bj < k = error "should not be implicated"
-        | otherwise = do v <- valueLit s t
-                         when (v == BottomBool) $ unsafeEnqueue s t c
+      implicate ((_, _, _, t), c) = do v <- valueLit s t
+                                       when (v == BottomBool) $ unsafeEnqueue s t c
   cancelUntil s bj
   mapM_ register clss
   case lowest of
@@ -801,12 +797,12 @@ dispatch s@Solver{..} (bj, lowest, clss) = do
                    mapM_ implicate cs
 
 -- | Resolvent Categorization
-categorizeResolvents :: Solver -> Int -> Int -> IO SelectorOutput
+{-# INLINE categorizeResolvents #-}
+categorizeResolvents :: Solver -> {- Int -> Int -> -} IO SelectorOutput
 -- an implementation for the normal propagation embedded in resolevent categorization
-categorizeResolvents solver@Solver{..} 0 0 = do
+categorizeResolvents Solver{..} {- 0 0 -} = do
   c <- flip getNth 0 =<< getClauseVector newLearnts
   b <- flip getNth 0 =<< getKeyVector newLearnts
   t <- getNth (lits c) 1
-  set' (activity c) $ logBase 2 (fromIntegral b)
   -- varBumpAll solver 1
   return (b, Right [((b, 0, 0, t), c)], [])
