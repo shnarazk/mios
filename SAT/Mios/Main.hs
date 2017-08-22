@@ -50,7 +50,7 @@ removeWatch (watches -> w) c = do
 -- * (lits c)[1] = the resolvent literal, which present level is larger backjump level.
 -- * successive literals = reason literals, which levels are smaller than the backjump level.
 {-# INLINABLE pushLearntClause #-}
-pushLearntClause :: Solver -> Clause -> Bool-> IO ()
+pushLearntClause :: Solver -> Clause -> Bool -> IO ()
 pushLearntClause s@Solver{..} c realResolvent = do
   good <- get' ok
   k <- get' c
@@ -74,6 +74,7 @@ pushLearntClause s@Solver{..} c realResolvent = do
       pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
       l2 <- getNth lstack 2
       pushClauseWithKey (getNthWatcher watches (negateLit l2)) c 0
+      modify' (activity c) (\x -> if x == 0 then 1 {- fromIntegral d -} else x)
       -- new real learnt clauses should be considered as active
       when realResolvent $ set' (protected c) True
 
@@ -171,7 +172,7 @@ analyze s@Solver{..} confl = do
         -- select next clause to look at
         nextPickedUpLit :: Int -> IO Int
         nextPickedUpLit i = do x <- getNth an'seen . lit2var =<< getNth trail i
-                               if x == 0 then nextPickedUpLit $ i - 1 else return (i - 1)
+                               if x == 0 then nextPickedUpLit (i - 1) else return (i - 1)
       ti' <- nextPickedUpLit (ti + 1)
       nextP <- getNth trail (ti' + 1)
       let nextV = lit2var nextP
@@ -228,9 +229,10 @@ analyze s@Solver{..} confl = do
                      setNth an'seen v 0
                      cleaner $ i + 1
   cleaner 1
+  -- #GreedyPropagation :start; analyze should store the results into watches[0] directly
   newClause <- newClauseFromStack True litsLearnt
-  set' (activity newClause) (fromIntegral levelToReturn)
   pushClauseWithKey newLearnts newClause levelToReturn
+  -- #GreedyPropagation :end
   return levelToReturn
 
 -- | #M114
@@ -435,6 +437,111 @@ propagate s@Solver{..} = do
       forClause conflC 0 0
   reset cnflClsManager
   while NullClause =<< ((<) <$> get' qHead <*> get' trail)
+
+{-
+-- | an implementation of greedy propagation
+propagate s@Solver{..} gp's gp'i = do
+  nAssigns' <- nAssigns s
+  -- myVal <- getNth stats (fromEnum NumOfBackjumps)
+  -- we use the first element of 'watches' to store all conflicting clauses. So clear it here.
+  let cnflClsManager = getNthWatcher watches 0
+  reset cnflClsManager
+  -- By using enough big value, 'lim < now' is the valid predicate to check the termination condition.
+  -- initLimProp <- (5 *) <$> ((+) <$> nClauses s <*> nLearnts s)
+  let
+    -- the arg is the limit/current propagations
+    -- it returts @True@ if a conflict occured
+    handleWatch :: Int -> IO Bool
+    handleWatch np = do
+      qindex <- get' qHead
+      tindex <- get' trail
+      case () of
+        _ | not (qindex < tindex) -> (0 <) <$> get' cnflClsManager
+        _ -> do
+              (p :: Lit) <- getNth trail (qindex + 1)
+              let falseLit = negateLit p
+              modify' qHead (+ 1)
+              let (ws :: ClauseExtManager) = getNthWatcher watches p
+              end <- get' ws
+              cvec <- getClauseVector ws
+              bvec <- getKeyVector ws
+              let
+                -- 1st arg is the limit/current propagations
+                -- 2nd arg is the source clause index
+                -- 3rd arg is the distination clause index
+                seekConflict :: Int -> Int -> Int -> IO Bool -- CPS
+                seekConflict 0 i j = do                      -- TERMINATION CONDITION
+                  unless (i == j) $ do
+                    let
+                      copy :: Int -> Int -> IO ()
+                      copy ((< end) -> False) j' = shrinkBy ws (end - j')
+                      copy i' j' = do setNth cvec j' =<< getNth cvec i'
+                                      setNth bvec j' =<< getNth bvec i'
+                                      copy (i' + 1) (j' + 1)
+                    copy i j
+                  set' qHead =<< get' trail
+                  (0 <) <$> get' cnflClsManager
+                seekConflict n ((== end) -> True) j = do     -- end of watch list
+                  unless (end == j) $ shrinkBy ws (end - j)
+                  handleWatch n
+                seekConflict n i j = do                      -- normal case
+                  (l :: Lit) <- getNth bvec i
+                  (c :: Clause) <- getNth cvec i
+                  bv <- if l == 0 || falseLit == l then return LiftedFalse else valueLit s l
+                  if bv == LiftedTrue
+                    then do unless (i == j) (setNth cvec j c >> setNth bvec j l)
+                            seekConflict (n + 1) (i + 1) (j + 1)
+                    else do
+                        let lstack = lits c
+                        -- Make sure the false literal is data[1]
+                        ((falseLit ==) <$> getNth lstack 1) >>= (`when` swapBetween lstack 1 2)
+                        -- if 0th watch is true, then clause is already satisfied.
+                        (first :: Lit) <- getNth lstack 1
+                        val <- valueLit s first
+                        if val == LiftedTrue || abs val == ConflictBool
+                          then do setNth cvec j c
+                                  setNth bvec j first
+                                  seekConflict (n + 1) (i + 1) (j + 1)
+                          else
+                          do -- Look for a new watch
+                            cs <- get' c
+                            let
+                              forLit :: Int -> IO Bool -- CPS
+                              forLit ((<= cs) -> False) = do
+                                -- Did not find watch; clause is unit under assignment:
+                                setNth cvec j c
+                                setNth bvec j 0
+                                noConflict <- enqueue s first c
+                                if noConflict
+                                  then seekConflict (n + 1) (i + 1) (j + 1)
+                                  else do
+                                    let v = lit2var first
+                                    dl <- decisionLevel s
+                                    when (dl == 0) $ set' ok False
+                                    pushClauseWithKey cnflClsManager c first
+                                    setNth phases v =<< getNth assigns v
+                                    lv <- getNth level v
+                                    when (lv == dl) $ setNth assigns v ConflictBool
+                                    n' <- if 0 < n
+                                          then do dn <- subtract nAssigns' <$> nAssigns s -- delta of nAssigns
+                                                  let delta :: Double -- that is assign rate against propagation
+                                                      delta = gp's * (fromIntegral dn / fromIntegral n) ** gp'i
+                                                      -- delta = gp's * fromIntegral dn / fromIntegral n ** gp'i
+                                                  return . negate . floor $ delta
+                                          else return $ n + 1
+                                    seekConflict n' (i + 1) (j + 1)
+                              forLit k = do
+                                (l' :: Lit) <- getNth lstack k
+                                lv <- valueLit s l'
+                                if lv == LiftedFalse
+                                  then forLit $ k + 1
+                                  else do swapBetween lstack 2 k
+                                          pushClauseWithKey (getNthWatcher watches (negateLit l')) c l'
+                                          seekConflict (n + 1) (i + 1) j
+                            forLit 3
+              seekConflict np 0 0
+  handleWatch 1
+-}
 
 -- | #M22
 -- reduceDB: () -> [void]
@@ -785,7 +892,8 @@ type SelectorOutput = (Int, Either Lit [Resolvent], [Resolvent])
 dispatch :: Solver -> SelectorOutput -> IO ()
 dispatch s@Solver{..} (bj, lowest, clss) = do
   let register :: Resolvent -> IO ()
-      register ((k, _, _, _), c) = pushLearntClause s c (k <= bj)
+      register ((k, _, _, _), c) = do pushLearntClause s c (k <= bj)
+                                      set' (activity c) $ fromIntegral bj
       implicate :: Resolvent -> IO ()
       implicate ((_, _, _, t), c) = do v <- valueLit s t
                                        when (v == BottomBool) $ unsafeEnqueue s t c
@@ -806,3 +914,114 @@ categorizeResolvents Solver{..} {- 0 0 -} = do
   t <- getNth (lits c) 1
   -- varBumpAll solver 1
   return (b, Right [((b, 0, 0, t), c)], [])
+
+{-
+-- an implementation of resolvent clause categorization
+-- * par'3 is used to select a clause evaluator.
+-- * par'4 is used whether non-core resolvents are registered.
+categorizeResolvents solver@Solver{..} par'3 par'4 = do
+  cvec <- getClauseVector newLearnts
+  kvec <- getKeyVector newLearnts
+  hvec <- getKeyVector (getNthWatcher watches 0)
+  void $ subsumeClauses solver    -- DON'T TOUCH; eliminating replicates is crucial.
+  n <- get' newLearnts
+  let mkResolvent :: Int -> IO Resolvent
+      mkResolvent i = do c <- getNth cvec i
+                         k <- getNth kvec i
+                         s <- getNth hvec i
+                         t <- getNth (lits c) 1
+                         w <- case par'3 of           -- smaller is better
+                                _ | n == 1 -> return 1
+                                1 -> fromIntegral <$> get' c
+                                2 -> fromIntegral <$> lbdOf solver c
+                                3 -> averageActivity solver c
+                                _ -> return 1        -- 4 : no valuation
+                         return ((k, w, lit2var s, t), c)
+      level'  ((k, _, _, _), _) = k
+      value'  ((_, w, _, _), _) = w
+      crash'  ((_, _, s, _), _) = s
+      target' ((_, _, _, t), _) = t
+  rsls <- mapM mkResolvent [0 .. n - 1]
+  let v = minimum $ map value' rsls
+      (cands, ngs) = filter' ((v ==) . value') rsls
+      bj = minimum $ map level' cands
+      (core', skin) = filter' ((bj ==) . level') {- $ filter ((bj <=) . level') -} cands
+      ts = nub $ map target' core'
+      core = concatMap (\t -> sortBy (comparing value') (filter ((t ==) . target') core')) ts
+  -- mapM_ (\r -> do varBumpActivity solver (crash' r); set' (activity (snd r)) 1) core
+  mapM_ (\(target' -> t) -> setNth assigns (lit2var t) (lit2lbool t)) $ skin ++ ngs
+  return (bj, Right core, if par'4 == 0 then skin else [])
+
+{-# INLINE filter' #-}
+filter' :: (a -> Bool) -> [a] -> ([a], [a])
+filter' f l = foldr merger ([], []) l
+  where merger x (a,b) = if f x then (x : a, b) else (a, x : b)
+
+-- | note: the target literal's level is going to decrease to the highest level of remains.
+-- So we drop the highest one by @init . sort@.
+{-# INLINE lbdOf #-}
+lbdOf :: Solver -> Clause -> IO Int
+lbdOf Solver{..} c = (length . nub . init . sort) <$> (mapM (getNth level . lit2var) . tail =<< asList c)
+
+-- | returns a sort of clause activity; smaller is better.
+averageActivity :: Solver -> Clause -> IO Double
+averageActivity Solver{..} c = do
+  n <- get' c
+  let lstack = lits c
+      loop :: Int -> Double -> IO Double
+      loop ((<= n) -> False) x = return $ fromIntegral n / x
+      loop i x = do a <- getNth activities . lit2var =<< getNth lstack i
+                    loop (i + 1) (x + a)
+  loop 1 0
+
+-- | deletes subsumed clauses from generated learnts
+-- Since the number of learnts is very small, we can use list, sort, and so on.
+-- And it returns the lowest and second lowest decision level to resolve conflicts
+-- Note: also key vector of watches[0] changes to keep the relation between conflict clauses and resolvent clauses
+subsumeClauses :: Solver -> IO (Int, Int)
+subsumeClauses s@Solver{..} = do
+--  cp <- return False -- (1000 <) <$> getStat s NumOfBackjumps
+  let manager = newLearnts
+  let cnflMgr = getNthWatcher watches 0
+  cvec <- getClauseVector manager
+  bvec <- getKeyVector manager
+  hvec <- getKeyVector cnflMgr
+  let
+    -- 1st arg @n@ is the index of the last clause; so valid index is [0 .. n]
+    loop :: Int -> Int -> Int -> Int -> IO (Int, Int)
+    loop n i low high
+      | n < i = do
+          set' manager i
+          return $ if low == 0 then (0, 0) else (low, if n == 0 then low else high)
+      | otherwise = do
+          c <- getNth cvec i
+          let
+            removeNth :: Int -> Int -> [Int] -> IO (Int, Int)
+            removeNth lastIndex j cls
+              | lastIndex < j = do
+                  b <- getNth bvec i
+                  loop lastIndex (i + 1) (min low b) (max high b)
+              | otherwise = do
+                  c' <- getNth cvec j
+                  cls' <- asList c'
+                  if null (cls' \\ cls)                      -- cls' is included in cls completely.
+                    then do setNth cvec i c'                 -- So c should be replaced by c'
+                            setNth bvec i =<< getNth bvec j
+                            setNth hvec i =<< getNth hvec j
+                            setNth cvec j =<< getNth cvec lastIndex
+                            setNth bvec j =<< getNth bvec lastIndex
+                            setNth hvec j =<< getNth hvec lastIndex
+                            removeNth (lastIndex - 1) j cls'             -- reexam the new j-th clause
+                    else if null (cls \\ cls')                           -- j-th clause should be removed by swapping the last element
+                         then do setNth cvec j =<< getNth cvec lastIndex
+                                 setNth bvec j =<< getNth bvec lastIndex
+                                 setNth hvec j =<< getNth hvec lastIndex
+                                 removeNth (lastIndex - 1) j cls
+                         else removeNth lastIndex (j + 1) cls
+          removeNth n (i + 1) =<< asList c
+  -- NOTE: most GP strategies contaminate the current level by ConflictBool
+  -- So we have to erase at least the current level.
+  d <- subtract 1 <$> decisionLevel s
+  n <- subtract 1 <$> get' manager
+  loop n 0 d d
+-}

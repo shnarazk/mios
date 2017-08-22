@@ -78,10 +78,10 @@ miosDefaultOption = MiosProgramOption
 miosOptions :: [OptDescr (MiosProgramOption -> MiosProgramOption)]
 miosOptions =
   [
---    Option [] ["limit"]
---    (ReqArg (\v c -> c { _confPropagationLimit = read v }) (show (_confPropagationLimit miosDefaultOption)))
---    "[solver] propagation limit (zero means no limit)"
-    Option ['d'] ["var-decay"]
+    Option [] ["limit"]
+    (ReqArg (\v c -> c { _confPropagationLimit = read v }) (show (_confPropagationLimit miosDefaultOption)))
+    "[solver] propagation limit (zero means no limit)"
+  , Option ['d'] ["var-decay"]
     (ReqArg (\v c -> c { _confVariableDecayRate = read v }) (show (_confVariableDecayRate miosDefaultOption)))
     "[solver] variable activity decay rate (0.0 - 1.0)"
 --  , Option ['c'] ["clause-decay-rate"]
@@ -116,7 +116,6 @@ miosOptions =
   , Option [] ["stat"]
     (NoArg (\c -> c { _confStatProbe = True }))
     "[option] display statistics information"
-{-
   , Option ['1'] ["parameter1"]
     (ReqArg (\v c -> c { _confMiosParameter1 = Just (read v) })
      (show (gpParameter1 defaultConfiguration)))
@@ -133,14 +132,12 @@ miosOptions =
     (ReqArg (\v c -> c { _confMiosParameter4 = Just (read v) })
      (show (extraParameter4 defaultConfiguration)))
     "[devel/RS] parameter 4"
--}
   , Option ['h'] ["help"]
     (NoArg (\c -> c { _displayHelp = True }))
     "[misc] display this help message"
   , Option [] ["version"]
     (NoArg (\c -> c { _displayVersion = True }))
     "[misc] display program ID"
-{-
   , Option ['D'] ["dump"]
     (NoArg (\c -> c { _confNoAnswer = True, _confStatProbe = False, _confDumpStat = True }))
     "[devel] dump statistics information"
@@ -150,7 +147,6 @@ miosOptions =
   , Option [] ["DEBUG", "dp"]
     (NoArg (\c -> c { _confDebugPath = True }))
     "[devel] only for developer"
--}
   ]
 
 -- | generates help message

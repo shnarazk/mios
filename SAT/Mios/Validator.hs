@@ -59,6 +59,26 @@ validate s desc (toList -> map int2lit -> lst) = do
     then errorWithoutStackTrace $ "# validator got an empty assignment for " ++ fromMaybe "" (_pathname desc) ++ ""
     else mapM_ injectLit lst >> loopOnVector 0
 
+{-
+copySolver :: Solver -> MiosConfiguration -> IO Solver
+copySolver s conf = do
+  nc <- (+) <$> nClauses s <*> nLearnts s
+  let desc = CNFDescription Nothing (nVars s) nc
+  s' <- newSolver conf desc
+  let copy :: ClauseExtManager -> IO ()
+      copy man = do
+        n <- get' man
+        v <- getClauseVector man
+        let loop :: Int -> IO ()
+            loop ((< n) -> False) = return ()
+            loop i = do addClause s' =<< copyVec . lits =<< getNth v i
+                        loop (i + 1)
+        loop 0
+  copy (clauses s)
+  copy (learnts s)
+  return s'
+-}
+
 checkCurrentModel :: Solver -> Bool -> IO ()
 checkCurrentModel _ False = return ()
 {-
@@ -238,3 +258,19 @@ printReason s mes True = do
     m <- dump "" =<< getNth (reason s) (lit2var lit)
     putStrLn $ showInt lit ++ "(" ++ showInt lv ++ ")" ++ " : " ++ m
   putStrLn $ "------------------ end"
+
+{-
+{-# INLINABLE checkDuplicateConflictVar #-}
+checkDuplicateConflictVar :: Solver -> Var -> IO Bool
+checkDuplicateConflictVar Solver{..} v = do
+  let manager = getNthWatcher watches 0
+  n <- get' manager
+  vec <- getKeyVector manager
+  let
+    loop :: Int -> IO Bool
+    loop ((< n) -> False) = return False
+    loop i = do
+      v' <- getNth vec i
+      if v == v' then return True else loop (i + 1)
+  loop 0
+-}
