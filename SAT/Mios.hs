@@ -121,6 +121,13 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
     stat1 <- intercalate ", " . map (\(k, v) -> show k ++ ": " ++ show v) <$> getStats s
     hPutStr output stat1
     hPutStrLn output ""
+  when (_confDumpStat opts) $ do
+    asg <- getModel s
+    s' <- newSolver (toMiosConf opts) desc
+    injectClauses s' desc cls
+    good <- validate s' desc asg
+    unless good $ setStat s SatisfiabilityValue BottomBool
+    putStrLn =<< dumpToString (fromMaybe versionId (_confStatHeader opts)) s desc
 
 executeSolver _ = return ()
 

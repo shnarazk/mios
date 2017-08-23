@@ -42,6 +42,7 @@ module SAT.Mios.Solver
        , setStat
        , incrementStat
        , getStats
+       , dumpToString
        )
         where
 
@@ -610,3 +611,70 @@ getHeapRoot s@(order -> VarHeap to at) = do
   n <- getNth to 0
   when (1 < n) $ percolateDown s 1
   return r
+-------------------------------------------------------------------------------- DUMP
+dumpToString :: String -> Solver -> CNFDescription -> IO String
+dumpToString h s@Solver{..} desc = do
+  st <- mapM (makeStatOf s) [minBound :: DumpTag .. maxBound]
+  cl <- categorizeLearnts s
+  return . show $ MiosDump (h, config) desc (MiosStats st) cl
+
+makeStatOf :: Solver -> DumpTag -> IO DumpedValue
+makeStatOf s LearningRateS = do
+  n <- fromIntegral <$> getStat s NumOfLearnts
+  b <- fromIntegral <$> getStat s NumOfBackjumps
+  return $ (LearningRateS, Left (n / b))
+
+{-
+makeStatOf Solver{..} ExtraS = do
+  n' <- get' intForDump
+  l' <- asList intForDump
+  let a' = if n' == 0 then 0 else fromIntegral (sum l') / (fromIntegral n' :: Double)
+  return $ (ExtraS, Left a')
+-}
+
+makeStatOf s tag = (tag,) . Right <$> getStat s (toStatIndex tag)
+  where
+    toStatIndex :: DumpTag -> StatIndex
+    toStatIndex TerminateS = SatisfiabilityValue
+    toStatIndex BackjumpS = NumOfBackjumps
+    toStatIndex RestartS = NumOfRestarts
+    toStatIndex PropagationS = NumOfPropagations
+    toStatIndex ConflictS = NumOfConflicts
+    toStatIndex LearntS = NumOfLearnts
+    toStatIndex ExtraS = NumOfExtra
+    toStatIndex _ = errorWithoutStackTrace "no value"
+
+categorizeLearnts :: Solver -> IO QuadLearntC
+categorizeLearnts _ = return $ QuadLearntC na na na na
+  where na = (0,0,0)
+{-
+categorizeLearnts s@Solver{..} = do
+  nn <- getStat s NumOfLearnts
+  n1 <- getStat s NumOfBirthLevel1
+  n2 <- getStat s NumOfBirthLevel2
+  nx <- getStat s NumOfBirthLevelX
+  let n0 = nn  - n1 - n2 - nx    -- level == 0
+  n <- get' learnts
+  cvec <- getClauseVector learnts
+  let
+    loop :: Int -> Int -> Int -> Int -> Int -> IO QuadLearntC
+    loop ((< n) -> False) l0 l1 l2 over = do
+      let t = fromIntegral (l0 + l1 + l2 + over)
+      let fin a b
+            | a == 0 = (a', b', 0)
+            | otherwise = (a', b', c')
+            where
+              a' = fromIntegral a / fromIntegral nn
+              b' = fromIntegral b / t
+              c' = fromIntegral b / fromIntegral a
+      return $ QuadLearntC (fin n0 l0) (fin n1 l1) (fin n2 l2) (fin nx over)
+    loop i l0 l1 l2 over = do
+      l <- get' . ldist =<< getNth cvec i
+      let l = 0
+      case l of
+        0 -> loop (i + 1) (l0 + 1) l1 l2 over
+        1 -> loop (i + 1) l0 (l1 + 1) l2 over
+        2 -> loop (i + 1) l0 l1 (l2 + 1) over
+        _ -> loop (i + 1) l0 l1 l2 (over + 1)
+  loop 0 0 0 0 0
+-}
