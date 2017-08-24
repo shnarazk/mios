@@ -1,5 +1,6 @@
 {-# LANGUAGE
     BangPatterns
+  , PatternSynonyms
   , MultiParamTypeClasses
   #-}
 {-# LANGUAGE Safe #-}
@@ -23,24 +24,31 @@ module SAT.Mios.Types
        , var2lit
        , negateLit
          -- * Assignment on the lifted Bool domain
---       , LiftedBool (..)
+       , LiftedBool
+       , lit2lbool
 --       , lbool
-       , lFalse
-       , lTrue
-       , lBottom
+       , Int (LiftedFalse, LiftedTrue, BottomBool, ConflictBool)
        , VarOrder (..)
          -- * CNF
        , CNFDescription (..)
          -- * Solver Configuration
        , MiosConfiguration (..)
        , defaultConfiguration
+         -- * statistics
+       , StatIndex (..)
+         -- * dump statistics
+       , DumpTag (..)
+       , DumpedValue
+       , MiosStats (..)
+       , QuadLearntC (..)
+       , MiosDump (..)
        )
        where
 
 import Data.Bits
 import SAT.Mios.Vec
 
--- | represents "Var".
+-- | represents "Var". This can be used as index for accessing on Var-indexed Vectors.
 type Var = Int
 
 -- | Special constant in 'Var' (p.7)
@@ -54,7 +62,7 @@ bottomVar = 0
 -- >>> int2var 2
 -- 2  -- literal @2@ is variable 2
 -- >>> int2var (-2)
--- 2 -- literal @-2@ is corresponding to variable 2
+-- 2 -- literal @-2@ (note: its internal representation as 'Lit' is 5) is corresponding to variable 2
 --
 {-# INLINE int2var #-}
 int2var :: Int -> Int
@@ -73,7 +81,7 @@ bottomLit = 0
 {-
 -- | converts "Var" into 'Lit'
 newLit :: Var -> Lit
-newLit = error "newLit undefined"
+newLit = errorWithoutStackTrace "newLit undefined"
 -}
 
 -- | returns @True@ if the literal is positive
@@ -168,7 +176,7 @@ lit2int l = case divMod l 2 of
 {-
 -- | Lifted Boolean domain (p.7) that extends 'Bool' with "⊥" means /undefined/
 -- design note: _|_ should be null = 0; True literals are coded to even numbers. So it should be 2.
-data LiftedBool = Bottom | LFalse | LTrue
+data LiftedBool = Bottom | LFalse | LTrue | LConflict
   deriving (Bounded, Eq, Ord, Read, Show)
 
 instance Enum LiftedBool where
@@ -188,17 +196,27 @@ lbool True = LTrue
 lbool False = LFalse
 -}
 
+type LiftedBool = Int
+
 -- | /FALSE/ on the Lifted Bool domain
-lFalse:: Int
-lFalse = -1
+pattern LiftedFalse :: Int
+pattern LiftedFalse = -1
 
 -- | /TRUE/ on the Lifted Bool domain
-lTrue :: Int
-lTrue = 1
+pattern LiftedTrue :: Int
+pattern LiftedTrue = 1
 
 -- | /UNDEFINED/ on the Lifted Bool domain
-lBottom :: Int
-lBottom = 0
+pattern BottomBool :: Int
+pattern BottomBool = 0
+
+-- | /CONFLICT/ on the Lifted Bool domain
+pattern ConflictBool :: Int
+pattern ConflictBool = 2
+
+{-# INLINE lit2lbool #-}
+lit2lbool :: Lit -> LiftedBool
+lit2lbool l = if positiveLit l then LiftedTrue else LiftedFalse
 
 -- | Assisting ADT for the dynamic variable ordering of the solver.
 -- The constructor takes references to the assignment vector and the activity
@@ -208,43 +226,50 @@ class VarOrder o where
 {-
   -- | constructor
   newVarOrder :: (VecFamily v1 Bool, VecFamily v2 Double) => v1 -> v2 -> IO o
-  newVarOrder _ _ = error "newVarOrder undefined"
+  newVarOrder _ _ = errorWithoutStackTrace "newVarOrder undefined"
 
   -- | Called when a new variable is created.
   newVar :: o -> IO Var
-  newVar = error "newVar undefined"
+  newVar = errorWithoutStackTrace "newVar undefined"
 -}
   -- | should be called when a variable has increased in activity.
   update :: o -> Var -> IO ()
-  update _  = error "update undefined"
+  update _  = errorWithoutStackTrace "update undefined"
 {-
   -- | should be called when all variables have been assigned.
   updateAll :: o -> IO ()
-  updateAll = error "updateAll undefined"
+  updateAll = errorWithoutStackTrace "updateAll undefined"
 -}
   -- | should be called when a variable becomes unbound (may be selected again).
   undo :: o -> Var -> IO ()
-  undo _ _  = error "undo undefined"
+  undo _ _  = errorWithoutStackTrace "undo undefined"
 
   -- | returns a new, unassigned var as the next decision.
   select :: o -> IO Var
-  select    = error "select undefined"
+  select    = errorWithoutStackTrace "select undefined"
 
 -- | Misc information on a CNF
 data CNFDescription = CNFDescription
   {
-    _numberOfVariables :: !Int           -- ^ the number of variables
+    _pathname :: Maybe FilePath          -- ^ given filename
+  , _numberOfVariables :: !Int           -- ^ the number of variables
   , _numberOfClauses :: !Int             -- ^ the number of clauses
-  , _pathname :: Maybe FilePath          -- ^ given filename
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Read, Show)
 
 -- | Solver's parameters; random decision rate was dropped.
-data MiosConfiguration = MiosConfiguration
-                         {
-                           variableDecayRate  :: !Double  -- ^ decay rate for variable activity
---                         , clauseDecayRate    :: !Double  -- ^ decay rate for clause activity
-                         }
+data MiosConfiguration
+  = MiosConfiguration
+    {
+      variableDecayRate :: !Double  -- ^ decay rate for variable activity
+    --, clauseDecayRate :: !Double  -- ^ decay rate for clause activity
+    , propagationLimit  :: !Int     -- ^ a resource limit
+    , gpParameter1      :: !Double  -- ^ 1st param for greedy propagation
+    , gpParameter2      :: !Double  -- ^ 2nd param for greedy propagytion
+    , extraParameter3   :: !Int     -- ^ used in mcb experimentation
+    , extraParameter4   :: !Int     -- ^ used in mcb experimentation
+    }
+  deriving (Eq, Ord, Read, Show)
 
 -- | dafault configuration
 --
@@ -254,4 +279,50 @@ data MiosConfiguration = MiosConfiguration
 -- * Mios-1.2     uses @(0.95, 0.999, 0)@.
 --
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 {- 0.999 -} {- 0 -}
+defaultConfiguration = MiosConfiguration
+                         0.95   -- variableDecayRate
+                         -- {- 0.999 -} {- 0 -}
+                         0      -- propagationLimit
+                         0 -- 6.0    -- gpParameter1
+                         0 -- 0.35   -- gpParameter2
+                         0 -- 1      -- extraParameter3
+                         0      -- extraParameter4
+
+-------------------------------------------------------------------------------- statistics
+
+-- | stat index
+data StatIndex =
+    SatisfiabilityValue          -- ^ { -1 : unsatisfiable, 0 : process aborted, 1 : satisfiable }
+  | NumOfBackjumps               -- ^ the number of backjumps
+  | NumOfRestarts                -- ^ the number of restarts
+  | NumOfPropagations            -- ^ the number of propagations
+  | NumOfConflicts               -- ^ the number of conflicts solver found
+  | NumOfLearnts                 -- ^ the number of generated learnt clauses
+  | NumOfExtra
+  deriving (Bounded, Enum, Eq, Ord, Read, Show)
+
+data DumpTag = TerminateS
+             | PropagationS
+             | ConflictS
+             | LearntS
+             | BackjumpS
+             | RestartS
+             | LearningRateS
+             | ExtraS
+             deriving (Bounded, Enum, Eq, Ord, Read, Show)
+
+type DumpedValue = (DumpTag, Either Double Int)
+
+newtype MiosStats = MiosStats [DumpedValue]
+  deriving (Eq, Ord, Read, Show)
+
+data QuadLearntC = QuadLearntC (Double, Double, Double) (Double, Double, Double) (Double, Double, Double) (Double, Double, Double)
+  deriving (Eq, Ord, Read, Show)
+
+data MiosDump =
+  MiosDump { _dumpedConf ::  (String, MiosConfiguration)
+           , _dupmedCNFDesc :: CNFDescription
+           , _dumpedStat :: MiosStats
+           , _dumpedLCat :: QuadLearntC        -- quad categorization of learnts
+           }
+  deriving (Eq, Ord, Read, Show)

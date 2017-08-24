@@ -1,4 +1,7 @@
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE
+    TupleSections
+  , ViewPatterns
+  #-}
 {-# LANGUAGE Safe #-}
 
 -- | Minisat-based Implementation and Optimization Study on SAT solver
@@ -22,6 +25,7 @@ module SAT.Mios
        , executeValidatorOn
        , executeValidator
          -- * File IO
+       , parseCNFfile
        , dumpAssigmentAsCNF
        )
        where
@@ -30,6 +34,7 @@ import Control.Monad ((<=<), unless, void, when)
 import Data.Char
 import qualified Data.ByteString.Char8 as B
 import Data.List
+import Data.Maybe (fromMaybe)
 import Numeric (showFFloat)
 import System.CPUTime
 import System.Exit
@@ -43,7 +48,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "mios 1.4.0 -- https://github.com/shnarazk/mios"
+versionId = "Mios-1.5.0 -- https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ _ = return 0
@@ -52,7 +57,7 @@ reportElapsedTime _ mes t = do
   now <- getCPUTime
   let toSecond = 1000000000000 :: Double
   hPutStr stderr mes
-  hPutStrLn stderr $ showFFloat (Just 3) ((fromIntegral (now - t)) / toSecond) " sec"
+  hPutStrLn stderr $ showFFloat (Just 3) (fromIntegral (now - t) / toSecond) " sec"
   return now
 
 -- | executes a solver on the given CNF file.
@@ -67,41 +72,62 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
   t0 <- reportElapsedTime (_confTimeProbe opts) "" 0
   (desc, cls) <- parseHeader target <$> B.readFile cnfFile
   when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
+  let header = "## " ++ pathHeader cnfFile
   s <- newSolver (toMiosConf opts) desc
-  parseClauses s desc cls
-  t1 <- reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
+  injectClauses s desc cls
+  t1 <- reportElapsedTime (_confTimeProbe opts) (header ++ showPath cnfFile ++ ", Parse: ") t0
   when (_confVerbose opts) $ do
     nc <- nClauses s
     hPutStrLn stderr $ cnfFile ++ " was loaded: #v = " ++ show (nVars s, _numberOfVariables desc) ++ " #c = " ++ show (nc, _numberOfClauses desc)
   res <- simplifyDB s
   -- when (_confVerbose opts) $ hPutStrLn stderr $ "`simplifyDB`: " ++ show res
+  -- when (_confVerbose opts) $ hPutStrLn stderr $ "`simplifyDB`: " ++ show res
   result <- if res then solve s [] else return False
+  aborted <- (0 ==) <$> getStat s SatisfiabilityValue
+  let debug = _confDebugPath opts
   case result of
+    _ | debug && aborted && _confDumpStat opts -> return ()
+    _ | debug && aborted && _confStatProbe opts -> hPutStrLn stderr "ABORT"
+    _ | debug && aborted && _confNoAnswer opts -> hPutStrLn stderr "ABORT"
+    _ | debug && aborted -> putStrLn $ "ABORT: " ++ show result
     True  | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "SATISFIABLE"
-    False | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "UNSATISFIABLE"
+    True  | _confStatProbe opts -> hPrint stderr =<< getModel s
     True  -> print =<< getModel s
-    False -> do          -- contradiction
-      -- FIXMEin future
-      when (_confVerbose opts) $ hPutStrLn stderr "UNSAT"
-      -- print =<< map lit2int <$> asList (conflict s)
-      putStrLn "[]"
+    False | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "UNSATISFIABLE"
+    False | _confStatProbe opts -> hPutStrLn stderr "UNSAT"
+    False -> putStrLn "[]"
   case _outputFile opts of
     Just fname -> dumpAssigmentAsCNF fname result =<< getModel s
     Nothing -> return ()
-  t2 <- reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Solve: ") t1
+  t2 <- reportElapsedTime (_confTimeProbe opts) (header ++ showPath cnfFile ++ ", Solve: ") t1
   when (result && _confCheckAnswer opts) $ do
     asg <- getModel s
     s' <- newSolver (toMiosConf opts) desc
-    parseClauses s' desc cls
-    good <- validate s' asg
+    injectClauses s' desc cls
+    good <- validate s' desc asg
     if _confVerbose opts
       then hPutStrLn stderr $ if good then "A vaild answer" else "Internal error: mios returns a wrong answer"
       else unless good $ hPutStrLn stderr "Internal error: mios returns a wrong answer"
-    void $ reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Validate: ") t2
-  void $ reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
+    void $ reportElapsedTime (_confTimeProbe opts) (header ++ showPath cnfFile ++ ", Validate: ") t2
+  void $ reportElapsedTime (_confTimeProbe opts) (header ++ showPath cnfFile ++ ", Total: ") t0
   when (_confStatProbe opts) $ do
-    hPutStr stderr $ "## [" ++ showPath cnfFile ++ "] "
-    hPutStrLn stderr . intercalate ", " . map (\(k, v) -> show k ++ ": " ++ show v) =<< getStats s
+    let output = stdout
+    hPutStr output $ fromMaybe "" ((++ ", ") <$> _confStatHeader opts)
+    hPutStr output $ "Solver: " ++ show versionId ++ ", "
+    hPutStr output $ showConf (config s) ++ ", "
+    hPutStr output $ "File: \"" ++ showPath cnfFile ++ "\", "
+    hPutStr output $ "NumOfVariables: " ++ show (_numberOfVariables desc) ++ ", "
+    hPutStr output $ "NumOfClauses: " ++ show (_numberOfClauses desc) ++ ", "
+    stat1 <- intercalate ", " . map (\(k, v) -> show k ++ ": " ++ show v) <$> getStats s
+    hPutStr output stat1
+    hPutStrLn output ""
+  when (_confDumpStat opts) $ do
+    asg <- getModel s
+    s' <- newSolver (toMiosConf opts) desc
+    injectClauses s' desc cls
+    good <- validate s' desc asg
+    unless good $ setStat s SatisfiabilityValue BottomBool
+    putStrLn =<< dumpToString (fromMaybe versionId (_confStatHeader opts)) s desc
 
 executeSolver _ = return ()
 
@@ -158,7 +184,7 @@ executeValidator opts@(_targetFile -> target@(Just cnfFile)) = do
   (desc, cls) <- parseHeader target <$> B.readFile cnfFile
   when (_numberOfVariables desc == 0) . error $ "couldn't load " ++ show cnfFile
   s <- newSolver (toMiosConf opts) desc
-  parseClauses s desc cls
+  injectClauses s desc cls
   when (_confVerbose opts) $
     hPutStrLn stderr $ cnfFile ++ " was loaded: #v = " ++ show (_numberOfVariables desc) ++ " #c = " ++ show (_numberOfClauses desc)
   when (_confVerbose opts) $ do
@@ -167,7 +193,7 @@ executeValidator opts@(_targetFile -> target@(Just cnfFile)) = do
     hPutStrLn stderr $ "(nv, nc, nl) = " ++ show (nVars s, nc, nl)
   asg <- read <$> getContents
   unless (_confNoAnswer opts) $ print asg
-  result <- s `validate` (asg :: [Int])
+  result <- validate s desc (asg :: [Int])
   if result
     then putStrLn ("It's a valid assignment for " ++ cnfFile ++ ".") >> exitSuccess
     else putStrLn ("It's an invalid assignment for " ++ cnfFile ++ ".") >> exitFailure
@@ -181,7 +207,7 @@ validateAssignment :: (Traversable m, Traversable n) => CNFDescription -> m [Int
 validateAssignment desc cls asg = do
   s <- newSolver defaultConfiguration desc
   mapM_ ((s `addClause`) <=< (newStackFromList . map int2lit)) cls
-  s `validate` asg
+  validate s desc asg
 
 -- | dumps an assigment to file.
 -- 2nd arg is
@@ -193,15 +219,19 @@ validateAssignment desc cls asg = do
 -- >>> do y <- solve s ... ; dumpAssigmentAsCNF "result.cnf" y <$> model s
 --
 dumpAssigmentAsCNF :: FilePath -> Bool -> [Int] -> IO ()
-dumpAssigmentAsCNF fname False _ = do
-  withFile fname WriteMode $ \h -> hPutStrLn h "UNSAT"
-
-dumpAssigmentAsCNF fname True l = do
-  withFile fname WriteMode $ \h -> do hPutStrLn h "SAT"; hPutStrLn h . unwords $ map show l
+dumpAssigmentAsCNF fname False _ = withFile fname WriteMode $ \h -> hPutStrLn h "UNSAT"
+dumpAssigmentAsCNF fname True l =  withFile fname WriteMode $ \h -> do hPutStrLn h "SAT"; hPutStrLn h . unwords $ map show l
 
 --------------------------------------------------------------------------------
 -- DIMACS CNF Reader
 --------------------------------------------------------------------------------
+
+-- | parse a cnf file
+parseCNFfile :: Maybe FilePath -> IO (CNFDescription, [[Int]])
+parseCNFfile (Just cnfFile) = do
+  (desc, bytes) <- parseHeader (Just cnfFile) <$> B.readFile cnfFile
+  (desc, ) <$> parseClauses desc bytes
+parseCNFfile Nothing = error "no file designated"
 
 parseHeader :: Maybe FilePath -> B.ByteString -> (CNFDescription, B.ByteString)
 parseHeader target bs = if B.head bs == 'p' then (parseP l, B.tail bs') else parseHeader target (B.tail bs')
@@ -210,12 +240,24 @@ parseHeader target bs = if B.head bs == 'p' then (parseP l, B.tail bs') else par
     -- format: p cnf n m, length "p cnf" == 5
     parseP line = case B.readInt $ B.dropWhile (`elem` " \t") (B.drop 5 line) of
       Just (x, second) -> case B.readInt (B.dropWhile (`elem` " \t") second) of
-        Just (y, _) -> CNFDescription x y target
-        _ -> CNFDescription 0 0 target
-      _ -> CNFDescription 0 0 target
+        Just (y, _) -> CNFDescription target x y
+        _ -> CNFDescription  target 0 0
+      _ -> CNFDescription target 0 0
 
-parseClauses :: Solver -> CNFDescription -> B.ByteString -> IO ()
-parseClauses s (CNFDescription nv nc _) bs = do
+parseClauses :: CNFDescription -> B.ByteString -> IO [[Int]]
+parseClauses (CNFDescription _ nv nc) bs = do
+  let maxLit = int2lit $ negate nv
+  buffer <- newVec (maxLit + 1) 0
+  let
+    loop :: Int -> B.ByteString -> [[Int]] -> IO [[Int]]
+    loop ((< nc) -> False) _ l = return l
+    loop i b l = do
+      (c, b') <- readClause' buffer b
+      loop (i + 1) b' (c : l)
+  loop 0 bs []
+
+injectClauses :: Solver -> CNFDescription -> B.ByteString -> IO ()
+injectClauses s (CNFDescription _ nv nc) bs = do
   let maxLit = int2lit $ negate nv
   buffer <- newVec (maxLit + 1) 0
   polvec <- newVec (maxLit + 1) 0
@@ -232,7 +274,7 @@ parseClauses s (CNFDescription nv nc _) bs = do
     checkPolarity v = do
       p <- getNth polvec $ var2lit v True
       n <- getNth polvec $ var2lit v False
-      when (p == lFalse || n == lFalse) $ setNth asg v p
+      when (p == LiftedFalse || n == LiftedFalse) $ setNth asg v p
       checkPolarity $ v + 1
   checkPolarity 1
 
@@ -281,13 +323,39 @@ readClause s buffer bvec stream = do
         else do
             let l = int2lit k
             setNth buffer i l
-            setNth bvec l lTrue
+            setNth bvec l LiftedTrue
+            loop (i + 1) b'
+  loop 1 . skipComments . skipWhitespace $ stream
+
+readClause' :: Stack -> B.ByteString -> IO ([Int], B.ByteString)
+readClause' buffer stream = do
+  let
+    loop :: Int -> B.ByteString -> IO ([Int], B.ByteString)
+    loop i b = do
+      let (k, b') = parseInt $ skipWhitespace b
+      if k == 0
+        then do
+            -- putStrLn . ("clause: " ++) . show . map lit2int =<< asList stack
+            setNth buffer 0 $ i - 1
+            (, b') <$> (take <$> get' buffer <*> asList buffer)
+        else do
+            setNth buffer i k
             loop (i + 1) b'
   loop 1 . skipComments . skipWhitespace $ stream
 
 showPath :: FilePath -> String
-showPath str = replicate (len - length basename) ' ' ++ if elem '/' str then basename else basename'
+showPath str = {- replicate (len - length basename) ' ' ++ -} if elem '/' str then basename else basename'
   where
-    len = 50
+    len = 32
     basename = reverse . takeWhile (/= '/') . reverse $ str
     basename' = take len str
+
+pathHeader :: FilePath -> String
+pathHeader str = replicate (len - length basename) ' '
+  where
+    len = 32
+    basename = reverse . takeWhile (/= '/') . reverse $ str
+
+showConf :: MiosConfiguration -> String
+showConf (MiosConfiguration vr pl _ _ _ _) =
+  "VarDecayRate: " ++ showFFloat (Just 3) vr "" ++ ", PropagationLimit: " ++ show pl

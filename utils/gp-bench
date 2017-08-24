@@ -1,0 +1,174 @@
+#!/bin/sh --norc
+
+DOMAIN="cs.cis.nagasaki-u.ac.jp"
+HOSTS=smithi.$DOMAIN,rio.$DOMAIN,ringworld.$DOMAIN
+EXECUTER=$HOME/.local/bin/gp-bench
+MODE="RUN"
+
+executer () {
+    MIOS=$HOME/.local/bin/mios-gp
+    DIR=$HOME/$1
+    TARGET=$2
+    P1=${3:-1}
+    P2=${4:-1}
+    P3=${5:-1}
+    P4=${6:-1}
+    OPTS=$7
+    cd $DIR
+    if [ -f ${TARGET} ] ;
+    then
+	parallel -k "$MIOS --dump -1 ${P1} -2 ${P2} -3 ${P3} -4 ${P4} ${OPTS}" ::: ${TARGET}
+    else
+	parallel -k "$MIOS --dump -1 ${P1} -2 ${P2} -3 ${P3} -4 ${P4} ${OPTS}" ::: ${TARGET}/*.cnf
+    fi
+    exit 0
+}
+
+buildreport () {
+    PARS="$1"
+    OUTPUT="$2"
+    MES="$3"
+    parallel "gp-pickup -m \"$PARS\" < {}.csv > {}.txt" ::: $OUTPUT
+    if [ "$MES" == "" ]
+    then
+	parallel " gp-summary -m \"\" < {}.csv >> {}.txt" ::: $OUTPUT
+    else
+	parallel " gp-summary -m \"$MES\" < {}.csv >> {}.txt" ::: $OUTPUT
+    fi
+    parallel "gp-pickup < {}.csv" ::: $OUTPUT
+}
+
+case "$1" in
+    "--execute")
+	executer $2 $3 $4 $5 $6 $7 $8
+	exit 0
+	;;
+    "--rebuild")
+	MODE="REBUILD"
+	shift 1
+	;;
+esac
+
+case "$1" in
+    "SR15")
+	DIR=Documents/ownCloud/SR15m
+	TARGET=$2
+	shift 2
+	;;
+    "3SAT")
+	DIR=Repositories/SATbench/3-SAT
+	TARGET=$2
+	shift 2
+	;;
+    "UF250")
+	DIR=Repositories/SATbench/3-SAT
+	TARGET=UF250
+	shift 1
+	;;
+    "38bits")
+	DIR=Repositories/SATbench/SAT-Race-2015
+	TARGET=38bits_10.dimacs.cnf
+	shift 1
+	;;
+    "44bits")
+	DIR=Repositories/SATbench/SAT-Race-2015
+	TARGET=44bits_11.dimacs.cnf
+	shift 1
+	;;
+    "SATbench")
+	DIR=Repositories/SATbench
+	TARGET=$2
+	shift 2
+	;;
+    *)
+	DIR=$1
+	TARGET=$2
+	shift 2
+	;;
+esac
+
+case "$1" in
+    "jsai2017")	# 8 x (8 x 8 x 8) = 8 x 512
+	P1=`seq -s ' ' 1 1 8`
+	P2=`seq -s ' ' 0.1 0.05 0.45`
+	P3=`seq -s ' ' 1 1 8`
+	P4=`seq -s ' ' 1 1 8`
+	shift 1
+	;;
+    "jsai2017new")  # 7 x (5 x 8 x 3) = 7 x 120
+	P1=`seq -s ' ' 2 1 8`
+	P2=`seq -s ' ' 0.1 0.1 0.5`
+	P3=`seq -s ' ' 1 1 8`
+	P4=`seq -s ' ' 0 1 2`
+	shift 1
+	;;
+    "base" | "zero")
+	P1="0"
+	P2="0"
+	P3="0"
+	P4="0"
+	shift 1
+	;;
+    *)
+	P1=${1}
+	P2=${2}
+	P3=${3}
+	P4=${4}
+	shift 4
+	;;
+esac
+
+OPTS=${4}
+OUTPUT=${2}
+MES=${3:-""}
+
+if [ "$2" == "" ] ;
+then
+    if [ "$1" == "" ] ;
+    then
+	OUTPUT=`basename -s .cnf ${TARGET}`-`date -I`
+    else
+	OUTPUT=${1}
+    fi
+    OPTS=""
+fi
+
+if [ "$OUTPUTx" = "x" ] ;
+then
+    echo "USAGE: $0 dir target par1 par2 par3 par4 options output"
+    exit 0
+fi
+
+if [ "x$MODE" = "xREBUILD" ] ;
+then
+	PARS="#-*-mode:org-*-\ntarget: ${TARGET}\np1: ${P1}\np2: ${P2}\np3: ${P3}\np4: ${P4}"
+	buildreport "$PARS" "${OUTPUT}" "${MES}"
+	exit 1;
+fi
+
+echo "D=${DIR}, T=${TARGET}, P=(${P1}, ${P2}, ${P3}, ${P4}), O=${OUTPUT}"
+# exit 0
+
+ssh-add -l | grep -q "kila"
+if [ $? != 0 ] ; then
+    echo  "ABORT: no key for ssh"
+    exit -1
+fi
+
+parallel --delimiter "," "ssh {} pkill -9 mios-gp" ::: $HOSTS
+parallel --delimiter "," "scp ~/.local/bin/mios-gp {}:.local/bin" ::: $HOSTS
+parallel --delimiter "," "scp ~/.local/bin/gp-bench {}:.local/bin" ::: $HOSTS
+
+echo "stuff deployed; benchmark settings"
+echo " - working dir: ${DIR} / ${TARGET} on ${HOSTS}"
+echo " - parameter 1: '${P1}'"
+echo " - parameter 2: '${P2}'"
+echo " - parameter 3: '${P3}'"
+echo " - parameter 4: '${P4}'"
+[ "${OPTS}" == "" ]  || echo " - more option: ${OPTS}"
+
+parallel -j 2 -k -S $HOSTS "$EXECUTER --execute $DIR $TARGET {1} {2} {3} {4} $OPTS" ::: $P1 ::: $P2 ::: $P3 ::: $P4 > $OUTPUT.dump
+parallel "cat {}.dump | gp-dump2csv | gp-averagecsv > {}.csv" ::: $OUTPUT
+PARS="#-*-mode:org-*-\ntarget: ${TARGET}\np1: ${P1}\np2: ${P2}\np3: ${P3}\np4: ${P4}"
+buildreport "$PARS" "$OUTPUT" "$MES"
+postSlack watching "gp-bench has done!"

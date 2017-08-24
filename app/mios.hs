@@ -14,7 +14,7 @@ main = do
   case () of
     _ | _displayVersion opts        -> putStrLn versionId
     _ | _displayHelp opts           -> putStrLn $ miosUsage $ versionId ++ "\nUsage: mios [OPTIONS] target.cnf"
-    _ | _targetFile opts == Just "" -> putStrLn $ miosUsage $ versionId ++ "\nUsage: mios [OPTIONS] target.cnf"
+    _ | _targetFile opts == Nothing -> putStrLn $ miosUsage $ versionId ++ "\nUsage: mios [OPTIONS] target.cnf"
     _ | _validateAssignment opts    -> executeValidator opts
     _ | otherwise                   -> executeSolver opts
 

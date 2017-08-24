@@ -17,14 +17,13 @@ module SAT.Mios.Clause
        , newClauseFromStack
          -- * Vector of Clause
        , ClauseVector
-       , newClauseVector
+       , lenClauseVector
        )
        where
 
 import GHC.Prim (tagToEnum#, reallyUnsafePtrEquality#)
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
--- import Data.List (intercalate)
 import SAT.Mios.Types
 
 -- | __Fig. 7.(p.11)__
@@ -53,23 +52,21 @@ instance Show Clause where
 -- | 'Clause' is a 'VecFamily' of 'Lit'.
 instance VecFamily Clause Lit where
   {-# SPECIALIZE INLINE getNth :: Clause -> Int -> IO Int #-}
-  getNth Clause{..} n = error "no getNth for Clause"
+  getNth Clause{..} n = errorWithoutStackTrace "no getNth for Clause"
   {-# SPECIALIZE INLINE setNth :: Clause -> Int -> Int -> IO () #-}
-  setNth Clause{..} n x = error "no setNth for Clause"
+  setNth Clause{..} n x = errorWithoutStackTrace "no setNth for Clause"
   -- | returns a vector of literals in it.
-  {-# SPECIALIZE INLINE asUVector :: Clause -> UVector Int #-}
-  asUVector = asUVector . lits
   asList NullClause = return []
   asList Clause{..} = take <$> get' lits <*> asList lits
-  -- dump mes NullClause = return $ mes ++ "Null"
-  -- dump mes Clause{..} = return $ mes ++ "a clause"
-{-
+-- {-
+  dump mes NullClause = return $ mes ++ "Null"
   dump mes Clause{..} = do
+    let intercalate p l = if null l then [] else (head l) ++ foldl (\l' x -> l' ++ p ++ x) [] (tail l)
     a <- show <$> get' activity
     n <- get' lits
     l <- asList lits
     return $ mes ++ "C" ++ show n ++ "{" ++ intercalate "," [show learnt, a, show (map lit2int l)] ++ "}"
--}
+-- -}
 
 -- | 'Clause' is a 'SingleStorage' on the number of literals in it.
 instance SingleStorage Clause Int where
@@ -101,7 +98,7 @@ instance StackFamily Clause Lit where
 
 -- coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes.
 -- liftToClause :: Clause -> Clause
--- liftToClause (BinaryClause _) = error "So far I use generic function approach instead of lifting"
+-- liftToClause (BinaryClause _) = errorWithoutStackTrace "So far I use generic function approach instead of lifting"
 
 -- | copies /vec/ and return a new 'Clause'.
 -- Since 1.0.100 DIMACS reader should use a scratch buffer allocated statically.
@@ -129,6 +126,10 @@ instance VecFamily ClauseVector Clause where
   setNth = MV.unsafeWrite
   {-# SPECIALIZE INLINE swapBetween :: ClauseVector -> Int -> Int -> IO () #-}
   swapBetween = MV.unsafeSwap
+  newVec n c = do
+    v <- MV.new n
+    MV.set v c
+    return v
   asList cv = V.toList <$> V.freeze cv
 {-
   dump mes cv = do
@@ -137,9 +138,5 @@ instance VecFamily ClauseVector Clause where
     return $ mes ++ tail (concat sts)
 -}
 
--- | returns a new 'ClauseVector'.
-newClauseVector  :: Int -> IO ClauseVector
-newClauseVector n = do
-  v <- MV.new (max 4 n)
-  MV.set v NullClause
-  return v
+lenClauseVector :: ClauseVector -> Int
+lenClauseVector = MV.length
