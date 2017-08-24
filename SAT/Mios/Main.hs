@@ -925,7 +925,8 @@ dispatchSingleLearnt s@Solver{..} = do
   pushLearntClause s c True
   set' (activity c) $ fromIntegral b
   -- implicate ((b, 0, 0, t), c)
-  unsafeEnqueue s t c
+  v <- valueLit s t
+  when (v == BottomBool) $ unsafeEnqueue s t c
 
 {-
 -- an implementation of resolvent clause categorization
