@@ -764,7 +764,8 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                       conflictCs <- getClauseVector confs
                       n <- get' confs
                       mapM_ (analyze s <=< getNth conflictCs) [0 .. n - 1]
-                      dispatch s =<< categorizeResolvents s -- (extraParameter3 config) (extraParameter4 config)
+                      dispatchSingleLearnt s
+                      -- dispatch s =<< categorizeResolvents s -- (extraParameter3 config) (extraParameter4 config)
                       varDecayActivity s
                       -- claDecayActivity s
                       loop $ conflictC + 1
@@ -914,6 +915,17 @@ categorizeResolvents Solver{..} {- 0 0 -} = do
   t <- getNth (lits c) 1
   -- varBumpAll solver 1
   return (b, Right [((b, 0, 0, t), c)], [])
+
+dispatchSingleLearnt :: Solver -> IO ()
+dispatchSingleLearnt s@Solver{..} = do
+  c <- flip getNth 0 =<< getClauseVector newLearnts
+  b <- flip getNth 0 =<< getKeyVector newLearnts
+  t <- getNth (lits c) 1
+  -- register ((b, 0, 0, t), c)
+  pushLearntClause s c True
+  set' (activity c) $ fromIntegral b
+  -- implicate ((b, 0, 0, t), c)
+  unsafeEnqueue s t c
 
 {-
 -- an implementation of resolvent clause categorization
