@@ -921,6 +921,7 @@ dispatchSingleLearnt s@Solver{..} = do
   c <- flip getNth 0 =<< getClauseVector newLearnts
   b <- flip getNth 0 =<< getKeyVector newLearnts
   t <- getNth (lits c) 1
+  cancelUntil s b
   -- register ((b, 0, 0, t), c)
   pushLearntClause s c True
   set' (activity c) $ fromIntegral b
