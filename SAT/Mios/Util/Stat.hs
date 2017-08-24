@@ -1,4 +1,7 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE
+    RecordWildCards
+  , TupleSections
+#-}
 {-# LANGUAGE Safe #-}
 
 module SAT.Mios.Util.Stat
@@ -84,7 +87,13 @@ instance Monoid MiosConfiguration where
 
 instance Dumpable MiosConfiguration where
   header = (intercalate "," ["vDecay", "propLim", "par1", "par2", "par3", "par4"], mempty)
-  toCSV (MiosConfiguration vd pl p1 p2 p3 p4) = intercalate "," [show vd, show (logBase2 pl), showf p1, showf p2, show p3, show p4]
+  toCSV MiosConfiguration{..} =
+    intercalate "," [ show variableDecayRate
+                    , show (logBase2 propagationLimit)
+                    , showf gpParameter1
+                    , showf gpParameter2
+                    , show extraParameter3
+                    , show extraParameter4]
   average = mconcat
 
 instance Monoid MiosStats where
