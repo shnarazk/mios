@@ -58,7 +58,7 @@ instance VecFamily Clause Lit where
   -- | returns a vector of literals in it.
   asList NullClause = return []
   asList Clause{..} = take <$> get' lits <*> asList lits
--- {-
+{-
   dump mes NullClause = return $ mes ++ "Null"
   dump mes Clause{..} = do
     let intercalate p l = if null l then [] else (head l) ++ foldl (\l' x -> l' ++ p ++ x) [] (tail l)
@@ -66,7 +66,7 @@ instance VecFamily Clause Lit where
     n <- get' lits
     l <- asList lits
     return $ mes ++ "C" ++ show n ++ "{" ++ intercalate "," [show learnt, a, show (map lit2int l)] ++ "}"
--- -}
+-}
 
 -- | 'Clause' is a 'SingleStorage' on the number of literals in it.
 instance SingleStorage Clause Int where

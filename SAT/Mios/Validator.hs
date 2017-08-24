@@ -99,6 +99,7 @@ checkCurrentModel s True = do
             errorWithoutStackTrace =<< dumpToString "" s (CNFDescription Nothing 0 0)
 -}
 
+{-
 -- | returns @True@ if the solver is in inconsistent.
 checkConsistency :: Solver -> IO Bool
 checkConsistency s@Solver{..} = do
@@ -137,6 +138,7 @@ checkConsistency s@Solver{..} = do
     putStrLn $ "number of assigned variable = " ++ show na
     putStrLn "*** Conflict ***"
   return res
+-}
 
 valueClause :: Solver -> Clause -> IO LiftedBool
 valueClause _ NullClause = errorWithoutStackTrace "valueClause found NullClause"
@@ -206,6 +208,7 @@ printAnalyzeVars Solver{..} = do
   unless (v3 == []) $ putStrLn ("an'stack: " ++ show v3)
   unless (v4 == []) $ putStrLn ("an'lastDL: " ++ show v4)
 
+{-
 checkWatchLits :: Solver -> Bool -> Clause -> IO Bool
 checkWatchLits s@Solver{..} emit c@Clause{..} = do
   n <- get' c
@@ -241,7 +244,9 @@ checkWatches s@Solver{..} emit = do
       checkWatchLits s emit =<< getNth cvec i
       loop (i + 1)
   loop 0
+-}
 
+{-
 printReason :: Solver -> String -> Bool -> IO ()
 printReason _ _ False = return ()
 printReason s mes True = do
@@ -258,6 +263,7 @@ printReason s mes True = do
     m <- dump "" =<< getNth (reason s) (lit2var lit)
     putStrLn $ showInt lit ++ "(" ++ showInt lv ++ ")" ++ " : " ++ m
   putStrLn $ "------------------ end"
+-}
 
 {-
 {-# INLINABLE checkDuplicateConflictVar #-}

@@ -61,8 +61,8 @@ class VecFamily v a | v -> a where
   asList = errorWithoutStackTrace "no default method: asList"
   growBy = errorWithoutStackTrace "no default method: growBy"
   -- | (FOR DEBUG) dump the contents.
-  dump :: Show a => String -> v -> IO String
-  dump msg v = (msg ++) . show <$> asList v
+  -- dump :: Show a => String -> v -> IO String
+  -- dump msg v = (msg ++) . show <$> asList v
 
 -------------------------------------------------------------------------------- Vec
 -- | Another abstraction layer on 'Vector' which reserves zero element for internal use.
