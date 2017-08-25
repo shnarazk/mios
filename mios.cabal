@@ -42,6 +42,10 @@ Flag MultiConflict
   Description:	        Build tools in MultiConflict
   Default:	        False
 
+Flag utils
+  Description:	        Build misc utilities for developer
+  Default:	        False
+
 library
   hs-source-dirs:	.
   if flag(lib)
@@ -106,7 +110,7 @@ executable mios
                         SAT.Mios.Validator
                         SAT.Mios
 
-executable mios-r15
+executable mios-mc
   hs-source-dirs:	MultiConflict .
   main-is:              app/mios.hs
   if flag(MultiConflict)
@@ -131,10 +135,10 @@ executable mios-r15
                         SAT.Mios.Validator
                         SAT.Mios
 
-executable mios-prof
+executable mios-mc-prof
   hs-source-dirs:	MultiConflict .
   main-is:              app/mios.hs
-  if flag(MultiConflict)
+  if flag(MultiConflict) && flag(prof)
     buildable:	        True
   else
     buildable:	        False
@@ -153,10 +157,10 @@ executable mios-prof
                         SAT.Mios.Validator
                         SAT.Mios
 
-executable gp-dump2csv
+executable mc-dump2csv
   hs-source-dirs:	MultiConflict
   main-is:              utils/dump2csv.hs
-  if flag(MultiConflict)
+  if flag(MultiConflict) && flag(utils)
     buildable:	        True
   else
     buildable:	        False
@@ -169,10 +173,10 @@ executable gp-dump2csv
                         SAT.Mios.Types
                         SAT.Mios.Util.Stat
 
-executable gp-averagecsv
+executable mc-averagecsv
   hs-source-dirs:	MultiConflict
   main-is:              utils/averagecsv.hs
-  if flag(MultiConflict)
+  if flag(MultiConflict) && flag(utils)
     buildable:	        True
   else
     buildable:	        False
@@ -185,10 +189,10 @@ executable gp-averagecsv
                         SAT.Mios.Types
                         SAT.Mios.Util.Stat
 
-executable gp-summary
+executable mc-summary
   hs-source-dirs:	MultiConflict
   main-is:              utils/summary.hs
-  if flag(MultiConflict)
+  if flag(MultiConflict) && flag(utils)
     buildable:	        True
   else
     buildable:	        False
@@ -201,9 +205,10 @@ executable gp-summary
                         SAT.Mios.Types
                         SAT.Mios.Util.Stat
 
-executable gp-stat2csv
+executable mc-stat2csv
+  hs-source-dirs:	MultiConflict
   main-is:              utils/stat2csv.hs
-  if flag(MultiConflict)
+  if flag(MultiConflict) && flag(utils)
     buildable:	        True
   else
     buildable:	        False
@@ -216,10 +221,10 @@ executable gp-stat2csv
                         SAT.Mios.Types
                         SAT.Mios.Util.Stat
 
-executable gp-pickup
+executable mc-pickup
   hs-source-dirs:	MultiConflict
   main-is:              utils/pickup.hs
-  if flag(MultiConflict)
+  if flag(MultiConflict) && flag(utils)
     buildable:	        True
   else
     buildable:	        False
@@ -232,10 +237,10 @@ executable gp-pickup
                         SAT.Mios.Types
                         SAT.Mios.Util.Stat
 
-executable gp-numbers
+executable mc-numbers
   hs-source-dirs:	MultiConflict
   main-is:              utils/numbers.hs
-  if flag(MultiConflict)
+  if flag(MultiConflict) && flag(utils)
     buildable:	        True
   else
     buildable:	        False
