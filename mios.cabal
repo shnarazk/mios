@@ -90,7 +90,8 @@ library
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields
 
 executable mios
-  main-is:              app/mios.hs
+  hs-source-dirs:	src app
+  main-is:              mios.hs
   buildable:	        True
   default-language:	Haskell2010
   default-extensions:  Strict
@@ -111,8 +112,8 @@ executable mios
                         SAT.Mios
 
 executable mios-mc
-  hs-source-dirs:	MultiConflict .
-  main-is:              app/mios.hs
+  hs-source-dirs:	MultiConflict app
+  main-is:              mios.hs
   if flag(MultiConflict)
     buildable:	        True
   else
@@ -136,8 +137,8 @@ executable mios-mc
                         SAT.Mios
 
 executable mios-mc-prof
-  hs-source-dirs:	MultiConflict .
-  main-is:              app/mios.hs
+  hs-source-dirs:	MultiConflict app
+  main-is:              mios.hs
   if flag(MultiConflict) && flag(prof)
     buildable:	        True
   else
