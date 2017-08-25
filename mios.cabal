@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                   mios
-version:                1.5.0
+version:                1.4.2
 synopsis:               A Minisat-based SAT solver in Haskell
 description:
 
@@ -43,6 +43,7 @@ Flag utils
   Default:	        False
 
 library
+  hs-source-dirs:	.
   if flag(lib)
     buildable:	        True
   else
@@ -85,6 +86,7 @@ library
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields
 
 executable mios-r15
+  hs-source-dirs:	MultiConflict .
   main-is:              app/mios.hs
   buildable:	        True
   default-language:	Haskell2010
@@ -106,6 +108,7 @@ executable mios-r15
                         SAT.Mios
 
 executable mios-prof
+  hs-source-dirs:	MultiConflict .
   main-is:              app/mios.hs
   if flag(prof)
     buildable:	        True
@@ -127,6 +130,7 @@ executable mios-prof
                         SAT.Mios
 
 executable gp-dump2csv
+  hs-source-dirs:	MultiConflict
   main-is:              utils/dump2csv.hs
   if flag(utils)
     buildable:	        True
@@ -142,6 +146,7 @@ executable gp-dump2csv
                         SAT.Mios.Util.Stat
 
 executable gp-averagecsv
+  hs-source-dirs:	MultiConflict
   main-is:              utils/averagecsv.hs
   if flag(utils)
     buildable:	        True
@@ -157,6 +162,7 @@ executable gp-averagecsv
                         SAT.Mios.Util.Stat
 
 executable gp-summary
+  hs-source-dirs:	MultiConflict
   main-is:              utils/summary.hs
   if flag(utils)
     buildable:	        True
@@ -187,6 +193,7 @@ executable gp-stat2csv
                         SAT.Mios.Util.Stat
 
 executable gp-pickup
+  hs-source-dirs:	MultiConflict
   main-is:              utils/pickup.hs
   if flag(utils)
     buildable:	        True
@@ -202,6 +209,7 @@ executable gp-pickup
                         SAT.Mios.Util.Stat
 
 executable gp-numbers
+  hs-source-dirs:	MultiConflict
   main-is:              utils/numbers.hs
   if flag(utils)
     buildable:	        True
