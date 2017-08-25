@@ -57,8 +57,6 @@ instance VecFamily Clause Lit where
   {-# SPECIALIZE INLINE setNth :: Clause -> Int -> Int -> IO () #-}
   setNth Clause{..} n x = error "no setNth for Clause"
   -- | returns a vector of literals in it.
-  {-# SPECIALIZE INLINE asUVector :: Clause -> UVector Int #-}
-  asUVector = asUVector . lits
   asList NullClause = return []
   asList Clause{..} = take <$> get' lits <*> asList lits
   -- dump mes NullClause = return $ mes ++ "Null"

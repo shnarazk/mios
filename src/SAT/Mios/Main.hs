@@ -31,10 +31,10 @@ rankOf = get'
 {-# INLINABLE removeWatch #-}
 removeWatch :: Solver -> Clause -> IO ()
 removeWatch (watches -> w) c = do
-  let lvec = asUVector c
-  l1 <- negateLit <$> getNth lvec 0
+  let lstack = lits c
+  l1 <- negateLit <$> getNth lstack 1
   markClause (getNthWatcher w l1) c
-  l2 <- negateLit <$> getNth lvec 1
+  l2 <- negateLit <$> getNth lstack 2
   markClause (getNthWatcher w l2) c
 
 --------------------------------------------------------------------------------
@@ -58,29 +58,29 @@ newLearntClause s@Solver{..} ps = do
      _ -> do
        -- allocate clause:
        c <- newClauseFromStack True ps
-       let vec = asUVector c
+       let lstack = lits c
        -- Pick a second literal to watch:
        let
          findMax :: Int -> Int -> Int -> IO Int
          findMax ((< k) -> False) j _ = return j
          findMax i j val = do
-           v <- lit2var <$> getNth vec i
+           v <- lit2var <$> getNth lstack i
            a <- getNth assigns v
            b <- getNth level v
            if (a /= lBottom) && (val < b)
              then findMax (i + 1) i b
              else findMax (i + 1) j val
-       swapBetween vec 1 =<< findMax 0 0 0 -- Let @max_i@ be the index of the literal with highest decision level
+       swapBetween lstack 2 =<< findMax 2 2 0 -- Let @max_i@ be the index of the literal with highest decision level
        -- Bump, enqueue, store clause:
        set' (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
        -- Add clause to all managers
        pushTo learnts c
-       l <- getNth vec 0
-       pushClauseWithKey (getNthWatcher watches (negateLit l)) c 0
-       l1 <- negateLit <$> getNth vec 1
-       pushClauseWithKey (getNthWatcher watches l1) c 0
+       l1 <- getNth lstack 1
+       pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
+       l2 <- negateLit <$> getNth lstack 2
+       pushClauseWithKey (getNthWatcher watches l2) c 0
        -- update the solver state by @l@
-       unsafeEnqueue s l c
+       unsafeEnqueue s l1 c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
        -- setRank s c
        set' (protected c) True
@@ -96,14 +96,12 @@ newLearntClause s@Solver{..} ps = do
 simplify :: Solver -> Clause -> IO Bool
 simplify s c = do
   n <- get' c
-  let
-    lvec = asUVector c
-    loop ::Int -> IO Bool
-    loop ((< n) -> False) = return False
-    loop i = do
-      v <- valueLit s =<< getNth lvec i
-      if v == 1 then return True else loop (i + 1)
-  loop 0
+  let lstack = lits c
+      loop ::Int -> IO Bool
+      loop ((<= n) -> False) = return False
+      loop i = do v <- valueLit s =<< getNth lstack i
+                  if v == 1 then return True else loop (i + 1)
+  loop 1
 
 --------------------------------------------------------------------------------
 -- MIOS NOTE on Minor methods:
@@ -140,12 +138,9 @@ analyze s@Solver{..} confl = do
   pushTo litsLearnt 0 -- reserve the first place for the unassigned literal
   dl <- decisionLevel s
   let
-    litsVec = asUVector litsLearnt
-    trailVec = asUVector trail
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
-      when (learnt c) $ do
-        claBumpActivity s c
+      when (learnt c) $ claBumpActivity s c
 {-
         -- update LBD like #Glucose4.0
         d <- get' (lbd c)
@@ -158,11 +153,11 @@ analyze s@Solver{..} confl = do
 -}
       sc <- get' c
       let
-        lvec = asUVector c
+        lstack = lits c
         loopOnLiterals :: Int -> Int -> Int -> IO (Int, Int)
-        loopOnLiterals ((< sc) -> False) b pc = return (b, pc) -- b = btLevel, pc = pathC
+        loopOnLiterals ((<= sc) -> False) b pc = return (b, pc) -- b = btLevel, pc = pathC
         loopOnLiterals j b pc = do
-          (q :: Lit) <- getNth lvec j
+          (q :: Lit) <- getNth lstack j
           let v = lit2var q
           sn <- getNth an'seen v
           l <- getNth level v
@@ -179,76 +174,69 @@ analyze s@Solver{..} confl = do
                       loopOnLiterals (j + 1) b (pc + 1)
                   else pushTo litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
             else loopOnLiterals (j + 1) b pc
-      (b', pathC') <- loopOnLiterals (if p == bottomLit then 0 else 1) bl pathC
+      (b', pathC') <- loopOnLiterals (if p == bottomLit then 1 else 2) bl pathC
       let
         -- select next clause to look at
         nextPickedUpLit :: Int -> IO Int
-        nextPickedUpLit i = do
-          x <- getNth an'seen . lit2var =<< getNth trailVec i
-          if x == 0 then nextPickedUpLit $ i - 1 else return i
-      ti' <- nextPickedUpLit ti
-      nextP <- getNth trailVec ti'
+        nextPickedUpLit i = do x <- getNth an'seen . lit2var =<< getNth trail i
+                               if x == 0 then nextPickedUpLit (i - 1) else return (i - 1)
+      ti' <- nextPickedUpLit (ti + 1)
+      nextP <- getNth trail (ti' + 1)
       let nextV = lit2var nextP
       confl' <- getNth reason nextV
       setNth an'seen nextV 0
       if 1 < pathC'
         then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
-        else setNth litsVec 0 (negateLit nextP) >> return b'
+        else setNth litsLearnt 1 (negateLit nextP) >> return b'
   ti <- subtract 1 <$> get' trail
   levelToReturn <- loopOnClauseChain confl bottomLit ti 0 0
   -- Simplify phase (implemented only @expensive_ccmin@ path)
   n <- get' litsLearnt
   reset an'stack           -- analyze_stack.clear();
   reset an'toClear         -- out_learnt.copyTo(analyze_toclear);
-  pushTo an'toClear =<< getNth litsVec 0
+  pushTo an'toClear =<< getNth litsLearnt 1
   let
     merger :: Int -> Int -> IO Int
-    merger ((< n) -> False) b = return b
+    merger ((<= n) -> False) b = return b
     merger i b = do
-      l <- getNth litsVec i
+      l <- getNth litsLearnt i
       pushTo an'toClear l
       -- restrict the search depth (range) to 32
       merger (i + 1) . setBit b . (31 .&.) =<< getNth level (lit2var l)
-  levels <- merger 1 0
+  levels <- merger 2 0
   let
     loopOnLits :: Int -> Int -> IO ()
-    loopOnLits ((< n) -> False) n' = shrinkBy litsLearnt $ n - n'
+    loopOnLits ((<= n) -> False) n' = shrinkBy litsLearnt $ n - n' + 1
     loopOnLits i j = do
-      l <- getNth litsVec i
+      l <- getNth litsLearnt i
       c1 <- (NullClause ==) <$> getNth reason (lit2var l)
       if c1
-        then setNth litsVec j l >> loopOnLits (i + 1) (j + 1)
+        then setNth litsLearnt j l >> loopOnLits (i + 1) (j + 1)
         else do
            c2 <- not <$> analyzeRemovable s l levels
            if c2
-             then setNth litsVec j l >> loopOnLits (i + 1) (j + 1)
+             then setNth litsLearnt j l >> loopOnLits (i + 1) (j + 1)
              else loopOnLits (i + 1) j
-  loopOnLits 1 1                -- the first literal is specail
+  loopOnLits 2 2                -- the first literal is specail
   -- glucose heuristics
   nld <- get' an'lastDL
   r <- get' litsLearnt -- this is not the right value
-  let
-    vec = asUVector an'lastDL
-    loopOnLastDL :: Int -> IO ()
-    loopOnLastDL ((< nld) -> False) = return ()
-    loopOnLastDL i = do
-      v <- lit2var <$> getNth vec i
-      r' <- rankOf =<< getNth reason v
-      when (r < r') $ varBumpActivity s v
-      loopOnLastDL $ i + 1
-  loopOnLastDL 0
+  let loopOnLastDL :: Int -> IO ()
+      loopOnLastDL ((<= nld) -> False) = return ()
+      loopOnLastDL i = do v <- lit2var <$> getNth an'lastDL i
+                          r' <- rankOf =<< getNth reason v
+                          when (r < r') $ varBumpActivity s v
+                          loopOnLastDL $ i + 1
+  loopOnLastDL 1
   reset an'lastDL
   -- Clear seen
   k <- get' an'toClear
-  let
-    vec' = asUVector an'toClear
-    cleaner :: Int -> IO ()
-    cleaner ((< k) -> False) = return ()
-    cleaner i = do
-      v <- lit2var <$> getNth vec' i
-      setNth an'seen v 0
-      cleaner $ i + 1
-  cleaner 0
+  let cleaner :: Int -> IO ()
+      cleaner ((<= k) -> False) = return ()
+      cleaner i = do v <- lit2var <$> getNth an'toClear i
+                     setNth an'seen v 0
+                     cleaner $ i + 1
+  cleaner 1
   return levelToReturn
 
 -- | #M114
@@ -263,7 +251,7 @@ analyze s@Solver{..} confl = do
 {-# INLINABLE analyzeRemovable #-}
 analyzeRemovable :: Solver -> Lit -> Int -> IO Bool
 analyzeRemovable Solver{..} p minLevel = do
-  -- assert (reason[var(p)]!= NullCaulse);
+  -- assert (reason[var(p)]!= NullClause);
   reset an'stack      -- analyze_stack.clear()
   pushTo an'stack p   -- analyze_stack.push(p);
   top <- get' an'toClear
@@ -279,11 +267,11 @@ analyzeRemovable Solver{..} p minLevel = do
             c <- getNth reason (lit2var sl) -- getRoot sl
             nl <- get' c
             let
-              cvec = asUVector c
+              lstack = lits c
               loopOnLit :: Int -> IO Bool -- loopOnLit (int i = 1; i < c.size(); i++){
-              loopOnLit ((< nl) -> False) = loopOnStack
+              loopOnLit ((<= nl) -> False) = loopOnStack
               loopOnLit i = do
-                p' <- getNth cvec i              -- valid range is [0 .. nl - 1]
+                p' <- getNth lstack i              -- valid range is [1 .. nl]
                 let v' = lit2var p'
                 l' <- getNth level v'
                 c1 <- (1 /=) <$> getNth an'seen v'
@@ -292,24 +280,22 @@ analyzeRemovable Solver{..} p minLevel = do
                       c3 <- (NullClause /=) <$> getNth reason v'
                       if c3 && testBit minLevel (l' .&. 31) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
                         then do
-                            setNth an'seen v' 1        -- analyze_seen[var(p)] = 1;
+                            setNth an'seen v' 1   -- analyze_seen[var(p)] = 1;
                             pushTo an'stack p'    -- analyze_stack.push(p);
                             pushTo an'toClear p'  -- analyze_toclear.push(p);
                             loopOnLit $ i + 1
                         else do
                             -- loopOnLit (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
                             top' <- get' an'toClear
-                            let
-                              vec = asUVector an'toClear
-                              clearAll :: Int -> IO ()
-                              clearAll ((< top') -> False) = return ()
-                              clearAll j = do x <- getNth vec j; setNth an'seen (lit2var x) 0; clearAll (j + 1)
-                            clearAll top
+                            let clearAll :: Int -> IO ()
+                                clearAll ((<= top') -> False) = return ()
+                                clearAll j = do x <- getNth an'toClear j; setNth an'seen (lit2var x) 0; clearAll (j + 1)
+                            clearAll $ top + 1
                             -- analyze_toclear.shrink(analyze_toclear.size() - top); note: shrink n == repeat n pop
                             shrinkBy an'toClear $ top' - top
                             return False
                   else loopOnLit $ i + 1
-            loopOnLit 1
+            loopOnLit 2
   loopOnStack
 
 -- | #114
@@ -328,25 +314,23 @@ analyzeFinal Solver{..} confl skipFirst = do
   rl <- get' rootLevel
   unless (rl == 0) $ do
     n <- get' confl
-    let
-      lvec = asUVector confl
-      loopOnConfl :: Int -> IO ()
-      loopOnConfl ((< n) -> False) = return ()
-      loopOnConfl i = do
-        (x :: Var) <- lit2var <$> getNth lvec i
-        lvl <- getNth level x
-        when (0 < lvl) $ setNth an'seen x 1
-        loopOnConfl $ i + 1
-    loopOnConfl $ if skipFirst then 1 else 0
+    let lstack = lits confl
+        loopOnConfl :: Int -> IO ()
+        loopOnConfl ((<= n) -> False) = return ()
+        loopOnConfl i = do
+          (x :: Var) <- lit2var <$> getNth lstack i
+          lvl <- getNth level x
+          when (0 < lvl) $ setNth an'seen x 1
+          loopOnConfl $ i + 1
+    loopOnConfl $ if skipFirst then 2 else 1
     tls <- get' trailLim
     trs <- get' trail
-    tlz <- getNth (asUVector trailLim) 0
+    tlz <- getNth trailLim 1
     let
-      trailVec = asUVector trail
       loopOnTrail :: Int -> IO ()
       loopOnTrail ((tlz <=) -> False) = return ()
       loopOnTrail i = do
-        (l :: Lit) <- getNth trailVec i
+        (l :: Lit) <- getNth trail (i + 1)
         let (x :: Var) = lit2var l
         saw <- getNth an'seen x
         when (saw == 1) $ do
@@ -355,19 +339,18 @@ analyzeFinal Solver{..} confl skipFirst = do
             then pushTo conflicts (negateLit l)
             else do
                 k <- get' r
-                let
-                  cvec = asUVector r
-                  loopOnLits :: Int -> IO ()
-                  loopOnLits ((< k) -> False) = return ()
-                  loopOnLits j = do
-                    (v :: Var) <- lit2var <$> getNth cvec j
-                    lv <- getNth level v
-                    when (0 < lv) $ setNth an'seen v 1
-                    loopOnLits $ i + 1
-                loopOnLits 1
+                let lstack' = lits r
+                    loopOnLits :: Int -> IO ()
+                    loopOnLits ((<= k) -> False) = return ()
+                    loopOnLits j = do
+                      (v :: Var) <- lit2var <$> getNth lstack' j
+                      lv <- getNth level v
+                      when (0 < lv) $ setNth an'seen v 1
+                      loopOnLits $ i + 1
+                loopOnLits 2
         setNth an'seen x 0
         loopOnTrail $ i - 1
-    loopOnTrail =<< if tls <= rl then return (trs - 1) else getNth (asUVector trailLim) rl
+    loopOnTrail =<< if tls <= rl then return (trs - 1) else getNth trailLim (rl + 1)
 
 -- | M114:
 -- propagate : [void] -> [Clause+]
@@ -398,11 +381,10 @@ propagate s@Solver{..} = do
           loop $ i + 1
       loop 1
 -}
-    trailVec = asUVector trail
     while :: Clause -> Bool -> IO Clause
     while confl False = {- bumpAllVar >> -} return confl
     while confl True = do
-      (p :: Lit) <- getNth trailVec =<< get' qHead
+      (p :: Lit) <- getNth trail . (1 +) =<< get' qHead
       modify' qHead (+ 1)
       let (ws :: ClauseExtManager) = getNthWatcher watches p
       end <- get' ws
@@ -442,22 +424,21 @@ propagate s@Solver{..} = do
             else do
                 -- checkAllLiteralsIn c
                 (c :: Clause) <- getNth cvec i
-                let
-                  lits = asUVector c
-                  falseLit = negateLit p
+                let lstack = lits c
+                    falseLit = negateLit p
                 -- Make sure the false literal is data[1]
-                ((falseLit ==) <$> getNth lits 0) >>= (`when` swapBetween lits 0 1)
+                ((falseLit ==) <$> getNth lstack 1) >>= (`when` swapBetween lstack 1 2)
                 -- if 0th watch is true, then clause is already satisfied.
-                (first :: Lit) <- getNth lits 0
+                (first :: Lit) <- getNth lstack 1
                 val <- valueLit s first
                 if val == lTrue
                   then setNth cvec j c >> setNth bvec j first >> forClause confl (i + 1) (j + 1)
                   else do
-                      -- Look for new watch
+                      -- Look for a new watch
                       cs <- get' c
                       let
                         forLit :: Int -> IO Clause
-                        forLit ((< cs) -> False) = do
+                        forLit ((<= cs) -> False) = do
                           -- Did not find watch; clause is unit under assignment:
                           setNth cvec j c
                           setNth bvec j 0
@@ -465,7 +446,6 @@ propagate s@Solver{..} = do
                           if not result
                             then do
                                 ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
-                                -- #BBCP
                                 set' qHead =<< get' trail
                                 -- Copy the remaining watches:
                                 let
@@ -477,15 +457,15 @@ propagate s@Solver{..} = do
                                 copy (i + 1) (j + 1)
                             else forClause confl (i + 1) (j + 1)
                         forLit k = do
-                          (l :: Lit) <- getNth lits k
-                          lv <- valueLit s l
+                          (l' :: Lit) <- getNth lstack k
+                          lv <- valueLit s l'
                           if lv /= lFalse
                             then do
-                                swapBetween lits 1 k
-                                pushClauseWithKey (getNthWatcher watches (negateLit l)) c l
+                                swapBetween lstack 2 k
+                                pushClauseWithKey (getNthWatcher watches (negateLit l')) c l'
                                 forClause confl (i + 1) j
                             else forLit $ k + 1
-                      forLit 2
+                      forLit 3
       forClause confl 0 0
   while NullClause =<< ((<) <$> get' qHead <*> get' trail)
 
@@ -639,15 +619,12 @@ simplifyDB s@Solver{..} = do
         else do
             -- Clear watcher lists:
             n <- get' trail
-            let
-              vec = asUVector trail
-              loopOnLit ((< n) -> False) = return ()
-              loopOnLit i = do
-                l <- getNth vec i
-                reset . getNthWatcher watches $ l
-                reset . getNthWatcher watches $ negateLit l
-                loopOnLit $ i + 1
-            loopOnLit 0
+            let loopOnLit ((< n) -> False) = return ()
+                loopOnLit i = do l <- getNth trail i
+                                 reset . getNthWatcher watches $ l
+                                 reset . getNthWatcher watches $ negateLit l
+                                 loopOnLit $ i + 1
+            loopOnLit 1
             -- Remove satisfied clauses:
             let
               for :: Int -> IO Bool
@@ -713,7 +690,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                   newLearntClause s litsLearnt
                   k <- get' litsLearnt
                   when (k == 1) $ do
-                    (v :: Var) <- lit2var <$> getNth (asUVector litsLearnt) 0
+                    (v :: Var) <- lit2var <$> getNth litsLearnt 1
                     setNth level v 0
                   varDecayActivity s
                   -- claDecayActivity s
