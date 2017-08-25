@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                   mios
-version:                1.4.2
+version:                1.4.1
 synopsis:               A Minisat-based SAT solver in Haskell
 description:
 
@@ -38,8 +38,8 @@ Flag prof
   Description:	        Build the profiler
   Default:	        False
 
-Flag utils
-  Description:	        Build misc utilities for developer
+Flag MultiConflict
+  Description:	        Build tools in MultiConflict
   Default:	        False
 
 library
@@ -85,13 +85,37 @@ library
   else
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields
 
-executable mios-r15
-  hs-source-dirs:	MultiConflict .
+executable mios
   main-is:              app/mios.hs
   buildable:	        True
   default-language:	Haskell2010
   default-extensions:  Strict
-  build-depends:        base >=4.9,  vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
+  build-depends:        base >=4.9, vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
+  if flag(llvm)
+    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O3
+  else
+    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields
+  other-modules:
+                        SAT.Mios.Clause
+                        SAT.Mios.ClauseManager
+                        SAT.Mios.Vec
+                        SAT.Mios.Main
+                        SAT.Mios.OptionParser
+                        SAT.Mios.Solver
+                        SAT.Mios.Types
+                        SAT.Mios.Validator
+                        SAT.Mios
+
+executable mios-r15
+  hs-source-dirs:	MultiConflict .
+  main-is:              app/mios.hs
+  if flag(MultiConflict)
+    buildable:	        True
+  else
+    buildable:	        False
+  default-language:	Haskell2010
+  default-extensions:  Strict
+  build-depends:        base >=4.9, vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
   if flag(llvm)
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O2 -optlc-O2
   else
@@ -110,13 +134,13 @@ executable mios-r15
 executable mios-prof
   hs-source-dirs:	MultiConflict .
   main-is:              app/mios.hs
-  if flag(prof)
+  if flag(MultiConflict)
     buildable:	        True
   else
     buildable:	        False
   default-language:	Haskell2010
   default-extensions:  Strict
-  build-depends:        base >=4.9,  vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
+  build-depends:        base >=4.9, vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
   ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -prof -fprof-auto
   other-modules:
                         SAT.Mios.Clause
@@ -132,13 +156,13 @@ executable mios-prof
 executable gp-dump2csv
   hs-source-dirs:	MultiConflict
   main-is:              utils/dump2csv.hs
-  if flag(utils)
+  if flag(MultiConflict)
     buildable:	        True
   else
     buildable:	        False
   default-language:	Haskell2010
   default-extensions:  Strict
-  build-depends:        base ==4.10.*,  vector >= 0.12, bytestring >=0.10, primitive >=0.6
+  build-depends:        base ==4.10.*, vector >= 0.12, bytestring >=0.10, primitive >=0.6
   ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
   other-modules:
                         SAT.Mios.Vec
@@ -148,13 +172,13 @@ executable gp-dump2csv
 executable gp-averagecsv
   hs-source-dirs:	MultiConflict
   main-is:              utils/averagecsv.hs
-  if flag(utils)
+  if flag(MultiConflict)
     buildable:	        True
   else
     buildable:	        False
   default-language:	Haskell2010
   default-extensions:  Strict
-  build-depends:        base ==4.10.*,  vector >= 0.12, bytestring >=0.10, primitive >=0.6
+  build-depends:        base ==4.10.*, vector >= 0.12, bytestring >=0.10, primitive >=0.6
   ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
   other-modules:
                         SAT.Mios.Vec
@@ -164,7 +188,7 @@ executable gp-averagecsv
 executable gp-summary
   hs-source-dirs:	MultiConflict
   main-is:              utils/summary.hs
-  if flag(utils)
+  if flag(MultiConflict)
     buildable:	        True
   else
     buildable:	        False
@@ -179,7 +203,7 @@ executable gp-summary
 
 executable gp-stat2csv
   main-is:              utils/stat2csv.hs
-  if flag(utils)
+  if flag(MultiConflict)
     buildable:	        True
   else
     buildable:	        False
@@ -195,7 +219,7 @@ executable gp-stat2csv
 executable gp-pickup
   hs-source-dirs:	MultiConflict
   main-is:              utils/pickup.hs
-  if flag(utils)
+  if flag(MultiConflict)
     buildable:	        True
   else
     buildable:	        False
@@ -211,7 +235,7 @@ executable gp-pickup
 executable gp-numbers
   hs-source-dirs:	MultiConflict
   main-is:              utils/numbers.hs
-  if flag(utils)
+  if flag(MultiConflict)
     buildable:	        True
   else
     buildable:	        False
