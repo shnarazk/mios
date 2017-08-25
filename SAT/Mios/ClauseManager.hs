@@ -47,7 +47,7 @@ data ClauseExtManager = ClauseExtManager
     _nActives     :: !Int'                         -- number of active clause
   , _purged       :: !Bool'                        -- whether it needs gc
   , _clauseVector :: IORef.IORef C.ClauseVector    -- clause list
-  , _keyVector    :: IORef.IORef (Vec [Int])       -- Int list
+  , _keyVector    :: IORef.IORef (UVector Int)     -- Int list
   }
 
 -- | 'ClauseExtManager' is a 'SingleStorage` on the numeber of clauses in it.
@@ -84,7 +84,7 @@ instance ClauseManager ClauseExtManager where
   {-# SPECIALIZE INLINE newManager :: Int -> IO ClauseExtManager #-}
   newManager initialSize = do
     i <- new' 0
-    v <- newVec initialSize C.NullClause
+    v <- C.newClauseVector initialSize
     b <- newVec (MV.length v) 0
     ClauseExtManager i <$> new' False <*> IORef.newIORef v <*> IORef.newIORef b
   -- | returns the internal 'C.ClauseVector'.
@@ -127,7 +127,7 @@ instance ClauseManager ClauseExtManager where
       MV.unsafeWrite v i =<< MV.unsafeRead v n
       setNth b i =<< getNth b n
       set' _nActives n
-  removeNthClause = errorWithoutStackTrace "removeNthClause is not implemented on ClauseExtManager"
+  removeNthClause = error "removeNthClause is not implemented on ClauseExtManager"
 -}
 
 -- | sets the expire flag to a clause.
@@ -170,7 +170,7 @@ purifyManager ClauseExtManager{..} = do
 
 -- | returns the associated Int vector, which holds /blocking literals/.
 {-# INLINE getKeyVector #-}
-getKeyVector :: ClauseExtManager -> IO (Vec [Int])
+getKeyVector :: ClauseExtManager -> IO (UVector Int)
 getKeyVector ClauseExtManager{..} = IORef.readIORef _keyVector
 
 -- | O(1) inserter
@@ -194,13 +194,9 @@ pushClauseWithKey !ClauseExtManager{..} !c k = do
   modify' _nActives (1 +)
 
 -- | 'ClauseExtManager' is a collection of 'C.Clause'
-instance VecFamily ClauseExtManager (C.Clause, Int) where
-  getNth = errorWithoutStackTrace "no getNth method for ClauseExtManager"
-  setNth = errorWithoutStackTrace "no setNth method for ClauseExtManager"
-  asList cm = do
-    n <- get' cm
-    l <- zip <$> (asList =<< getClauseVector cm) <*> (asList =<< getKeyVector cm)
-    return (take n l)
+instance VecFamily ClauseExtManager C.Clause where
+  getNth = error "no getNth method for ClauseExtManager"
+  setNth = error "no setNth method for ClauseExtManager"
   {-# SPECIALIZE INLINE reset :: ClauseExtManager -> IO () #-}
   reset m = set' (_nActives m) 0
 {-
@@ -216,24 +212,23 @@ instance VecFamily ClauseExtManager (C.Clause, Int) where
 
 -------------------------------------------------------------------------------- WatcherList
 
--- | Immutable Vector of 'ClauseExtManager'; an 'Lit'-indexed collection of 'ClauseManager'.
--- Note: 0-th field is not used in mios; is used as multiple conflicting clauses is BCP+
+-- | Immutable Vector of 'ClauseExtManager'
 type WatcherList = V.Vector ClauseExtManager
 
 -- | /n/ is the number of 'Var', /m/ is default size of each watcher list.
 -- | For /n/ vars, we need [0 .. 2 + 2 * n - 1] slots, namely /2 * (n + 1)/-length vector
 newWatcherList :: Int -> Int -> IO WatcherList
-newWatcherList n m = V.fromList <$> mapM (\_ -> newManager m) [0 .. int2lit (negate n)]
+newWatcherList n m = V.fromList <$> mapM (\_ -> newManager m) [0 .. int2lit (negate n) + 1]
 
 -- | returns the watcher List for "Literal" /l/.
 {-# INLINE getNthWatcher #-}
 getNthWatcher :: WatcherList -> Lit -> ClauseExtManager
 getNthWatcher = V.unsafeIndex
 
-instance VecFamily WatcherList ClauseExtManager where
-  getNth = errorWithoutStackTrace "no getNth method for WatcherList" -- getNthWatcher is a pure function
-  setNth = errorWithoutStackTrace "no setNth method for WatcherList"
-  asList w = return $ V.toList w
+-- | 'WatcherList' is an 'Lit'-indexed collection of 'C.Clause'.
+instance VecFamily WatcherList C.Clause where
+  getNth = error "no getNth method for WatcherList" -- getNthWatcher is a pure function
+  setNth = error "no setNth method for WatcherList"
   {-# SPECIALIZE INLINE reset :: WatcherList -> IO () #-}
   reset = V.mapM_ purifyManager
 --  dump _ _ = (mes ++) . concat <$> mapM (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i)) [1 .. V.length wl - 1]
