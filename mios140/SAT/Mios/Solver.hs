@@ -327,10 +327,10 @@ clauseNew s@Solver{..} ps isLearnt = do
        -- Bumping:
        claBumpActivity s c -- newly learnt clauses should be considered active
      -- Add clause to watcher lists:
-     l0 <- negateLit <$> getNth vec 0
-     pushClauseWithKey (getNthWatcher watches l0) c 0
-     l1 <- negateLit <$> getNth vec 1
+     l1 <- negateLit <$> getNth vec 0
      pushClauseWithKey (getNthWatcher watches l1) c 0
+     l2 <- negateLit <$> getNth vec 1
+     pushClauseWithKey (getNthWatcher watches l2) c 0
      return (Right c)
 
 -- | __Fig. 9 (p.14)__

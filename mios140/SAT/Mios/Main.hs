@@ -284,7 +284,7 @@ analyzeRemovable Solver{..} p minLevel = do
                       c3 <- (NullClause /=) <$> getNth reason v'
                       if c3 && testBit minLevel (l' .&. 31) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
                         then do
-                            setNth an'seen v' 1        -- analyze_seen[var(p)] = 1;
+                            setNth an'seen v' 1   -- analyze_seen[var(p)] = 1;
                             pushTo an'stack p'    -- analyze_stack.push(p);
                             pushTo an'toClear p'  -- analyze_toclear.push(p);
                             loopOnLit $ i + 1
