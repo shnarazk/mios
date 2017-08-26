@@ -62,7 +62,7 @@ newLearntClause s@Solver{..} ps = do
        -- Pick a second literal to watch:
        let
          findMax :: Int -> Int -> Int -> IO Int
-         findMax ((< k) -> False) j _ = return j
+         findMax ((<= k) -> False) j _ = return j
          findMax i j val = do
            v <- lit2var <$> getNth lstack i
            a <- getNth assigns v
@@ -70,7 +70,7 @@ newLearntClause s@Solver{..} ps = do
            if (a /= lBottom) && (val < b)
              then findMax (i + 1) i b
              else findMax (i + 1) j val
-       swapBetween lstack 2 =<< findMax 2 2 0 -- Let @max_i@ be the index of the literal with highest decision level
+       swapBetween lstack 2 =<< findMax 1 1 0 -- Let @max_i@ be the index of the literal with highest decision level
        -- Bump, enqueue, store clause:
        set' (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
        -- Add clause to all managers
