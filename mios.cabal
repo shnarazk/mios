@@ -122,9 +122,9 @@ executable mios-1.4.0-prof
   default-extensions:  Strict
   build-depends:        base >=4.9, vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
   if flag(llvm)
-    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O3 -prof -fprof-auto
+    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O3 -prof -fprof-auto -rtsopts
   else
-    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -prof -fprof-auto
+    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -prof -fprof-auto -rtsopts
   other-modules:
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
@@ -169,9 +169,9 @@ executable mios-1.4.1-prof
   default-extensions:  Strict
   build-depends:        base >=4.9, vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
   if flag(llvm)
-    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O3 -prof -fprof-auto
+    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O3 -prof -fprof-auto -rtsopts
   else
-    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -prof -fprof-auto
+    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -prof -fprof-auto -rtsopts
   other-modules:
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
