@@ -50,7 +50,7 @@ data ClauseExtManager = ClauseExtManager
   , _keyVector    :: IORef.IORef (Vec [Int])     -- Int list
   }
 
--- | 'ClauseExtManager' is a 'SingleStorage` on the numeber of clauses in it.
+-- | 'ClauseExtManager' is a 'SingleStorage` on the number of clauses in it.
 instance SingleStorage ClauseExtManager Int where
   {-# SPECIALIZE INLINE get' :: ClauseExtManager -> IO Int #-}
   get' m = get' (_nActives m)
