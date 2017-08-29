@@ -55,6 +55,7 @@ makeClauseFromStack pool v = do
             return c
 
 -- | Note: only learnt clauses are stocked.
+{-# INLINE dumpToPool #-}
 dumpToPool :: ClausePool -> Clause -> IO ()
 dumpToPool pool c =
   when (learnt c) $ do n <- get' c  -- FIXME
