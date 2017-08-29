@@ -41,7 +41,7 @@ data MiosProgramOption = MiosProgramOption
 miosDefaultOption :: MiosProgramOption
 miosDefaultOption = MiosProgramOption
   {
-    _targetFile = Just ""
+    _targetFile = Nothing
   , _outputFile = Nothing
   , _confVariableDecayRate = variableDecayRate defaultConfiguration
 --  , _confClauseDecayRate = clauseDecayRate defaultConfiguration
@@ -76,7 +76,7 @@ miosOptions =
     (NoArg (\c -> c { _confCheckAnswer = True }))
     "[solver] self-check the (satisfied) answer"
   , Option ['o'] ["output"]
-    (ReqArg (\v c -> c { _outputFile = Just v })"file")
+    (ReqArg (\v c -> c { _outputFile = Just v }) "file")
     "[option] filename to store the result"
 {-
   , Option [] ["stdin"]
@@ -111,9 +111,8 @@ miosUsage mes = usageInfo mes miosOptions
 miosParseOptions :: String -> [String] -> IO MiosProgramOption
 miosParseOptions mes argv =
     case getOpt Permute miosOptions argv of
-      (o, [], []) -> do
-        return $ foldl (flip id) miosDefaultOption o
-      (o, (n:_), []) -> do
+      (o, [], []) -> return $ foldl (flip id) miosDefaultOption o
+      (o, n:_, []) -> do
         let conf = foldl (flip id) miosDefaultOption o
         return $ conf { _targetFile = Just n }
       (_, _, errs) -> ioError (userError (concat errs ++ miosUsage mes))

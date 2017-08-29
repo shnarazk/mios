@@ -28,6 +28,13 @@ in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSa
 
 ### > Release Note
 
+##### 1.4.1
+
+A maintenance release:
+
+* use `ByteArray`; no performance boost.
+* add a copy of a branch: MultiConflict.
+
 ##### 1.4.0
 
 * new classes and methods
