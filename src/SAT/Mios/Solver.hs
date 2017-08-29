@@ -48,6 +48,7 @@ import Control.Monad (unless, when)
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
+import SAT.Mios.ClausePool
 
 -- | __Fig. 2.(p.9)__ Internal State of the solver
 data Solver = Solver
@@ -85,6 +86,7 @@ data Solver = Solver
               , an'toClear :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
               , an'stack   :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
               , an'lastDL  :: !Stack             -- ^ last decision level used in 'SAT.Mios.Main.analyze'
+              , clsPool    :: ClausePool         -- ^ clause recycler
               , litsLearnt :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze' and 'SAT.Mios.Main.search' to create a learnt clause
               -- , pr'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.propagate'
               , stats      :: !(Vec [Int])       -- ^ statistics information holder
@@ -128,9 +130,10 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> newVec nv 0                        -- an'seen
     <*> newStack nv                        -- an'toClear
     <*> newStack nv                        -- an'stack
+    <*> newStack nv                        -- an'lastDL
+    <*> newClausePool 10                   -- clsPool
 --    <*> newVec nv (-1)                     -- pr'seen
     <*> newStack nv                        -- litsLearnt
-    <*> newStack nv                        -- lastDL
     <*> newVec (fromEnum EndOfStatIndex) 0 -- stats
 {-
 --    <*> newVec nv                        -- lbd'seen

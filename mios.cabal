@@ -71,6 +71,7 @@ library
   exposed-modules:
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
+                        SAT.Mios.ClausePool
                         SAT.Mios.Vec
                         SAT.Mios.Main
                         SAT.Mios.OptionParser
@@ -106,6 +107,7 @@ executable mios-1.4.1
   other-modules:
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
+                        SAT.Mios.ClausePool
                         SAT.Mios.Vec
                         SAT.Mios.Main
                         SAT.Mios.OptionParser
@@ -131,6 +133,7 @@ executable mios-1.4.1-prof
   other-modules:
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
+                        SAT.Mios.ClausePool
                         SAT.Mios.Vec
                         SAT.Mios.Main
                         SAT.Mios.OptionParser

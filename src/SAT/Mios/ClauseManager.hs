@@ -77,6 +77,11 @@ instance StackFamily ClauseExtManager C.Clause where
           IORef.writeIORef _keyVector b'
       else MV.unsafeWrite v n c >> setNth b n 0
     modify' _nActives (1 +)
+  popFrom m = modify' (_nActives m) (subtract 1)
+  lastOf ClauseExtManager{..} = do
+    n <- get' _nActives
+    v <- IORef.readIORef _clauseVector
+    MV.unsafeRead v (n - 1)
 
 -- | 'ClauseExtManager' is a 'ClauseManager'
 instance ClauseManager ClauseExtManager where

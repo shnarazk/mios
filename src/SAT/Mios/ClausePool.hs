@@ -13,6 +13,7 @@ module SAT.Mios.ClausePool
        )
        where
 
+import Control.Monad (when)
 import qualified Data.Vector as V
 import SAT.Mios.Vec
 import SAT.Mios.Clause
@@ -21,12 +22,12 @@ import qualified SAT.Mios.ClauseManager as CM
 -- | another immutable Vector of 'ClauseExtManager'
 type ClausePool = V.Vector CM.ClauseExtManager
 
-newClausePool :: Int -> Int -> IO ClausePool
-newClausePool n m = V.fromList <$> mapM (\_ -> CM.newManager m) [0 .. n]
+newClausePool ::Int -> IO ClausePool
+newClausePool n = V.fromList <$> mapM (\_ -> CM.newManager n) [0 .. 3]
 
 {-# INLINE size2index #-}
 size2index :: Int -> Int
-size2index n = if n < 16 then if n < 8  then 0
+size2index n = if n < 16 then if n < 4  then 0
                                         else 1
                          else if n < 32 then 2
                                         else 3
@@ -55,6 +56,6 @@ makeClauseFromStack pool v = do
 
 -- | Note: only learnt clauses are stocked.
 dumpToPool :: ClausePool -> Clause -> IO ()
-dumpToPool pool c = if learnt c
-                    then do n <- get' c; pushTo (getManager pool n) c
-                    else return ()
+dumpToPool pool c =
+  when (learnt c) $ do n <- get' c
+                       when (4 <= n) $pushTo (getManager pool (div n 2)) c
