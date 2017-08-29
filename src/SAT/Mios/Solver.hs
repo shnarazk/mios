@@ -22,7 +22,6 @@ module SAT.Mios.Solver
        , decisionLevel
        , valueVar
        , valueLit
---       , oldLit
        , locked
          -- * State Modifiers
        , addClause
@@ -87,10 +86,7 @@ data Solver = Solver
               , an'stack   :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
               , an'lastDL  :: !Stack             -- ^ last decision level used in 'SAT.Mios.Main.analyze'
               , litsLearnt :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze' and 'SAT.Mios.Main.search' to create a learnt clause
-
-{-
               -- , pr'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.propagate'
--}
               , stats      :: !(Vec [Int])       -- ^ statistics information holder
 {-
               , lbd'seen   :: !Vec               -- ^ used in lbd computation
@@ -177,13 +173,6 @@ valueVar = getNth . assigns
 {-# INLINE valueLit #-}
 valueLit :: Solver -> Lit -> IO Int
 valueLit (assigns -> a) p = (\x -> if positiveLit p then x else negate x) <$> getNth a (lit2var p)
-
-{-
--- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit' in phases.
-{-# INLINE oldLit #-}
-oldLit :: Solver -> Lit -> IO Lit
-oldLit (phases -> a) (lit2var -> v) = (var2lit v . (== 1)) <$> getNth a v
--}
 
 -- | __Fig. 7. (p.11)__
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__

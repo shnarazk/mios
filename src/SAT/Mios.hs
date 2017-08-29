@@ -74,7 +74,6 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
     nc <- nClauses s
     hPutStrLn stderr $ cnfFile ++ " was loaded: #v = " ++ show (nVars s, _numberOfVariables desc) ++ " #c = " ++ show (nc, _numberOfClauses desc)
   res <- simplifyDB s
-  -- when (_confVerbose opts) $ hPutStrLn stderr $ "`simplifyDB`: " ++ show res
   result <- if res then solve s [] else return False
   case result of
     True  | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "SATISFIABLE"
