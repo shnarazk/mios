@@ -89,56 +89,6 @@ library
   else
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields
 
-executable mios-1.4.0
-  hs-source-dirs:	mios140 app
-  main-is:              mios.hs
-  if flag(prof)
-    buildable:	        False
-  else
-    buildable:	        True
-  default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base >=4.9, vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
-  if flag(llvm)
-    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O3
-  else
-    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields
-  other-modules:
-                        SAT.Mios.Clause
-                        SAT.Mios.ClauseManager
-                        SAT.Mios.Vec
-                        SAT.Mios.Main
-                        SAT.Mios.OptionParser
-                        SAT.Mios.Solver
-                        SAT.Mios.Types
-                        SAT.Mios.Validator
-                        SAT.Mios
-
-executable mios-1.4.0-prof
-  hs-source-dirs:	mios140 app
-  main-is:              mios.hs
-  if flag(prof)
-    buildable:	        True
-  else
-    buildable:	        False
-  default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base >=4.9, vector >=0.11, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
-  if flag(llvm)
-    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O3 -prof -fprof-auto -rtsopts
-  else
-    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -prof -fprof-auto -rtsopts
-  other-modules:
-                        SAT.Mios.Clause
-                        SAT.Mios.ClauseManager
-                        SAT.Mios.Vec
-                        SAT.Mios.Main
-                        SAT.Mios.OptionParser
-                        SAT.Mios.Solver
-                        SAT.Mios.Types
-                        SAT.Mios.Validator
-                        SAT.Mios
-
 executable mios-1.4.1
   hs-source-dirs:	src app
   main-is:              mios.hs
