@@ -39,7 +39,7 @@ getManager p n = V.unsafeIndex p $ size2index n
 
 makeClauseFromStack :: ClausePool -> Stack -> IO Clause
 makeClauseFromStack pool v = do
-  n <- get' v
+  n <- get' v                   -- FIXME: we need the allocated length here
   let mgr = getManager pool n
   nn <- get' mgr
   if nn == 0
@@ -57,5 +57,5 @@ makeClauseFromStack pool v = do
 -- | Note: only learnt clauses are stocked.
 dumpToPool :: ClausePool -> Clause -> IO ()
 dumpToPool pool c =
-  when (learnt c) $ do n <- get' c
+  when (learnt c) $ do n <- get' c  -- FIXME
                        when (4 <= n) $pushTo (getManager pool (div n 2)) c
