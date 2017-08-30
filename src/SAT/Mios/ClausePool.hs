@@ -9,7 +9,7 @@ module SAT.Mios.ClausePool
          ClausePool
        , newClausePool
        , makeClauseFromStack
-       , dumpToPool
+       , putBackToPool
        )
        where
 
@@ -22,8 +22,12 @@ import qualified SAT.Mios.ClauseManager as CM
 -- | another immutable Vector of 'ClauseExtManager'
 type ClausePool = V.Vector CM.ClauseExtManager
 
+-- | biclause should be stored into index:0, so the real limit is 64.
+storeLimit :: Int
+storeLimit = 62
+
 newClausePool ::Int -> IO ClausePool
-newClausePool n = V.fromList <$> mapM (\_ -> CM.newManager n) [0 .. 3]
+newClausePool n = V.fromList <$> mapM (\_ -> CM.newManager n) [0 .. storeLimit]
 
 {-# INLINE size2index #-}
 size2index :: Int -> Int
@@ -35,28 +39,30 @@ size2index n = if n < 16 then if n < 4  then 0
 -- | returns 'CM.ClauseManager' for caluses which have suitable sizes.
 {-# INLINE getManager #-}
 getManager :: ClausePool -> Int -> CM.ClauseExtManager
-getManager p n = V.unsafeIndex p $ size2index n
+getManager p n = V.unsafeIndex p n
 
 makeClauseFromStack :: ClausePool -> Stack -> IO Clause
 makeClauseFromStack pool v = do
-  n <- get' v                   -- FIXME: we need the allocated length here
-  let mgr = getManager pool n
-  nn <- get' mgr
-  if nn == 0
+  n <- get' v
+  if storeLimit < n
     then newClauseFromStack True v
-    else do c <- lastOf mgr
-            popFrom mgr
-            let lstack = lits c
-                loop ((<= n) -> False) = return ()
-                loop i = (setNth lstack i =<< getNth v i) >> loop (i + 1)
-            loop 0
-            set' (activity c) 0.0
-            set' (protected c) False
-            return c
+    else do let mgr = getManager pool $ n - 2
+            nn <- get' mgr
+            if nn == 0
+              then newClauseFromStack True v
+              else do c <- lastOf mgr
+                      popFrom mgr
+                      let lstack = lits c
+                          loop ((<= n) -> False) = return ()
+                          loop i = (setNth lstack i =<< getNth v i) >> loop (i + 1)
+                      loop 0
+                      set' (activity c) 0.0
+                      set' (protected c) False
+                      return c
 
--- | Note: only learnt clauses are stocked.
-{-# INLINE dumpToPool #-}
-dumpToPool :: ClausePool -> Clause -> IO ()
-dumpToPool pool c =
-  when (learnt c) $ do n <- get' c  -- FIXME
-                       when (4 <= n) $pushTo (getManager pool (div n 2)) c
+-- | Note: only not-too-large and learnt clauses are recycled.
+{-# INLINE putBackToPool #-}
+putBackToPool :: ClausePool -> Clause -> IO ()
+putBackToPool pool c =
+  when (learnt c) $ do n <- subtract 2 <$> get' c
+                       when (n <= storeLimit) $ pushTo (getManager pool n) c

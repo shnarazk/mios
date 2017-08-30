@@ -37,7 +37,7 @@ removeWatch Solver{..} c = do
   markClause (getNthWatcher watches l1) c
   l2 <- negateLit <$> getNth lstack 2
   markClause (getNthWatcher watches l2) c
-  dumpToPool clsPool c
+  putBackToPool clsPool c
 
 --------------------------------------------------------------------------------
 -- Operations on 'Clause'
