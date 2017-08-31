@@ -12,6 +12,8 @@ module SAT.Mios.ClauseManager
        (
          -- * higher level interface for ClauseVector
          ClauseManager (..)
+         -- * Simple Clause Manager
+       , ClauseSimpleManager
          -- * Manager with an extra Int (used as sort key or blocking literal)
        , ClauseExtManager
        , pushClauseWithKey
@@ -38,6 +40,56 @@ class ClauseManager a where
   getClauseVector :: a -> IO C.ClauseVector
 --  removeClause    :: a -> C.Clause -> IO ()
 --  removeNthClause :: a -> Int -> IO ()
+
+--------------------------------------------------------------------------------
+
+-- | Clause + Blocking Literal
+data ClauseSimpleManager = ClauseSimpleManager
+  {
+    _numActives :: !Int'                         -- number of active clause
+  , _clsVector  :: IORef.IORef C.ClauseVector    -- clause list
+  }
+
+-- | 'ClauseSimpleManager' is a 'SingleStorage` on the number of clauses in it.
+instance SingleStorage ClauseSimpleManager Int where
+  {-# SPECIALIZE INLINE get' :: ClauseSimpleManager -> IO Int #-}
+  get' m = get' (_numActives m)
+  {-# SPECIALIZE INLINE set' :: ClauseSimpleManager -> Int -> IO () #-}
+  set' m = set' (_numActives m)
+
+-- | 'ClauseSimpleManager' is a 'StackFamily` on clauses.
+instance StackFamily ClauseSimpleManager C.Clause where
+  {-# SPECIALIZE INLINE shrinkBy :: ClauseSimpleManager -> Int -> IO () #-}
+  shrinkBy m k = modify' (_numActives m) (subtract k)
+  pushTo ClauseSimpleManager{..} c = do
+    -- checkConsistency m c
+    !n <- get' _numActives
+    !v <- IORef.readIORef _clsVector
+    if MV.length v - 1 <= n
+      then do
+          let len = max 8 $ MV.length v
+          v' <- MV.unsafeGrow v len
+          MV.unsafeWrite v' n c
+          IORef.writeIORef _clsVector v'
+      else MV.unsafeWrite v n c
+    modify' _numActives (1 +)
+  popFrom m = modify' (_numActives m) (subtract 1)
+  lastOf ClauseSimpleManager{..} = do
+    n <- get' _numActives
+    v <- IORef.readIORef _clsVector
+    MV.unsafeRead v (n - 1)
+
+-- | 'ClauseSimpleManager' is a 'ClauseManager'
+instance ClauseManager ClauseSimpleManager where
+  -- | returns a new instance.
+  {-# SPECIALIZE INLINE newManager :: Int -> IO ClauseSimpleManager #-}
+  newManager initialSize = do
+    i <- new' 0
+    v <- C.newClauseVector initialSize
+    ClauseSimpleManager i <$> IORef.newIORef v
+  -- | returns the internal 'C.ClauseVector'.
+  {-# SPECIALIZE INLINE getClauseVector :: ClauseSimpleManager -> IO C.ClauseVector #-}
+  getClauseVector !m = IORef.readIORef (_clsVector m)
 
 --------------------------------------------------------------------------------
 

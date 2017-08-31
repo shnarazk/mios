@@ -189,6 +189,8 @@ locked s c = (c ==) <$> (getNth (reason s) . lit2var =<< getNth (lits c) 1)
 data StatIndex =
     NumOfBackjump               -- ^ the number of backjump
   | NumOfRestart                -- ^ the number of restart
+  | NumOfRecycle                -- ^ the number of clause recycle
+  | NumOfPossibleRecycle        -- ^ the number of possible clause recycle
   | EndOfStatIndex              -- ^ Don't use this dummy.
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 
