@@ -34,6 +34,16 @@ module SAT.Mios.Types
          -- * Solver Configuration
        , MiosConfiguration (..)
        , defaultConfiguration
+         -- * statistics
+       , StatIndex (..)
+{-
+         -- * dump statistics
+       , DumpTag (..)
+       , DumpedValue
+       , MiosStats (..)
+       , QuadLearntC (..)
+       , MiosDump (..)
+-}
        )
        where
 
@@ -237,7 +247,7 @@ data CNFDescription = CNFDescription
   , _numberOfClauses :: !Int             -- ^ the number of clauses
   , _pathname :: Maybe FilePath          -- ^ given filename
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Read, Show)
 
 -- | Solver's parameters; random decision rate was dropped.
 data MiosConfiguration = MiosConfiguration
@@ -245,6 +255,7 @@ data MiosConfiguration = MiosConfiguration
                            variableDecayRate  :: !Double  -- ^ decay rate for variable activity
 --                         , clauseDecayRate    :: !Double  -- ^ decay rate for clause activity
                          }
+  deriving (Eq, Ord, Read, Show)
 
 -- | dafault configuration
 --
@@ -255,3 +266,34 @@ data MiosConfiguration = MiosConfiguration
 --
 defaultConfiguration :: MiosConfiguration
 defaultConfiguration = MiosConfiguration 0.95 {- 0.999 -} {- 0 -}
+
+-------------------------------------------------------------------------------- Statistics
+
+-- | stat index
+data StatIndex =
+    NumOfBackjump               -- ^ the number of backjump
+  | NumOfRestart                -- ^ the number of restart
+  | EndOfStatIndex              -- ^ Don't use this dummy.
+  deriving (Bounded, Enum, Eq, Ord, Read, Show)
+
+data DumpTag = TerminateS
+             | PropagationS
+             | ConflictS
+             | LearntS
+             | BackjumpS
+             | RestartS
+             | LearningRateS
+             | ExtraS
+             deriving (Bounded, Enum, Eq, Ord, Read, Show)
+
+type DumpedValue = (DumpTag, Either Double Int)
+
+newtype MiosStats = MiosStats [DumpedValue]
+  deriving (Eq, Ord, Read, Show)
+
+data MiosDump =
+  MiosDump { _dumpedConf ::  (String, MiosConfiguration)
+           , _dupmedCNFDesc :: CNFDescription
+           , _dumpedStat :: MiosStats
+           }
+  deriving (Eq, Ord, Read, Show)
