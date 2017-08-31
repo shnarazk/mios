@@ -182,13 +182,6 @@ locked s c = (c ==) <$> (getNth (reason s) . lit2var =<< getNth (lits c) 1)
 
 -------------------------------------------------------------------------------- Statistics
 
--- | stat index
-data StatIndex =
-    NumOfBackjump               -- ^ the number of backjump
-  | NumOfRestart                -- ^ the number of restart
-  | EndOfStatIndex              -- ^ Don't use this dummy.
-  deriving (Bounded, Enum, Eq, Ord, Read, Show)
-
 -- | returns the value of 'StatIndex'.
 {-# INLINE getStat #-}
 getStat :: Solver -> StatIndex -> IO Int
