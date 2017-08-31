@@ -59,7 +59,6 @@ newLearntClause s@Solver{..} ps = do
        unsafeEnqueue s l NullClause
      _ -> do
        -- allocate clause:
-       updateRecycleStat s ps
        c <- makeClauseFromStack clsPool ps --  newClauseFromStack True ps
        let lstack = lits c
        -- Pick a second literal to watch:
@@ -795,15 +794,3 @@ unsafeAssume :: Solver -> Lit -> IO ()
 unsafeAssume s@Solver{..} p = do
   pushTo trailLim =<< get' trail
   unsafeEnqueue s p NullClause
-
-updateRecycleStat :: Solver -> Stack -> IO ()
-updateRecycleStat s@(clsPool -> pool) v = do
-  n <- get' v
-  let loop :: Int -> IO ()
-      loop ((<= storeLimit) -> False) = return ()
-      loop i = do
-        nn <- get' $ getManager pool i
-        if 0 < nn
-          then incrementStat s (if i == n - 2 then NumOfRecycle else NumOfPossibleRecycle) 1
-          else loop $ i + 1
-  loop (n - 2)

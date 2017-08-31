@@ -10,12 +10,9 @@ module SAT.Mios.ClausePool
        , newClausePool
        , makeClauseFromStack
        , putBackToPool
-       , storeLimit
-       , getManager
        )
        where
 
-import qualified Data.Primitive.ByteArray as BA
 import Control.Monad (when)
 import qualified Data.Vector as V
 import SAT.Mios.Vec
@@ -63,29 +60,9 @@ makeClauseFromStack pool v = do
             set' (protected c) False
             return c
 
-{-
-makeClauseFromStack pool v = do
-  n <- get' v
-  if storeLimit < n
-    then newClauseFromStack True v
-    else do let mgr = getManager pool $ n - 2
-            nn <- get' mgr
-            if nn == 0
-              then newClauseFromStack True v
-              else do c <- lastOf mgr
-                      popFrom mgr
-                      let lstack = lits c
-                          loop ((<= n) -> False) = return ()
-                          loop i = (setNth lstack i =<< getNth v i) >> loop (i + 1)
-                      loop 0
-                      set' (activity c) 0.0
-                      set' (protected c) False
-                      return c
--}
-
 -- | Note: only not-too-large and learnt clauses are recycled.
 {-# INLINE putBackToPool #-}
 putBackToPool :: ClausePool -> Clause -> IO ()
 putBackToPool pool c =
-  when (learnt c) $ do let n = realLengthOfStack (lits c) - 3 -- n <- subtract 2 <$> get' c
+  when (learnt c) $ do let n = realLengthOfStack (lits c) - 3
                        when (n <= storeLimit) $ pushTo (getManager pool n) c
