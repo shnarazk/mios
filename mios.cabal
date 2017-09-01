@@ -90,7 +90,7 @@ library
   else
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields
 
-executable mios-WIP
+executable mios-lbd
   hs-source-dirs:	src app
   main-is:              mios.hs
   if flag(prof)
@@ -116,7 +116,7 @@ executable mios-WIP
                         SAT.Mios.Validator
                         SAT.Mios
 
-executable mios-WIP-prof
+executable mios-lbd-prof
   hs-source-dirs:	src app
   main-is:              mios.hs
   if flag(prof)
