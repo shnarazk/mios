@@ -108,12 +108,13 @@ executable mios-lbd
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
                         SAT.Mios.ClausePool
-                        SAT.Mios.Vec
+                        SAT.Mios.Glucose
                         SAT.Mios.Main
                         SAT.Mios.OptionParser
                         SAT.Mios.Solver
                         SAT.Mios.Types
                         SAT.Mios.Validator
+                        SAT.Mios.Vec
                         SAT.Mios
 
 executable mios-lbd-prof
@@ -134,12 +135,13 @@ executable mios-lbd-prof
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
                         SAT.Mios.ClausePool
-                        SAT.Mios.Vec
+                        SAT.Mios.Glucose
                         SAT.Mios.Main
                         SAT.Mios.OptionParser
                         SAT.Mios.Solver
                         SAT.Mios.Types
                         SAT.Mios.Validator
+                        SAT.Mios.Vec
                         SAT.Mios
 
 executable mios-mc
@@ -159,12 +161,12 @@ executable mios-mc
   other-modules:
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
-                        SAT.Mios.Vec
                         SAT.Mios.Main
                         SAT.Mios.OptionParser
                         SAT.Mios.Solver
                         SAT.Mios.Types
                         SAT.Mios.Validator
+                        SAT.Mios.Vec
                         SAT.Mios
 
 executable mios-mc-prof
@@ -181,12 +183,12 @@ executable mios-mc-prof
   other-modules:
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
-                        SAT.Mios.Vec
                         SAT.Mios.Main
                         SAT.Mios.OptionParser
                         SAT.Mios.Solver
                         SAT.Mios.Types
                         SAT.Mios.Validator
+                        SAT.Mios.Vec
                         SAT.Mios
 
 executable mc-dump2csv
@@ -201,9 +203,9 @@ executable mc-dump2csv
   build-depends:        base ==4.10.*, vector >= 0.12, bytestring >=0.10, primitive >=0.6
   ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
   other-modules:
-                        SAT.Mios.Vec
                         SAT.Mios.Types
                         SAT.Mios.Util.Stat
+                        SAT.Mios.Vec
 
 executable mc-averagecsv
   hs-source-dirs:	MultiConflict
@@ -217,9 +219,9 @@ executable mc-averagecsv
   build-depends:        base ==4.10.*, vector >= 0.12, bytestring >=0.10, primitive >=0.6
   ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
   other-modules:
-                        SAT.Mios.Vec
                         SAT.Mios.Types
                         SAT.Mios.Util.Stat
+                        SAT.Mios.Vec
 
 executable mc-summary
   hs-source-dirs:	MultiConflict
@@ -233,9 +235,9 @@ executable mc-summary
   build-depends:        base ==4.10.*, vector >= 0.12, bytestring >=0.10, primitive >=0.6
   ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
   other-modules:
-                        SAT.Mios.Vec
                         SAT.Mios.Types
                         SAT.Mios.Util.Stat
+                        SAT.Mios.Vec
 
 executable mc-stat2csv
   hs-source-dirs:	MultiConflict
@@ -249,9 +251,9 @@ executable mc-stat2csv
   build-depends:        base ==4.10.*, vector >= 0.11, bytestring >=0.10, primitive >=0.6
   ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
   other-modules:
-                        SAT.Mios.Vec
                         SAT.Mios.Types
                         SAT.Mios.Util.Stat
+                        SAT.Mios.Vec
 
 executable mc-pickup
   hs-source-dirs:	MultiConflict
@@ -265,9 +267,9 @@ executable mc-pickup
   build-depends:        base ==4.10.*, vector >= 0.11, bytestring >=0.10, primitive >=0.6
   ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
   other-modules:
-                        SAT.Mios.Vec
                         SAT.Mios.Types
                         SAT.Mios.Util.Stat
+                        SAT.Mios.Vec
 
 executable mc-numbers
   hs-source-dirs:	MultiConflict
@@ -281,6 +283,6 @@ executable mc-numbers
   build-depends:        base ==4.10.*, vector >= 0.11, bytestring >=0.10, primitive >=0.6
   ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
   other-modules:
-                        SAT.Mios.Vec
                         SAT.Mios.Types
                         SAT.Mios.Util.Stat
+                        SAT.Mios.Vec
