@@ -564,6 +564,12 @@ sortClauses s cm nneeds = do
   when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds Mios clause manager's capacity"
   vec <- getClauseVector cm
   keys <- getKeyVector cm
+  let averageLBD :: Int -> Int -> Int -> IO Double
+      averageLBD lim i total
+        | lim <= i = return $ fromIntegral total / fromIntegral lim
+        | otherwise = do bds <- get' . rank =<< getNth vec i
+                         averageLBD lim (i + 1) (total + bds)
+  -- ave1 <- averageLBD n 0 0
   -- 1: assign keys
   let assignKey :: Int -> Int -> IO Int
       assignKey ((< n) -> False) m = return m
@@ -789,7 +795,7 @@ solve s@Solver{..} assumps = do
         -- SOLVE:
         nc <- fromIntegral <$> nClauses s
         let useLuby = True
-            restart_inc = 2 :: Double
+            restart_inc = 2.0 :: Double
             restart_first = 100 :: Double
             while' :: Double -> Double -> IO Bool
             while' nOfConflicts nOfLearnts = do
@@ -804,7 +810,7 @@ solve s@Solver{..} assumps = do
               if status == lBottom
                 then while (nRestart + 1) (1.1 * nOfLearnts)
                 else cancelUntil s 0 >> return (status == lTrue)
-        if useLuby then while 0 (nc / 3.0) else while' 100 (nc / 3.0)
+        if useLuby then while 0 (nc / 3.0) else while' 100 (nc / 3.0) 5000
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
 {-# INLINABLE unsafeEnqueue #-}
