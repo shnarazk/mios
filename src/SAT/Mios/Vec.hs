@@ -23,6 +23,7 @@ module SAT.Mios.Vec
        , StackFamily (..)
        , Stack
        , newStackFromList
+       , realLengthOfStack
        )
        where
 
@@ -313,3 +314,7 @@ newStackFromList l = do
       loop [] _ = return $ ByteArrayInt v
       loop (x:l') i = BA.writeByteArray v i x >> loop l' (i + 1)
   loop (length l : l) 0
+
+{-# INLINE realLengthOfStack #-}
+realLengthOfStack :: Stack -> Int
+realLengthOfStack (ByteArrayInt v) = div (BA.sizeofMutableByteArray v) 8

@@ -21,6 +21,7 @@ import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
 import SAT.Mios.Solver
+import SAT.Mios.ClausePool
 
 -- | returns a rank of 'Clause'. Smaller value is better.
 {-# INLINE rankOf #-}
@@ -30,12 +31,13 @@ rankOf = get'
 -- | #114: __RemoveWatch__
 {-# INLINABLE removeWatch #-}
 removeWatch :: Solver -> Clause -> IO ()
-removeWatch (watches -> w) c = do
+removeWatch Solver{..} c = do
   let lstack = lits c
   l1 <- negateLit <$> getNth lstack 1
-  markClause (getNthWatcher w l1) c
+  markClause (getNthWatcher watches l1) c
   l2 <- negateLit <$> getNth lstack 2
-  markClause (getNthWatcher w l2) c
+  markClause (getNthWatcher watches l2) c
+  putBackToPool clsPool c
 
 --------------------------------------------------------------------------------
 -- Operations on 'Clause'
@@ -57,7 +59,7 @@ newLearntClause s@Solver{..} ps = do
        unsafeEnqueue s l NullClause
      _ -> do
        -- allocate clause:
-       c <- newClauseFromStack True ps
+       c <- makeClauseFromStack clsPool ps --  newClauseFromStack True ps
        let lstack = lits c
        -- Pick a second literal to watch:
        let
