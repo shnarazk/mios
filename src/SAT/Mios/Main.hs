@@ -505,97 +505,94 @@ reduceDB s@Solver{..} = do
 -- * 19 bit: converted activity
 -- * remain: clauseVector index
 --
-(rankWidth :: Int, activityWidth :: Int, indexWidth :: Int) = (l, a, w - (l + a + 1))
-  where
-    w = finiteBitSize (0:: Int)
-    (l, a) = case () of
-      _ | 64 <= w -> (8, 25)   -- 30 bit =>   1G clauses
-      _ | 60 <= w -> (8, 24)   -- 26 bit =>  64M clauses
-      _ | 32 <= w -> (6,  7)   -- 18 bit => 256K clauses
-      _ | 29 <= w -> (6,  5)   -- 17 bit => 128K clauses
---      _ -> error "Int on your CPU doesn't have sufficient bit width."
+rankWidth :: Int
+rankWidth = 16
+indexWidth :: Int
+indexWidth = 36
+rankMax :: Int
+rankMax = 2 ^ rankWidth - 1
+indexMax :: Int
+indexMax = 2 ^ indexWidth - 1 -- 2^6 G = 64G
 
 {-# INLINABLE sortClauses #-}
 sortClauses :: Solver -> ClauseExtManager -> Int -> IO Int
 sortClauses s cm nneeds = do
-  -- constants
-  let
-    rankMax :: Int
-    rankMax = 2 ^ rankWidth - 1
-    indexMax :: Int
-    indexMax = (2 ^ indexWidth - 1) -- 67,108,863 for 26
   n <- get' cm
   -- when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds mios's " ++ show indexWidth ++" bit manage capacity"
   vec <- getClauseVector cm
   keys <- getKeyVector cm
+  let averageLBD :: Int -> Int -> Int -> IO Double
+      averageLBD lim i total
+        | lim <= i = return $ fromIntegral total / fromIntegral lim
+        | otherwise = do bds <- get' . rank =<< getNth vec i
+                         averageLBD lim (i + 1) (total + bds)
+  -- ave1 <- averageLBD n 0 0
   -- 1: assign keys
-  let
-    assignKey :: Int -> Int -> IO Int
-    assignKey ((< n) -> False) m = return m
-    assignKey i m = do
-      c <- getNth vec i
-      k <- (\k -> if k == 2 then return k else fromEnum <$> get' (protected c)) =<< get' (rank c)
-      case k of
-        1 -> set' (protected c) False >> setNth keys i (shiftL 2 indexWidth + i) >> assignKey (i + 1) (m + 1)
-        2 -> setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
-        _ -> do
-            l <- locked s c      -- this is expensive
-            if l
-              then setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
-              else do
-                  d <- get' (rank c)
-                  let b = 1 -- floor . (activityScale *) . (1 -) . logBase claActivityThreshold 1 . max 1 <$> get' (activity c)
-                  setNth keys i $ shiftL (min rankMax d) (activityWidth + indexWidth) + shiftL b indexWidth + i
-                  assignKey (i + 1) m
-  limit <- min n . (+ nneeds) <$> assignKey 0 0
-  -- 2: sort keyVector
-  let
-    sortOnRange :: Int -> Int -> IO ()
-    sortOnRange left right
-      | limit < left = return ()
-      | left >= right = return ()
-      | left + 1 == right = do
-          a <- getNth keys left
-          b <- getNth keys right
-          unless (a < b) $ swapBetween keys left right
-      | otherwise = do
-          let p = div (left + right) 2
-          pivot <- getNth keys p
-          swapBetween keys p left -- set a sentinel for r'
-          let
-            nextL :: Int -> IO Int
-            nextL i@((<= right) -> False) = return i
-            nextL i = do v <- getNth keys i; if v < pivot then nextL (i + 1) else return i
-            nextR :: Int -> IO Int
-            nextR i = do v <- getNth keys i; if pivot < v then nextR (i - 1) else return i
-            divide :: Int -> Int -> IO Int
-            divide l r = do
-              l' <- nextL l
-              r' <- nextR r
-              if l' < r' then swapBetween keys l' r' >> divide (l' + 1) (r' - 1) else return r'
-          m <- divide (left + 1) right
-          swapBetween keys left m
-          sortOnRange left (m - 1)
-          sortOnRange (m + 1) right
-  sortOnRange 0 (n - 1)
-  -- 3: place clauses
-  let
-    seek :: Int -> IO ()
-    seek ((< limit) -> False) = return ()
-    seek i = do
-      bits <- getNth keys i
-      when (indexMax < bits) $ do
+  let assignKey :: Int -> Int -> IO Int
+      assignKey ((< n) -> False) m = return m
+      assignKey i m = do
         c <- getNth vec i
-        let
-          sweep k = do
-            k' <- (indexMax .&.) <$> getNth keys k
-            setNth keys k k
-            if k' == i
-              then setNth vec k c
-              else getNth vec k' >>= setNth vec k >> sweep k'
-        sweep i
-      seek $ i + 1
+        bds <- get' $ rank c
+        k <- if bds <= 2 then return 2 else fromEnum <$> get' (protected c)
+        case k of
+          1 -> do set' (protected c) False                -- protetecd
+                  setNth keys i $ shiftL 1 indexWidth + i
+                  assignKey (i + 1) $ m + 1
+          2 -> do setNth keys i $ shiftL 1 indexWidth + i -- glue clause
+                  assignKey (i + 1) $ m + 1
+          _ -> do l <- locked s c                         -- neither protected nor glue
+                  if l
+                    then do setNth keys i $ shiftL 1 indexWidth + i
+                            assignKey (i + 1) $ m + 1
+                    else do setNth keys i $ shiftL (min rankMax bds) indexWidth + i
+                            assignKey (i + 1) m
+  -- limit <- min n . (+ nneeds) <$> assignKey 0 0
+  limit <- max nneeds <$> assignKey 0 0
+  -- 2: sort keyVector
+  let sortOnRange :: Int -> Int -> IO ()
+      sortOnRange left right
+        | limit < left = return ()
+        | left >= right = return ()
+        | left + 1 == right = do
+            a <- getNth keys left
+            b <- getNth keys right
+            unless (a < b) $ swapBetween keys left right
+        | otherwise = do
+            let p = div (left + right) 2
+            pivot <- getNth keys p
+            swapBetween keys p left -- set a sentinel for r'
+            let nextL :: Int -> IO Int
+                nextL i@((<= right) -> False) = return i
+                nextL i = do v <- getNth keys i; if v < pivot then nextL (i + 1) else return i
+                nextR :: Int -> IO Int
+                nextR i = do v <- getNth keys i; if pivot < v then nextR (i - 1) else return i
+                divide :: Int -> Int -> IO Int
+                divide l r = do
+                  l' <- nextL l
+                  r' <- nextR r
+                  if l' < r' then swapBetween keys l' r' >> divide (l' + 1) (r' - 1) else return r'
+            m <- divide (left + 1) right
+            swapBetween keys left m
+            sortOnRange left (m - 1)
+            sortOnRange (m + 1) right
+  sortOnRange 0 (n - 1)
+  -- 3: place clauses in 'vec' based on the order stored in 'keys'
+  let seek :: Int -> IO ()
+      seek ((< limit) -> False) = return ()
+      seek i = do
+        bits <- getNth keys i
+        when (indexMax < bits) $ do
+          c <- getNth vec i
+          let sweep k = do k' <- (indexMax .&.) <$> getNth keys k
+                           setNth keys k k
+                           if k' == i
+                             then setNth vec k c
+                             else getNth vec k' >>= setNth vec k >> sweep k'
+          sweep i
+        seek $ i + 1
   seek 0
+  -- ave2 <- averageLBD limit 0 0
+  -- print (ave1, ave2)
   return limit
 
 -- | #M22
@@ -767,7 +764,7 @@ solve s@Solver{..} assumps = do
         -- SOLVE:
         nc <- fromIntegral <$> nClauses s
         let useLuby = True
-            restart_inc = 2 :: Double
+            restart_inc = 2.0 :: Double
             restart_first = 100 :: Double
             while' :: Double -> Double -> IO Bool
             while' nOfConflicts nOfLearnts = do
@@ -782,7 +779,7 @@ solve s@Solver{..} assumps = do
               if status == lBottom
                 then while (nRestart + 1) (1.1 * nOfLearnts)
                 else cancelUntil s 0 >> return (status == lTrue)
-        if useLuby then while 0 (nc / 3.0) else while' 100 (nc / 3.0)
+        if useLuby then while 0 (nc / 3.0) else while' 100 (nc / 3.0) 5000
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
 {-# INLINABLE unsafeEnqueue #-}
