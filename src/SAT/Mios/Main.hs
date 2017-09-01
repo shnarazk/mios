@@ -86,7 +86,7 @@ newLearntClause s@Solver{..} ps = do
        unsafeEnqueue s l1 c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
        setLBD s c
-       set' (protected c) True
+       -- set' (protected c) True
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
 -- simplify its representation (returns @False@) or state that the constraint is
@@ -532,20 +532,13 @@ sortClauses s cm nneeds = do
       assignKey ((< n) -> False) m = return m
       assignKey i m = do
         c <- getNth vec i
-        bds <- get' $ rank c
-        k <- if bds <= 2 then return 2 else fromEnum <$> get' (protected c)
-        case k of
-          1 -> do set' (protected c) False                -- protetecd
-                  setNth keys i $ shiftL 1 indexWidth + i
+        l <- locked s c
+        if l
+          then do setNth keys i $ shiftL 1 indexWidth + i
                   assignKey (i + 1) $ m + 1
-          2 -> do setNth keys i $ shiftL 1 indexWidth + i -- glue clause
-                  assignKey (i + 1) $ m + 1
-          _ -> do l <- locked s c                         -- neither protected nor glue
-                  if l
-                    then do setNth keys i $ shiftL 1 indexWidth + i
-                            assignKey (i + 1) $ m + 1
-                    else do setNth keys i $ shiftL (min rankMax bds) indexWidth + i
-                            assignKey (i + 1) m
+          else do bds <- get' $ rank c
+                  setNth keys i $ shiftL (min rankMax bds) indexWidth + i
+                  assignKey (i + 1) m
   -- limit <- min n . (+ nneeds) <$> assignKey 0 0
   limit <- max nneeds <$> assignKey 0 0
   -- 2: sort keyVector
