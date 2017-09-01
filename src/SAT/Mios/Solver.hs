@@ -29,12 +29,12 @@ module SAT.Mios.Solver
        , assume
        , cancelUntil
          -- * Activities
-       , claBumpActivity
+--       , claBumpActivity
 --       , claDecayActivity
-       , claRescaleActivityAfterRestart
+--       , claRescaleActivityAfterRestart
+--       , claActivityThreshold
        , varBumpActivity
        , varDecayActivity
-       , claActivityThreshold
          -- * Stats
        , StatIndex (..)
        , getStat
@@ -90,10 +90,8 @@ data Solver = Solver
               , litsLearnt :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze' and 'SAT.Mios.Main.search' to create a learnt clause
               -- , pr'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.propagate'
               , stats      :: !(Vec [Int])       -- ^ statistics information holder
-{-
-              , lbd'seen   :: !Vec               -- ^ used in lbd computation
+              , lbd'seen   :: !(Vec Int)         -- ^ used in lbd computation
               , lbd'key    :: !Int'              -- ^ used in lbd computation
--}
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
@@ -135,10 +133,8 @@ newSolver conf (CNFDescription nv nc _) = do
 --    <*> newVec nv (-1)                     -- pr'seen
     <*> newStack nv                        -- litsLearnt
     <*> newVec (fromEnum EndOfStatIndex) 0 -- stats
-{-
---    <*> newVec nv                        -- lbd'seen
---    <*> newInt 0                         -- lbd'key
--}
+    <*> newVec nv 0                        -- lbd'seen
+    <*> new' 0                             -- lbd'key
 
 --------------------------------------------------------------------------------
 -- Accessors
@@ -310,7 +306,7 @@ clauseNew s@Solver{..} ps isLearnt = do
        -- x <- asList c
        -- unless (length x == length (nub x)) $ error "new clause contains a element doubly"
        -- Bumping:
-       claBumpActivity s c -- newly learnt clauses should be considered active
+       -- claBumpActivity s c -- newly learnt clauses should be considered active
      -- Add clause to watcher lists:
      l1 <- negateLit <$> getNth lstack 1
      pushClauseWithKey (getNthWatcher watches l1) c 0
@@ -431,10 +427,6 @@ instance VarOrder Solver where
 varActivityThreshold :: Double
 varActivityThreshold = 1e100
 
--- | value for rescaling clause activity.
-claActivityThreshold :: Double
-claActivityThreshold = 1e20
-
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 {-# INLINE varBumpActivity #-}
 varBumpActivity :: Solver -> Var -> IO ()
@@ -459,6 +451,11 @@ varRescaleActivity Solver{..} = do
     loop i = modifyNth activities (/ varActivityThreshold) i >> loop (i + 1)
   loop 1
   modify' varInc (/ varActivityThreshold)
+
+{-
+-- | value for rescaling clause activity.
+claActivityThreshold :: Double
+claActivityThreshold = 1e20
 
 -- | __Fig. 14 (p.19)__
 {-# INLINE claBumpActivity #-}
@@ -511,6 +508,7 @@ claRescaleActivityAfterRestart Solver{..} = do
       set' (protected c) False
       loopOnVector $ i + 1
   loopOnVector 0
+-}
 
 -------------------------------------------------------------------------------- VarHeap
 
