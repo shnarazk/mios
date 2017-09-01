@@ -22,6 +22,7 @@ import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
 import SAT.Mios.Solver
 import SAT.Mios.ClausePool
+import SAT.Mios.Glucose
 
 -- | returns a rank of 'Clause'. Smaller value is better.
 {-# INLINE rankOf #-}
@@ -74,7 +75,7 @@ newLearntClause s@Solver{..} ps = do
              else findMax (i + 1) j val
        swapBetween lstack 2 =<< findMax 1 1 0 -- Let @max_i@ be the index of the literal with highest decision level
        -- Bump, enqueue, store clause:
-       set' (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
+       -- set' (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
        -- Add clause to all managers
        pushTo learnts c
        l1 <- getNth lstack 1
@@ -84,7 +85,7 @@ newLearntClause s@Solver{..} ps = do
        -- update the solver state by @l@
        unsafeEnqueue s l1 c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
-       -- setRank s c
+       setLBD s c
        set' (protected c) True
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
@@ -142,7 +143,7 @@ analyze s@Solver{..} confl = do
   let
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
-      when (learnt c) $ claBumpActivity s c
+      -- when (learnt c) $ claBumpActivity s c
 {-
         -- update LBD like #Glucose4.0
         d <- get' (lbd c)
@@ -521,10 +522,6 @@ sortClauses s cm nneeds = do
   let
     rankMax :: Int
     rankMax = 2 ^ rankWidth - 1
-    activityMax :: Int
-    activityMax = 2 ^ activityWidth - 1
-    activityScale :: Double
-    activityScale = fromIntegral activityMax
     indexMax :: Int
     indexMax = (2 ^ indexWidth - 1) -- 67,108,863 for 26
   n <- get' cm
@@ -537,7 +534,7 @@ sortClauses s cm nneeds = do
     assignKey ((< n) -> False) m = return m
     assignKey i m = do
       c <- getNth vec i
-      k <- (\k -> if k == 2 then return k else fromEnum <$> get' (protected c)) =<< get' c
+      k <- (\k -> if k == 2 then return k else fromEnum <$> get' (protected c)) =<< get' (rank c)
       case k of
         1 -> set' (protected c) False >> setNth keys i (shiftL 2 indexWidth + i) >> assignKey (i + 1) (m + 1)
         2 -> setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
@@ -546,8 +543,8 @@ sortClauses s cm nneeds = do
             if l
               then setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
               else do
-                  d <- rankOf c
-                  b <- floor . (activityScale *) . (1 -) . logBase claActivityThreshold . max 1 <$> get' (activity c)
+                  d <- get' (rank c)
+                  let b = 1 -- floor . (activityScale *) . (1 -) . logBase claActivityThreshold 1 . max 1 <$> get' (activity c)
                   setNth keys i $ shiftL (min rankMax d) (activityWidth + indexWidth) + shiftL b indexWidth + i
                   assignKey (i + 1) m
   limit <- min n . (+ nneeds) <$> assignKey 0 0
@@ -717,7 +714,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
                    (s `cancelUntil`) =<< get' rootLevel -- force a restart
-                   claRescaleActivityAfterRestart s
+                   -- claRescaleActivityAfterRestart s
                    incrementStat s NumOfRestart 1
                    return lBottom
              _ -> do
