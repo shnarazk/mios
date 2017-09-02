@@ -801,7 +801,7 @@ solve s@Solver{..} assumps = do
             while' nOfConflicts nOfLearnts = do
               status <- search s (floor nOfConflicts) (floor nOfLearnts)
               if status == lBottom
-                then while' (restart_inc * nOfConflicts) (1.1 * nOfLearnts)
+                then while' (restart_inc * nOfConflicts) (2000 + nOfLearnts)
                 else cancelUntil s 0 >> return (status == lTrue)
             while :: Int -> Double -> IO Bool
             while nRestart nOfLearnts = do
