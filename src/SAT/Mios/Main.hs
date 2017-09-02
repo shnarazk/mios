@@ -761,9 +761,9 @@ solve s@Solver{..} assumps = do
           while nOfConflicts nOfLearnts = do
             status <- search s (floor nOfConflicts) (floor nOfLearnts)
             if status == lBottom
-              then while (1.5 * nOfConflicts) (1.1 * nOfLearnts)
+              then while (1.5 * nOfConflicts) (2000 + nOfLearnts)
               else cancelUntil s 0 >> return (status == lTrue)
-        while 100 $ min (nc / 3.0) 5000
+        while 100 $ min (nc / 3.0) 10000
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
 {-# INLINABLE unsafeEnqueue #-}
