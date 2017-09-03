@@ -757,11 +757,12 @@ solve s@Solver{..} assumps = do
         -- SOLVE:
         nc <- fromIntegral <$> nClauses s
         let
+          nv = fromIntegral nVars
           while :: Double -> Double -> IO Bool
           while nOfConflicts nOfLearnts = do
             status <- search s (floor nOfConflicts) (floor nOfLearnts)
             if status == lBottom
-              then while (1.5 * nOfConflicts) (2000 + nOfLearnts)
+              then while (1.4 * nOfConflicts) (nv + nOfLearnts)
               else cancelUntil s 0 >> return (status == lTrue)
         while 100 $ min (nc / 3.0) 10000
 
