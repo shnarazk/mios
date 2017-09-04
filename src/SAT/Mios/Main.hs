@@ -757,13 +757,15 @@ solve s@Solver{..} assumps = do
         -- SOLVE:
         nc <- fromIntegral <$> nClauses s
         let useLuby = True
+            nv = fromIntegral nVars
+            reductionStep = min nv 1000
             restart_inc = 2.0 :: Double
             restart_first = 100 :: Double
             while' :: Double -> Double -> IO Bool
             while' nOfConflicts nOfLearnts = do
               status <- search s (floor nOfConflicts) (floor nOfLearnts)
               if status == lBottom
-                then while' (restart_inc * nOfConflicts) (2000 + nOfLearnts)
+                then while' (restart_inc * nOfConflicts) (reductionStep + nOfLearnts)
                 else cancelUntil s 0 >> return (status == lTrue)
             while :: Int -> Double -> IO Bool
             while nRestart nOfLearnts = do
@@ -772,7 +774,7 @@ solve s@Solver{..} assumps = do
               if status == lBottom
                 then while (nRestart + 1) (1.1 * nOfLearnts)
                 else cancelUntil s 0 >> return (status == lTrue)
-        if useLuby then while 0 (nc / 3.0) else while' 100 (nc / 3.0) 5000
+        if useLuby then while 0 (nc / 3.0) else while' 100 (min (nc / 3.0) 5000)
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
 {-# INLINABLE unsafeEnqueue #-}
