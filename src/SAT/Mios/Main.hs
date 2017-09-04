@@ -756,14 +756,14 @@ solve s@Solver{..} assumps = do
         set' rootLevel =<< decisionLevel s
         -- SOLVE:
         nc <- fromIntegral <$> nClauses s
-        let
-          nv = fromIntegral nVars
-          while :: Double -> Double -> IO Bool
-          while nOfConflicts nOfLearnts = do
-            status <- search s (floor nOfConflicts) (floor nOfLearnts)
-            if status == lBottom
-              then while (1.4 * nOfConflicts) (nv + nOfLearnts)
-              else cancelUntil s 0 >> return (status == lTrue)
+        let reductionStep = min nv 1000
+            nv = fromIntegral nVars
+            while :: Double -> Double -> IO Bool
+            while nOfConflicts nOfLearnts = do
+              status <- search s (floor nOfConflicts) (floor nOfLearnts)
+              if status == lBottom
+                then while (1.4 * nOfConflicts) (reductionStep + nOfLearnts)
+                else cancelUntil s 0 >> return (status == lTrue)
         while 100 $ min (nc / 3.0) 10000
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
