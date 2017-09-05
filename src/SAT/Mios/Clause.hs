@@ -58,7 +58,7 @@ instance VecFamily Clause Lit where
   setNth Clause{..} n x = error "no setNth for Clause"
   -- | returns a vector of literals in it.
   asList NullClause = return []
-  asList Clause{..} = take <$> get' lits <*> asList lits
+  asList Clause{..} = take <$> get' lits <*> (tail <$> asList lits)
   -- dump mes NullClause = return $ mes ++ "Null"
   -- dump mes Clause{..} = return $ mes ++ "a clause"
 {-

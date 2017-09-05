@@ -156,7 +156,7 @@ nLearnts = get' . learnts
 
 -- | returns the model as a list of literal.
 getModel :: Solver -> IO [Int]
-getModel = asList . model
+getModel = (tail <$>) . asList . model
 
 -- | returns the current decision level.
 {-# INLINE decisionLevel #-}

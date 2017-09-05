@@ -116,7 +116,7 @@ instance VecFamily (Vec [Int]) Int where
   setAll (Vec v) = UV.set v
   {-# SPECIALIZE INLINE growBy :: Vec [Int] -> Int -> IO (Vec [Int]) #-}
   growBy (Vec v) n = Vec <$> UV.unsafeGrow v n
-  asList (Vec v) = mapM (getNth v) [1 .. UV.length v - 1]
+  asList (Vec v) = mapM (getNth v) [0 .. UV.length v - 1]
 
 {- NOT IN USE
 data instance Vec [Double] = Vec (UVector Double)
@@ -183,7 +183,7 @@ instance VecFamily ByteArrayInt Int where
                   BA.writeByteArray v 0 (0 :: Int)
                   BA.setByteArray v 1 n k
                   return $ ByteArrayInt v
-  asList (ByteArrayInt v) = mapM (BA.readByteArray v) [1 .. div (BA.sizeofMutableByteArray v) 8 - 1]
+  asList (ByteArrayInt v) = mapM (BA.readByteArray v) [0 .. div (BA.sizeofMutableByteArray v) 8 - 1]
 
 instance VecFamily ByteArrayDouble Double where
   {-# SPECIALIZE INLINE getNth :: ByteArrayDouble -> Int -> IO Double #-}
@@ -203,7 +203,7 @@ instance VecFamily ByteArrayDouble Double where
                   BA.writeByteArray v 0 (0 :: Double)
                   BA.setByteArray v 1 n k
                   return $ ByteArrayDouble v
-  asList (ByteArrayDouble v) = mapM (BA.readByteArray v) [1 .. div (BA.sizeofMutableByteArray v) 8 - 1]
+  asList (ByteArrayDouble v) = mapM (BA.readByteArray v) [0 .. div (BA.sizeofMutableByteArray v) 8 - 1]
 
 -------------------------------------------------------------------------------- SingleStorage
 

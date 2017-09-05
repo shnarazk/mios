@@ -13,30 +13,30 @@
 
 module SAT.Mios.Glucose
        (
-         setLBD
-       , updateLBD
-       , nextReduction
+         lbdOf
+       , setLBD
+--       , updateLBD
+--       , nextReduction
        )
         where
 
-import Control.Monad (when)
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.Solver
 
+{-# INLINABLE lbdOf #-}
 lbdOf :: Solver -> Stack -> IO Int
 lbdOf Solver{..} vec = do
-  k <- (\k -> if 1000000 < k then 0 else k + 1) <$> get' lbd'key
-  set' lbd'key k
+  k <- (\k -> if 1000000 < k then 1 else k + 1) <$> get' lbd'key
+  set' lbd'key k                -- store the last used value
   nv <- getNth vec 0
-  let
-    loop ((<= nv) -> False) n = return n
-    loop i n = do
-      l <- getNth level . lit2var =<< getNth vec i
-      x <- getNth lbd'seen l
-      if x /= k
-        then setNth lbd'seen l 1 >> loop (i + 1) (n + 1)
-        else loop (i + 1) n
+  let loop :: Int -> Int -> IO Int
+      loop ((<= nv) -> False) n = return n
+      loop i n = do l <- getNth level . lit2var =<< getNth vec i
+                    x <- getNth lbd'seen l
+                    if x /= k
+                      then setNth lbd'seen l k >> loop (i + 1) (n + 1)
+                      else loop (i + 1) n
   loop 1 0
 
 {-# INLINE setLBD #-}
