@@ -13,7 +13,8 @@
 
 module SAT.Mios.Glucose
        (
-         setLBD
+         lbdOf
+       , setLBD
 --       , updateLBD
 --       , nextReduction
        )
@@ -32,11 +33,20 @@ lbdOf Solver{..} vec = do
   let loop :: Int -> Int -> IO Int
       loop ((<= nv) -> False) n = return n
       loop i n = do l <- getNth level . lit2var =<< getNth vec i
+                    v <- lit2int <$> getNth vec i
+                    putStr $ show v ++ " @ " ++ show l ++ ", "
                     x <- getNth lbd'seen l
                     if x /= k
                       then setNth lbd'seen l k >> loop (i + 1) (n + 1)
                       else loop (i + 1) n
-  loop 1 0
+  n <- loop 1 0
+  as <- asList assigns
+  lv <- asList level
+  print $ zip [0 ..] (zip as lv)
+  print (nv, " -> ", n)
+  l <- take nv . tail <$> asList vec
+  print (map lit2int l)
+  return n
 
 {-# INLINE setLBD #-}
 setLBD :: Solver -> Clause -> IO ()
