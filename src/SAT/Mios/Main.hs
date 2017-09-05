@@ -224,7 +224,7 @@ analyze s@Solver{..} confl = do
   loopOnLits 2 2                -- the first literal is specail
   -- glucose heuristics
   nld <- get' an'lastDL
-  r <- get' litsLearnt -- this is not the right value
+  r <- get' litsLearnt -- this is estimated LBD value based on the clause size
   let loopOnLastDL :: Int -> IO ()
       loopOnLastDL ((<= nld) -> False) = return ()
       loopOnLastDL i = do v <- lit2var <$> getNth an'lastDL i
@@ -492,6 +492,48 @@ reduceDB s@Solver{..} = do
   loop k                               -- CAVEAT: `vec` is a zero-based vector
   reset watches
   shrinkBy learnts (n - k)
+{-
+  -- check the number
+  n' <- nLearnts s
+  let sumUp :: ClauseExtManager -> IO Int
+      sumUp m = get' m
+  let lrnsUp :: ClauseExtManager -> IO Int
+      lrnsUp m = do
+        n <- get' m
+        v <- getClauseVector m
+        let seek :: Int -> Int -> IO Int
+            seek ((< n) -> False) j = return j
+            seek i j = do
+              c <- getNth v i
+              seek (i + 1) $ if learnt c then j + 1 else j
+        seek 0 0
+  let nulls :: ClauseExtManager -> IO Int
+      nulls m = do
+        n <- get' m
+        v <- getClauseVector m
+        let seek :: Int -> Int -> IO Int
+            seek ((< n) -> False) j = return j
+            seek i j = do
+              c <- getNth v i
+              seek (i + 1) $ if c == NullClause then j + 1 else j
+        seek 0 0
+  let givens :: ClauseExtManager -> IO Int
+      givens m = do
+        n <- get' m
+        v <- getClauseVector m
+        let seek :: Int -> Int -> IO Int
+            seek ((< n) -> False) j = return j
+            seek i j = do
+              c <- getNth v i
+              seek (i + 1) $ if learnt c then j else j + 1
+        seek 0 0
+  cs <- flip div 2 . sum <$> V.mapM sumUp watches
+  ls <- flip div 2 . sum <$> V.mapM lrnsUp watches
+  gs <- flip div 2 . sum <$> V.mapM givens watches
+  ns <- flip div 2 . sum <$> V.mapM nulls watches
+  nc <- nClauses s
+  print (("nClause", nc, "nLearns", n'), ("total", cs, "learns", ls, "gives", gs))
+-}
 
 -- | (Good to Bad) Quick sort the key vector based on their activities and returns number of privileged clauses.
 -- this function uses the same metrix as reduceDB_lt in glucose 4.0:
@@ -519,15 +561,9 @@ indexMax = 2 ^ indexWidth - 1 -- 2^6 G = 64G
 sortClauses :: Solver -> ClauseExtManager -> Int -> IO Int
 sortClauses s cm nneeds = do
   n <- get' cm
-  -- when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds mios's " ++ show indexWidth ++" bit manage capacity"
+  when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds Mios clause manager's capacity"
   vec <- getClauseVector cm
   keys <- getKeyVector cm
-  let averageLBD :: Int -> Int -> Int -> IO Double
-      averageLBD lim i total
-        | lim <= i = return $ fromIntegral total / fromIntegral lim
-        | otherwise = do bds <- get' . rank =<< getNth vec i
-                         averageLBD lim (i + 1) (total + bds)
-  -- ave1 <- averageLBD n 0 0
   -- 1: assign keys
   let assignKey :: Int -> Int -> IO Int
       assignKey ((< n) -> False) m = return m
@@ -537,10 +573,9 @@ sortClauses s cm nneeds = do
         if l
           then do setNth keys i $ shiftL 1 indexWidth + i
                   assignKey (i + 1) $ m + 1
-          else do bds <- get' $ rank c
-                  setNth keys i $ shiftL (min rankMax bds) indexWidth + i
+          else do r <- get' $ rank c
+                  setNth keys i $ shiftL (r + 1) indexWidth + i
                   assignKey (i + 1) m
-  -- limit <- min n . (+ nneeds) <$> assignKey 0 0
   limit <- max nneeds <$> assignKey 0 0
   -- 2: sort keyVector
   let sortOnRange :: Int -> Int -> IO ()
