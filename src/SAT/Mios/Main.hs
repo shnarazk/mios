@@ -85,7 +85,10 @@ newLearntClause s@Solver{..} ps = do
        -- update the solver state by @l@
        unsafeEnqueue s l1 c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
+       -- Since this new clause contains unassigned literal and its level must be wrong,
+       -- we can't assign the valid LBD value here. Therefore we icrement the field by 1.
        setLBD s c
+       modify' (rank c) (1 +)
        -- set' (protected c) True
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
@@ -144,16 +147,14 @@ analyze s@Solver{..} confl = do
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
       -- when (learnt c) $ claBumpActivity s c
-{-
-        -- update LBD like #Glucose4.0
-        d <- get' (lbd c)
-        when (2 < d) $ do
-          nblevels <- lbdOf s c
-          when (nblevels + 1 < d) $ do -- improve the LBD
-            when (d <= 30) $ set' (protected c) True -- 30 is `lbLBDFrozenClause`
-            -- seems to be interesting: keep it fro the next round
-            set' (lbd c) nblevels    -- Update it
--}
+      -- update LBD like #Glucose4.0
+      d <- get' (rank c)
+      when (2 < d) $ do
+        nblevels <- lbdOf s (lits c)
+        when (nblevels + 1 < d) $ do -- improve the LBD
+          -- when (d <= 30) $ set' (protected c) True -- 30 is `lbLBDFrozenClause`
+          -- seems to be interesting: keep it fro the next round
+          set' (rank c) nblevels    -- Update it
       sc <- get' c
       let
         lstack = lits c
