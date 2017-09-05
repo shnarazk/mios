@@ -168,6 +168,7 @@ analyze s@Solver{..} confl = do
           if sn == 0 && 0 < l
             then do
                 varBumpActivity s v
+                putStrLn $ "Var" ++ show v ++ " was set to seen by trail index " ++ show (ti + 1) ++ "; pathC = " ++ show pc
                 setNth an'seen v 1
                 if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
                   then do
@@ -196,6 +197,13 @@ analyze s@Solver{..} confl = do
   levelToReturn <- loopOnClauseChain confl bottomLit ti 0 0
   -- Simplify phase (implemented only @expensive_ccmin@ path)
   n <- get' litsLearnt
+  -- #validate-FirstUIP
+  ss <- tail . map lit2int <$> asList litsLearnt
+  putStrLn $ "litsLearnt : " ++ show (take n ss)
+  na <- get' trail
+  as <- tail . map lit2int <$> asList trail
+  putStrLn $ "assign trail : " ++ show (take na as)
+  -- #validate-FirstUIP
   reset an'stack           -- analyze_stack.clear();
   reset an'toClear         -- out_learnt.copyTo(analyze_toclear);
   pushTo an'toClear =<< getNth litsLearnt 1
@@ -208,6 +216,15 @@ analyze s@Solver{..} confl = do
       -- restrict the search depth (range) to 32
       merger (i + 1) . setBit b . (31 .&.) =<< getNth level (lit2var l)
   levels <- merger 2 0
+  let
+    merger :: Int -> IO [Int]
+    merger ((<= n) -> False) = return []
+    merger i = do
+      lv <- getNth level . lit2var =<< getNth litsLearnt i
+      l <- merger $ i + 1
+      return $ if elem lv l then l else lv:l
+  lll <- merger 2
+  print ("bits", levels, lll)
   -- eliminate all implication vars from @litsLearnt@
   let loopOnLits :: Int -> Int -> IO ()
       loopOnLits ((<= n) -> False) n' = shrinkBy litsLearnt $ n - n' + 1
@@ -272,6 +289,8 @@ analyzeRemovable Solver{..} p minLevel = do
             sl <- lastOf an'stack
             popFrom an'stack             -- analyze_stack.pop();
             c <- getNth reason (lit2var sl) -- getRoot sl
+            print .tail . map lit2int =<< asList (lits c)
+            when (c == NullClause) $ error "strange situation in analyzeRemovable"
             nl <- get' c
             let
               lstack = lits c
@@ -281,18 +300,19 @@ analyzeRemovable Solver{..} p minLevel = do
                 p' <- getNth lstack i              -- valid range is [1 .. nl]
                 let v' = lit2var p'
                 l' <- getNth level v'
-                c1 <- (1 /=) <$> getNth an'seen v'
-                if c1 && (0 /= l')   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
+                unseen <- (1 /=) <$> getNth an'seen v'
+                if unseen && (0 /= l')   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
                   then do
-                      c3 <- (NullClause /=) <$> getNth reason v'
-                      if c3 && testBit minLevel (l' .&. 31) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
+                      c2 <- (NullClause /=) <$> getNth reason v'
+                      if c2 && testBit minLevel (l' .&. 31) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
                         then do
                             setNth an'seen v' 1   -- analyze_seen[var(p)] = 1;
                             pushTo an'stack p'    -- analyze_stack.push(p);
                             pushTo an'toClear p'  -- analyze_toclear.push(p);
                             loopOnLit $ i + 1
                         else do
-                            -- loopOnLit (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
+                            putStrLn $ "L" ++ show (lit2int p') ++ " is " ++ (if c2 then "implicated and unknown level" else "decided") ++ " @ " ++ show l'
+                            -- for (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
                             top' <- get' an'toClear
                             let clearAll :: Int -> IO ()
                                 clearAll ((<= top') -> False) = return ()
@@ -814,6 +834,7 @@ unsafeEnqueue s@Solver{..} p from = do
   setNth level v =<< decisionLevel s
   setNth reason v from     -- NOTE: @from@ might be NULL!
   pushTo trail p
+  putStrLn $ "enqueue:" ++ show (lit2int p)
 
 -- | __Pre-condition:__ propagation queue is empty.
 {-# INLINE unsafeAssume #-}
