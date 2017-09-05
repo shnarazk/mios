@@ -564,12 +564,6 @@ sortClauses s cm nneeds = do
   when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds Mios clause manager's capacity"
   vec <- getClauseVector cm
   keys <- getKeyVector cm
-  let averageLBD :: Int -> Int -> Int -> IO Double
-      averageLBD lim i total
-        | lim <= i = return $ fromIntegral total / fromIntegral lim
-        | otherwise = do bds <- get' . rank =<< getNth vec i
-                         averageLBD lim (i + 1) (total + bds)
-  -- ave1 <- averageLBD n 0 0
   -- 1: assign keys
   let assignKey :: Int -> Int -> IO Int
       assignKey ((< n) -> False) m = return m
