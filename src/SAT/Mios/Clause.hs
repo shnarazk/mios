@@ -106,6 +106,7 @@ instance StackFamily Clause Lit where
 {-# INLINABLE newClauseFromStack #-}
 newClauseFromStack :: Bool -> Stack -> IO Clause
 newClauseFromStack l vec = do
+  sortVecInt vec
   n <- get' vec
   v <- newStack n
   let
