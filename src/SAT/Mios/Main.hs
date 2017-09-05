@@ -440,6 +440,7 @@ propagate s@Solver{..} = do
           while confl =<< ((<) <$> get' qHead <*> get' trail)
         forClause confl i j = do
           (l :: Lit) <- getNth bvec i
+          putStr "."
           bv <- if l == 0 then return lFalse else valueLit s l
           if bv == lTrue
             then do
@@ -834,7 +835,7 @@ unsafeEnqueue s@Solver{..} p from = do
   setNth level v =<< decisionLevel s
   setNth reason v from     -- NOTE: @from@ might be NULL!
   pushTo trail p
-  putStrLn $ "enqueue:" ++ show (lit2int p)
+  putStrLn $ (if from == NullClause then "dec. enqueue: " else "inc. enqueue: ") ++ show (lit2int p)
 
 -- | __Pre-condition:__ propagation queue is empty.
 {-# INLINE unsafeAssume #-}

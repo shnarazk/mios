@@ -312,6 +312,7 @@ clauseNew s@Solver{..} ps isLearnt = do
      pushClauseWithKey (getNthWatcher watches l1) c 0
      l2 <- negateLit <$> getNth lstack 2
      pushClauseWithKey (getNthWatcher watches l2) c 0
+     putStrLn $ "attach to watches: 1st = " ++ show (negate (lit2int l1)) ++ ", 2nd = " ++ show (negate (lit2int l2))
      return (Right c)
 
 -- | __Fig. 9 (p.14)__
@@ -341,6 +342,7 @@ enqueue s@Solver{..} p from = do
         setNth level v =<< decisionLevel s
         setNth reason v from     -- NOTE: @from@ might be NULL!
         pushTo trail p
+        putStrLn $ (if from == NullClause then "dec. enqueue: " else "inc. enqueue: ") ++ show (lit2int p)
         return True
 
 -- | __Fig. 12 (p.17)__
