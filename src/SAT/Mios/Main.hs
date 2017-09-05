@@ -492,18 +492,6 @@ reduceDB s@Solver{..} = do
   loop k                               -- CAVEAT: `vec` is a zero-based vector
   reset watches
   shrinkBy learnts (n - k)
-  -- check the order
-  n' <- nLearnts s
-  let
-    loop :: Int -> IO ()
-    loop ((< n') -> False) = return ()
-    loop i = do c <- getNth vec i
-                l <- locked s c
-                r <- get' (rank c)
-                putStr $ if l then ("*, ") else show r ++ ", "
-                loop (i + 1)
-  loop 0
-  putStrLn $ "size = " ++ show n'
 
 -- | (Good to Bad) Quick sort the key vector based on their activities and returns number of privileged clauses.
 -- this function uses the same metrix as reduceDB_lt in glucose 4.0:
@@ -548,15 +536,12 @@ sortClauses s cm nneeds = do
         l <- locked s c
         if l
           then do setNth keys i $ shiftL 1 indexWidth + i
-                  putStr ("*, ")
                   assignKey (i + 1) $ m + 1
           else do bds <- get' $ rank c
-                  putStr (show bds ++ ", ")
                   setNth keys i $ shiftL (min rankMax bds) indexWidth + i
                   assignKey (i + 1) m
   -- limit <- min n . (+ nneeds) <$> assignKey 0 0
   limit <- max nneeds <$> assignKey 0 0
-  putStrLn $ "size = " ++ show n
   -- 2: sort keyVector
   let sortOnRange :: Int -> Int -> IO ()
       sortOnRange left right
