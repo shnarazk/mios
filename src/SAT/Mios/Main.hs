@@ -208,19 +208,22 @@ analyze s@Solver{..} confl = do
       -- restrict the search depth (range) to 32
       merger (i + 1) . setBit b . (31 .&.) =<< getNth level (lit2var l)
   levels <- merger 2 0
-  let
-    loopOnLits :: Int -> Int -> IO ()
-    loopOnLits ((<= n) -> False) n' = shrinkBy litsLearnt $ n - n' + 1
-    loopOnLits i j = do
-      l <- getNth litsLearnt i
-      c1 <- (NullClause ==) <$> getNth reason (lit2var l)
-      if c1
-        then setNth litsLearnt j l >> loopOnLits (i + 1) (j + 1)
-        else do
-           c2 <- not <$> analyzeRemovable s l levels
-           if c2
-             then setNth litsLearnt j l >> loopOnLits (i + 1) (j + 1)
-             else loopOnLits (i + 1) j
+  -- eliminate all implication vars from @litsLearnt@
+  let loopOnLits :: Int -> Int -> IO ()
+      loopOnLits ((<= n) -> False) n' = shrinkBy litsLearnt $ n - n' + 1
+      loopOnLits i j = do
+        l <- getNth litsLearnt i
+        c1 <- (NullClause ==) <$> getNth reason (lit2var l)
+        -- #validate-FirstUID
+        when c1 $ putStrLn $ "V" ++ show (lit2var l) ++ ": decision var"
+        if c1
+          then setNth litsLearnt j l >> loopOnLits (i + 1) (j + 1)
+          else do
+             c2 <- not <$> analyzeRemovable s l levels
+             putStrLn $ "V" ++ show (lit2var l) ++ (if c2 then ": required" else ":") ++ " implication var"
+             if c2
+               then setNth litsLearnt j l >> loopOnLits (i + 1) (j + 1)
+               else loopOnLits (i + 1) j
   loopOnLits 2 2                -- the first literal is specail
   -- glucose heuristics
   nld <- get' an'lastDL
