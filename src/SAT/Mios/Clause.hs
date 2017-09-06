@@ -112,6 +112,10 @@ newClauseFromStack l vec = do
     loop ((<= n) -> False) = return ()
     loop i = (setNth v i =<< getNth vec i) >> loop (i + 1)
   loop 0
+  g <- asList v
+  sortStack v
+  g' <- asList v
+  print (take (n + 1) g, take (n + 1) g')
   Clause l <$> new' 0 {- <*> new' 0.0 <*> new' False -} <*> return v
 
 -------------------------------------------------------------------------------- Clause Vector
