@@ -764,53 +764,48 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
 solve :: (Foldable t) => Solver -> t Lit -> IO Bool
 solve s@Solver{..} assumps = do
   -- PUSH INCREMENTAL ASSUMPTIONS:
-  let
-    injector :: Lit -> Bool -> IO Bool
-    injector _ False = return False
-    injector a True = do
-      b <- assume s a
-      if not b
-        then do                 -- conflict analyze
-            (confl :: Clause) <- getNth reason (lit2var a)
-            analyzeFinal s confl True
-            pushTo conflicts (negateLit a)
-            cancelUntil s 0
-            return False
-        else do
-            confl <- propagate s
-            if confl /= NullClause
-              then do
+  let inject :: Lit -> Bool -> IO Bool
+      inject _ False = return False
+      inject a True = do
+        b <- assume s a
+        if not b                  -- conflict analyze
+          then do (confl :: Clause) <- getNth reason (lit2var a)
                   analyzeFinal s confl True
+                  pushTo conflicts (negateLit a)
                   cancelUntil s 0
                   return False
-              else return True
+          else do confl <- propagate s
+                  if confl /= NullClause
+                    then do analyzeFinal s confl True
+                            cancelUntil s 0
+                            return False
+                    else return True
   good <- simplifyDB s
-  x <- if good then foldrM injector True assumps else return False
+  x <- if good then foldrM inject True assumps else return False
   if not x
     then return False
-    else do
-        set' rootLevel =<< decisionLevel s
-        -- SOLVE:
-        nc <- fromIntegral <$> nClauses s
-        let useLuby = True
-            nv = fromIntegral nVars
-            reductionStep = min nv 1000
-            restart_inc = 2.0 :: Double
-            restart_first = 100 :: Double
-            while' :: Double -> Double -> IO Bool
-            while' nOfConflicts nOfLearnts = do
-              status <- search s (floor nOfConflicts) (floor nOfLearnts)
-              if status == lBottom
-                then while' (restart_inc * nOfConflicts) (reductionStep + nOfLearnts)
-                else cancelUntil s 0 >> return (status == lTrue)
-            while :: Int -> Double -> IO Bool
-            while nRestart nOfLearnts = do
-              let rest_base = luby restart_inc nRestart
-              status <- search s (floor (rest_base * restart_first)) (floor nOfLearnts)
-              if status == lBottom
-                then while (nRestart + 1) (1.1 * nOfLearnts)
-                else cancelUntil s 0 >> return (status == lTrue)
-        if useLuby then while 0 (nc / 3.0) else while' 100 (min (nc / 3.0) 5000)
+    else do set' rootLevel =<< decisionLevel s
+            -- SOLVE:
+            nc <- fromIntegral <$> nClauses s
+            let useLuby = True
+                nv = fromIntegral nVars
+                reductionStep = min nv 1000
+                restart_inc = 2.0 :: Double
+                restart_first = 100 :: Double
+                while' :: Double -> Double -> IO Bool
+                while' nOfConflicts nOfLearnts = do
+                  status <- search s (floor nOfConflicts) (floor nOfLearnts)
+                  if status == lBottom
+                    then while' (restart_inc * nOfConflicts) (reductionStep + nOfLearnts)
+                    else cancelUntil s 0 >> return (status == lTrue)
+                while :: Int -> Double -> IO Bool
+                while nRestart nOfLearnts = do
+                  let rest_base = luby restart_inc nRestart
+                  status <- search s (floor (rest_base * restart_first)) (floor nOfLearnts)
+                  if status == lBottom
+                    then while (nRestart + 1) (1.1 * nOfLearnts)
+                    else cancelUntil s 0 >> return (status == lTrue)
+            if useLuby then while 0 (nc / 3.0) else while' 100 (min (nc / 3.0) 5000)
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
 {-# INLINABLE unsafeEnqueue #-}
