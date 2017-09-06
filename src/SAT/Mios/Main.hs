@@ -148,6 +148,7 @@ analyze s@Solver{..} confl = do
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
       -- when (learnt c) $ claBumpActivity s c
       -- update LBD like #Glucose4.0
+      when (c == NullClause) $ error "AAAA"
       d <- get' (rank c)
       when (2 < d) $ do
         nblevels <- lbdOf s (lits c)
