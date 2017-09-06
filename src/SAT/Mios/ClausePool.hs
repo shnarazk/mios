@@ -53,7 +53,7 @@ makeClauseFromStack pool v = do
     then newClauseFromStack True v
     else do let lstack = lits c
                 loop :: Int -> IO Clause
-                loop ((<= n) -> False) = sortStack lstack >> return c
+                loop ((<= n) -> False) = return c
                 loop i = (setNth lstack i =<< getNth v i) >> loop (i + 1)
             loop 0
             -- the caller (newLearntClause) should set these slots
