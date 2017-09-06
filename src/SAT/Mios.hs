@@ -275,6 +275,7 @@ readClause s buffer bvec stream = do
         then do
             -- putStrLn . ("clause: " ++) . show . map lit2int =<< asList stack
             setNth buffer 0 $ i - 1
+            sortStack buffer
             void $ addClause s buffer
             return b'
         else do
