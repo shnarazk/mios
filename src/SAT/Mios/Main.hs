@@ -779,8 +779,8 @@ solve s@Solver{..} assumps = do
         set' rootLevel =<< decisionLevel s
         -- SOLVE:
         nc <- fromIntegral <$> nClauses s
-        let useLuby = True
-            restart_inc = 2 :: Double
+        let useLuby = False -- True
+            restart_inc = 1.75 :: Double
             restart_first = 100 :: Double
             while' :: Double -> Double -> IO Bool
             while' nOfConflicts nOfLearnts = do
