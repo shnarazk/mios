@@ -769,14 +769,23 @@ solve s@Solver{..} assumps = do
         set' rootLevel =<< decisionLevel s
         -- SOLVE:
         nc <- fromIntegral <$> nClauses s
-        let
-          while :: Double -> Double -> IO Bool
-          while nOfConflicts nOfLearnts = do
-            status <- search s (floor nOfConflicts) (floor nOfLearnts)
-            if status == lBottom
-              then while (1.5 * nOfConflicts) (1.1 * nOfLearnts)
-              else cancelUntil s 0 >> return (status == lTrue)
-        while 100 (nc / 3.0)
+        let useLuby = True
+            restart_inc = 2 :: Double
+            restart_first = 100 :: Double
+            while' :: Double -> Double -> IO Bool
+            while' nOfConflicts nOfLearnts = do
+              status <- search s (floor nOfConflicts) (floor nOfLearnts)
+              if status == lBottom
+                then while' (restart_inc * nOfConflicts) (1.1 * nOfLearnts)
+                else cancelUntil s 0 >> return (status == lTrue)
+            while :: Int -> Double -> IO Bool
+            while nRestart nOfLearnts = do
+              let rest_base = luby restart_inc nRestart
+              status <- search s (floor (rest_base * restart_first)) (floor nOfLearnts)
+              if status == lBottom
+                then while (nRestart + 1) (1.1 * nOfLearnts)
+                else cancelUntil s 0 >> return (status == lTrue)
+        if useLuby then while 0 (nc / 3.0) else while' 100 (nc / 3.0)
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
 {-# INLINABLE unsafeEnqueue #-}
@@ -794,3 +803,15 @@ unsafeAssume :: Solver -> Lit -> IO ()
 unsafeAssume s@Solver{..} p = do
   pushTo trailLim =<< get' trail
   unsafeEnqueue s p NullClause
+
+luby :: Double -> Int -> Double
+luby y x_ = uncurry (loop2 x_) $ loop 1 0
+  where
+    loop :: Int -> Int -> (Int, Int)
+    loop sz sq
+      | sz < x_ + 1 = loop (2 * sz + 1) (sq + 1)
+      | otherwise = (sz, sq)
+    loop2 :: Int -> Int -> Int -> Double
+    loop2 x sz sq
+      | sz - 1 == x = y ** fromIntegral sq
+      | otherwise     = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
