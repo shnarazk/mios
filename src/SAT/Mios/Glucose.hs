@@ -39,10 +39,30 @@ lbdOf Solver{..} vec = do
                       else loop (i + 1) n
   loop 1 0
 
+{-# INLINABLE lbdOf' #-}
+lbdOf' :: Solver -> Stack -> IO Int
+lbdOf' Solver{..} vec = do
+  k <- (\k -> if 1000000 < k then 1 else k + 1) <$> get' lbd'key
+  set' lbd'key k                -- store the last used value
+  nv <- getNth vec 0
+  let loop :: Int -> Int -> IO Int
+      loop ((<= nv) -> False) n = putStrLn ("LBD = " ++ show n) >> return n
+      loop i n = do l <- getNth vec i
+                    let v = lit2var l
+                    lv <- getNth level v
+                    x <- getNth lbd'seen lv
+                    r <- getNth reason v
+                    v <- lit2var <$> getNth vec i
+                    putStr $ (if r == NullClause then "" else "!") ++ show v ++ "@" ++ show lv ++ ", " 
+                    if x /= k
+                      then setNth lbd'seen lv k >> loop (i + 1) (n + 1)
+                      else loop (i + 1) n
+  loop 1 0
+
 {-# INLINE setLBD #-}
 setLBD :: Solver -> Clause -> IO ()
 setLBD _ NullClause = error "LBD44"
-setLBD s c = set' (rank c) =<< lbdOf s (lits c)
+setLBD s c = set' (rank c) =<< lbdOf' s (lits c)
 
 -- | update the lbd field of /c/
 {-# INLINE updateLBD #-}
