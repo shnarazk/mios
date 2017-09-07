@@ -116,7 +116,7 @@ executable mios-WIP
                         SAT.Mios.Validator
                         SAT.Mios
 
-executable mios-WIP
+executable mios-WIP-prof
   hs-source-dirs:	src app
   main-is:              mios.hs
   if flag(prof)
