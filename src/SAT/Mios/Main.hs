@@ -741,6 +741,16 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                    -- Reached bound on number of conflicts
                    (s `cancelUntil`) =<< get' rootLevel -- force a restart
                    -- claRescaleActivityAfterRestart s
+                   let toggle :: Int -> Int
+                       toggle x
+                         | x == lFalse = lTrue
+                         | x == lTrue = lFalse
+                         | otherwise = x
+                       nv = nVars
+                       loop :: Int -> IO ()
+                       loop ((<= nv) -> False) = return ()
+                       loop i = modifyNth phases toggle i >> loop (i + 1)
+                   loop 1
                    incrementStat s NumOfRestart 1
                    return lBottom
              _ -> do
