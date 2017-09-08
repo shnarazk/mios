@@ -43,7 +43,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "mios #master #clause-recycle"
+versionId = "mios lbd:PR#36"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ _ = return 0
@@ -275,6 +275,7 @@ readClause s buffer bvec stream = do
         then do
             -- putStrLn . ("clause: " ++) . show . map lit2int =<< asList stack
             setNth buffer 0 $ i - 1
+            sortStack buffer
             void $ addClause s buffer
             return b'
         else do

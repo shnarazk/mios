@@ -24,6 +24,8 @@ module SAT.Mios.Vec
        , Stack
        , newStackFromList
        , realLengthOfStack
+         -- * support functions
+       , sortStack
        )
        where
 
@@ -116,7 +118,7 @@ instance VecFamily (Vec [Int]) Int where
   setAll (Vec v) = UV.set v
   {-# SPECIALIZE INLINE growBy :: Vec [Int] -> Int -> IO (Vec [Int]) #-}
   growBy (Vec v) n = Vec <$> UV.unsafeGrow v n
-  asList (Vec v) = mapM (getNth v) [1 .. UV.length v - 1]
+  asList (Vec v) = mapM (getNth v) [0 .. UV.length v - 1]
 
 {- NOT IN USE
 data instance Vec [Double] = Vec (UVector Double)
@@ -183,7 +185,7 @@ instance VecFamily ByteArrayInt Int where
                   BA.writeByteArray v 0 (0 :: Int)
                   BA.setByteArray v 1 n k
                   return $ ByteArrayInt v
-  asList (ByteArrayInt v) = mapM (BA.readByteArray v) [1 .. div (BA.sizeofMutableByteArray v) 8 - 1]
+  asList (ByteArrayInt v) = mapM (BA.readByteArray v) [0 .. div (BA.sizeofMutableByteArray v) 8 - 1]
 
 instance VecFamily ByteArrayDouble Double where
   {-# SPECIALIZE INLINE getNth :: ByteArrayDouble -> Int -> IO Double #-}
@@ -203,7 +205,7 @@ instance VecFamily ByteArrayDouble Double where
                   BA.writeByteArray v 0 (0 :: Double)
                   BA.setByteArray v 1 n k
                   return $ ByteArrayDouble v
-  asList (ByteArrayDouble v) = mapM (BA.readByteArray v) [1 .. div (BA.sizeofMutableByteArray v) 8 - 1]
+  asList (ByteArrayDouble v) = mapM (BA.readByteArray v) [0 .. div (BA.sizeofMutableByteArray v) 8 - 1]
 
 -------------------------------------------------------------------------------- SingleStorage
 
@@ -318,3 +320,36 @@ newStackFromList l = do
 {-# INLINE realLengthOfStack #-}
 realLengthOfStack :: Stack -> Int
 realLengthOfStack (ByteArrayInt v) = div (BA.sizeofMutableByteArray v) 8
+
+sortStack :: Stack -> IO ()
+sortStack vec = do
+  n <- get' vec
+  let sortOnRange :: Int -> Int -> IO ()
+      sortOnRange left right
+        | n < left = return ()
+        | right < 1 = return ()
+        | left >= right = return ()
+        | left + 1 == right = do
+            a <- getNth vec left
+            b <- getNth vec right
+            if a < b then return () else swapBetween vec left right
+        | otherwise = do
+            let p = div (left + right) 2
+            pivot <- getNth vec p
+            swapBetween vec p left -- set a sentinel for r'
+            let nextL :: Int -> IO Int
+                nextL i
+                  | i <= right = do v <- getNth vec i; if v < pivot then nextL (i + 1) else return i
+                  | otherwise = return i
+                nextR :: Int -> IO Int
+                nextR i = do v <- getNth vec i; if pivot < v then nextR (i - 1) else return i
+                divide :: Int -> Int -> IO Int
+                divide l r = do
+                  l' <- nextL l
+                  r' <- nextR r
+                  if l' < r' then swapBetween vec l' r' >> divide (l' + 1) (r' - 1) else return r'
+            m <- divide (left + 1) right
+            swapBetween vec left m
+            sortOnRange left (m - 1)
+            sortOnRange (m + 1) right
+  sortOnRange 1 n

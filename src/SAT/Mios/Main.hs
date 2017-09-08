@@ -22,6 +22,7 @@ import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
 import SAT.Mios.Solver
 import SAT.Mios.ClausePool
+import SAT.Mios.Glucose
 
 -- | returns a rank of 'Clause'. Smaller value is better.
 {-# INLINE rankOf #-}
@@ -74,7 +75,7 @@ newLearntClause s@Solver{..} ps = do
              else findMax (i + 1) j val
        swapBetween lstack 2 =<< findMax 1 1 0 -- Let @max_i@ be the index of the literal with highest decision level
        -- Bump, enqueue, store clause:
-       set' (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
+       -- set' (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
        -- Add clause to all managers
        pushTo learnts c
        l1 <- getNth lstack 1
@@ -84,8 +85,11 @@ newLearntClause s@Solver{..} ps = do
        -- update the solver state by @l@
        unsafeEnqueue s l1 c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
-       -- setRank s c
-       set' (protected c) True
+       -- Since this new clause contains unassigned literal and its level must be wrong,
+       -- we can't assign the valid LBD value here. Therefore we icrement the field by 1.
+       setLBD s c
+       modify' (rank c) (1 +)
+       -- set' (protected c) True
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
 -- simplify its representation (returns @False@) or state that the constraint is
@@ -142,17 +146,15 @@ analyze s@Solver{..} confl = do
   let
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
-      when (learnt c) $ claBumpActivity s c
-{-
-        -- update LBD like #Glucose4.0
-        d <- get' (lbd c)
-        when (2 < d) $ do
-          nblevels <- lbdOf s c
-          when (nblevels + 1 < d) $ do -- improve the LBD
-            when (d <= 30) $ set' (protected c) True -- 30 is `lbLBDFrozenClause`
-            -- seems to be interesting: keep it fro the next round
-            set' (lbd c) nblevels    -- Update it
--}
+      -- when (learnt c) $ claBumpActivity s c
+      -- update LBD like #Glucose4.0
+      d <- get' (rank c)
+      when (2 < d) $ do
+        nblevels <- lbdOf s (lits c)
+        when (nblevels + 1 < d) $ do -- improve the LBD
+          -- when (d <= 30) $ set' (protected c) True -- 30 is `lbLBDFrozenClause`
+          -- seems to be interesting: keep it fro the next round
+          set' (rank c) nblevels    -- Update it
       sc <- get' c
       let
         lstack = lits c
@@ -222,7 +224,7 @@ analyze s@Solver{..} confl = do
   loopOnLits 2 2                -- the first literal is specail
   -- glucose heuristics
   nld <- get' an'lastDL
-  r <- get' litsLearnt -- this is not the right value
+  r <- get' litsLearnt -- this is estimated LBD value based on the clause size
   let loopOnLastDL :: Int -> IO ()
       loopOnLastDL ((<= nld) -> False) = return ()
       loopOnLastDL i = do v <- lit2var <$> getNth an'lastDL i
@@ -490,6 +492,48 @@ reduceDB s@Solver{..} = do
   loop k                               -- CAVEAT: `vec` is a zero-based vector
   reset watches
   shrinkBy learnts (n - k)
+{-
+  -- check the number
+  n' <- nLearnts s
+  let sumUp :: ClauseExtManager -> IO Int
+      sumUp m = get' m
+  let lrnsUp :: ClauseExtManager -> IO Int
+      lrnsUp m = do
+        n <- get' m
+        v <- getClauseVector m
+        let seek :: Int -> Int -> IO Int
+            seek ((< n) -> False) j = return j
+            seek i j = do
+              c <- getNth v i
+              seek (i + 1) $ if learnt c then j + 1 else j
+        seek 0 0
+  let nulls :: ClauseExtManager -> IO Int
+      nulls m = do
+        n <- get' m
+        v <- getClauseVector m
+        let seek :: Int -> Int -> IO Int
+            seek ((< n) -> False) j = return j
+            seek i j = do
+              c <- getNth v i
+              seek (i + 1) $ if c == NullClause then j + 1 else j
+        seek 0 0
+  let givens :: ClauseExtManager -> IO Int
+      givens m = do
+        n <- get' m
+        v <- getClauseVector m
+        let seek :: Int -> Int -> IO Int
+            seek ((< n) -> False) j = return j
+            seek i j = do
+              c <- getNth v i
+              seek (i + 1) $ if learnt c then j else j + 1
+        seek 0 0
+  cs <- flip div 2 . sum <$> V.mapM sumUp watches
+  ls <- flip div 2 . sum <$> V.mapM lrnsUp watches
+  gs <- flip div 2 . sum <$> V.mapM givens watches
+  ns <- flip div 2 . sum <$> V.mapM nulls watches
+  nc <- nClauses s
+  print (("nClause", nc, "nLearns", n'), ("total", cs, "learns", ls, "gives", gs))
+-}
 
 -- | (Good to Bad) Quick sort the key vector based on their activities and returns number of privileged clauses.
 -- this function uses the same metrix as reduceDB_lt in glucose 4.0:
@@ -504,101 +548,80 @@ reduceDB s@Solver{..} = do
 -- * 19 bit: converted activity
 -- * remain: clauseVector index
 --
-(rankWidth :: Int, activityWidth :: Int, indexWidth :: Int) = (l, a, w - (l + a + 1))
-  where
-    w = finiteBitSize (0:: Int)
-    (l, a) = case () of
-      _ | 64 <= w -> (8, 25)   -- 30 bit =>   1G clauses
-      _ | 60 <= w -> (8, 24)   -- 26 bit =>  64M clauses
-      _ | 32 <= w -> (6,  7)   -- 18 bit => 256K clauses
-      _ | 29 <= w -> (6,  5)   -- 17 bit => 128K clauses
---      _ -> error "Int on your CPU doesn't have sufficient bit width."
+rankWidth :: Int
+rankWidth = 16
+indexWidth :: Int
+indexWidth = 36
+rankMax :: Int
+rankMax = 2 ^ rankWidth - 1
+indexMax :: Int
+indexMax = 2 ^ indexWidth - 1 -- 2^6 G = 64G
 
 {-# INLINABLE sortClauses #-}
 sortClauses :: Solver -> ClauseExtManager -> Int -> IO Int
 sortClauses s cm nneeds = do
-  -- constants
-  let
-    rankMax :: Int
-    rankMax = 2 ^ rankWidth - 1
-    activityMax :: Int
-    activityMax = 2 ^ activityWidth - 1
-    activityScale :: Double
-    activityScale = fromIntegral activityMax
-    indexMax :: Int
-    indexMax = (2 ^ indexWidth - 1) -- 67,108,863 for 26
   n <- get' cm
-  -- when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds mios's " ++ show indexWidth ++" bit manage capacity"
+  when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds Mios clause manager's capacity"
   vec <- getClauseVector cm
   keys <- getKeyVector cm
   -- 1: assign keys
-  let
-    assignKey :: Int -> Int -> IO Int
-    assignKey ((< n) -> False) m = return m
-    assignKey i m = do
-      c <- getNth vec i
-      k <- (\k -> if k == 2 then return k else fromEnum <$> get' (protected c)) =<< get' c
-      case k of
-        1 -> set' (protected c) False >> setNth keys i (shiftL 2 indexWidth + i) >> assignKey (i + 1) (m + 1)
-        2 -> setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
-        _ -> do
-            l <- locked s c      -- this is expensive
-            if l
-              then setNth keys i (shiftL 1 indexWidth + i) >> assignKey (i + 1) (m + 1)
-              else do
-                  d <- rankOf c
-                  b <- floor . (activityScale *) . (1 -) . logBase claActivityThreshold . max 1 <$> get' (activity c)
-                  setNth keys i $ shiftL (min rankMax d) (activityWidth + indexWidth) + shiftL b indexWidth + i
+  let assignKey :: Int -> Int -> IO Int
+      assignKey ((< n) -> False) m = return m
+      assignKey i m = do
+        c <- getNth vec i
+        l <- locked s c
+        if l
+          then do setNth keys i $ shiftL 1 indexWidth + i
+                  assignKey (i + 1) $ m + 1
+          else do r <- get' $ rank c
+                  setNth keys i $ shiftL (r + 1) indexWidth + i
                   assignKey (i + 1) m
   limit <- min n . (+ nneeds) <$> assignKey 0 0
   -- 2: sort keyVector
-  let
-    sortOnRange :: Int -> Int -> IO ()
-    sortOnRange left right
-      | limit < left = return ()
-      | left >= right = return ()
-      | left + 1 == right = do
-          a <- getNth keys left
-          b <- getNth keys right
-          unless (a < b) $ swapBetween keys left right
-      | otherwise = do
-          let p = div (left + right) 2
-          pivot <- getNth keys p
-          swapBetween keys p left -- set a sentinel for r'
-          let
-            nextL :: Int -> IO Int
-            nextL i@((<= right) -> False) = return i
-            nextL i = do v <- getNth keys i; if v < pivot then nextL (i + 1) else return i
-            nextR :: Int -> IO Int
-            nextR i = do v <- getNth keys i; if pivot < v then nextR (i - 1) else return i
-            divide :: Int -> Int -> IO Int
-            divide l r = do
-              l' <- nextL l
-              r' <- nextR r
-              if l' < r' then swapBetween keys l' r' >> divide (l' + 1) (r' - 1) else return r'
-          m <- divide (left + 1) right
-          swapBetween keys left m
-          sortOnRange left (m - 1)
-          sortOnRange (m + 1) right
+  let sortOnRange :: Int -> Int -> IO ()
+      sortOnRange left right
+        | limit < left = return ()
+        | left >= right = return ()
+        | left + 1 == right = do
+            a <- getNth keys left
+            b <- getNth keys right
+            unless (a < b) $ swapBetween keys left right
+        | otherwise = do
+            let p = div (left + right) 2
+            pivot <- getNth keys p
+            swapBetween keys p left -- set a sentinel for r'
+            let nextL :: Int -> IO Int
+                nextL i@((<= right) -> False) = return i
+                nextL i = do v <- getNth keys i; if v < pivot then nextL (i + 1) else return i
+                nextR :: Int -> IO Int
+                nextR i = do v <- getNth keys i; if pivot < v then nextR (i - 1) else return i
+                divide :: Int -> Int -> IO Int
+                divide l r = do
+                  l' <- nextL l
+                  r' <- nextR r
+                  if l' < r' then swapBetween keys l' r' >> divide (l' + 1) (r' - 1) else return r'
+            m <- divide (left + 1) right
+            swapBetween keys left m
+            sortOnRange left (m - 1)
+            sortOnRange (m + 1) right
   sortOnRange 0 (n - 1)
-  -- 3: place clauses
-  let
-    seek :: Int -> IO ()
-    seek ((< limit) -> False) = return ()
-    seek i = do
-      bits <- getNth keys i
-      when (indexMax < bits) $ do
-        c <- getNth vec i
-        let
-          sweep k = do
-            k' <- (indexMax .&.) <$> getNth keys k
-            setNth keys k k
-            if k' == i
-              then setNth vec k c
-              else getNth vec k' >>= setNth vec k >> sweep k'
-        sweep i
-      seek $ i + 1
+  -- 3: place clauses in 'vec' based on the order stored in 'keys'
+  let seek :: Int -> IO ()
+      seek ((< limit) -> False) = return ()
+      seek i = do
+        bits <- getNth keys i
+        when (indexMax < bits) $ do
+          c <- getNth vec i
+          let sweep k = do k' <- (indexMax .&.) <$> getNth keys k
+                           setNth keys k k
+                           if k' == i
+                             then setNth vec k c
+                             else getNth vec k' >>= setNth vec k >> sweep k'
+          sweep i
+        seek $ i + 1
   seek 0
+  -- ave2 <- averageLBD limit 0 0
+  -- print (ave1, ave2)
   return limit
 
 -- | #M22
@@ -717,7 +740,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
                    (s `cancelUntil`) =<< get' rootLevel -- force a restart
-                   claRescaleActivityAfterRestart s
+                   -- claRescaleActivityAfterRestart s
                    let toggle :: Int -> Int
                        toggle x
                          | x == lFalse = lTrue
@@ -751,51 +774,51 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
 solve :: (Foldable t) => Solver -> t Lit -> IO Bool
 solve s@Solver{..} assumps = do
   -- PUSH INCREMENTAL ASSUMPTIONS:
-  let
-    injector :: Lit -> Bool -> IO Bool
-    injector _ False = return False
-    injector a True = do
-      b <- assume s a
-      if not b
-        then do                 -- conflict analyze
-            (confl :: Clause) <- getNth reason (lit2var a)
-            analyzeFinal s confl True
-            pushTo conflicts (negateLit a)
-            cancelUntil s 0
-            return False
-        else do
-            confl <- propagate s
-            if confl /= NullClause
-              then do
+  let inject :: Lit -> Bool -> IO Bool
+      inject _ False = return False
+      inject a True = do
+        b <- assume s a
+        if not b                  -- conflict analyze
+          then do (confl :: Clause) <- getNth reason (lit2var a)
                   analyzeFinal s confl True
+                  pushTo conflicts (negateLit a)
                   cancelUntil s 0
                   return False
-              else return True
+          else do confl <- propagate s
+                  if confl /= NullClause
+                    then do analyzeFinal s confl True
+                            cancelUntil s 0
+                            return False
+                    else return True
   good <- simplifyDB s
-  x <- if good then foldrM injector True assumps else return False
+  x <- if good then foldrM inject True assumps else return False
   if not x
     then return False
-    else do
-        set' rootLevel =<< decisionLevel s
-        -- SOLVE:
-        nc <- fromIntegral <$> nClauses s
-        let useLuby = True
-            restart_inc = 2 :: Double
-            restart_first = 100 :: Double
-            while' :: Double -> Double -> IO Bool
-            while' nOfConflicts nOfLearnts = do
-              status <- search s (floor nOfConflicts) (floor nOfLearnts)
-              if status == lBottom
-                then while' (restart_inc * nOfConflicts) (1.1 * nOfLearnts)
-                else cancelUntil s 0 >> return (status == lTrue)
-            while :: Int -> Double -> IO Bool
-            while nRestart nOfLearnts = do
-              let rest_base = luby restart_inc nRestart
-              status <- search s (floor (rest_base * restart_first)) (floor nOfLearnts)
-              if status == lBottom
-                then while (nRestart + 1) (1.1 * nOfLearnts)
-                else cancelUntil s 0 >> return (status == lTrue)
-        if useLuby then while 0 (nc / 3.0) else while' 100 (nc / 3.0)
+    else do set' rootLevel =<< decisionLevel s
+            -- SOLVE:
+            nc <- fromIntegral <$> nClauses s
+            let useLuby = True
+                nv = fromIntegral nVars :: Double
+                reductionBase = min (nc / 3.0) 5000
+                reductionStep = min nv 1000
+                restartBase = nv
+                restartScale = 4.0 :: Double
+                -- restart based on Luby series
+                while :: Int -> Double -> IO Bool
+                while nRestart nOfLearnts = do
+                  let restartIndex = luby restartScale nRestart
+                  status <- search s (floor (restartBase * restartIndex)) (floor nOfLearnts)
+                  if status == lBottom
+                    then while (nRestart + 1) (reductionStep + nOfLearnts)
+                    else cancelUntil s 0 >> return (status == lTrue)
+                -- restart based on  geometric series
+                while' :: Double -> Double -> IO Bool
+                while' nOfConflicts nOfLearnts = do
+                  status <- search s (floor nOfConflicts) (floor nOfLearnts)
+                  if status == lBottom
+                    then while' (restartScale * nOfConflicts) (reductionStep + nOfLearnts)
+                    else cancelUntil s 0 >> return (status == lTrue)
+            if useLuby then while 0 reductionBase else while' 100 reductionBase
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
 {-# INLINABLE unsafeEnqueue #-}
