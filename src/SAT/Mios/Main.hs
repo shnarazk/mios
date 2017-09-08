@@ -788,24 +788,27 @@ solve s@Solver{..} assumps = do
             -- SOLVE:
             nc <- fromIntegral <$> nClauses s
             let useLuby = True
-                nv = fromIntegral nVars
+                nv = fromIntegral nVars :: Double
+                reductionBase = min (nc / 3.0) 5000
                 reductionStep = min nv 1000
-                restart_inc = 2.0 :: Double
-                restart_first = 100 :: Double
+                restartBase = nv
+                restartScale = 4.0 :: Double
+                -- restart based on Luby series
+                while :: Int -> Double -> IO Bool
+                while nRestart nOfLearnts = do
+                  let restartIndex = luby restartScale nRestart
+                  status <- search s (floor (restartBase * restartIndex)) (floor nOfLearnts)
+                  if status == lBottom
+                    then while (nRestart + 1) (reductionStep + nOfLearnts)
+                    else cancelUntil s 0 >> return (status == lTrue)
+                -- restart based on  geometric series
                 while' :: Double -> Double -> IO Bool
                 while' nOfConflicts nOfLearnts = do
                   status <- search s (floor nOfConflicts) (floor nOfLearnts)
                   if status == lBottom
-                    then while' (restart_inc * nOfConflicts) (reductionStep + nOfLearnts)
+                    then while' (restartScale * nOfConflicts) (reductionStep + nOfLearnts)
                     else cancelUntil s 0 >> return (status == lTrue)
-                while :: Int -> Double -> IO Bool
-                while nRestart nOfLearnts = do
-                  let rest_base = luby restart_inc nRestart
-                  status <- search s (floor (rest_base * restart_first)) (floor nOfLearnts)
-                  if status == lBottom
-                    then while (nRestart + 1) (1.1 * nOfLearnts)
-                    else cancelUntil s 0 >> return (status == lTrue)
-            if useLuby then while 0 (nc / 3.0) else while' 100 (min (nc / 3.0) 5000)
+            if useLuby then while 0 reductionBase else while' 100 reductionBase
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
 {-# INLINABLE unsafeEnqueue #-}
