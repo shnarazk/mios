@@ -75,7 +75,7 @@ newLearntClause s@Solver{..} ps = do
              else findMax (i + 1) j val
        swapBetween lstack 2 =<< findMax 1 1 0 -- Let @max_i@ be the index of the literal with highest decision level
        -- Bump, enqueue, store clause:
-       -- set' (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
+       set' (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
        -- Add clause to all managers
        pushTo learnts c
        l1 <- getNth lstack 1
@@ -146,7 +146,7 @@ analyze s@Solver{..} confl = do
   let
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
-      -- when (learnt c) $ claBumpActivity s c
+      when (learnt c) $ claBumpActivity s c
       -- update LBD like #Glucose4.0
       d <- get' (rank c)
       when (2 < d) $ do
@@ -538,25 +538,33 @@ reduceDB s@Solver{..} = do
 -- | (Good to Bad) Quick sort the key vector based on their activities and returns number of privileged clauses.
 -- this function uses the same metrix as reduceDB_lt in glucose 4.0:
 -- 1. binary clause
--- 2. smaller rank
+-- 2. smaller LBD
 -- 3. larger activity defined in MiniSat
 -- , where smaller value is better.
 --
--- they are coded into an Int as the following layout:
+-- they are coded into an "Int64" as the following 60 bit layout:
 --
--- * 14 bit: LBD or 0 for preserved clauses
--- * 19 bit: converted activity
--- * remain: clauseVector index
+-- * binary flag (1 bit)
+-- * LBD digits (7 bit)
+-- * converted activity (21 bit)
+-- * remain: clauseVector index (31 bit)
 --
 rankWidth :: Int
-rankWidth = 16
+rankWidth = 7
+activityWidth :: Int
+activityWidth = 21
 indexWidth :: Int
-indexWidth = 36
+indexWidth = 31
 rankMax :: Int
 rankMax = 2 ^ rankWidth - 1
+activityMax :: Int
+activityMax = 2 ^ activityWidth - 1
+activityScale :: Double
+activityScale = fromIntegral activityMax
 indexMax :: Int
 indexMax = 2 ^ indexWidth - 1 -- 2^6 G = 64G
 
+-- FIXME
 {-# INLINABLE sortClauses #-}
 sortClauses :: Solver -> ClauseExtManager -> Int -> IO Int
 sortClauses s cm nneeds = do

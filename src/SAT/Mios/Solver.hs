@@ -29,9 +29,9 @@ module SAT.Mios.Solver
        , assume
        , cancelUntil
          -- * Activities
---       , claBumpActivity
+       , claBumpActivity
 --       , claDecayActivity
---       , claRescaleActivityAfterRestart
+       , claRescaleActivityAfterRestart
 --       , claActivityThreshold
        , varBumpActivity
        , varDecayActivity
@@ -306,7 +306,7 @@ clauseNew s@Solver{..} ps isLearnt = do
        -- x <- asList c
        -- unless (length x == length (nub x)) $ error "new clause contains a element doubly"
        -- Bumping:
-       -- claBumpActivity s c -- newly learnt clauses should be considered active
+       claBumpActivity s c -- newly learnt clauses should be considered active
      -- Add clause to watcher lists:
      l1 <- negateLit <$> getNth lstack 1
      pushClauseWithKey (getNthWatcher watches l1) c 0
@@ -452,7 +452,6 @@ varRescaleActivity Solver{..} = do
   loop 1
   modify' varInc (/ varActivityThreshold)
 
-{-
 -- | value for rescaling clause activity.
 claActivityThreshold :: Double
 claActivityThreshold = 1e20
@@ -505,10 +504,9 @@ claRescaleActivityAfterRestart Solver{..} = do
       if d < 9
         then modify' (activity c) sqrt
         else set' (activity c) 0
-      set' (protected c) False
+      -- set' (protected c) False
       loopOnVector $ i + 1
   loopOnVector 0
--}
 
 -------------------------------------------------------------------------------- VarHeap
 
