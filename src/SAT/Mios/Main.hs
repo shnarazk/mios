@@ -578,9 +578,8 @@ sortClauses s cm nneeds = do
       assignKey ((< n) -> False) m = return m
       assignKey i m = do
         c <- getNth vec i
-        m <- get' c
-        -- p <- get' $ protected c
-        if m == 2                   -- Binary clauses are must
+        k <- get' c
+        if k == 2                 -- Main criteria... Like in MiniSat we keep all binary clauses
           then do setNth keys i $ shiftL 1 shiftLBD + i
                   assignKey (i + 1) $ m + 1
           else do l <- locked s c   -- Also locked clauses are must
