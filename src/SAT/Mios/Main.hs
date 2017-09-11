@@ -593,7 +593,7 @@ sortClauses s cm nneeds = do
                               then setNth keys i $ shiftL rankMax shiftLBD + i
                               else setNth keys i $ shiftL d shiftLBD + shiftL (floor a) indexWidth + i
                             assignKey (i + 1) m
-  limit <- min n . (+ nneeds) <$> assignKey 0 0
+  limit <- max nneeds <$> assignKey 0 0
   -- 2: sort keyVector
   let sortOnRange :: Int -> Int -> IO ()
       sortOnRange left right
