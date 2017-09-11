@@ -586,7 +586,7 @@ sortClauses s cm nneeds = do
                   if l
                     then do setNth keys i $ shiftL 1 shiftLBD + i
                             assignKey (i + 1) $ m + 1
-                    else do d <- min 100 . max 2 <$> get' (rank c) -- combine LBD and activity
+                    else do d <- min 127 . max 2 <$> get' (rank c) -- combine LBD and activity
                             a <- logBase 10 <$> get' (activity c)  -- convert to [-inf .. 20]
                             -- Second one... based on literal block distance
                             if a < 0
