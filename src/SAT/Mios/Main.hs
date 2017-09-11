@@ -572,10 +572,11 @@ sortClauses s cm nNeed = do
   -- when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds Mios clause manager's capacity"
   vec <- getClauseVector cm
   keys <- getKeyVector cm
+  acThr <- (/ fromIntegral n) <$> get' (claInc s)
   -- 1: assign keys
   let shiftLBD = activityWidth + indexWidth
       assignKey :: Int -> Int -> Int -> IO (Int, Int)
-      assignKey ((< n) -> False) m n = return (m, n)
+      assignKey ((< n) -> False) numGood numBad = return (numGood, numBad)
       assignKey i ng nb = do
         c <- getNth vec i
         k <- get' c
@@ -586,17 +587,17 @@ sortClauses s cm nNeed = do
                   if l
                     then do setNth keys i $ shiftL 1 shiftLBD + i
                             assignKey (i + 1) (ng + 1) nb
-                    else do v <- (activityMax -) . floor <$> get' (activity c)
-                            -- larger the activity is, smaller @v@ is.
-                            if v == activityMax -- purge inactive learnts
+                    else do a <- get' (activity c)
+                            if a < acThr -- purge inactive learnts
                               then do setNth keys i $ shiftL rankMax shiftLBD + i
                                       assignKey (i + 1) ng (nb + 1)
                               else do d <- min rankMax <$> get' (rank c)
                                       -- Second one... based on literal block distance
+                                      let v = activityMax - floor (a * 1e-20 * 2 ** 20)
                                       setNth keys i $ shiftL d shiftLBD + shiftL v indexWidth + i
                                       assignKey (i + 1) ng nb
-  (nGood, nBad) <- assignKey 0 0 0
-  let limit = max nGood . min nNeed $ n - nBad
+  (nGood, _) <- assignKey 0 0 0
+  let limit = max nGood nNeed
   -- 2: sort keyVector
   let sortOnRange :: Int -> Int -> IO ()
       sortOnRange left right
