@@ -552,7 +552,7 @@ reduceDB s@Solver{..} = do
 rankWidth :: Int
 rankWidth = 7
 activityWidth :: Int
-activityWidth = 21
+activityWidth = 21              -- note: the maximum clause activity is 1e20.
 indexWidth :: Int
 indexWidth = 31
 rankMax :: Int
@@ -573,17 +573,26 @@ sortClauses s cm nneeds = do
   vec <- getClauseVector cm
   keys <- getKeyVector cm
   -- 1: assign keys
-  let assignKey :: Int -> Int -> IO Int
+  let shiftLBD = activityWidth + indexWidth
+      assignKey :: Int -> Int -> IO Int
       assignKey ((< n) -> False) m = return m
       assignKey i m = do
         c <- getNth vec i
-        l <- locked s c
-        if l
-          then do setNth keys i $ shiftL 1 indexWidth + i
+        m <- get' c
+        -- p <- get' $ protected c
+        if m == 2                   -- Binary clauses are must
+          then do setNth keys i $ shiftL 1 shiftLBD + i
                   assignKey (i + 1) $ m + 1
-          else do r <- get' $ rank c
-                  setNth keys i $ shiftL (r + 1) indexWidth + i
-                  assignKey (i + 1) m
+          else do l <- locked s c   -- Also locked clauses are must
+                  if l
+                    then do setNth keys i $ shiftL 1 shiftLBD + i
+                            assignKey (i + 1) $ m + 1
+                    else do d <- min 100 . max 2 <$> get' (rank c) -- combine LBD and activity
+                            a <- logBase 10 <$> get' (activity c)  -- convert to [-inf .. 20]
+                            if a < 0
+                              then setNth keys i $ shiftL rankMax shiftLBD + i
+                              else setNth keys i $ shiftL d shiftLBD + shiftL (floor a) indexWidth + i
+                            assignKey (i + 1) m
   limit <- min n . (+ nneeds) <$> assignKey 0 0
   -- 2: sort keyVector
   let sortOnRange :: Int -> Int -> IO ()
@@ -614,6 +623,7 @@ sortClauses s cm nneeds = do
             sortOnRange (m + 1) right
   sortOnRange 0 (n - 1)
   -- 3: place clauses in 'vec' based on the order stored in 'keys'
+  -- To recylce existing clauses, we must reserve everything for now.
   let seek :: Int -> IO ()
       seek ((< limit) -> False) = return ()
       seek i = do
@@ -629,7 +639,6 @@ sortClauses s cm nneeds = do
         seek $ i + 1
   seek 0
   -- ave2 <- averageLBD limit 0 0
-  -- print (ave1, ave2)
   return limit
 
 -- | #M22
@@ -748,7 +757,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
                    (s `cancelUntil`) =<< get' rootLevel -- force a restart
-                   -- claRescaleActivityAfterRestart s
+                   claRescaleActivityAfterRestart s
                    let toggle :: Int -> Int
                        toggle x
                          | x == lFalse = lTrue
