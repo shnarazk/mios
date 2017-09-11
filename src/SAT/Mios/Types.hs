@@ -253,7 +253,7 @@ data CNFDescription = CNFDescription
 data MiosConfiguration = MiosConfiguration
                          {
                            variableDecayRate  :: !Double  -- ^ decay rate for variable activity
---                         , clauseDecayRate    :: !Double  -- ^ decay rate for clause activity
+                         , clauseDecayRate    :: !Double  -- ^ decay rate for clause activity
                          }
   deriving (Eq, Ord, Read, Show)
 
@@ -265,7 +265,7 @@ data MiosConfiguration = MiosConfiguration
 -- * Mios-1.2     uses @(0.95, 0.999, 0)@.
 --
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 {- 0.999 -} {- 0 -}
+defaultConfiguration = MiosConfiguration 0.95 0.999 {- 0 -}
 
 -------------------------------------------------------------------------------- Statistics
 

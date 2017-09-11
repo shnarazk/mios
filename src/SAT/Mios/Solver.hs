@@ -30,8 +30,8 @@ module SAT.Mios.Solver
        , cancelUntil
          -- * Activities
        , claBumpActivity
---       , claDecayActivity
-       , claRescaleActivityAfterRestart
+       , claDecayActivity
+--       , claRescaleActivityAfterRestart
 --       , claActivityThreshold
        , varBumpActivity
        , varDecayActivity
@@ -74,8 +74,9 @@ data Solver = Solver
 {-            Configuration -}
               , config     :: !MiosConfiguration -- ^ search paramerters
               , nVars      :: !Int               -- ^ number of variables
+              , claInc     :: !Double'           -- ^ Clause activity increment amount to bump with.
 {-
-              -- , claInc     :: !Double'           -- ^ Clause activity increment amount to bump with.
+
               -- , varDecay   :: !Double'           -- ^ used to set 'varInc'
 -}
               , varInc     :: !Double'           -- ^ Variable activity increment amount to bump with.
@@ -119,7 +120,7 @@ newSolver conf (CNFDescription nv nc _) = do
     -- Configuration
     <*> return conf                        -- config
     <*> return nv                          -- nVars
---  <*> new' 1.0                           -- claInc
+    <*> new' 1.0                           -- claInc
 --  <*> new' (variableDecayRate conf)      -- varDecay
     <*> new' 1.0                           -- varInc
     <*> new' 0                             -- rootLevel
@@ -459,19 +460,15 @@ claActivityThreshold = 1e20
 -- | __Fig. 14 (p.19)__
 {-# INLINE claBumpActivity #-}
 claBumpActivity :: Solver -> Clause -> IO ()
-claBumpActivity s Clause{..} = do
-  dl <- decisionLevel s
-  a <- (fromIntegral dl +) <$> get' activity
+claBumpActivity s@Solver{..} Clause{..} = do
+  a <- (+) <$> get' activity <*> get' claInc
   set' activity a
-  -- set' protected True
   when (claActivityThreshold <= a) $ claRescaleActivity s
 
-{-
 -- | __Fig. 14 (p.19)__
 {-# INLINE claDecayActivity #-}
 claDecayActivity :: Solver -> IO ()
-claDecayActivity Solver{..} = modifyDouble claInc (/ clauseDecayRate config)
--}
+claDecayActivity Solver{..} = modify' claInc (/ clauseDecayRate config)
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE claRescaleActivity #-}
@@ -487,7 +484,7 @@ claRescaleActivity Solver{..} = do
       modify' (activity c) (/ claActivityThreshold)
       loopOnVector $ i + 1
   loopOnVector 0
-  -- modifyDouble claInc (/ claActivityThreshold)
+  modify' claInc (/ claActivityThreshold)
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE claRescaleActivityAfterRestart #-}

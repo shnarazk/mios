@@ -52,14 +52,14 @@ makeClauseFromStack pool v = do
   if c == NullClause
     then newClauseFromStack True v
     else do let lstack = lits c
-                loop :: Int -> IO Clause
-                loop ((<= n) -> False) = return c
+                loop :: Int -> IO ()
+                loop ((<= n) -> False) = return ()
                 loop i = (setNth lstack i =<< getNth v i) >> loop (i + 1)
             loop 0
             -- the caller (newLearntClause) should set these slots
-            -- set' (activity c) 0.0
+            set' (activity c) 0.0
             -- set' (protected c) False
-            -- return c
+            return c
 
 -- | Note: only not-too-large and learnt clauses are recycled.
 {-# INLINE putBackToPool #-}

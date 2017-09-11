@@ -738,7 +738,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                     (v :: Var) <- lit2var <$> getNth litsLearnt 1
                     setNth level v 0
                   varDecayActivity s
-                  -- claDecayActivity s
+                  claDecayActivity s
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
@@ -760,7 +760,7 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
                    (s `cancelUntil`) =<< get' rootLevel -- force a restart
-                   claRescaleActivityAfterRestart s
+                   -- claRescaleActivityAfterRestart s
                    let toggle :: Int -> Int
                        toggle x
                          | x == lFalse = lTrue
