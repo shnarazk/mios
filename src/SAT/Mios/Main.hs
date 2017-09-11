@@ -567,33 +567,36 @@ indexMax = 2 ^ indexWidth - 1 -- 2^6 G = 64G
 -- FIXME
 {-# INLINABLE sortClauses #-}
 sortClauses :: Solver -> ClauseExtManager -> Int -> IO Int
-sortClauses s cm nneeds = do
+sortClauses s cm nNeed = do
   n <- get' cm
-  when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds Mios clause manager's capacity"
+  -- when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds Mios clause manager's capacity"
   vec <- getClauseVector cm
   keys <- getKeyVector cm
   -- 1: assign keys
   let shiftLBD = activityWidth + indexWidth
-      assignKey :: Int -> Int -> IO Int
-      assignKey ((< n) -> False) m = return m
-      assignKey i m = do
+      assignKey :: Int -> Int -> Int -> IO (Int, Int)
+      assignKey ((< n) -> False) m n = return (m, n)
+      assignKey i ng nb = do
         c <- getNth vec i
         k <- get' c
-        if k == 2                 -- Main criteria... Like in MiniSat we keep all binary clauses
+        if k == 2                     -- Main criteria. Like in MiniSat we keep all binary clauses
           then do setNth keys i $ shiftL 1 shiftLBD + i
-                  assignKey (i + 1) $ m + 1
-          else do l <- locked s c -- Also locked clauses are must
+                  assignKey (i + 1) (ng + 1) nb
+          else do l <- locked s c     -- Also locked clauses are must
                   if l
                     then do setNth keys i $ shiftL 1 shiftLBD + i
-                            assignKey (i + 1) $ m + 1
-                    else do d <- min 127 . max 2 <$> get' (rank c) -- combine LBD and activity
-                            a <- logBase 10 <$> get' (activity c)  -- convert to [-inf .. 20]
-                            -- Second one... based on literal block distance
-                            if a < 0
-                              then setNth keys i $ shiftL rankMax shiftLBD + i
-                              else setNth keys i $ shiftL d shiftLBD + shiftL (floor a) indexWidth + i
-                            assignKey (i + 1) m
-  limit <- max nneeds <$> assignKey 0 0
+                            assignKey (i + 1) (ng + 1) nb
+                    else do v <- (activityMax -) . floor <$> get' (activity c)
+                            -- larger the activity is, smaller @v@ is.
+                            if v == activityMax -- purge inactive learnts
+                              then do setNth keys i $ shiftL rankMax shiftLBD + i
+                                      assignKey (i + 1) ng (nb + 1)
+                              else do d <- min rankMax <$> get' (rank c)
+                                      -- Second one... based on literal block distance
+                                      setNth keys i $ shiftL d shiftLBD + shiftL v indexWidth + i
+                                      assignKey (i + 1) ng nb
+  (nGood, nBad) <- assignKey 0 0 0
+  let limit = max nGood . min nNeed $ n - nBad
   -- 2: sort keyVector
   let sortOnRange :: Int -> Int -> IO ()
       sortOnRange left right
