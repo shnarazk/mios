@@ -582,12 +582,13 @@ sortClauses s cm nneeds = do
         if k == 2                 -- Main criteria... Like in MiniSat we keep all binary clauses
           then do setNth keys i $ shiftL 1 shiftLBD + i
                   assignKey (i + 1) $ m + 1
-          else do l <- locked s c   -- Also locked clauses are must
+          else do l <- locked s c -- Also locked clauses are must
                   if l
                     then do setNth keys i $ shiftL 1 shiftLBD + i
                             assignKey (i + 1) $ m + 1
                     else do d <- min 100 . max 2 <$> get' (rank c) -- combine LBD and activity
                             a <- logBase 10 <$> get' (activity c)  -- convert to [-inf .. 20]
+                            -- Second one... based on literal block distance
                             if a < 0
                               then setNth keys i $ shiftL rankMax shiftLBD + i
                               else setNth keys i $ shiftL d shiftLBD + shiftL (floor a) indexWidth + i
