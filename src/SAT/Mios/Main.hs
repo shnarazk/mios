@@ -747,7 +747,7 @@ search s@Solver{..} nOfConflicts = do
                   when (cnt == 0) $ do
                     t' <- (1.5 *) <$> get' learntSAdj
                     set' learntSAdj t'
-                    set' learntSCnt t'
+                    set' learntSCnt $ floor t'
                     modify' maxLearnts (* 1.1)
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT

@@ -83,7 +83,7 @@ data Solver = Solver
               , rootLevel  :: !Int'              -- ^ Separates incremental and search assumptions.
 {-            Learnt DB Size Adjustment -}
               , learntSAdj :: Double'            -- ^ used in 'SAT.Mios.Main.search'
-              , learntSCnt :: Double'            -- ^ used in 'SAT.Mios.Main.search'
+              , learntSCnt :: Int'               -- ^ used in 'SAT.Mios.Main.search'
               , maxLearnts :: Double'            -- ^ used in 'SAT.Mios.Main.search'
 {-            Working Memory -}
               , ok         :: !Bool'             -- ^ /return value/ holder
