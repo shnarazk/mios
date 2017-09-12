@@ -81,6 +81,10 @@ data Solver = Solver
 -}
               , varInc     :: !Double'           -- ^ Variable activity increment amount to bump with.
               , rootLevel  :: !Int'              -- ^ Separates incremental and search assumptions.
+{-            Learnt DB Size Adjustment -}
+              , learntSAdj :: Double'            -- ^ used in 'SAT.Mios.Main.search'
+              , learntSCnt :: Double'            -- ^ used in 'SAT.Mios.Main.search'
+              , maxLearnts :: Double'            -- ^ used in 'SAT.Mios.Main.search'
 {-            Working Memory -}
               , ok         :: !Bool'             -- ^ /return value/ holder
               , an'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.analyze'
@@ -124,6 +128,10 @@ newSolver conf (CNFDescription nv nc _) = do
 --  <*> new' (variableDecayRate conf)      -- varDecay
     <*> new' 1.0                           -- varInc
     <*> new' 0                             -- rootLevel
+    -- Learnt DB Size Adjustment
+    <*> new' 100                           -- learntSAdj
+    <*> new' 100                           -- learntSCnt
+    <*> new' (fromIntegral nc / 3)         -- maxLearnts
     -- Working Memory
     <*> new' True                          -- ok
     <*> newVec nv 0                        -- an'seen
