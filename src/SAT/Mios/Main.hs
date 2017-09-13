@@ -708,9 +708,10 @@ simplifyDB s@Solver{..} = do
 --   all variables are decision variables, that means that the clause set is satisfiable. 'l_False'
 --   if the clause set is unsatisfiable. 'l_Undef' if the bound on number of conflicts is reached.
 {-# INLINABLE search #-}
-search :: Solver -> Int -> Int -> IO Int
-search s@Solver{..} nOfConflicts nOfLearnts = do
+search :: Solver -> Int -> IO Int
+search s@Solver{..} nOfConflicts = do
   -- clear model
+  nOfLearnts <- floor <$> get' maxLearnts
   let
     loop :: Int -> IO Int
     loop conflictC = do
@@ -740,13 +741,23 @@ search s@Solver{..} nOfConflicts nOfLearnts = do
                     setNth level v 0
                   varDecayActivity s
                   claDecayActivity s
+                  -- learnt DB Size Adjustment
+                  modify' learntSCnt (subtract 1)
+                  cnt <- get' learntSCnt
+                  when (cnt == 0) $ do
+                    t' <- (1.5 *) <$> get' learntSAdj
+                    set' learntSAdj t'
+                    set' learntSCnt $ floor t'
+                    modify' maxLearnts (* 1.1)
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
             when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
             k1 <- get' learnts
             k2 <- nAssigns s
-            when (k1 - k2 >= nOfLearnts) $ reduceDB s -- Reduce the set of learnt clauses
+            when (k1 - k2 >= nOfLearnts) $ do   -- This is a cheap check.
+              thr <- floor <$> get' maxLearnts  -- maxLearnts is larger than nOfLearnts always.
+              when (thr < k1 - k2) $ reduceDB s -- Reduce the set of learnt clauses.
             case () of
              _ | k2 == nVars -> do
                    -- Model found:
@@ -817,29 +828,26 @@ solve s@Solver{..} assumps = do
     then return False
     else do set' rootLevel =<< decisionLevel s
             -- SOLVE:
-            nc <- fromIntegral <$> nClauses s
             let useLuby = True
                 nv = fromIntegral nVars :: Double
-                reductionBase = min (nc / 3.0) 5000
-                reductionStep = min nv 1000
                 restartBase = nv
                 restartScale = 4.0 :: Double
                 -- restart based on Luby series
-                while :: Int -> Double -> IO Bool
-                while nRestart nOfLearnts = do
+                while :: Int -> IO Bool
+                while nRestart = do
                   let restartIndex = luby restartScale nRestart
-                  status <- search s (floor (restartBase * restartIndex)) (floor nOfLearnts)
+                  status <- search s (floor (restartBase * restartIndex))
                   if status == lBottom
-                    then while (nRestart + 1) (reductionStep + nOfLearnts)
+                    then while (nRestart + 1)
                     else cancelUntil s 0 >> return (status == lTrue)
-                -- restart based on  geometric series
-                while' :: Double -> Double -> IO Bool
-                while' nOfConflicts nOfLearnts = do
-                  status <- search s (floor nOfConflicts) (floor nOfLearnts)
+                -- restart based on a geometric series
+                while' :: Double -> IO Bool
+                while' nOfConflicts = do
+                  status <- search s (floor nOfConflicts)
                   if status == lBottom
-                    then while' (restartScale * nOfConflicts) (reductionStep + nOfLearnts)
+                    then while' (restartScale * nOfConflicts)
                     else cancelUntil s 0 >> return (status == lTrue)
-            if useLuby then while 0 reductionBase else while' 100 reductionBase
+            if useLuby then while 0 else while' 100
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
 {-# INLINABLE unsafeEnqueue #-}
