@@ -828,7 +828,7 @@ solve s@Solver{..} assumps = do
     then return False
     else do set' rootLevel =<< decisionLevel s
             -- SOLVE:
-            let useLuby = True
+            let useLuby = False -- True
                 nv = fromIntegral nVars :: Double
                 restartBase = nv
                 restartScale = 4.0 :: Double
