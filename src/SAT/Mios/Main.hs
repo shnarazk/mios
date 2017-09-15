@@ -845,7 +845,7 @@ solve s@Solver{..} assumps = do
                 while' nOfConflicts = do
                   status <- search s (floor nOfConflicts)
                   if status == lBottom
-                    then while' (restartScale * nOfConflicts)
+                    then while' (1.5 * nOfConflicts)
                     else cancelUntil s 0 >> return (status == lTrue)
             if useLuby then while 0 else while' 100
 
@@ -866,14 +866,15 @@ unsafeAssume s@Solver{..} p = do
   pushTo trailLim =<< get' trail
   unsafeEnqueue s p NullClause
 
+{-# INLINABLE luby #-}
 luby :: Double -> Int -> Double
-luby y x_ = uncurry (loop2 x_) $ loop 1 0
+luby y x_ = loop 1 0
   where
-    loop :: Int -> Int -> (Int, Int)
+    loop :: Int -> Int -> Double
     loop sz sq
       | sz < x_ + 1 = loop (2 * sz + 1) (sq + 1)
-      | otherwise = (sz, sq)
+      | otherwise   = loop2 x_ sz sq
     loop2 :: Int -> Int -> Int -> Double
     loop2 x sz sq
       | sz - 1 == x = y ** fromIntegral sq
-      | otherwise     = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
+      | otherwise   = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
