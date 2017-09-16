@@ -828,10 +828,9 @@ solve s@Solver{..} assumps = do
     then return False
     else do set' rootLevel =<< decisionLevel s
             -- SOLVE:
-            let useLuby = False -- True
-                nv = fromIntegral nVars :: Double
-                restartBase = nv
-                restartScale = 4.0 :: Double
+            let useLuby = True
+                restartBase = 100 :: Double
+                restartScale = 2.0 :: Double
                 -- restart based on Luby series
                 while :: Int -> IO Bool
                 while nRestart = do
