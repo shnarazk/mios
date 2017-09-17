@@ -575,6 +575,8 @@ sortClauses s cm nNeed = do
   acThr <- (/ fromIntegral n) <$> get' (claInc s)
   -- 1: assign keys
   let shiftLBD = activityWidth + indexWidth
+      scaleAct :: Double -> Double
+      scaleAct x = 2 ** 20 / (20 - log acThr) * log (x / acThr)
       assignKey :: Int -> Int -> Int -> IO (Int, Int)
       assignKey ((< n) -> False) numGood numBad = return (numGood, numBad)
       assignKey i ng nb = do
@@ -593,7 +595,8 @@ sortClauses s cm nNeed = do
                                       assignKey (i + 1) ng (nb + 1)
                               else do d <- min rankMax <$> get' (rank c)
                                       -- Second one... based on literal block distance
-                                      let v = activityMax - floor (a * 1e-20 * 2 ** 20)
+                                      -- let v = activityMax - floor (a * 1e-20 * 2 ** 20)
+                                      let v = activityMax - floor (scaleAct a)
                                       setNth keys i $ shiftL d shiftLBD + shiftL v indexWidth + i
                                       assignKey (i + 1) ng nb
   (nGood, _) <- assignKey 0 0 0
