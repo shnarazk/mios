@@ -576,7 +576,7 @@ sortClauses s cm nNeed = do
   -- 1: assign keys
   let shiftLBD = activityWidth + indexWidth
       scaleAct :: Double -> Double
-      scaleAct x = 2 ** 20 / (20 - log acThr) * log (x / acThr)
+      scaleAct x = 2 ** 20 * log (x / acThr) / log (1e20 / acThr)
       assignKey :: Int -> Int -> Int -> IO (Int, Int)
       assignKey ((< n) -> False) numGood numBad = return (numGood, numBad)
       assignKey i ng nb = do
