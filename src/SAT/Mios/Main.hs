@@ -542,19 +542,18 @@ reduceDB s@Solver{..} = do
 -- 3. larger activity defined in MiniSat
 -- , where smaller value is better.
 --
--- they are coded into an "Int64" as the following 60 bit layout:
+-- they are coded into an "Int64" as the following 62 bit layout:
 --
--- * binary flag (1 bit)
--- * LBD digits (7 bit)
--- * converted activity (21 bit)
--- * remain: clauseVector index (31 bit)
+-- *  9 bits for rank (LBD)
+-- * 24 bits for converted activity
+-- * 29 bits for clauseVector index
 --
 rankWidth :: Int
-rankWidth = 7
+rankWidth = 9
 activityWidth :: Int
-activityWidth = 21              -- note: the maximum clause activity is 1e20.
+activityWidth = 24              -- note: the maximum clause activity is 1e20.
 indexWidth :: Int
-indexWidth = 31
+indexWidth = 29
 rankMax :: Int
 rankMax = 2 ^ rankWidth - 1
 activityMax :: Int
@@ -576,7 +575,7 @@ sortClauses s cm nNeed = do
   -- 1: assign keys
   let shiftLBD = activityWidth + indexWidth
       scaleAct :: Double -> Double
-      scaleAct x = 2 ** 20 * log (x / acThr) / log (1e20 / acThr)
+      scaleAct x = activityScale * log (x / acThr) / log (1e20 / acThr)
       assignKey :: Int -> Int -> Int -> IO (Int, Int)
       assignKey ((< n) -> False) numGood numBad = return (numGood, numBad)
       assignKey i ng nb = do
