@@ -573,7 +573,7 @@ sortClauses s cm nNeed = do
       scaleAct x = activityScale * log (x / at) / log (1e20 / at)
       -- returns the number of clauses that should be kept.
       assignKey :: Int -> Int -> Int -> IO Int
-      assignKey ((< n) -> False) r f = return $ max r nNeed + div f 2 -- taking @f@ times 'flips' into account
+      assignKey ((< n) -> False) r _ = return $ max r nNeed
       assignKey i nr ni = do
         c <- getNth vec i
         k <- get' c
