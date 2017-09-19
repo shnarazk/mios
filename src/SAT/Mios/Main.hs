@@ -563,12 +563,12 @@ activityScale = fromIntegral activityMax
 indexMax :: Int
 indexMax = 2 ^ indexWidth - 1 -- 2^6 G = 64G
 
--- FIXME
+-- | sort clauses (good to bad) by using a 'proxy' @Vec Int64@ that holds weighted index.
 {-# INLINABLE sortClauses #-}
 sortClauses :: Solver -> ClauseExtManager -> Int -> IO Int
 sortClauses s cm nNeed = do
   n <- get' cm
-  -- when (indexMax < n) $ error $ "## The number of learnt clauses " ++ show n ++ " exceeds Mios clause manager's capacity"
+  -- assert (n < indexMax)
   vec <- getClauseVector cm
   keys <- getKeyVector cm
   at <- (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
@@ -576,12 +576,9 @@ sortClauses s cm nNeed = do
   let shiftLBD = activityWidth + indexWidth
       scaleAct :: Double -> Double
       scaleAct x = activityScale * log (x / at) / log (1e20 / at)
-      -- For sorting a 'proxy' @Vec Int64@ instead of @Vec Clause@, set right values
-      -- returns (nReserved, nInactLC)
-      --   - nReserved -- the number of locked or binary clauses
-      --   - nInactLC  -- the number of locked but inactive clauses
+      -- returns the number of clauses that should be kept.
       assignKey :: Int -> Int -> Int -> IO Int
-      assignKey ((< n) -> False) nRsrv nLckI = return $ max nRsrv nNeed + div nLckI 2 -- taking nLocked-Inactive times 'flips' into account
+      assignKey ((< n) -> False) r f = return $ max r nNeed + div f 2 -- taking @f@ times 'flips' into account
       assignKey i nr ni = do
         c <- getNth vec i
         k <- get' c
@@ -590,10 +587,10 @@ sortClauses s cm nNeed = do
                   assignKey (i + 1) (nr + 1) ni
           else do l <- locked s c     -- Also locked clauses are must
                   a <- get' (activity c)
-                  case a < at  of
-                    na | l -> do setNth keys i $ shiftL 1 shiftLBD + i      -- locked
+                  case a < at of
+                    na | l -> do setNth keys i $ shiftL 1 shiftLBD + i       -- locked
                                  assignKey (i + 1) (nr + 1) (if na then ni + 1 else ni)
-                    False  -> do d <- min rankMax <$> get' (rank c)         -- Second one... based on literal block distance
+                    False  -> do d <- min (rankMax - 1) <$> get' (rank c)    -- Second one... based on LBD
                                  let v = activityMax - floor (scaleAct a)
                                  setNth keys i $ shiftL d shiftLBD + shiftL v indexWidth + i
                                  assignKey (i + 1) nr ni
@@ -628,8 +625,8 @@ sortClauses s cm nNeed = do
             sortOnRange left (m - 1)
             sortOnRange (m + 1) right
   sortOnRange 0 (n - 1)
-  -- 3: place clauses in 'vec' based on the order stored in 'keys'
-  -- To recylce existing clauses, we must reserve everything for now.
+  -- 3: place clauses in 'vec' based on the order stored in 'keys'.
+  -- To recylce existing clauses, we must reserve all clauses for now.
   let seek :: Int -> IO ()
       seek ((< limit) -> False) = return ()
       seek i = do
@@ -832,11 +829,10 @@ solve s@Solver{..} assumps = do
             -- SOLVE:
             let useLuby = True
                 restartBase = 100 :: Double
-                restartScale = 2.0 :: Double
                 -- restart based on Luby series
                 while :: Int -> IO Bool
                 while nRestart = do
-                  let restartIndex = luby restartScale nRestart
+                  let restartIndex = luby 2.0 nRestart
                   status <- search s (floor (restartBase * restartIndex))
                   if status == lBottom
                     then while (nRestart + 1)
@@ -848,7 +844,7 @@ solve s@Solver{..} assumps = do
                   if status == lBottom
                     then while' (1.5 * nOfConflicts)
                     else cancelUntil s 0 >> return (status == lTrue)
-            if useLuby then while 0 else while' 100
+            if useLuby then while 0 else while' restartBase
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
 {-# INLINABLE unsafeEnqueue #-}
