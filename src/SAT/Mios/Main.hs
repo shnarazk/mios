@@ -24,11 +24,6 @@ import SAT.Mios.Solver
 import SAT.Mios.ClausePool
 import SAT.Mios.Glucose
 
--- | returns a rank of 'Clause'. Smaller value is better.
-{-# INLINE rankOf #-}
-rankOf :: Clause -> IO Int
-rankOf = get'
-
 -- | #114: __RemoveWatch__
 {-# INLINABLE removeWatch #-}
 removeWatch :: Solver -> Clause -> IO ()
@@ -228,7 +223,7 @@ analyze s@Solver{..} confl = do
   let loopOnLastDL :: Int -> IO ()
       loopOnLastDL ((<= nld) -> False) = return ()
       loopOnLastDL i = do v <- lit2var <$> getNth an'lastDL i
-                          r' <- rankOf =<< getNth reason v
+                          r' <- get' =<< getNth reason v
                           when (r < r') $ varBumpActivity s v
                           loopOnLastDL $ i + 1
   loopOnLastDL 1

@@ -34,7 +34,7 @@ lbdOf Solver{..} vec = do
       loop ((<= nv) -> False) n = return n
       loop i n = do l <- getNth level . lit2var =<< getNth vec i
                     x <- getNth lbd'seen l
-                    if x /= k
+                    if x /= k && x /= 0
                       then setNth lbd'seen l k >> loop (i + 1) (n + 1)
                       else loop (i + 1) n
   loop 1 0
