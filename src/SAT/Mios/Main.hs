@@ -590,7 +590,7 @@ sortClauses s cm nNeed = do
                   case a < at of
                     na | l -> do setNth keys i $ shiftL 1 shiftLBD + i       -- locked
                                  assignKey (i + 1) (nr + 1) (if na then ni + 1 else ni)
-                    False  -> do d <- min (rankMax - 1) <$> get' (rank c)    -- Second one... based on LBD
+                    False  -> do d <- min rankMax <$> get' (rank c)          -- Second one... based on LBD
                                  let v = activityMax - floor (scaleAct a)
                                  setNth keys i $ shiftL d shiftLBD + shiftL v indexWidth + i
                                  assignKey (i + 1) nr ni
