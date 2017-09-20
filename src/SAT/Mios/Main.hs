@@ -70,7 +70,7 @@ newLearntClause s@Solver{..} ps = do
              else findMax (i + 1) j val
        swapBetween lstack 2 =<< findMax 1 1 0 -- Let @max_i@ be the index of the literal with highest decision level
        -- Bump, enqueue, store clause:
-       -- set' (activity c) . fromIntegral =<< decisionLevel s -- newly learnt clauses should be considered active
+       claBumpActivity s c
        -- Add clause to all managers
        pushTo learnts c
        l1 <- getNth lstack 1
