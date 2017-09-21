@@ -117,7 +117,7 @@ executable mios-sla-44
                         SAT.Mios.Vec
                         SAT.Mios
 
-executable mios-sla-44
+executable mios-sla-44-prof
   hs-source-dirs:	src app
   main-is:              mios.hs
   if flag(prof)
