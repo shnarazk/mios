@@ -739,10 +739,10 @@ search s@Solver{..} nOfConflicts = do
                   modify' learntSCnt (subtract 1)
                   cnt <- get' learntSCnt
                   when (cnt == 0) $ do
-                    t' <- (+ fromIntegral nVars) <$> get' learntSAdj
+                    t' <- (+ 1000) <$> get' learntSAdj
                     set' learntSAdj t'
                     set' learntSCnt $ floor t'
-                    modify' maxLearnts (+ fromIntegral nVars) -- (* 1.1)
+                    modify' maxLearnts (+ 500) -- (* 1.1)
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
@@ -838,7 +838,7 @@ solve s@Solver{..} assumps = do
                 while' nOfConflicts = do
                   status <- search s (floor nOfConflicts)
                   if status == lBottom
-                    then while' (1.4 * nOfConflicts)
+                    then while' (1.5 * nOfConflicts)
                     else cancelUntil s 0 >> return (status == lTrue)
             if useLuby then while 0 else while' restartBase
 
