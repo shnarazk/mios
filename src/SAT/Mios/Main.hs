@@ -823,7 +823,7 @@ solve s@Solver{..} assumps = do
     else do set' rootLevel =<< decisionLevel s
             nc <- fromIntegral <$> nClauses s
             -- SOLVE:
-            let useLuby = False
+            let useLuby = True
                 restartBase = min (nc / 3.0) 10000 :: Double
                 -- restart based on Luby series
                 while :: Int -> IO Bool
