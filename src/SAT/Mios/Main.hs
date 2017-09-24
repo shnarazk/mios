@@ -742,7 +742,7 @@ search s@Solver{..} nOfConflicts = do
                     t' <- (+ 1000) <$> get' learntSAdj
                     set' learntSAdj t'
                     set' learntSCnt $ floor t'
-                    modify' maxLearnts (+ 1000) -- (* 1.1)
+                    modify' maxLearnts (+ 500) -- (* 1.1)
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
@@ -821,10 +821,10 @@ solve s@Solver{..} assumps = do
   if not x
     then return False
     else do set' rootLevel =<< decisionLevel s
-            nc <- fromIntegral <$> nClauses s
+            -- nc <- fromIntegral <$> nClauses s
             -- SOLVE:
             let useLuby = True
-                restartBase = 100 :: Double
+                restartBase = 200 :: Double
                 -- restart based on Luby series
                 while :: Int -> IO Bool
                 while nRestart = do
