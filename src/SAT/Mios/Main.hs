@@ -821,10 +821,10 @@ solve s@Solver{..} assumps = do
   if not x
     then return False
     else do set' rootLevel =<< decisionLevel s
-            -- nc <- fromIntegral <$> nClauses s
+            nc <- fromIntegral <$> nClauses s
             -- SOLVE:
             let useLuby = True
-                restartBase = 1000 :: Double
+                restartBase = min (nc /4) 8000 :: Double
                 -- restart based on Luby series
                 while :: Int -> IO Bool
                 while nRestart = do
