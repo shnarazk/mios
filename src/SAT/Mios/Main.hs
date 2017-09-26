@@ -824,7 +824,7 @@ solve s@Solver{..} assumps = do
             nc <- fromIntegral <$> nClauses s
             -- SOLVE:
             let useLuby = True
-                restartBase = min (nc /4) 8000 :: Double
+                restartBase = nc / 3 :: Double
                 -- restart based on Luby series
                 while :: Int -> IO Bool
                 while nRestart = do
