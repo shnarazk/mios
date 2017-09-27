@@ -824,7 +824,7 @@ solve s@Solver{..} assumps = do
             nc <- fromIntegral <$> nClauses s
             -- SOLVE:
             let useLuby = True
-                steps = min (nc / 3) 8000 :: Double
+                steps = min (nc / 3) 6000 :: Double
                 nk = 2.0
                 -- steps = 160 :: Double
                 -- nk = logBase 15 (fromIntegral nVars) :: Double
