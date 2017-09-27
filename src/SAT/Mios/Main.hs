@@ -824,12 +824,14 @@ solve s@Solver{..} assumps = do
             nc <- fromIntegral <$> nClauses s
             -- SOLVE:
             let useLuby = True
-                restartBase = nc / 3 :: Double
+                steps = min (nc / 3) 8000 :: Double
+                nk = 2.0
+                -- steps = 160 :: Double
+                -- nk = logBase 15 (fromIntegral nVars) :: Double
                 -- restart based on Luby series
                 while :: Int -> IO Bool
                 while nRestart = do
-                  let restartIndex = luby 2.0 nRestart
-                  status <- search s (floor (restartBase * restartIndex))
+                  status <- search s . floor $ steps * luby nk nRestart
                   if status == lBottom
                     then while (nRestart + 1)
                     else cancelUntil s 0 >> return (status == lTrue)
@@ -840,7 +842,7 @@ solve s@Solver{..} assumps = do
                   if status == lBottom
                     then while' (1.5 * nOfConflicts)
                     else cancelUntil s 0 >> return (status == lTrue)
-            if useLuby then while 0 else while' restartBase
+            if useLuby then while 0 else while' steps
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
 {-# INLINABLE unsafeEnqueue #-}
