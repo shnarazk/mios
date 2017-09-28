@@ -773,10 +773,10 @@ search s@Solver{..} nOfConflicts = do
                          | x == lTrue = lFalse
                          | otherwise = x
                        nv = nVars
-                       loop :: Int -> IO ()
-                       loop ((<= nv) -> False) = return ()
-                       loop i = modifyNth phases toggle i >> loop (i + 1)
-                   loop 1
+                       toggleAt :: Int -> IO ()
+                       toggleAt ((<= nv) -> False) = return ()
+                       toggleAt i = modifyNth phases toggle i >> toggleAt (i + 1)
+                   toggleAt 1
                    incrementStat s NumOfRestart 1
                    return lBottom
              _ -> do
