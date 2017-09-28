@@ -742,7 +742,7 @@ search s@Solver{..} nOfConflicts = do
                     t' <- (+ 1000) <$> get' learntSAdj
                     set' learntSAdj t'
                     set' learntSCnt $ floor t'
-                    modify' maxLearnts (+ 400) -- (* 1.1)
+                    modify' maxLearnts (+ 600) -- (* 1.1)
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
