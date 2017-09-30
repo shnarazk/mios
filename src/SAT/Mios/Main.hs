@@ -739,10 +739,10 @@ search s@Solver{..} nOfConflicts = do
                   modify' learntSCnt (subtract 1)
                   cnt <- get' learntSCnt
                   when (cnt == 0) $ do
-                    t' <- (+ 2000) <$> get' learntSAdj
+                    t' <- (+ 1000) <$> get' learntSAdj
                     set' learntSAdj t'
                     set' learntSCnt $ floor t'
-                    modify' maxLearnts (+ 1000) -- (* 1.1)
+                    modify' maxLearnts (+ 500) -- (* 1.1)
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
@@ -821,10 +821,10 @@ solve s@Solver{..} assumps = do
   if not x
     then return False
     else do set' rootLevel =<< decisionLevel s
-            nc <- fromIntegral <$> nClauses s
+            -- nc <- fromIntegral <$> nClauses s
             -- SOLVE:
             let useLuby = True
-                steps = min (nc / 3) 10000 :: Double
+                steps = 500 :: Double
                 nk = 2.0
                 -- steps = 160 :: Double
                 -- nk = logBase 15 (fromIntegral nVars) :: Double
