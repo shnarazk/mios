@@ -821,10 +821,10 @@ solve s@Solver{..} assumps = do
   if not x
     then return False
     else do set' rootLevel =<< decisionLevel s
-            -- nc <- fromIntegral <$> nClauses s
+            nc <- fromIntegral <$> nClauses s
             -- SOLVE:
             let useLuby = True
-                steps = 500 :: Double
+                steps = min (nc / 3) 8000 :: Double
                 nk = 2.0
                 -- steps = 160 :: Double
                 -- nk = logBase 15 (fromIntegral nVars) :: Double
