@@ -739,7 +739,7 @@ search s@Solver{..} nOfConflicts = do
                   modify' learntSCnt (subtract 1)
                   cnt <- get' learntSCnt
                   when (cnt == 0) $ do
-                    t' <- (1.5 *) <$> get' learntSAdj
+                    t' <- (+ 1000) <$> get' learntSAdj
                     set' learntSAdj t'
                     set' learntSCnt $ floor t'
                     modify' maxLearnts (+ 500) -- (* 1.1)
@@ -773,10 +773,10 @@ search s@Solver{..} nOfConflicts = do
                          | x == lTrue = lFalse
                          | otherwise = x
                        nv = nVars
-                       loop :: Int -> IO ()
-                       loop ((<= nv) -> False) = return ()
-                       loop i = modifyNth phases toggle i >> loop (i + 1)
-                   loop 1
+                       toggleAt :: Int -> IO ()
+                       toggleAt ((<= nv) -> False) = return ()
+                       toggleAt i = modifyNth phases toggle i >> toggleAt (i + 1)
+                   toggleAt 1
                    incrementStat s NumOfRestart 1
                    return lBottom
              _ -> do
@@ -821,14 +821,17 @@ solve s@Solver{..} assumps = do
   if not x
     then return False
     else do set' rootLevel =<< decisionLevel s
+            nc <- fromIntegral <$> nClauses s
             -- SOLVE:
             let useLuby = True
-                restartBase = 100 :: Double
+                steps = min (nc / 3) 8000 :: Double
+                nk = 2.0
+                -- steps = 160 :: Double
+                -- nk = logBase 15 (fromIntegral nVars) :: Double
                 -- restart based on Luby series
                 while :: Int -> IO Bool
                 while nRestart = do
-                  let restartIndex = luby 2.0 nRestart
-                  status <- search s (floor (restartBase * restartIndex))
+                  status <- search s . floor $ steps * luby nk nRestart
                   if status == lBottom
                     then while (nRestart + 1)
                     else cancelUntil s 0 >> return (status == lTrue)
@@ -839,7 +842,7 @@ solve s@Solver{..} assumps = do
                   if status == lBottom
                     then while' (1.5 * nOfConflicts)
                     else cancelUntil s 0 >> return (status == lTrue)
-            if useLuby then while 0 else while' restartBase
+            if useLuby then while 0 else while' steps
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
 {-# INLINABLE unsafeEnqueue #-}
