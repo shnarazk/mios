@@ -31,7 +31,7 @@ lbdOf Solver{..} vec = do
   set' lbd'key k                -- store the last used value
   nv <- getNth vec 0
   let loop :: Int -> Int -> IO Int
-      loop ((<= nv) -> False) n = return n
+      loop ((<= nv) -> False) n = return $ max 1 n
       loop i n = do l <- getNth level . lit2var =<< getNth vec i
                     x <- getNth lbd'seen l
                     if x /= k && x /= 0

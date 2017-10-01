@@ -80,10 +80,7 @@ newLearntClause s@Solver{..} ps = do
        -- update the solver state by @l@
        unsafeEnqueue s l1 c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
-       -- Since this new clause contains unassigned literal and its level must be wrong,
-       -- we can't assign the valid LBD value here. Therefore we icrement the field by 1.
        setLBD s c
-       modify' (rank c) (1 +)
        -- set' (protected c) True
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
@@ -483,7 +480,18 @@ reduceDB s@Solver{..} = do
     loop :: Int -> IO ()
     loop ((< n) -> False) = return ()
     loop i = (removeWatch s =<< getNth vec i) >> loop (i + 1)
-  k <- sortClauses s learnts (div n 2) -- k is the number of clauses not to be purged
+  k <- sortClauses s learnts -- k is the number of clauses not to be purged
+{- #GLUCOSE3.0
+  -- keep more
+  t3 <- get' . rank =<< getNth vec (thr -1)
+  t5 <- get' . rank =<< getNth vec (lim -1)
+
+  let k = case (t3 <= 3, t5 <= 5) of
+            (True, True)   -> min n (thr + 2000)
+            (False, False) -> thr
+            (_, _)         -> min n (thr + 1000)
+  -- let k = div thr 2
+-}
   loop k                               -- CAVEAT: `vec` is a zero-based vector
   reset watches
   shrinkBy learnts (n - k)
@@ -560,8 +568,8 @@ indexMax = 2 ^ indexWidth - 1 -- 2^6 G = 64G
 
 -- | sort clauses (good to bad) by using a 'proxy' @Vec Int64@ that holds weighted index.
 {-# INLINABLE sortClauses #-}
-sortClauses :: Solver -> ClauseExtManager -> Int -> IO Int
-sortClauses s cm nNeed = do
+sortClauses :: Solver -> ClauseExtManager -> IO Int
+sortClauses s cm = do
   n <- get' cm
   -- assert (n < indexMax)
   vec <- getClauseVector cm
@@ -572,26 +580,27 @@ sortClauses s cm nNeed = do
       scaleAct :: Double -> Double
       scaleAct x = activityScale * log (x / at) / log (1e20 / at)
       -- returns the number of clauses that should be kept.
-      assignKey :: Int -> Int -> Int -> IO Int
-      assignKey ((< n) -> False) r _ = return $ max r nNeed
-      assignKey i nr ni = do
+      assignKey :: Int -> Int -> IO Int
+      assignKey ((< n) -> False) n' = return $ max n' (div n 2)
+      assignKey i nr = do
         c <- getNth vec i
         k <- get' c
-        if k == 2                     -- Main criteria. Like in MiniSat we keep all binary clauses
+        if k == 2                  -- Main criteria. Like in MiniSat we keep all binary clauses
           then do setNth keys i $ shiftL 1 shiftLBD + i
-                  assignKey (i + 1) (nr + 1) ni
+                  assignKey (i + 1) (nr + 1)
           else do l <- locked s c     -- Also locked clauses are must
                   a <- get' (activity c)
-                  case a < at of
-                    na | l -> do setNth keys i $ shiftL 1 shiftLBD + i       -- locked
-                                 assignKey (i + 1) (nr + 1) (if na then ni + 1 else ni)
-                    False  -> do d <- min rankMax <$> get' c -- (rank c)          -- Second one... based on LBD
-                                 let v = activityMax - floor (scaleAct a)
+                  case a <= at of
+                    _ | l  -> do setNth keys i $ shiftL 1 shiftLBD + i      -- locked
+                                 assignKey (i + 1) (nr + 1)
+                    False  -> do let v = activityMax - floor (scaleAct a)   -- Second one... based on LBD
+                                 r <- get' (rank c)
+                                 let d = min rankMax r
                                  setNth keys i $ shiftL d shiftLBD + shiftL v indexWidth + i
-                                 assignKey (i + 1) nr ni
+                                 assignKey (i + 1) nr
                     True   -> do setNth keys i $ shiftL rankMax shiftLBD + i -- purge inactive learnts
-                                 assignKey (i + 1) nr (ni + 1)
-  limit <- assignKey 0 0 0
+                                 assignKey (i + 1) nr
+  limit <- assignKey 0 0
   -- 2: sort keyVector
   let sortOnRange :: Int -> Int -> IO ()
       sortOnRange left right
