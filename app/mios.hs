@@ -1,3 +1,6 @@
+{-# LANGUAGE
+   MultiWayIf
+  #-}
 -- | Executable of 'Minisat Implementation and Optimization Study'
 module Main
        (
@@ -7,14 +10,15 @@ module Main
 
 import SAT.Mios
 
+usage :: String
+usage = miosUsage $ versionId ++ "\nUsage: mios [OPTIONS] target.cnf"
+
 -- | main
 main :: IO ()
-main = do
-  opts <- miosParseOptionsFromArgs versionId
-  case () of
-    _ | _displayVersion opts        -> putStrLn versionId
-    _ | _displayHelp opts           -> putStrLn $ miosUsage $ versionId ++ "\nUsage: mios [OPTIONS] target.cnf"
-    _ | _targetFile opts == Nothing -> putStrLn $ miosUsage $ versionId ++ "\nUsage: mios [OPTIONS] target.cnf"
-    _ | _validateAssignment opts    -> executeValidator opts
-    _ | otherwise                   -> executeSolver opts
+main = do opts <- miosParseOptionsFromArgs versionId
+          if | _displayVersion opts        -> putStrLn versionId
+             | _displayHelp opts           -> putStrLn usage
+             | _targetFile opts == Nothing -> putStrLn usage
+             | _validateAssignment opts    -> executeValidator opts
+             | otherwise                   -> executeSolver opts
 

@@ -22,6 +22,8 @@ module SAT.Mios
        , executeValidatorOn
        , executeValidator
          -- * File IO
+       , parseCNF
+       , injectClausesFromCNF
        , dumpAssigmentAsCNF
        )
        where
@@ -65,10 +67,10 @@ executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just pat
 executeSolver :: MiosProgramOption -> IO ()
 executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
   t0 <- reportElapsedTime (_confTimeProbe opts) "" 0
-  (desc, cls) <- parseHeader target <$> B.readFile cnfFile
+  (desc, cls) <- parseCNF target <$> B.readFile cnfFile
   when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
   s <- newSolver (toMiosConf opts) desc
-  parseClauses s desc cls
+  injectClausesFromCNF s desc cls
   t1 <- reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
   when (_confVerbose opts) $ do
     nc <- nClauses s
@@ -91,7 +93,7 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
   when (result && _confCheckAnswer opts) $ do
     asg <- getModel s
     s' <- newSolver (toMiosConf opts) desc
-    parseClauses s' desc cls
+    injectClausesFromCNF s' desc cls
     good <- validate s' asg
     if _confVerbose opts
       then hPutStrLn stderr $ if good then "A vaild answer" else "Internal error: mios returns a wrong answer"
@@ -154,10 +156,10 @@ executeValidatorOn path = executeValidator (miosDefaultOption { _targetFile = Ju
 -- This is another entry point for standalone programs; see app/mios.hs.
 executeValidator :: MiosProgramOption -> IO ()
 executeValidator opts@(_targetFile -> target@(Just cnfFile)) = do
-  (desc, cls) <- parseHeader target <$> B.readFile cnfFile
+  (desc, cls) <- parseCNF target <$> B.readFile cnfFile
   when (_numberOfVariables desc == 0) . error $ "couldn't load " ++ show cnfFile
   s <- newSolver (toMiosConf opts) desc
-  parseClauses s desc cls
+  injectClausesFromCNF s desc cls
   when (_confVerbose opts) $
     hPutStrLn stderr $ cnfFile ++ " was loaded: #v = " ++ show (_numberOfVariables desc) ++ " #c = " ++ show (_numberOfClauses desc)
   when (_confVerbose opts) $ do
@@ -202,8 +204,10 @@ dumpAssigmentAsCNF fname True l = do
 -- DIMACS CNF Reader
 --------------------------------------------------------------------------------
 
-parseHeader :: Maybe FilePath -> B.ByteString -> (CNFDescription, B.ByteString)
-parseHeader target bs = if B.head bs == 'p' then (parseP l, B.tail bs') else parseHeader target (B.tail bs')
+parseCNF :: Maybe FilePath -> B.ByteString -> (CNFDescription, B.ByteString)
+parseCNF target bs = if B.head bs == 'p'
+                           then (parseP l, B.tail bs')
+                           else parseCNF target (B.tail bs')
   where
     (l, bs') = B.span ('\n' /=) bs
     -- format: p cnf n m, length "p cnf" == 5
@@ -213,8 +217,9 @@ parseHeader target bs = if B.head bs == 'p' then (parseP l, B.tail bs') else par
         _ -> CNFDescription 0 0 target
       _ -> CNFDescription 0 0 target
 
-parseClauses :: Solver -> CNFDescription -> B.ByteString -> IO ()
-parseClauses s (CNFDescription nv nc _) bs = do
+-- | parses ByteString then injects the clauses in it into a solver
+injectClausesFromCNF :: Solver -> CNFDescription -> B.ByteString -> IO ()
+injectClausesFromCNF s (CNFDescription nv nc _) bs = do
   let maxLit = int2lit $ negate nv
   buffer <- newVec (maxLit + 1) 0
   polvec <- newVec (maxLit + 1) 0
