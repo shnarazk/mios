@@ -833,10 +833,8 @@ solve s@Solver{..} assumps = do
             nc <- fromIntegral <$> nClauses s
             -- SOLVE:
             let useLuby = True
-                steps = min (nc / 3) 8000 :: Double
-                nk = 2.0
-                -- steps = 160 :: Double
-                -- nk = logBase 15 (fromIntegral nVars) :: Double
+                steps = 160 {- min (nc / 3) 8000 -} :: Double
+                nk = logBase 15 (fromIntegral nVars) {- 2.0 -} :: Double
                 -- restart based on Luby series
                 while :: Int -> IO Bool
                 while nRestart = do
