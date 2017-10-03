@@ -495,48 +495,6 @@ reduceDB s@Solver{..} = do
   loop k                               -- CAVEAT: `vec` is a zero-based vector
   reset watches
   shrinkBy learnts (n - k)
-{-
-  -- check the number
-  n' <- nLearnts s
-  let sumUp :: ClauseExtManager -> IO Int
-      sumUp m = get' m
-  let lrnsUp :: ClauseExtManager -> IO Int
-      lrnsUp m = do
-        n <- get' m
-        v <- getClauseVector m
-        let seek :: Int -> Int -> IO Int
-            seek ((< n) -> False) j = return j
-            seek i j = do
-              c <- getNth v i
-              seek (i + 1) $ if learnt c then j + 1 else j
-        seek 0 0
-  let nulls :: ClauseExtManager -> IO Int
-      nulls m = do
-        n <- get' m
-        v <- getClauseVector m
-        let seek :: Int -> Int -> IO Int
-            seek ((< n) -> False) j = return j
-            seek i j = do
-              c <- getNth v i
-              seek (i + 1) $ if c == NullClause then j + 1 else j
-        seek 0 0
-  let givens :: ClauseExtManager -> IO Int
-      givens m = do
-        n <- get' m
-        v <- getClauseVector m
-        let seek :: Int -> Int -> IO Int
-            seek ((< n) -> False) j = return j
-            seek i j = do
-              c <- getNth v i
-              seek (i + 1) $ if learnt c then j else j + 1
-        seek 0 0
-  cs <- flip div 2 . sum <$> V.mapM sumUp watches
-  ls <- flip div 2 . sum <$> V.mapM lrnsUp watches
-  gs <- flip div 2 . sum <$> V.mapM givens watches
-  ns <- flip div 2 . sum <$> V.mapM nulls watches
-  nc <- nClauses s
-  print (("nClause", nc, "nLearns", n'), ("total", cs, "learns", ls, "gives", gs))
--}
 
 -- | (Good to Bad) Quick sort the key vector based on their activities and returns number of privileged clauses.
 -- this function uses the same metrix as reduceDB_lt in glucose 4.0:
