@@ -111,8 +111,8 @@ newSolver conf (CNFDescription nv nc _) = do
     <*> newManager nc                      -- learnts
     <*> newWatcherList nv 2                -- watches
     -- Assignment Management
-    <*> newVec nv lBottom                  -- assigns
-    <*> newVec nv lBottom                  -- phases
+    <*> newVec nv LBottom                  -- assigns
+    <*> newVec nv LBottom                  -- phases
     <*> newStack nv                        -- trail
     <*> newStack nv                        -- trailLim
     <*> new' 0                             -- qHead
@@ -305,7 +305,7 @@ clauseNew s@Solver{..} ps isLearnt = do
            varBumpActivity s v' -- this is a just good chance to bump activities of literals in this clause
            a <- getNth assigns v'
            b <- getNth level v'
-           if (a /= lBottom) && (val < b)
+           if (a /= LBottom) && (val < b)
              then findMax (i + 1) i b
              else findMax (i + 1) j val
        -- Let @max_i@ be the index of the literal with highest decision level
@@ -338,10 +338,10 @@ enqueue s@Solver{..} p from = do
     k <- (12 +) <$> decisionLevel s
     when (k < l) $ set' (lbd from) k
 -}
-  let signumP = if positiveLit p then lTrue else lFalse
+  let signumP = lit2lbool p
   let v = lit2var p
   val <- valueVar s v
-  if val /= lBottom
+  if val /= LBottom
     then do -- Existing consistent assignment -- don't enqueue
         return $ val == signumP
     else do
@@ -377,7 +377,7 @@ cancelUntil s@Solver{..} lvl = do
       loopOnTrail c = do
         x <- lit2var <$> getNth trail c
         setNth phases x =<< getNth assigns x
-        setNth assigns x lBottom
+        setNth assigns x LBottom
         -- #reason to set reason Null
         -- if we don't clear @reason[x] :: Clause@ here, @reason[x]@ remains as locked.
         -- This means we can't reduce it from clause DB and affects the performance.
@@ -404,7 +404,7 @@ instance VarOrder Solver where
     -- Version 0.4:: push watches =<< newVec      -- push'
     -- push undos =<< newVec        -- push'
     -- push reason NullClause       -- push'
-    -- push assigns lBottom
+    -- push assigns LBottom
     -- push level (-1)
     -- push activities (0.0 :: Double)
     -- newVar order
@@ -428,7 +428,7 @@ instance VarOrder Solver where
           else do
               v <- getHeapRoot s
               x <- getNth asg v
-              if x == lBottom then return v else loop
+              if x == LBottom then return v else loop
     loop
 
 -------------------------------------------------------------------------------- Activities

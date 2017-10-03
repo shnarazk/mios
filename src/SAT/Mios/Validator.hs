@@ -24,12 +24,12 @@ validate s (toList -> map int2lit -> lst) = do
   nc <- get' (clauses s)
   let
     inject :: Lit -> IO ()
-    inject l = setNth assignment (lit2var l) $ if positiveLit l then lTrue else lFalse
+    inject l = setNth assignment (lit2var l) $ lit2lbool l
     -- returns True if the literal is satisfied under the assignment
     satisfied :: Lit -> IO Bool
     satisfied l
-      | positiveLit l = (lTrue ==) <$> getNth assignment (lit2var l)
-      | otherwise     = (lFalse ==) <$> getNth assignment (lit2var l)
+      | positiveLit l = (LiftedT ==) <$> getNth assignment (lit2var l)
+      | otherwise     = (LiftedF ==) <$> getNth assignment (lit2var l)
     -- returns True is any literal in the given list
     satAny :: [Lit] -> IO Bool
     satAny [] = return False

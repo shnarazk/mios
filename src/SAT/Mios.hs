@@ -236,7 +236,7 @@ injectClausesFromCNF s (CNFDescription nv nc _) bs = do
     checkPolarity v = do
       p <- getNth polvec $ var2lit v True
       n <- getNth polvec $ var2lit v False
-      when (p == lFalse || n == lFalse) $ setNth asg v p
+      when (p == LiftedF || n == LiftedF) $ setNth asg v p
       checkPolarity $ v + 1
   checkPolarity 1
 
@@ -286,7 +286,7 @@ readClause s buffer bvec stream = do
         else do
             let l = int2lit k
             setNth buffer i l
-            setNth bvec l lTrue
+            setNth bvec l LiftedT
             loop (i + 1) b'
   loop 1 . skipComments . skipWhitespace $ stream
 
