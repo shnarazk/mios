@@ -789,9 +789,9 @@ solve s@Solver{..} assumps = do
     else do set' rootLevel =<< decisionLevel s
             -- SOLVE:
             let useLuby = True
-                nv = logBase 2 $ fromIntegral nVars
-                steps = 10 * nv   :: Double
-                nk = 2 + 0.1 * nv :: Double
+                -- nv = logBase 2 $ fromIntegral nVars
+                steps = 100 {- 10 * nv -}  :: Double
+                nk = 2 {- + 0.1 * nv -} :: Double
                 -- restart based on Luby series
                 while :: Int -> IO Bool
                 while nRestart = do
