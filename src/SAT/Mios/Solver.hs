@@ -101,14 +101,14 @@ data Solver = Solver
 
 -- | returns an everything-is-initialized solver from the arguments.
 newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
-newSolver conf (CNFDescription nv nc _) = do
+newSolver conf (CNFDescription nv dummy_nc _) = do
   Solver
     -- Public Interface
     <$> newVec nv 0                        -- model
     <*> newStack nv                        -- coflict
     -- Clause Database
-    <*> newManager nc                      -- clauses
-    <*> newManager nc                      -- learnts
+    <*> newManager dummy_nc                -- clauses
+    <*> newManager dummy_nc                -- learnts
     <*> newWatcherList nv 2                -- watches
     -- Assignment Management
     <*> newVec nv LBottom                  -- assigns
@@ -131,7 +131,7 @@ newSolver conf (CNFDescription nv nc _) = do
     -- Learnt DB Size Adjustment
     <*> new' 100                           -- learntSAdj
     <*> new' 100                           -- learntSCnt
-    <*> new' (fromIntegral nc / 3)         -- maxLearnts
+    <*> new' 100                           -- maxLearnts
     -- Working Memory
     <*> new' True                          -- ok
     <*> newVec nv 0                        -- an'seen

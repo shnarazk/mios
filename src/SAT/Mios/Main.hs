@@ -531,34 +531,38 @@ sortClauses s cm = do
   n <- get' cm
   -- assert (n < indexMax)
   vec <- getClauseVector cm
-  keys <- getKeyVector cm
+  keys <- (newVec n 0 :: IO (Vec Int))
   at <- (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
   let shiftLBD = activityWidth + indexWidth
       scaleAct :: Double -> Double
       scaleAct x = activityScale * log (x / at) / log (1e20 / at)
       -- returns the number of clauses that should be kept.
-      assignKey :: Int -> Int -> IO Int
-      assignKey ((< n) -> False) n' = return $ max n' (div n 2)
-      assignKey i nr = do
+      assignKey :: Int -> Int -> Int -> IO Int
+      assignKey ((< n) -> False) need bad = do
+        putStrLn $ "reduction! extra_lim = " ++ show at ++ ", purge = " ++ show bad
+        return . max need $ min (div n 2) (n - bad)
+      assignKey i nr nb = do
         c <- getNth vec i
         k <- get' c
         if k == 2                  -- Main criteria. Like in MiniSat we keep all binary clauses
           then do setNth keys i $ shiftL 1 shiftLBD + i
-                  assignKey (i + 1) (nr + 1)
+                  assignKey (i + 1) (nr + 1) nb
           else do l <- locked s c     -- Also locked clauses are must
                   a <- get' (activity c)
                   case a <= at of
                     _ | l  -> do setNth keys i $ shiftL 1 shiftLBD + i      -- locked
-                                 assignKey (i + 1) (nr + 1)
+                                 assignKey (i + 1) (nr + 1) nb
                     False  -> do let v = activityMax - floor (scaleAct a)   -- Second one... based on LBD
+                                 when (activityMax < v) $ error "oooo"
                                  r <- get' (rank c)
-                                 let d = min rankMax r
+                                 when (rankMax <= r) $ error (show (rankMax, r))
+                                 let d = min rankMax (r + 1) -- rank can be one
                                  setNth keys i $ shiftL d shiftLBD + shiftL v indexWidth + i
-                                 assignKey (i + 1) nr
+                                 assignKey (i + 1) nr nb
                     True   -> do setNth keys i $ shiftL rankMax shiftLBD + i -- purge inactive learnts
-                                 assignKey (i + 1) nr
-  limit <- assignKey 0 0
+                                 assignKey (i + 1) nr (nb + 1)
+  limit <- assignKey 0 0 0
   -- 2: sort keyVector
   let sortOnRange :: Int -> Int -> IO ()
       sortOnRange left right
@@ -706,10 +710,16 @@ search s@Solver{..} nOfConflicts = do
                   modify' learntSCnt (subtract 1)
                   cnt <- get' learntSCnt
                   when (cnt == 0) $ do
-                    t' <- (+ 1000) <$> get' learntSAdj
+                    t' <- (* 1.5) <$> get' learntSAdj
                     set' learntSAdj t'
                     set' learntSCnt $ floor t'
-                    modify' maxLearnts (+ 500) -- (* 1.1)
+                    modify' maxLearnts (* 1.1)
+                    -- verbose
+                    vb <- getStat s NumOfBackjump
+                    vm <- get' maxLearnts
+                    vc <- get' learnts
+                    gc <- get' clauses
+                    putStrLn $ show vb ++ " | " ++ show nVars ++ " " ++ show gc ++ " | " ++ show vm ++ " " ++ show vc
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
