@@ -806,6 +806,7 @@ solve s@Solver{..} assumps = do
                   if status == LBottom
                     then while' (1.5 * nOfConflicts)
                     else cancelUntil s 0 >> return (status == LiftedT)
+            set' maxLearnts . (/ 3) . fromIntegral =<< nClauses s
             if useLuby then while 0 else while' steps
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
