@@ -41,7 +41,7 @@ makeClauseFromStack pool v = do
       pickup ((<= storeLimit) -> False) = return NullClause
       pickup i = do
         let mgr = getManager pool i
-        nn <- get' $ getManager pool i
+        nn <- get' mgr
         if 0 < nn
           then do c <- lastOf mgr
                   popFrom mgr
