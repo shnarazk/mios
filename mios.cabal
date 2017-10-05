@@ -101,9 +101,9 @@ executable mios-sla
   default-extensions:  Strict
   build-depends:        base >=4.10, vector >=0.12, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
   if flag(llvm)
-    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -rtsopts
+    ghc-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -rtsopts
   else
-    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -msse2 -rtsopts -with-rtsopts
+    ghc-options:	-O2 -funbox-strict-fields -msse2 -rtsopts
   other-modules:
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
