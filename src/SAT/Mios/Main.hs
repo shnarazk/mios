@@ -74,9 +74,9 @@ newLearntClause s@Solver{..} ps = do
        -- Add clause to all managers
        pushTo learnts c
        l1 <- getNth lstack 1
-       pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
-       l2 <- negateLit <$> getNth lstack 2
-       pushClauseWithKey (getNthWatcher watches l2) c 0
+       l2 <- getNth lstack 2
+       pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
+       pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
        -- update the solver state by @l@
        unsafeEnqueue s l1 c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
@@ -458,7 +458,7 @@ propagate s@Solver{..} = do
                           if lv /= LiftedF
                             then do
                                 swapBetween lstack 2 k
-                                pushClauseWithKey (getNthWatcher watches (negateLit l')) c l'
+                                pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
                                 forClause confl (i + 1) j
                             else forLit $ k + 1
                       forLit 3
@@ -885,12 +885,12 @@ propagate' s@Solver{..} = do
                   -- Is (first == blocker) possible???
                   satisfied <- if first /= blocker then valueLit s first else return LiftedF
                   if satisfied == LiftedT
-                    then setNth cvec j c >> setNth bvec j blocker >> forClause confl (i + 1) (j + 1)
+                    then setNth cvec j c >> setNth bvec j first >> forClause confl (i + 1) (j + 1)
                     else do cs <- get' c           -- Look for new watch:
                             let forLit :: Int -> IO Clause
                                 forLit ((<= cs) -> False) = do -- Did not find watch
                                   setNth cvec j c
-                                  setNth bvec j blocker
+                                  setNth bvec j first
                                   fv <- valueLit s first
                                   -- result <- enqueue s first c
                                   if fv == LiftedF -- not result
@@ -906,8 +906,9 @@ propagate' s@Solver{..} = do
                                 forLit !k = do (l' :: Lit) <- getNth lstack k
                                                lv <- valueLit s l'
                                                if lv /= LiftedF
-                                                 then do swapBetween lstack 2 k
-                                                         pushClauseWithKey (getNthWatcher watches (negateLit l')) c l'
+                                                 then do setNth lstack 2 l'
+                                                         setNth lstack k falseLit
+                                                         pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
                                                          forClause confl (i + 1) j
                                                  else forLit $! k + 1
                             forLit 3
