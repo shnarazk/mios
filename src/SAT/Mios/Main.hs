@@ -851,7 +851,6 @@ luby y x_ = loop 1 0
       | sz - 1 == x = y ** fromIntegral sq
       | otherwise   = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
 
-
 {-# INLINABLE propagate' #-}
 propagate' :: Solver -> IO Clause
 propagate' s@Solver{..} = do
