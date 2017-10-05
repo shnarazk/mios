@@ -540,7 +540,7 @@ sortClauses s cm = do
       -- returns the number of clauses that should be kept.
       assignKey :: Int -> Int -> Int -> IO Int
       assignKey ((< n) -> False) need bad = do
-        putStrLn $ "reduction! extra_lim = " ++ show at ++ ", purge = " ++ show bad
+        -- putStrLn $ "reduction! extra_lim = " ++ show at ++ ", purge = " ++ show bad ++ " out of " ++ show n
         return . max need $ min (div n 2) (n - bad)
       assignKey i nr nb = do
         c <- getNth vec i
@@ -680,7 +680,7 @@ search s@Solver{..} nOfConflicts = do
   let
     loop :: Int -> IO Int
     loop conflictC = do
-      !confl <- propagate s
+      !confl <- propagate' s
       d <- decisionLevel s
       if confl /= NullClause
         then do
@@ -715,11 +715,13 @@ search s@Solver{..} nOfConflicts = do
                     set' learntSCnt $ floor t'
                     modify' maxLearnts (* 1.1)
                     -- verbose
+                    let w8 :: Int -> String -> String
+                        w8 (show -> i) p = take (8 - length i) "          " ++ i ++ p
                     vb <- getStat s NumOfBackjump
-                    vm <- get' maxLearnts
+                    vm <- floor <$> get' maxLearnts
                     vc <- get' learnts
                     gc <- get' clauses
-                    putStrLn $ show vb ++ " | " ++ show nVars ++ " " ++ show gc ++ " | " ++ show vm ++ " " ++ show vc
+                    putStrLn $ w8 vb " | " ++ w8 nVars " " ++ w8 gc " | " ++ w8 vm " " ++ w8 vc ""
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
@@ -848,3 +850,66 @@ luby y x_ = loop 1 0
     loop2 x sz sq
       | sz - 1 == x = y ** fromIntegral sq
       | otherwise   = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
+
+
+{-# INLINABLE propagate' #-}
+propagate' :: Solver -> IO Clause
+propagate' s@Solver{..} = do
+  let
+    while :: Clause -> Bool -> IO Clause
+    while c False = return c
+    while conflForNow True = do
+      (p :: Lit) <- getNth trail . (1 +) =<< get' qHead
+      modify' qHead (+ 1)
+      let (ws :: ClauseExtManager) = getNthWatcher watches p
+          !falseLit = negateLit p
+      end <- get' ws
+      cvec <- getClauseVector ws
+      bvec <- getKeyVector ws
+      let forClause :: Clause -> Int -> Int -> IO Clause
+          forClause confl i@((< end) -> False) j = do shrinkBy ws (i - j)
+                                                      while confl =<< ((<) <$> get' qHead <*> get' trail)
+          forClause !confl i j = do
+            (blocker :: Lit) <- getNth bvec i        -- Try to avoid inspecting the clause:
+            bv <- if blocker == 0 then return LiftedF else valueLit s blocker
+            if bv == LiftedT
+              then do unless (i == j) $ do (c :: Clause) <- getNth cvec i
+                                           setNth cvec j c
+                                           setNth bvec j blocker
+                      forClause confl (i + 1) (j + 1)
+              else do                               -- Make sure the false literal is data[1]:
+                  (c :: Clause) <- getNth cvec i
+                  let lstack = lits c
+                  ((falseLit ==) <$> getNth lstack 1) >>= (`when` swapBetween lstack 1 2)
+                  (first :: Lit) <- getNth lstack 1 -- If 0th watch is true, already satisfied
+                  -- Is (first == blocker) possible???
+                  satisfied <- if first /= blocker then valueLit s first else return LiftedF
+                  if satisfied == LiftedT
+                    then setNth cvec j c >> setNth bvec j blocker >> forClause confl (i + 1) (j + 1)
+                    else do cs <- get' c           -- Look for new watch:
+                            let forLit :: Int -> IO Clause
+                                forLit ((<= cs) -> False) = do -- Did not find watch
+                                  setNth cvec j c
+                                  setNth bvec j blocker
+                                  fv <- valueLit s first
+                                  -- result <- enqueue s first c
+                                  if fv == LiftedF -- not result
+                                    then do ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
+                                            set' qHead =<< get' trail
+                                            let copy i'@((< end) -> False) j' = forClause c i' j'
+                                                copy i' j' = do setNth cvec j' =<< getNth cvec i'
+                                                                setNth bvec j' =<< getNth bvec i'
+                                                                copy (i' + 1) (j' + 1)
+                                            copy (i + 1) (j + 1)
+                                    else do unsafeEnqueue s first c
+                                            forClause confl (i + 1) (j + 1)
+                                forLit !k = do (l' :: Lit) <- getNth lstack k
+                                               lv <- valueLit s l'
+                                               if lv /= LiftedF
+                                                 then do swapBetween lstack 2 k
+                                                         pushClauseWithKey (getNthWatcher watches (negateLit l')) c l'
+                                                         forClause confl (i + 1) j
+                                                 else forLit $! k + 1
+                            forLit 3
+      forClause conflForNow 0 0
+  while NullClause =<< ((<) <$> get' qHead <*> get' trail)
