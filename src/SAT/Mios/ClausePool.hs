@@ -30,11 +30,9 @@ newClausePool ::Int -> IO ClausePool
 newClausePool n = V.fromList <$> mapM (\_ -> CM.newManager n) [0 .. storeLimit]
 
 -- | returns 'CM.ClauseManager' for caluses which have suitable sizes.
-{-# INLINE getManager #-}
 getManager :: ClausePool -> Int -> CM.ClauseSimpleManager
 getManager p n = V.unsafeIndex p n
 
-{-# INLINABLE makeClauseFromStack #-}
 makeClauseFromStack :: ClausePool -> Stack -> IO Clause
 makeClauseFromStack pool v = do
   let pickup :: Int -> IO Clause
@@ -62,7 +60,6 @@ makeClauseFromStack pool v = do
             return c
 
 -- | Note: only not-too-large and learnt clauses are recycled.
-{-# INLINE putBackToPool #-}
 putBackToPool :: ClausePool -> Clause -> IO ()
 putBackToPool pool c =
   when (learnt c) $ do let n = realLengthOfStack (lits c) - 3

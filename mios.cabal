@@ -90,7 +90,7 @@ library
   else
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields
 
-executable mios-sla
+executable mios-sla-ni
   hs-source-dirs:	src app
   main-is:              mios.hs
   if flag(prof)
@@ -117,7 +117,7 @@ executable mios-sla
                         SAT.Mios.Vec
                         SAT.Mios
 
-executable mios-sla-prof
+executable mios-sla-ni-prof
   hs-source-dirs:	src app
   main-is:              mios.hs
   if flag(prof)

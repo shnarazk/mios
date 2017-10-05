@@ -66,7 +66,6 @@ bottomVar = 0
 -- >>> int2var (-2)
 -- 2 -- literal @-2@ is corresponding to variable 2
 --
-{-# INLINE int2var #-}
 int2var :: Int -> Int
 int2var = abs
 
@@ -87,7 +86,6 @@ newLit = error "newLit undefined"
 -}
 
 -- | returns @True@ if the literal is positive
-{-# INLINE positiveLit #-}
 positiveLit :: Lit -> Bool
 positiveLit = even
 
@@ -101,7 +99,6 @@ positiveLit = even
 -- 5
 -- >>> negateLit 5
 -- 4
-{-# INLINE negateLit #-}
 negateLit :: Lit -> Lit
 negateLit l = complementBit l 0 -- if even l then l + 1 else l - 1
 
@@ -119,7 +116,6 @@ negateLit l = complementBit l 0 -- if even l then l + 1 else l - 1
 -- 2
 -- >>> lit2var 5
 -- 2
-{-# INLINE lit2var #-}
 lit2var :: Lit -> Var
 lit2var !n = shiftR n 1
 
@@ -133,7 +129,6 @@ lit2var !n = shiftR n 1
 -- 4
 -- >>> var2lit 2 False
 -- 5
-{-# INLINE var2lit #-}
 var2lit :: Var -> Bool -> Lit
 var2lit !v True = shiftL v 1
 var2lit !v _ = shiftL v 1 + 1
@@ -153,7 +148,6 @@ var2lit !v _ = shiftL v 1 + 1
 -- >>> int2lit (-2)
 -- 5
 --
-{-# INLINE int2lit #-}
 int2lit :: Int -> Lit
 int2lit n
   | 0 < n = 2 * n
@@ -169,7 +163,6 @@ int2lit n
 -- 2
 -- >>> lit2int 5
 -- -2
-{-# INLINE lit2int #-}
 lit2int :: Lit -> Int
 lit2int l = case divMod l 2 of
   (i, 0) -> i
@@ -195,13 +188,11 @@ pattern LBottom = 0
 pattern Conflict :: Int
 pattern Conflict = 2
 
-{-# INLINE lit2lbool #-}
 lit2lbool :: Lit -> LiftedBool
 lit2lbool l = if positiveLit l then LiftedT else LiftedF
 
 {-
 -- | converts 'Bool' into 'LBool'
-{-# INLINE lbool #-}
 lbool :: Bool -> LiftedBool
 lbool True = LTrue
 lbool False = LFalse

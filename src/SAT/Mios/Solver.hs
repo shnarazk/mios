@@ -149,17 +149,14 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
 -- Accessors
 
 -- | returns the number of current assigments.
-{-# INLINE nAssigns #-}
 nAssigns :: Solver -> IO Int
 nAssigns = get' . trail
 
 -- | returns the number of constraints (clauses).
-{-# INLINE nClauses #-}
 nClauses :: Solver -> IO Int
 nClauses = get' . clauses
 
 -- | returns the number of learnt clauses.
-{-# INLINE nLearnts #-}
 nLearnts :: Solver -> IO Int
 nLearnts = get' . learnts
 
@@ -168,45 +165,37 @@ getModel :: Solver -> IO [Int]
 getModel = (tail <$>) . asList . model
 
 -- | returns the current decision level.
-{-# INLINE decisionLevel #-}
 decisionLevel :: Solver -> IO Int
 decisionLevel = get' . trailLim
 
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Var'.
-{-# INLINE valueVar #-}
 valueVar :: Solver -> Var -> IO Int
 valueVar = getNth . assigns
 
 -- | returns the assignment (:: 'LiftedBool' = @[-1, 0, -1]@) from 'Lit'.
-{-# INLINE valueLit #-}
 valueLit :: Solver -> Lit -> IO Int
 valueLit (assigns -> a) p = (\x -> if positiveLit p then x else negate x) <$> getNth a (lit2var p)
 
 -- | __Fig. 7. (p.11)__
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__
-{-# INLINE locked #-}
 locked :: Solver -> Clause -> IO Bool
 locked s c = (c ==) <$> (getNth (reason s) . lit2var =<< getNth (lits c) 1)
 
 -------------------------------------------------------------------------------- Statistics
 
 -- | returns the value of 'StatIndex'.
-{-# INLINE getStat #-}
 getStat :: Solver -> StatIndex -> IO Int
 getStat (stats -> v) (fromEnum -> i) = getNth v i
 
 -- | sets to 'StatIndex'.
-{-# INLINE setStat #-}
 setStat :: Solver -> StatIndex -> Int -> IO ()
 setStat (stats -> v) (fromEnum -> i) x = setNth v i x
 
 -- | increments a stat data corresponding to 'StatIndex'.
-{-# INLINE incrementStat #-}
 incrementStat :: Solver -> StatIndex -> Int -> IO ()
 incrementStat (stats -> v) (fromEnum -> i) k = modifyNth v (+ k) i
 
 -- | returns the statistics as a list.
-{-# INLINABLE getStats #-}
 getStats :: Solver -> IO [(StatIndex, Int)]
 getStats (stats -> v) = mapM (\i -> (i, ) <$> getNth v (fromEnum i)) [minBound .. maxBound :: StatIndex]
 
@@ -214,7 +203,6 @@ getStats (stats -> v) = mapM (\i -> (i, ) <$> getNth v (fromEnum i)) [minBound .
 
 -- | returns @False@ if a conflict has occured.
 -- This function is called only before the solving phase to register the given clauses.
-{-# INLINABLE addClause #-}
 addClause :: Solver -> Stack -> IO Bool
 addClause s@Solver{..} vecLits = do
   result <- clauseNew s vecLits False
@@ -236,7 +224,6 @@ addClause s@Solver{..} vecLits = do
 -- * @Left False@ if the clause is in a confilct
 -- * @Left True@ if the clause is satisfied
 -- * @Right clause@ if the clause is enqueued successfully
-{-# INLINABLE clauseNew #-}
 clauseNew :: Solver -> Stack -> Bool -> IO (Either Bool Clause)
 clauseNew s@Solver{..} ps isLearnt = do
   -- now ps[0] is the number of living literals
@@ -328,7 +315,6 @@ clauseNew s@Solver{..} ps isLearnt = do
 -- in the assignment vector. If a conflict arises, @False@ is returned and the propagation queue is
 -- cleared. The parameter 'from' contains a reference to the constraint from which 'p' was
 -- propagated (defaults to @Nothing@ if omitted).
-{-# INLINABLE enqueue #-}
 enqueue :: Solver -> Lit -> Clause -> IO Bool
 enqueue s@Solver{..} p from = do
 {-
@@ -356,14 +342,12 @@ enqueue s@Solver{..} p from = do
 -- returns @False@ if immediate conflict.
 --
 -- __Pre-condition:__ propagation queue is empty
-{-# INLINE assume #-}
 assume :: Solver -> Lit -> IO Bool
 assume s p = do
   pushTo (trailLim s) =<< get' (trail s)
   enqueue s p NullClause
 
 -- | #M22: Revert to the states at given level (keeping all assignment at 'level' but not beyond).
-{-# INLINABLE cancelUntil #-}
 cancelUntil :: Solver -> Int -> IO ()
 cancelUntil s@Solver{..} lvl = do
   dl <- decisionLevel s
@@ -437,7 +421,6 @@ varActivityThreshold :: Double
 varActivityThreshold = 1e100
 
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
-{-# INLINE varBumpActivity #-}
 varBumpActivity :: Solver -> Var -> IO ()
 varBumpActivity s@Solver{..} x = do
   !a <- (+) <$> getNth activities x <*> get' varInc
@@ -446,13 +429,11 @@ varBumpActivity s@Solver{..} x = do
   update s x                    -- update the position in heap
 
 -- | __Fig. 14 (p.19)__
-{-# INLINABLE varDecayActivity #-}
 varDecayActivity :: Solver -> IO ()
 varDecayActivity Solver{..} = modify' varInc (/ variableDecayRate config)
 -- varDecayActivity Solver{..} = modifyDouble varInc . (flip (/)) =<< getDouble varDecay
 
 -- | __Fig. 14 (p.19)__
-{-# INLINABLE varRescaleActivity #-}
 varRescaleActivity :: Solver -> IO ()
 varRescaleActivity Solver{..} = do
   let
@@ -466,7 +447,6 @@ claActivityThreshold :: Double
 claActivityThreshold = 1e20
 
 -- | __Fig. 14 (p.19)__
-{-# INLINE claBumpActivity #-}
 claBumpActivity :: Solver -> Clause -> IO ()
 claBumpActivity s@Solver{..} Clause{..} = do
   a <- (+) <$> get' activity <*> get' claInc
@@ -474,12 +454,10 @@ claBumpActivity s@Solver{..} Clause{..} = do
   when (claActivityThreshold <= a) $ claRescaleActivity s
 
 -- | __Fig. 14 (p.19)__
-{-# INLINE claDecayActivity #-}
 claDecayActivity :: Solver -> IO ()
 claDecayActivity Solver{..} = modify' claInc (/ clauseDecayRate config)
 
 -- | __Fig. 14 (p.19)__
-{-# INLINABLE claRescaleActivity #-}
 claRescaleActivity :: Solver -> IO ()
 claRescaleActivity Solver{..} = do
   vec <- getClauseVector learnts
@@ -495,7 +473,6 @@ claRescaleActivity Solver{..} = do
   modify' claInc (/ claActivityThreshold)
 
 -- | __Fig. 14 (p.19)__
-{-# INLINABLE claRescaleActivityAfterRestart #-}
 claRescaleActivityAfterRestart :: Solver -> IO ()
 claRescaleActivityAfterRestart Solver{..} = do
   vec <- getClauseVector learnts
@@ -536,19 +513,15 @@ newVarHeap n = do
   loop 1
   return $ VarHeap v1 v2
 
-{-# INLINE numElementsInHeap #-}
 numElementsInHeap :: Solver -> IO Int
 numElementsInHeap = get' . heap . order
 
-{-# INLINE inHeap #-}
 inHeap :: Solver -> Var -> IO Bool
 inHeap (order -> idxs -> at) n = (/= 0) <$> getNth at n
 
-{-# INLINE increaseHeap #-}
 increaseHeap :: Solver -> Int -> IO ()
 increaseHeap s@(order -> idxs -> at) n = inHeap s n >>= (`when` (percolateUp s =<< getNth at n))
 
-{-# INLINABLE percolateUp #-}
 percolateUp :: Solver -> Int -> IO ()
 percolateUp Solver{..} start = do
   let VarHeap to at = order
@@ -568,7 +541,6 @@ percolateUp Solver{..} start = do
               else setNth to i v >> setNth at v i              -- end
   loop start
 
-{-# INLINABLE percolateDown #-}
 percolateDown :: Solver -> Int -> IO ()
 percolateDown Solver{..} start = do
   let (VarHeap to at) = order
@@ -593,7 +565,6 @@ percolateDown Solver{..} start = do
         else setNth to i v >> setNth at v i       -- end
   loop start
 
-{-# INLINABLE insertHeap #-}
 insertHeap :: Solver -> Var -> IO ()
 insertHeap s@(order -> VarHeap to at) v = do
   n <- (1 +) <$> getNth to 0
@@ -603,7 +574,6 @@ insertHeap s@(order -> VarHeap to at) v = do
   percolateUp s n
 
 -- | returns the value on the root (renamed from @getmin@).
-{-# INLINABLE getHeapRoot #-}
 getHeapRoot :: Solver -> IO Int
 getHeapRoot s@(order -> VarHeap to at) = do
   r <- getNth to 1

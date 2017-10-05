@@ -308,7 +308,6 @@ instance StackFamily ByteArrayInt Int where
   shrinkBy (ByteArrayInt v) k = BA.writeByteArray v 0 . subtract k =<< (BA.readByteArray v 0 :: IO Int)
 
 -- | returns a new 'Stack' from @[Int]@.
-{-# INLINABLE newStackFromList #-}
 newStackFromList :: [Int] -> IO Stack
 newStackFromList l = do
   v <- BA.newByteArray (8 * (length l + 1))
@@ -317,7 +316,6 @@ newStackFromList l = do
       loop (x:l') i = BA.writeByteArray v i x >> loop l' (i + 1)
   loop (length l : l) 0
 
-{-# INLINE realLengthOfStack #-}
 realLengthOfStack :: Stack -> Int
 realLengthOfStack (ByteArrayInt v) = div (BA.sizeofMutableByteArray v) 8
 

@@ -103,7 +103,6 @@ instance StackFamily Clause Lit where
 
 -- | copies /vec/ and return a new 'Clause'.
 -- Since 1.0.100 DIMACS reader should use a scratch buffer allocated statically.
-{-# INLINABLE newClauseFromStack #-}
 newClauseFromStack :: Bool -> Stack -> IO Clause
 newClauseFromStack l vec = do
   n <- get' vec

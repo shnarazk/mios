@@ -188,7 +188,6 @@ instance ClauseManager ClauseExtManager where
 -}
 
 -- | sets the expire flag to a clause.
-{-# INLINABLE markClause #-}
 markClause :: ClauseExtManager -> C.Clause -> IO ()
 markClause ClauseExtManager{..} c = do
   !n <- get' _nActives
@@ -202,7 +201,6 @@ markClause ClauseExtManager{..} c = do
     seekIndex 0
     set' _purged True
 
-{-# INLINABLE purifyManager #-}
 purifyManager :: ClauseExtManager -> IO ()
 purifyManager ClauseExtManager{..} = do
   diry <- get' _purged
@@ -226,18 +224,16 @@ purifyManager ClauseExtManager{..} = do
     set' _purged False
 
 -- | returns the associated Int vector, which holds /blocking literals/.
-{-# INLINE getKeyVector #-}
 getKeyVector :: ClauseExtManager -> IO (Vec [Int])
 getKeyVector ClauseExtManager{..} = IORef.readIORef _keyVector
 
 -- | O(1) inserter
-{-# INLINABLE pushClauseWithKey #-}
 pushClauseWithKey :: ClauseExtManager -> C.Clause -> Lit -> IO ()
 pushClauseWithKey !ClauseExtManager{..} !c k = do
   -- checkConsistency m c
-  !n <- get' _nActives
-  !v <- IORef.readIORef _clauseVector
-  !b <- IORef.readIORef _keyVector
+  n <- get' _nActives
+  v <- IORef.readIORef _clauseVector
+  b <- IORef.readIORef _keyVector
   if MV.length v - 1 <= n
     then do
         let len = max 8 $ MV.length v
@@ -248,7 +244,7 @@ pushClauseWithKey !ClauseExtManager{..} !c k = do
         IORef.writeIORef _clauseVector v'
         IORef.writeIORef _keyVector b'
     else MV.unsafeWrite v n c >> setNth b n k
-  modify' _nActives (1 +)
+  set' _nActives (n + 1)
 
 -- | 'ClauseExtManager' is a collection of 'C.Clause'
 instance VecFamily ClauseExtManager C.Clause where
@@ -278,7 +274,6 @@ newWatcherList :: Int -> Int -> IO WatcherList
 newWatcherList n m = V.fromList <$> mapM (\_ -> newManager m) [0 .. int2lit (negate n) + 1]
 
 -- | returns the watcher List for "Literal" /l/.
-{-# INLINE getNthWatcher #-}
 getNthWatcher :: WatcherList -> Lit -> ClauseExtManager
 getNthWatcher = V.unsafeIndex
 
