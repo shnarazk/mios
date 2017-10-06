@@ -14,10 +14,9 @@ module SAT.Mios.Main
        )
         where
 
-import Control.Monad (unless, void, when, (<=<))
+import Control.Monad (unless, void, when)
 import Data.Bits
 import Data.Foldable (foldrM)
-import Data.List
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -433,9 +432,6 @@ reduceDB :: Solver -> IO ()
 reduceDB s@Solver{..} = do
   n <- nLearnts s
   vec <- getClauseVector learnts
-  -- check consistency
-  -- l <- sort . map sort . take n <$> mapM (asList <=< getNth vec) [0 .. n -1]
-  -- when (l /= nub l) $ error (show (l, nub l))
   let
     loop :: Int -> IO ()
     loop ((< n) -> False) = return ()
@@ -453,9 +449,6 @@ reduceDB s@Solver{..} = do
   -- let k = div thr 2
 -}
   -- putStrLn $ "reduceDB: purge " ++ show (n -k) ++ " out of " ++ show n
-  -- l' <- sort . map sort . take n <$> mapM (asList <=< getNth vec) [0 .. n -1]
-  -- when (l' /= nub l') $ error "!!2"
-  -- when (l /= l') $ error "!!3"
   loop k                               -- CAVEAT: `vec` is a zero-based vector
   reset watches
   shrinkBy learnts (n - k)
