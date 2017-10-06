@@ -362,18 +362,18 @@ analyzeFinal Solver{..} confl skipFirst = do
 {-# INLINABLE propagate #-}
 propagate :: Solver -> IO Clause
 propagate s@Solver{..} = do
-  set' propagate'p 0
-  set' propagate'i 0
+  -- set' propagate'p 0
+  -- set' propagate'i 0
   let
-    while :: Bool -> IO Clause
-    while False = do
-      p <- get' propagate'p
-      if p == 0
-        then return NullClause
-        else do i <- get' propagate'i
-                vec <- getClauseVector (getNthWatcher watches p)
-                getNth vec i
-    while True = do
+    while :: Clause -> Bool -> IO Clause
+    while confl False = return confl --do
+--      p <- get' propagate'p
+--      if p == 0
+--        then return NullClause
+--        else do i <- get' propagate'i
+--                vec <- getClauseVector (getNthWatcher watches p)
+--                getNth vec i
+    while confl True = do
       (p :: Lit) <- getNth trail . (1 +) =<< get' qHead
       modify' qHead (+ 1)
       let (ws :: ClauseExtManager) = getNthWatcher watches p
@@ -386,8 +386,8 @@ propagate s@Solver{..} = do
           copy !i' !j' = do setNth cvec j' =<< getNth cvec i'
                             setNth bvec j' =<< getNth bvec i'
                             copy (i' + 1) (j' + 1)
-      let forClause :: Int -> Int -> IO ()
-          forClause i@((< end) -> False) !j = do shrinkBy ws (i - j)
+      let forClause :: Int -> Int -> IO Clause
+          forClause i@((< end) -> False) !j = shrinkBy ws (i - j) >> return confl
           forClause !i !j = do
             (blocker :: Lit) <- getNth bvec i        -- Try to avoid inspecting the clause:
             bv <- if blocker == 0 then return LiftedF else valueLit s blocker
@@ -429,12 +429,12 @@ propagate s@Solver{..} = do
                                                    else newWatch $! k + 1
                             ret <- newWatch 3
                             case ret of
-                              LiftedF -> forClause end (end - i + j) -- Conflict
-                              LBottom -> forClause (i + 1) (j + 1)   -- Unitclause
-                              LiftedT -> forClause (i + 1) j         -- another watch
-      forClause 0 0
-      while =<< ((<) <$> get' qHead <*> get' trail)
-  while =<< ((<) <$> get' qHead <*> get' trail)
+                              LiftedF -> shrinkBy ws (i - j) >> return c -- Conflict
+                              LBottom -> forClause (i + 1) (j + 1)       -- Unitclause
+                              LiftedT -> forClause (i + 1) j             -- another watch
+      c <- forClause 0 0
+      while c =<< ((<) <$> get' qHead <*> get' trail)
+  while NullClause =<< ((<) <$> get' qHead <*> get' trail)
 
 -- | #M22
 -- reduceDB: () -> [void]
