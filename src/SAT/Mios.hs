@@ -101,8 +101,8 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
     void $ reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Validate: ") t2
   void $ reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
   when (_confStatProbe opts) $ do
-    hPutStr stderr $ "## [" ++ showPath cnfFile ++ "] "
-    hPutStrLn stderr . intercalate ", " . map (\(k, v) -> show k ++ ": " ++ show v) =<< getStats s
+    hPutStrLn stderr $ "## [" ++ showPath cnfFile ++ "]"
+    hPutStrLn stderr . intercalate "\n" . map (\(k, v) -> show k ++ ": " ++ show v) . init =<< getStats s
 
 executeSolver _ = return ()
 

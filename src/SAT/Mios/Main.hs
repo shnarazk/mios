@@ -363,6 +363,7 @@ propagate s@Solver{..} = do
     while confl True = do
       (p :: Lit) <- getNth trail . (1 +) =<< get' qHead
       modify' qHead (+ 1)
+      incrementStat s NumOfPropagation 1
       let (ws :: ClauseExtManager) = getNthWatcher watches p
           !falseLit = negateLit p
       end <- get' ws
@@ -673,7 +674,10 @@ search s@Solver{..} nOfConflicts = do
                     vm <- floor <$> get' maxLearnts
                     vc <- get' learnts
                     gc <- get' clauses
-                    putStrLn $ w8 vb " | " ++ w8 nVars " " ++ w8 gc " | " ++ w8 vm " " ++ w8 vc ""
+                    va <- get' trailLim
+                    vn <- (nVars -) <$> if va == 0 then get' trail else getNth trailLim 1
+                    vp <- getStat s NumOfPropagation
+                    putStrLn $ w8 vb " | " ++ w8 vn " " ++ w8 gc " | " ++ w8 vm " " ++ w8 vc " | " ++ w8 vp ""
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
