@@ -448,6 +448,7 @@ reduceDB s@Solver{..} = do
             (_, _)         -> min n (thr + 1000)
   -- let k = div thr 2
 -}
+  -- putStrLn $ "reduceDB: purge " ++ show (n -k) ++ " out of " ++ show n
   loop k                               -- CAVEAT: `vec` is a zero-based vector
   reset watches
   shrinkBy learnts (n - k)
