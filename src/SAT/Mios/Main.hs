@@ -362,108 +362,79 @@ analyzeFinal Solver{..} confl skipFirst = do
 {-# INLINABLE propagate #-}
 propagate :: Solver -> IO Clause
 propagate s@Solver{..} = do
-  -- myVal <- getNth stats (fromEnum NumOfBackjump)
+  set' propagate'p 0
+  set' propagate'i 0
   let
-{-
-    myVal = 0
-    bumpAllVar :: IO ()         -- not in use
-    bumpAllVar = do
-      let
-        loop :: Int -> IO ()
-        loop ((<= nVars) -> False) = return ()
-        loop i = do
-          c <- getNth pr'seen i
-          when (c == myVal) $ varBumpActivity s i
-          loop $ i + 1
-      loop 1
--}
-    while :: Clause -> Bool -> IO Clause
-    while confl False = {- bumpAllVar >> -} return confl
-    while confl True = do
+    while :: Bool -> IO Clause
+    while False = do
+      p <- get' propagate'p
+      if p == 0
+        then return NullClause
+        else do i <- get' propagate'i
+                vec <- getClauseVector (getNthWatcher watches p)
+                getNth vec i
+    while True = do
       (p :: Lit) <- getNth trail . (1 +) =<< get' qHead
       modify' qHead (+ 1)
       let (ws :: ClauseExtManager) = getNthWatcher watches p
+          !falseLit = negateLit p
       end <- get' ws
       cvec <- getClauseVector ws
       bvec <- getKeyVector ws
---      rc <- getNth reason $ lit2var p
---      byGlue <- if (rc /= NullClause) && learnt rc then (== 2) <$> get' (lbd rc) else return False
-      let
-{-
-        checkAllLiteralsIn :: Clause -> IO () -- not in use
-        checkAllLiteralsIn c = do
-          nc <- sizeOfClause c
-          let
-            vec = asuVector c
-            loop :: Int -> IO ()
-            loop((< nc) -> False) = return ()
-            loop i = do
-              (v :: Var) <- lit2var <$> getNth vec i
-              setNth pr'seen v myVal
-              loop $ i + 1
-          loop 0
--}
-        forClause :: Clause -> Int -> Int -> IO Clause
-        forClause confl i@((< end) -> False) j = do
-          shrinkBy ws (i - j)
-          while confl =<< ((<) <$> get' qHead <*> get' trail)
-        forClause confl i j = do
-          (l :: Lit) <- getNth bvec i
-          bv <- if l == 0 then return LiftedF else valueLit s l
-          if bv == LiftedT
-            then do
-                 unless (i == j) $ do -- NOTE: if i == j, the path doesn't require accesses to cvec!
-                   (c :: Clause) <- getNth cvec i
-                   setNth cvec j c
-                   setNth bvec j l
-                 forClause confl (i + 1) (j + 1)
-            else do
-                -- checkAllLiteralsIn c
-                (c :: Clause) <- getNth cvec i
-                let lstack = lits c
-                    falseLit = negateLit p
-                -- Make sure the false literal is data[1]
-                ((falseLit ==) <$> getNth lstack 1) >>= (`when` swapBetween lstack 1 2)
-                -- if 0th watch is true, then clause is already satisfied.
-                (first :: Lit) <- getNth lstack 1
-                val <- valueLit s first
-                if val == LiftedT
-                  then setNth cvec j c >> setNth bvec j first >> forClause confl (i + 1) (j + 1)
-                  else do
-                      -- Look for a new watch
-                      cs <- get' c
-                      let
-                        forLit :: Int -> IO Clause
-                        forLit ((<= cs) -> False) = do
-                          -- Did not find watch; clause is unit under assignment:
-                          setNth cvec j c
-                          setNth bvec j 0
-                          result <- enqueue s first c
-                          if not result
-                            then do
-                                ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
-                                set' qHead =<< get' trail
-                                -- Copy the remaining watches:
-                                let
-                                  copy i'@((< end) -> False) j' = forClause c i' j'
-                                  copy i' j' = do
-                                    setNth cvec j' =<< getNth cvec i'
-                                    setNth bvec j' =<< getNth bvec i'
-                                    copy (i' + 1) (j' + 1)
-                                copy (i + 1) (j + 1)
-                            else forClause confl (i + 1) (j + 1)
-                        forLit k = do
-                          (l' :: Lit) <- getNth lstack k
-                          lv <- valueLit s l'
-                          if lv /= LiftedF
-                            then do
-                                swapBetween lstack 2 k
-                                pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
-                                forClause confl (i + 1) j
-                            else forLit $ k + 1
-                      forLit 3
-      forClause confl 0 0
-  while NullClause =<< ((<) <$> get' qHead <*> get' trail)
+      let copy :: Int -> Int -> IO ()
+          copy ((< end) -> False) _ = return ()
+          copy !i' !j' = do setNth cvec j' =<< getNth cvec i'
+                            setNth bvec j' =<< getNth bvec i'
+                            copy (i' + 1) (j' + 1)
+      let forClause :: Int -> Int -> IO ()
+          forClause i@((< end) -> False) !j = do shrinkBy ws (i - j)
+          forClause !i !j = do
+            (blocker :: Lit) <- getNth bvec i        -- Try to avoid inspecting the clause:
+            bv <- if blocker == 0 then return LiftedF else valueLit s blocker
+            if bv == LiftedT
+              then do unless (i == j) $ do (c :: Clause) <- getNth cvec i
+                                           setNth cvec j c
+                                           setNth bvec j blocker
+                      forClause (i + 1) (j + 1)
+              else do                               -- Make sure the false literal is data[1]:
+                  (c :: Clause) <- getNth cvec i
+                  let lstack = lits c
+                  ((falseLit ==) <$> getNth lstack 1) >>= (`when` swapBetween lstack 1 2)
+                  (first :: Lit) <- getNth lstack 1 -- If 0th watch is true, already satisfied
+                  satisfied <- if first /= blocker then valueLit s first else return LiftedF
+                  if satisfied == LiftedT
+                    then setNth cvec j c >> setNth bvec j first >> forClause (i + 1) (j + 1)
+                    else do cs <- get' c           -- Look for new watch:
+                            let newWatch :: Int -> IO LiftedBool
+                                newWatch ((<= cs) -> False) = do -- Did not find watch
+                                  setNth cvec j c
+                                  setNth bvec j first
+                                  fv <- valueLit s first
+                                  if fv == LiftedF
+                                    then do ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
+                                            set' qHead =<< get' trail
+                                            set' propagate'p p
+                                            set' propagate'i j
+                                            copy (i + 1) (j + 1)
+                                            return LiftedF -- Conflit forClause end (end - i + j)
+                                    else do unsafeEnqueue s first c
+                                            return LBottom -- forClause (i + 1) (j + 1)
+                                newWatch !k = do (l' :: Lit) <- getNth lstack k
+                                                 lv <- valueLit s l'
+                                                 if lv /= LiftedF
+                                                   then do setNth lstack 2 l'
+                                                           setNth lstack k falseLit
+                                                           pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
+                                                           return LiftedT --forClause (i + 1) j
+                                                   else newWatch $! k + 1
+                            ret <- newWatch 3
+                            case ret of
+                              LiftedF -> forClause end (end - i + j) -- Conflict
+                              LBottom -> forClause (i + 1) (j + 1)   -- Unitclause
+                              LiftedT -> forClause (i + 1) j         -- another watch
+      forClause 0 0
+      while =<< ((<) <$> get' qHead <*> get' trail)
+  while =<< ((<) <$> get' qHead <*> get' trail)
 
 -- | #M22
 -- reduceDB: () -> [void]
@@ -680,7 +651,7 @@ search s@Solver{..} nOfConflicts = do
   let
     loop :: Int -> IO Int
     loop conflictC = do
-      !confl <- propagate' s
+      !confl <- propagate s
       d <- decisionLevel s
       if confl /= NullClause
         then do
@@ -850,75 +821,3 @@ luby y x_ = loop 1 0
     loop2 x sz sq
       | sz - 1 == x = y ** fromIntegral sq
       | otherwise   = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
-
-{-# INLINABLE propagate' #-}
-propagate' :: Solver -> IO Clause
-propagate' s@Solver{..} = do
-  set' propagate'p 0
-  set' propagate'i 0
-  let
-    while :: Bool -> IO Clause
-    while False = do
-      p <- get' propagate'p
-      if p == 0
-        then return NullClause
-        else do i <- get' propagate'i
-                vec <- getClauseVector (getNthWatcher watches p)
-                c' <- getNth vec i
-                return c'
-    while True = do
-      (p :: Lit) <- getNth trail . (1 +) =<< get' qHead
-      modify' qHead (+ 1)
-      let (ws :: ClauseExtManager) = getNthWatcher watches p
-          !falseLit = negateLit p
-      end <- get' ws
-      cvec <- getClauseVector ws
-      bvec <- getKeyVector ws
-      let copy ((< end) -> False) j' = return j'
-          copy i' j' = do setNth cvec j' =<< getNth cvec i'
-                          setNth bvec j' =<< getNth bvec i'
-                          copy (i' + 1) (j' + 1)
-      let forClause :: Int -> Int -> IO ()
-          forClause i@((< end) -> False) j = do shrinkBy ws (i - j)
-          forClause i j = do
-            (blocker :: Lit) <- getNth bvec i        -- Try to avoid inspecting the clause:
-            bv <- if blocker == 0 then return LiftedF else valueLit s blocker
-            if bv == LiftedT
-              then do unless (i == j) $ do (c :: Clause) <- getNth cvec i
-                                           setNth cvec j c
-                                           setNth bvec j blocker
-                      forClause (i + 1) (j + 1)
-              else do                               -- Make sure the false literal is data[1]:
-                  (c :: Clause) <- getNth cvec i
-                  let lstack = lits c
-                  ((falseLit ==) <$> getNth lstack 1) >>= (`when` swapBetween lstack 1 2)
-                  (first :: Lit) <- getNth lstack 1 -- If 0th watch is true, already satisfied
-                  satisfied <- if first /= blocker then valueLit s first else return LiftedF
-                  if satisfied == LiftedT
-                    then setNth cvec j c >> setNth bvec j first >> forClause (i + 1) (j + 1)
-                    else do cs <- get' c           -- Look for new watch:
-                            let forLit :: Int -> IO ()
-                                forLit ((<= cs) -> False) = do -- Did not find watch
-                                  setNth cvec j c
-                                  setNth bvec j first
-                                  fv <- valueLit s first
-                                  if fv == LiftedF
-                                    then do ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
-                                            set' qHead =<< get' trail
-                                            set' propagate'p p
-                                            set' propagate'i j
-                                            forClause end =<< copy (i + 1) (j + 1)
-                                    else do unsafeEnqueue s first c
-                                            forClause (i + 1) (j + 1)
-                                forLit !k = do (l' :: Lit) <- getNth lstack k
-                                               lv <- valueLit s l'
-                                               if lv /= LiftedF
-                                                 then do setNth lstack 2 l'
-                                                         setNth lstack k falseLit
-                                                         pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
-                                                         forClause (i + 1) j
-                                                 else forLit $! k + 1
-                            forLit 3
-      forClause 0 0
-      while =<< ((<) <$> get' qHead <*> get' trail)
-  while =<< ((<) <$> get' qHead <*> get' trail)
