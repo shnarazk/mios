@@ -462,16 +462,16 @@ reduceDB s@Solver{..} = do
 --
 -- they are coded into an "Int64" as the following 62 bit layout:
 --
--- *  9 bits for rank (LBD)
--- * 24 bits for converted activity
--- * 29 bits for clauseVector index
+-- *  6 bits for rank (LBD)
+-- * 28 bits for converted activity
+-- * 28 bits for clauseVector index
 --
 rankWidth :: Int
-rankWidth = 9
+rankWidth = 6
 activityWidth :: Int
-activityWidth = 24              -- note: the maximum clause activity is 1e20.
+activityWidth = 28              -- note: the maximum clause activity is 1e20.
 indexWidth :: Int
-indexWidth = 29
+indexWidth = 28
 rankMax :: Int
 rankMax = 2 ^ rankWidth - 1
 activityMax :: Int
@@ -491,13 +491,16 @@ sortClauses s cm = do
   at <- (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
   let shiftLBD = activityWidth + indexWidth
-      scaleAct :: Double -> Double
-      scaleAct x = activityScale * log (x / at) / log (1e20 / at)
+      scaleAct :: Double -> Int
+      scaleAct x
+        | x < 1e-20 = activityMax
+        | otherwise = activityMax - floor (activityScale * logBase 10 (x * 1e20) / 40)
       -- returns the number of clauses that should be kept.
       assignKey :: Int -> Int -> Int -> IO Int
-      assignKey ((< n) -> False) need bad = do
-        -- putStrLn $ "reduction! extra_lim = " ++ show at ++ ", purge = " ++ show bad ++ " out of " ++ show n
-        return . max need $ min (div n 2) (n - bad)
+      assignKey ((< n) -> False) need _ = do
+        -- ci <- get' (claInc s)
+        -- putStrLn $ "reduction! claInc = " ++ show ci ++ ", extra_lim = " ++ show at ++ ", purge = " ++ show bad ++ " out of " ++ show n
+        return $ max need (div n 2) -- $ min (div n 2) (n - bad)
       assignKey i nr nb = do
         c <- getNth vec i
         k <- get' c
@@ -505,19 +508,28 @@ sortClauses s cm = do
           then do setNth keys i $ shiftL 1 shiftLBD + i
                   assignKey (i + 1) (nr + 1) nb
           else do l <- locked s c     -- Also locked clauses are must
+                  if l
+                    then do setNth keys i $ shiftL 1 shiftLBD + i      -- locked
+                            assignKey (i + 1) (nr + 1) nb
+                    else do a <- get' (activity c)                     -- Second one... based on LBD
+                            r <- get' (rank c)
+                            let d = if a < at then rankMax else min rankMax (r + 1) -- rank can be one
+                            setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
+                            assignKey (i + 1) nr nb
+{-
                   a <- get' (activity c)
                   case a <= at of
                     _ | l  -> do setNth keys i $ shiftL 1 shiftLBD + i      -- locked
                                  assignKey (i + 1) (nr + 1) nb
                     False  -> do let v = activityMax - floor (scaleAct a)   -- Second one... based on LBD
-                                 when (activityMax < v) $ error "oooo"
                                  r <- get' (rank c)
-                                 when (rankMax <= r) $ error (show (rankMax, r))
-                                 let d = min rankMax (r + 1) -- rank can be one
+                                 let d = min (rankMax - 1) (r + 1) -- rank can be one
                                  setNth keys i $ shiftL d shiftLBD + shiftL v indexWidth + i
                                  assignKey (i + 1) nr nb
-                    True   -> do setNth keys i $ shiftL rankMax shiftLBD + i -- purge inactive learnts
+                    True   -> do let v = activityMax - floor (scaleAct a)    -- purge inactive learnts
+                                 setNth keys i $ shiftL rankMax shiftLBD + shiftL v indexWidth + i
                                  assignKey (i + 1) nr (nb + 1)
+-}
   limit <- assignKey 0 0 0
   -- 2: sort keyVector
   let sortOnRange :: Int -> Int -> IO ()
