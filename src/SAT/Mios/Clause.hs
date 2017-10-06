@@ -127,7 +127,7 @@ instance VecFamily ClauseVector Clause where
   setNth = MV.unsafeWrite
   {-# SPECIALIZE INLINE swapBetween :: ClauseVector -> Int -> Int -> IO () #-}
   swapBetween = MV.unsafeSwap
-  asList cv = V.toList <$> V.freeze cv
+  asList cv = V.toList <$> V.freeze cv -- mapM (asList <=< getNth vec) [0 .. ???]
 {-
   dump mes cv = do
     l <- asList cv
