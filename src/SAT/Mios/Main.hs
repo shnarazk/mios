@@ -362,17 +362,9 @@ analyzeFinal Solver{..} confl skipFirst = do
 {-# INLINABLE propagate #-}
 propagate :: Solver -> IO Clause
 propagate s@Solver{..} = do
-  -- set' propagate'p 0
-  -- set' propagate'i 0
   let
     while :: Clause -> Bool -> IO Clause
-    while confl False = return confl --do
---      p <- get' propagate'p
---      if p == 0
---        then return NullClause
---        else do i <- get' propagate'i
---                vec <- getClauseVector (getNthWatcher watches p)
---                getNth vec i
+    while confl False = return confl
     while confl True = do
       (p :: Lit) <- getNth trail . (1 +) =<< get' qHead
       modify' qHead (+ 1)
@@ -413,25 +405,23 @@ propagate s@Solver{..} = do
                                   if fv == LiftedF
                                     then do ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
                                             set' qHead =<< get' trail
-                                            set' propagate'p p
-                                            set' propagate'i j
                                             copy (i + 1) (j + 1)
-                                            return LiftedF -- Conflit forClause end (end - i + j)
+                                            return LiftedF                 -- conflict
                                     else do unsafeEnqueue s first c
-                                            return LBottom -- forClause (i + 1) (j + 1)
+                                            return LBottom                 -- unit clause
                                 newWatch !k = do (l' :: Lit) <- getNth lstack k
                                                  lv <- valueLit s l'
                                                  if lv /= LiftedF
                                                    then do setNth lstack 2 l'
                                                            setNth lstack k falseLit
                                                            pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
-                                                           return LiftedT --forClause (i + 1) j
+                                                           return LiftedT  -- find another watch
                                                    else newWatch $! k + 1
                             ret <- newWatch 3
                             case ret of
-                              LiftedF -> shrinkBy ws (i - j) >> return c -- Conflict
-                              LBottom -> forClause (i + 1) (j + 1)       -- Unitclause
-                              LiftedT -> forClause (i + 1) j             -- another watch
+                              LiftedT -> forClause (i + 1) j               -- find another watch
+                              LBottom -> forClause (i + 1) (j + 1)         -- unit clause
+                              LiftedF -> shrinkBy ws (i - j) >> return c   -- conflict
       c <- forClause 0 0
       while c =<< ((<) <$> get' qHead <*> get' trail)
   while NullClause =<< ((<) <$> get' qHead <*> get' trail)
