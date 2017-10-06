@@ -487,6 +487,7 @@ sortClauses s cm = do
   n <- get' cm
   -- assert (n < indexMax)
   vec <- getClauseVector cm
+  bvec <- getClauseVector cm
   keys <- (newVec n 0 :: IO (Vec Int))
   at <- (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
@@ -570,8 +571,11 @@ sortClauses s cm = do
           let sweep k = do k' <- (indexMax .&.) <$> getNth keys k
                            setNth keys k k
                            if k' == i
-                             then setNth vec k c
-                             else getNth vec k' >>= setNth vec k >> sweep k'
+                             then do setNth vec k c
+                                     setNth bvec k =<< getNth bvec i
+                             else do getNth vec k' >>= setNth vec k
+                                     getNth bvec k' >>= setNth bvec k
+                                     sweep k'
           sweep i
         seek $ i + 1
   seek 0
