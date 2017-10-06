@@ -41,7 +41,6 @@ removeWatch Solver{..} c = do
 
 -- | __Fig. 8. (p.12)__ creates a new LEARNT clause and adds it to watcher lists.
 -- This is a strippped-down version of 'newClause' in Solver.
-{-# INLINABLE newLearntClause #-}
 newLearntClause :: Solver -> Stack -> IO ()
 newLearntClause s@Solver{..} ps = do
   good <- get' ok
@@ -128,7 +127,6 @@ simplify s c = do
 --     rest of literals. There may be others from the same level though.
 --
 -- @analyze@ is invoked from @search@
-{-# INLINABLE analyze #-}
 analyze :: Solver -> Clause -> IO Int
 analyze s@Solver{..} confl = do
   -- litvec
@@ -244,7 +242,6 @@ analyze s@Solver{..} confl = do
 -- *  @an'toClear@ is initialized by @ps@ in @analyze@ (a copy of 'learnt').
 --   This is used only in this function and @analyze@.
 --
-{-# INLINABLE analyzeRemovable #-}
 analyzeRemovable :: Solver -> Lit -> Int -> IO Bool
 analyzeRemovable Solver{..} p minLevel = do
   -- assert (reason[var(p)] != NullClause);
@@ -303,7 +300,6 @@ analyzeRemovable Solver{..} p minLevel = do
 --   making assumptions). If 'skip_first' is TRUE, the first literal of 'confl' is ignored (needed
 --   if conflict arose before search even started).
 --
-{-# INLINABLE analyzeFinal #-}
 analyzeFinal :: Solver -> Clause -> Bool -> IO ()
 analyzeFinal Solver{..} confl skipFirst = do
   reset conflicts
@@ -359,7 +355,6 @@ analyzeFinal Solver{..} confl skipFirst = do
 --   * the propagation queue is empty, even if there was a conflict.
 --
 -- memo: @propagate@ is invoked by @search@,`simpleDB` and `solve`
-{-# INLINABLE propagate #-}
 propagate :: Solver -> IO Clause
 propagate s@Solver{..} = do
   let
@@ -432,7 +427,6 @@ propagate s@Solver{..} = do
 -- __Description:__
 --   Remove half of the learnt clauses, minus the clauses locked by the current assigmnent. Locked
 --   clauses are clauses that are reason to some assignment. Binary clauses are never removed.
-{-# INLINABLE reduceDB #-}
 reduceDB :: Solver -> IO ()
 reduceDB s@Solver{..} = do
   n <- nLearnts s
@@ -486,7 +480,6 @@ indexMax :: Int
 indexMax = 2 ^ indexWidth - 1 -- 2^6 G = 64G
 
 -- | sort clauses (good to bad) by using a 'proxy' @Vec Int64@ that holds weighted index.
-{-# INLINABLE sortClauses #-}
 sortClauses :: Solver -> ClauseExtManager -> IO Int
 sortClauses s cm = do
   n <- get' cm
@@ -579,7 +572,6 @@ sortClauses s cm = do
 --   Simplify the clause database according to the current top-level assigment. Currently, the only
 --   thing done here is the removal of satisfied clauses, but more things can be put here.
 --
-{-# INLINABLE simplifyDB #-}
 simplifyDB :: Solver -> IO Bool
 simplifyDB s@Solver{..} = do
   good <- get' ok
@@ -633,7 +625,6 @@ simplifyDB s@Solver{..} = do
 --   'l_True' if a partial assigment that is consistent with respect to the clause set is found. If
 --   all variables are decision variables, that means that the clause set is satisfiable. 'l_False'
 --   if the clause set is unsatisfiable. 'l_Undef' if the bound on number of conflicts is reached.
-{-# INLINABLE search #-}
 search :: Solver -> Int -> IO Int
 search s@Solver{..} nOfConflicts = do
   -- clear model
@@ -735,7 +726,6 @@ search s@Solver{..} nOfConflicts = do
 -- __Pre-condition:__ If assumptions are used, 'simplifyDB' must be
 -- called right before using this method. If not, a top-level conflict (resulting in a
 -- non-usable internal state) cannot be distinguished from a conflict under assumptions.
-{-# INLINABLE solve #-}
 solve :: (Foldable t) => Solver -> t Lit -> IO Bool
 solve s@Solver{..} assumps = do
   -- PUSH INCREMENTAL ASSUMPTIONS:
