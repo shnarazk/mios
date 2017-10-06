@@ -686,7 +686,7 @@ search s@Solver{..} nOfConflicts = do
             k2 <- nAssigns s
             when (k1 - k2 >= nOfLearnts) $ do   -- This is a cheap check.
               thr <- floor <$> get' maxLearnts  -- maxLearnts is larger than nOfLearnts always.
-              when (thr < k1 - k2) $ reduceDB s -- Reduce the set of learnt clauses.
+              when (k1 - k2 >= thr) $ reduceDB s -- Reduce the set of learnt clauses.
             case () of
              _ | k2 == nVars -> do
                    -- Model found:
