@@ -730,6 +730,16 @@ search s@Solver{..} nOfConflicts = do
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
                    (s `cancelUntil`) =<< get' rootLevel -- force a restart
+                   -- claRescaleActivityAfterRestart s
+                   let toggle :: Int -> Int
+                       toggle LiftedT = LiftedF
+                       toggle LiftedF = LiftedT
+                       toggle x = x
+                       nv = nVars
+                       toggleAt :: Int -> IO ()
+                       toggleAt ((<= nv) -> False) = return ()
+                       toggleAt i = modifyNth phases toggle i >> toggleAt (i + 1)
+                   toggleAt 1
                    incrementStat s NumOfRestart 1
                    return LBottom
              _ -> do
