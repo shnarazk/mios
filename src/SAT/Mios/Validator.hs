@@ -1,5 +1,6 @@
 {-# LANGUAGE
-    ViewPatterns
+    RecordWildCards
+  , ViewPatterns
   #-}
 {-# LANGUAGE Safe #-}
 
@@ -7,10 +8,13 @@
 module SAT.Mios.Validator
        (
          validate
+       , checkUniqueness
        )
        where
 
+import Control.Monad (forM_, when, unless)
 import Data.Foldable (toList)
+import Data.List (sort)
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -45,3 +49,18 @@ validate s (toList -> map int2lit -> lst) = do
   if null lst
     then error "validator got an empty assignment."
     else mapM_ inject lst >> loopOnVector 0
+
+checkUniqueness :: Solver -> Clause -> IO ()
+checkUniqueness Solver{..} c = do
+  n <- get' learnts
+  cvec <- getClauseVector learnts
+  cls <- sort <$> asList c
+  let
+    loop :: Int -> IO ()
+    loop ((< n) -> False) = return ()
+    loop i = do
+      c' <- getNth cvec i
+      cls' <- sort <$> asList c'
+      when (cls' == cls) $ errorWithoutStackTrace "reinsert a same clause"
+      loop (i + 1)
+  loop 0

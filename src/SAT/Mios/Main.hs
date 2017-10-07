@@ -14,7 +14,8 @@ module SAT.Mios.Main
        )
         where
 
-import Control.Monad (unless, void, when)
+import Control.Monad (unless, void, when, (<=<))
+import Data.List
 import Data.Bits
 import Data.Foldable (foldrM)
 import SAT.Mios.Types
@@ -446,7 +447,9 @@ reduceDB s@Solver{..} = do
                       else do setNth cvec j c
                               (setNth bvec j =<< getNth bvec i)
                               loop (i + 1) (j + 1)
-  _ <- sortClauses s learnts -- k is the number of clauses not to be purged
+  sortClauses s learnts -- k is the number of clauses not to be purged
+  -- l <- sort . map sort . take n <$> mapM (asList <=< getNth cvec) [0 .. n -1]
+  -- when (l /= nub l) $ error (show (length l, length (nub l)))
 {- #GLUCOSE3.0
   -- keep more
   t3 <- get' . rank =<< getNth vec (thr -1)
@@ -459,7 +462,7 @@ reduceDB s@Solver{..} = do
   -- let k = div thr 2
 -}
   k <- loop 0 0
-  -- putStrLn $ "reduceDB: purge " ++ show (n - k) ++ " out of " ++ show n
+  putStrLn $ "reduceDB: purge " ++ show (n - k) ++ " out of " ++ show n
   --loop k                               -- CAVEAT: `vec` is a zero-based vector
   reset watches
   shrinkBy learnts (n - k)
@@ -478,7 +481,7 @@ reduceDB s@Solver{..} = do
 -- * 28 bits for clauseVector index
 --
 rankWidth :: Int
-rankWidth = 6
+rankWidth = 3
 activityWidth :: Int
 activityWidth = 28              -- note: the maximum clause activity is 1e20.
 indexWidth :: Int
@@ -493,14 +496,13 @@ indexMax :: Int
 indexMax = 2 ^ indexWidth - 1 -- 2^6 G = 64G
 
 -- | sort clauses (good to bad) by using a 'proxy' @Vec Int64@ that holds weighted index.
-sortClauses :: Solver -> ClauseExtManager -> IO Int
+sortClauses :: Solver -> ClauseExtManager -> IO ()
 sortClauses s cm = do
   n <- get' cm
   -- assert (n < indexMax)
   vec <- getClauseVector cm
-  bvec <- getClauseVector cm
+  bvec <- getKeyVector cm
   keys <- (newVec n 0 :: IO (Vec Int))
-  at <- (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
   let shiftLBD = activityWidth + indexWidth
       scaleAct :: Double -> Int
@@ -508,26 +510,18 @@ sortClauses s cm = do
         | x < 1e-20 = activityMax
         | otherwise = activityMax - floor (activityScale * logBase 10 (x * 1e20) / 40)
       -- returns the number of clauses that should be kept.
-      assignKey :: Int -> Int -> Int -> IO Int
-      assignKey ((< n) -> False) need _ = do
-        -- ci <- get' (claInc s)
-        -- putStrLn $ "reduction! claInc = " ++ show ci ++ ", extra_lim = " ++ show at ++ ", purge = " ++ show bad ++ " out of " ++ show n
-        return $ n -- $ max need (div n 2) -- $ min (div n 2) (n - bad)
-      assignKey i nr nb = do
+      assignKey :: Int -> IO ()
+      assignKey ((< n) -> False) = return ()
+      assignKey i = do
         c <- getNth vec i
         k <- get' c
         if k == 2                  -- Main criteria. Like in MiniSat we keep all binary clauses
           then do setNth keys i $ shiftL 1 shiftLBD + i
-                  assignKey (i + 1) (nr + 1) nb
-          else do l <- locked s c     -- Also locked clauses are must
-                  if l
-                    then do setNth keys i $ shiftL 1 shiftLBD + i      -- locked
-                            assignKey (i + 1) (nr + 1) nb
-                    else do a <- get' (activity c)                     -- Second one... based on LBD
-                            r <- get' (rank c)
-                            let d = {- if a < at then rankMax else -} min rankMax (r + 1) -- rank can be one
-                            setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
-                            assignKey (i + 1) nr nb
+          else do a <- get' (activity c)                     -- Second one... based on LBD
+                  r <- get' (rank c)
+                  let d = min rankMax (r + 1)                -- rank can be one
+                  setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
+        assignKey (i + 1)
 {-
                   a <- get' (activity c)
                   case a <= at of
@@ -542,11 +536,11 @@ sortClauses s cm = do
                                  setNth keys i $ shiftL rankMax shiftLBD + shiftL v indexWidth + i
                                  assignKey (i + 1) nr (nb + 1)
 -}
-  limit <- assignKey 0 0 0
+  assignKey 0
   -- 2: sort keyVector
   let sortOnRange :: Int -> Int -> IO ()
       sortOnRange left right
-        | limit < left = return ()
+        | n < left = return ()
         | left >= right = return ()
         | left + 1 == right = do
             a <- getNth keys left
@@ -571,28 +565,41 @@ sortClauses s cm = do
             sortOnRange left (m - 1)
             sortOnRange (m + 1) right
   sortOnRange 0 (n - 1)
+  --  let to :: Int -> Int -> (Int, Bool, Int, Int, Int)
+  --      to i x = (i, r == 1, r, a, c)
+  --        where
+  --          r = rankMax .&. (shiftR x shiftLBD)
+  --          a = activityMax .&. (shiftR x indexWidth)
+  --          c = indexMax .&. x
+  -- (print . zipWith to [0 ..]) =<< mapM (getNth keys) [0 .. 100]
+  -- (print . filter (\(_, b,_,_,_) -> b) . zipWith to [0 ..]) =<< mapM (getNth keys) [0 .. 100]
+  -- error "finish"
   -- 3: place clauses in 'vec' based on the order stored in 'keys'.
   -- To recylce existing clauses, we must reserve all clauses for now.
   let seek :: Int -> IO ()
-      seek ((< limit) -> False) = return ()
+      seek ((< n) -> False) = return ()
       seek i = do
         bits <- getNth keys i
         when (indexMax < bits) $ do
           c <- getNth vec i
-          setNth keys i i
+          d <- getNth bvec i
+          -- setNth keys i i
           let sweep k = do k' <- (indexMax .&.) <$> getNth keys k
-                           setNth keys k k
+                           setNth keys k (indexMax .&. k)
                            if k' == i
                              then do setNth vec k c
-                                     getNth bvec i >>= setNth bvec k
+                                     setNth bvec k d
                              else do getNth vec k' >>= setNth vec k
                                      getNth bvec k' >>= setNth bvec k
                                      sweep k'
-          sweep i
-        seek $ i + 1
+          sweep i -- (indexMax .&. bits)
+        seek $ i + 1 
+  -- (print . filter ((2 ==) . snd) . zip [0 ..]) =<< mapM get' =<< mapM (getNth vec) [0 .. n - 1]
   seek 0
-  -- ave2 <- averageLBD limit 0 0
-  return limit
+  -- check LBD
+  -- (print . filter ((2 ==) . snd) . zip [0 ..]) =<< mapM get' =<< mapM (getNth vec) [0 .. n - 1]
+  -- print =<< mapM (get' . rank) =<< mapM (getNth vec) [0 .. n - 1]
+  return ()
 
 -- | #M22
 --
