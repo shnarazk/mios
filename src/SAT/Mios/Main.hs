@@ -568,6 +568,7 @@ sortClauses s cm = do
         bits <- getNth keys i
         when (indexMax < bits) $ do
           c <- getNth vec i
+          setNth keys i i
           let sweep k = do k' <- (indexMax .&.) <$> getNth keys k
                            setNth keys k k
                            if k' == i
