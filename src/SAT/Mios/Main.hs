@@ -431,12 +431,22 @@ propagate s@Solver{..} = do
 reduceDB :: Solver -> IO ()
 reduceDB s@Solver{..} = do
   n <- nLearnts s
-  vec <- getClauseVector learnts
-  let
-    loop :: Int -> IO ()
-    loop ((< n) -> False) = return ()
-    loop i = (removeWatch s =<< getNth vec i) >> loop (i + 1)
-  k <- sortClauses s learnts -- k is the number of clauses not to be purged
+  cvec <- getClauseVector learnts
+  bvec <- getKeyVector learnts
+  at <- (/ fromIntegral n) <$> get' claInc -- activity threshold
+  let loop :: Int -> Int -> IO Int
+      loop ((< n) -> False) j = return j
+      loop i j = do c <- getNth cvec i
+                    l <- locked s c
+                    a <- get' (activity c)
+                    k <- get' c
+                    if not l && 2 < k && (a < at || div n 2 < i)
+                      then do removeWatch s c
+                              loop (i + 1) j
+                      else do setNth cvec j c
+                              (setNth bvec j =<< getNth bvec i)
+                              loop (i + 1) (j + 1)
+  _ <- sortClauses s learnts -- k is the number of clauses not to be purged
 {- #GLUCOSE3.0
   -- keep more
   t3 <- get' . rank =<< getNth vec (thr -1)
@@ -448,8 +458,9 @@ reduceDB s@Solver{..} = do
             (_, _)         -> min n (thr + 1000)
   -- let k = div thr 2
 -}
-  -- putStrLn $ "reduceDB: purge " ++ show (n -k) ++ " out of " ++ show n
-  loop k                               -- CAVEAT: `vec` is a zero-based vector
+  k <- loop 0 0
+  -- putStrLn $ "reduceDB: purge " ++ show (n - k) ++ " out of " ++ show n
+  --loop k                               -- CAVEAT: `vec` is a zero-based vector
   reset watches
   shrinkBy learnts (n - k)
 
@@ -501,7 +512,7 @@ sortClauses s cm = do
       assignKey ((< n) -> False) need _ = do
         -- ci <- get' (claInc s)
         -- putStrLn $ "reduction! claInc = " ++ show ci ++ ", extra_lim = " ++ show at ++ ", purge = " ++ show bad ++ " out of " ++ show n
-        return $ max need (div n 2) -- $ min (div n 2) (n - bad)
+        return $ n -- $ max need (div n 2) -- $ min (div n 2) (n - bad)
       assignKey i nr nb = do
         c <- getNth vec i
         k <- get' c
@@ -514,7 +525,7 @@ sortClauses s cm = do
                             assignKey (i + 1) (nr + 1) nb
                     else do a <- get' (activity c)                     -- Second one... based on LBD
                             r <- get' (rank c)
-                            let d = if a < at then rankMax else min rankMax (r + 1) -- rank can be one
+                            let d = {- if a < at then rankMax else -} min rankMax (r + 1) -- rank can be one
                             setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
                             assignKey (i + 1) nr nb
 {-
@@ -573,7 +584,7 @@ sortClauses s cm = do
                            setNth keys k k
                            if k' == i
                              then do setNth vec k c
-                                     setNth bvec k =<< getNth bvec i
+                                     getNth bvec i >>= setNth bvec k
                              else do getNth vec k' >>= setNth vec k
                                      getNth bvec k' >>= setNth bvec k
                                      sweep k'
