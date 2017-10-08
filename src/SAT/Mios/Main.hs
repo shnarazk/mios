@@ -481,11 +481,11 @@ reduceDB s@Solver{..} = do
 -- * 28 bits for clauseVector index
 --
 rankWidth :: Int
-rankWidth = 3
+rankWidth = 4
 activityWidth :: Int
-activityWidth = 28              -- note: the maximum clause activity is 1e20.
+activityWidth = 29              -- note: the maximum clause activity is 1e20.
 indexWidth :: Int
-indexWidth = 28
+indexWidth = 29
 rankMax :: Int
 rankMax = 2 ^ rankWidth - 1
 activityMax :: Int
@@ -508,7 +508,7 @@ sortClauses s cm = do
       scaleAct :: Double -> Int
       scaleAct x
         | x < 1e-20 = activityMax
-        | otherwise = activityMax - floor (activityScale * logBase 10 (x * 1e20) / 40)
+        | otherwise = activityMax * floor (1 - logBase 10 (x * 1e20) / 40)
       -- returns the number of clauses that should be kept.
       assignKey :: Int -> IO ()
       assignKey ((< n) -> False) = return ()
@@ -516,10 +516,10 @@ sortClauses s cm = do
         c <- getNth vec i
         k <- get' c
         if k == 2                  -- Main criteria. Like in MiniSat we keep all binary clauses
-          then do setNth keys i $ shiftL 1 shiftLBD + i
-          else do a <- get' (activity c)                     -- Second one... based on LBD
+          then do setNth keys i $ shiftL 1 indexWidth + i
+          else do a <- get' (activity c)               -- Second one... based on LBD
                   r <- get' (rank c)
-                  let d = min rankMax (r + 1)                -- rank can be one
+                  let d = min rankMax r                -- rank can be one
                   setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
         assignKey (i + 1)
 {-
