@@ -1,4 +1,7 @@
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE
+    BangPatterns
+  , ViewPatterns
+#-}
 {-# LANGUAGE Safe #-}
 
 -- | Minisat-based Implementation and Optimization Study on SAT solver
@@ -223,25 +226,26 @@ injectClausesFromCNF s (CNFDescription nv nc _) bs = do
   let maxLit = int2lit $ negate nv
   buffer <- newVec (maxLit + 1) 0
   polvec <- newVec (maxLit + 1) 0
-  let
-    loop :: Int -> B.ByteString -> IO ()
-    loop ((< nc) -> False) _ = return ()
-    loop i b = loop (i + 1) =<< readClause s buffer polvec b
+  let loop :: Int -> B.ByteString -> IO ()
+      loop ((< nc) -> False) _ = return ()
+      loop !i !b = loop (i + 1) =<< readClause s buffer polvec b
   loop 0 bs
   -- static polarity
-  let
-    asg = assigns s
-    checkPolarity :: Int -> IO ()
-    checkPolarity ((< nv) -> False) = return ()
-    checkPolarity v = do
-      p <- getNth polvec $ var2lit v True
-      n <- getNth polvec $ var2lit v False
-      when (p == LiftedF || n == LiftedF) $ setNth asg v p
-      checkPolarity $ v + 1
+  let asg = assigns s
+      checkPolarity :: Int -> IO ()
+      checkPolarity ((< nv) -> False) = return ()
+      checkPolarity v = do
+        p <- getNth polvec $ var2lit v True
+        if p == LiftedF
+          then setNth asg v p
+          else do n <- getNth polvec $ var2lit v False
+                  when (n == LiftedF) $ setNth asg v p
+        checkPolarity $ v + 1
   checkPolarity 1
 
+{-# INLINE skipWhitespace #-}
 skipWhitespace :: B.ByteString -> B.ByteString
-skipWhitespace s
+skipWhitespace !s
   | elem c " \t\n" = skipWhitespace $ B.tail s
   | otherwise = s
     where
@@ -249,19 +253,21 @@ skipWhitespace s
 
 -- | skip comment lines
 -- __Pre-condition:__ we are on the benngining of a line
+{-# INLINE skipComments #-}
 skipComments :: B.ByteString -> B.ByteString
-skipComments s
+skipComments !s
   | c == 'c' = skipComments . B.tail . B.dropWhile (/= '\n') $ s
   | otherwise = s
   where
     c = B.head s
 
+{-# INLINABLE parseInt #-}
 parseInt :: B.ByteString -> (Int, B.ByteString)
-parseInt st = do
+parseInt !st = do
   let
-    zero = ord '0'
+    !zero = ord '0'
     loop :: B.ByteString -> Int -> (Int, B.ByteString)
-    loop s val = case B.head s of
+    loop !s !val = case B.head s of
       c | '0' <= c && c <= '9'  -> loop (B.tail s) (val * 10 + ord c - zero)
       _ -> (val, B.tail s)
   case B.head st of
@@ -270,24 +276,21 @@ parseInt st = do
     c | '0' <= c && c <= '9'  -> loop st 0
     _ -> error "PARSE ERROR! Unexpected char"
 
+{-# INLINABLE readClause #-}
 readClause :: Solver -> Stack -> Vec Int -> B.ByteString -> IO B.ByteString
 readClause s buffer bvec stream = do
   let
     loop :: Int -> B.ByteString -> IO B.ByteString
-    loop i b = do
-      let (k, b') = parseInt $ skipWhitespace b
-      if k == 0
-        then do
-            -- putStrLn . ("clause: " ++) . show . map lit2int =<< asList stack
-            setNth buffer 0 $ i - 1
-            sortStack buffer
-            void $ addClause s buffer
-            return b'
-        else do
-            let l = int2lit k
-            setNth buffer i l
-            setNth bvec l LiftedT
-            loop (i + 1) b'
+    loop !i !b = do
+      case parseInt $ skipWhitespace b of
+        (0, b') -> do setNth buffer 0 $ i - 1
+                      sortStack buffer
+                      void $ addClause s buffer
+                      return b'
+        (k, b') -> case int2lit k of
+                     l -> do setNth buffer i l
+                             setNth bvec l LiftedT
+                             loop (i + 1) b'
   loop 1 . skipComments . skipWhitespace $ stream
 
 showPath :: FilePath -> String

@@ -1,5 +1,6 @@
 {-# LANGUAGE
     BangPatterns
+  , MultiWayIf
   , RecordWildCards
   , ScopedTypeVariables
   , ViewPatterns
@@ -14,8 +15,8 @@ module SAT.Mios.Main
        )
         where
 
-import Control.Monad (unless, void, when, (<=<))
-import Data.List
+import Control.Monad (unless, void, when)
+-- import Data.List
 import Data.Bits
 import Data.Foldable (foldrM)
 import SAT.Mios.Types
@@ -434,6 +435,7 @@ reduceDB s@Solver{..} = do
   n <- nLearnts s
   cvec <- getClauseVector learnts
   bvec <- getKeyVector learnts
+{-
   at <- (/ fromIntegral n) <$> get' claInc -- activity threshold
   let loop :: Int -> Int -> IO Int
       loop ((< n) -> False) j = return j
@@ -447,6 +449,12 @@ reduceDB s@Solver{..} = do
                       else do setNth cvec j c
                               (setNth bvec j =<< getNth bvec i)
                               loop (i + 1) (j + 1)
+-}
+  let loop :: Int -> IO ()
+      loop ((< n) -> False) = return ()
+      loop i = do
+        removeWatch s =<< getNth cvec i
+        loop $ i + 1
   sortClauses s learnts -- k is the number of clauses not to be purged
   -- l <- sort . map sort . take n <$> mapM (asList <=< getNth cvec) [0 .. n -1]
   -- when (l /= nub l) $ error (show (length l, length (nub l)))
@@ -461,7 +469,9 @@ reduceDB s@Solver{..} = do
             (_, _)         -> min n (thr + 1000)
   -- let k = div thr 2
 -}
-  k <- loop 0 0
+  -- k <- loop 0 0
+  let k = div n 2
+  loop k
   putStrLn $ "reduceDB: purge " ++ show (n - k) ++ " out of " ++ show n
   --loop k                               -- CAVEAT: `vec` is a zero-based vector
   reset watches
@@ -481,11 +491,11 @@ reduceDB s@Solver{..} = do
 -- * 28 bits for clauseVector index
 --
 rankWidth :: Int
-rankWidth = 4
+rankWidth = 6
 activityWidth :: Int
-activityWidth = 29              -- note: the maximum clause activity is 1e20.
+activityWidth = 28              -- note: the maximum clause activity is 1e20.
 indexWidth :: Int
-indexWidth = 29
+indexWidth = 28
 rankMax :: Int
 rankMax = 2 ^ rankWidth - 1
 activityMax :: Int
@@ -503,6 +513,7 @@ sortClauses s cm = do
   vec <- getClauseVector cm
   bvec <- getKeyVector cm
   keys <- (newVec n 0 :: IO (Vec Int))
+  at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
   let shiftLBD = activityWidth + indexWidth
       scaleAct :: Double -> Int
@@ -519,7 +530,10 @@ sortClauses s cm = do
           then do setNth keys i $ shiftL 1 indexWidth + i
           else do a <- get' (activity c)               -- Second one... based on LBD
                   r <- get' (rank c)
-                  let d = min rankMax r                -- rank can be one
+                  l <- locked s c
+                  let d =if | l -> 0
+                            | a < at -> rankMax
+                            | otherwise ->  min rankMax r                -- rank can be one
                   setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
         assignKey (i + 1)
 {-
@@ -537,10 +551,11 @@ sortClauses s cm = do
                                  assignKey (i + 1) nr (nb + 1)
 -}
   assignKey 0
+  let limit = div n 2
   -- 2: sort keyVector
   let sortOnRange :: Int -> Int -> IO ()
       sortOnRange left right
-        | n < left = return ()
+        | limit < left = return ()
         | left >= right = return ()
         | left + 1 == right = do
             a <- getNth keys left
@@ -791,7 +806,7 @@ solve s@Solver{..} assumps = do
     then return False
     else do set' rootLevel =<< decisionLevel s
             -- SOLVE:
-            let useLuby = True
+            let useLuby = False -- True
                 -- nv = logBase 2 $ fromIntegral nVars
                 steps = 100 {- 10 * nv -}  :: Double
                 nk = 2 {- + 0.1 * nv -} :: Double
