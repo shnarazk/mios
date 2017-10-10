@@ -48,7 +48,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "mios-1.4.1 #36 #39 #40 #43 #44 #42SLA-ordering"
+versionId = "mios-1.4.1 #36 #39 #40 #43 #44 #42SLA-ordering #45"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ _ = return 0
