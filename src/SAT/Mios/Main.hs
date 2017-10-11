@@ -510,15 +510,17 @@ indexMax = 2 ^ indexWidth - 1 -- 2^6 G = 64G
 
 -- | sort clauses (good to bad) by using a 'proxy' @Vec Int64@ that holds weighted index.
 sortClauses :: Solver -> ClauseExtManager -> IO ()
-sortClauses Solver{..} cm = do
+sortClauses s cm = do
   n <- get' cm
   -- assert (n < indexMax)
   vec <- getClauseVector cm
   bvec <- getKeyVector cm
   keys <- (newVec n 0 :: IO (Vec Int))
-  at <- (0.1 *) . (/ fromIntegral n) <$> get' claInc -- activity threshold
+  at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
   let !shiftLBD = activityWidth + indexWidth
+      !rs = reason s
+      !tr = trail s
       scaleAct :: Double -> Int
       scaleAct x
         | x < 1e-20 = activityMax
@@ -527,10 +529,8 @@ sortClauses Solver{..} cm = do
       flipLocked :: Int -> IO ()
       flipLocked ((0 <) -> False) = return ()
       flipLocked !i = do
-        c <- getNth reason i
-        when (c /= NullClause) $ do
-          x <- get' (rank c)
-          when (0 < x) $ set' (rank c) (negate x)
+        c <- getNth rs . lit2var =<< getNth tr i
+        when (c /= NullClause) $ modify' (rank c) negate
         flipLocked $ i - 1
       -- returns the number of clauses that should be kept.
       assignKey :: Int -> IO ()
@@ -543,6 +543,7 @@ sortClauses Solver{..} cm = do
           else do a <- get' (activity c)               -- Second one... based on LBD
                   r <- get' (rank c)
 --                  l <- locked s c
+--                  when (l && 0 <= r) $ error (show (l, r))
                   let d =if | r < 0  -> 0
                             | a < at -> rankMax
                             | otherwise ->  min rankMax r                -- rank can be one
@@ -563,7 +564,7 @@ sortClauses Solver{..} cm = do
                                  setNth keys i $ shiftL rankMax shiftLBD + shiftL v indexWidth + i
                                  assignKey (i + 1) nr (nb + 1)
 -}
-  flipLocked nVars -- =<< get' (trail s)
+  flipLocked =<< get' (trail s)
   assignKey 0
   let limit = div n 2
   -- 2: sort keyVector
