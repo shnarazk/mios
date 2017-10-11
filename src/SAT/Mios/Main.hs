@@ -82,6 +82,7 @@ newLearntClause s@Solver{..} ps = do
        unsafeEnqueue s l1 c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
        setLBD s c
+       -- assert (0 < rank c)
        -- set' (protected c) True
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
@@ -138,9 +139,9 @@ analyze s@Solver{..} confl = do
   let
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
-      when (learnt c) $ claBumpActivity s c
-      -- update LBD like #Glucose4.0
       d <- get' (rank c)
+      when (0 /= d) $ claBumpActivity s c
+      -- update LBD like #Glucose4.0
       when (2 < d) $ do
         nblevels <- lbdOf s (lits c)
         when (nblevels + 1 < d) $ do -- improve the LBD
@@ -165,7 +166,9 @@ analyze s@Solver{..} confl = do
                   then do
                       -- glucose heuristics
                       r <- getNth reason v
-                      when (r /= NullClause && learnt r) $ pushTo an'lastDL q
+                      when (r /= NullClause) $ do
+                        ra <- get' (rank r)
+                        when (0 /= ra) $ pushTo an'lastDL q
                       -- end of glucose heuristics
                       loopOnLiterals (j + 1) b (pc + 1)
                   else pushTo litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc

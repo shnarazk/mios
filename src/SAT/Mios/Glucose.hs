@@ -24,6 +24,7 @@ import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.Solver
 
+-- | returns a POSIVITE value
 {-# INLINABLE lbdOf #-}
 lbdOf :: Solver -> Stack -> IO Int
 lbdOf Solver{..} vec = do
