@@ -518,20 +518,11 @@ sortClauses s cm = do
   keys <- (newVec n 0 :: IO (Vec Int))
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
-  let !shiftLBD = activityWidth + indexWidth
-      !rs = reason s
-      !tr = trail s
+  let shiftLBD = activityWidth + indexWidth
       scaleAct :: Double -> Int
       scaleAct x
         | x < 1e-20 = activityMax
         | otherwise = activityMax * floor (1 - logBase 10 (x * 1e20) / 40)
-      -- mark locked clauses
-      flipLocked :: Int -> IO ()
-      flipLocked ((0 <) -> False) = return ()
-      flipLocked !i = do
-        c <- getNth rs . lit2var =<< getNth tr i
-        when (c /= NullClause) $ modify' (rank c) negate
-        flipLocked $ i - 1
       -- returns the number of clauses that should be kept.
       assignKey :: Int -> IO ()
       assignKey ((< n) -> False) = return ()
@@ -542,12 +533,10 @@ sortClauses s cm = do
           then do setNth keys i $ shiftL 1 indexWidth + i
           else do a <- get' (activity c)               -- Second one... based on LBD
                   r <- get' (rank c)
---                  l <- locked s c
---                  when (l && 0 <= r) $ error (show (l, r))
-                  let d =if | r < 0  -> 0
+                  l <- locked s c
+                  let d =if | l -> 0
                             | a < at -> rankMax
                             | otherwise ->  min rankMax r                -- rank can be one
-                  when (r < 0) $ modify' (rank c) negate
                   setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
         assignKey (i + 1)
 {-
@@ -564,7 +553,6 @@ sortClauses s cm = do
                                  setNth keys i $ shiftL rankMax shiftLBD + shiftL v indexWidth + i
                                  assignKey (i + 1) nr (nb + 1)
 -}
-  flipLocked =<< get' (trail s)
   assignKey 0
   let limit = div n 2
   -- 2: sort keyVector
