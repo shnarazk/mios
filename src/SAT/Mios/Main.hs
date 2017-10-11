@@ -547,7 +547,7 @@ sortClauses s cm = do
                   let d =if | r < 0  -> 0
                             | a < at -> rankMax
                             | otherwise ->  min rankMax r                -- rank can be one
-                  when (r < 0) $ modify' (rank c) negate
+                  when (r < 0) $ set' (rank c) (negate r)
                   setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
         assignKey (i + 1)
 {-
