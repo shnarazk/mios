@@ -391,18 +391,22 @@ propagate s@Solver{..} = do
                       forClause (i + 1) (j + 1)
               else do                               -- Make sure the false literal is data[1]:
                   (c :: Clause) <- getNth cvec i
-                  let lstack = lits c
-                  ((falseLit ==) <$> getNth lstack 1) >>= (`when` swapBetween lstack 1 2)
-                  (first :: Lit) <- getNth lstack 1 -- If 0th watch is true, already satisfied
-                  satisfied <- if first /= blocker then valueLit s first else return LiftedF
-                  if satisfied == LiftedT
+                  let !lstack = lits c
+                  tmp <- getNth lstack 1
+                  first <- if falseLit == tmp
+                           then do l2 <- getNth lstack 2
+                                   setNth lstack 2 tmp
+                                   setNth lstack 1 l2
+                                   return l2
+                           else return tmp
+                  fv <- valueLit s first
+                  if first /= blocker && fv == LiftedT
                     then setNth cvec j c >> setNth bvec j first >> forClause (i + 1) (j + 1)
                     else do cs <- get' c           -- Look for new watch:
                             let newWatch :: Int -> IO LiftedBool
                                 newWatch ((<= cs) -> False) = do -- Did not find watch
                                   setNth cvec j c
                                   setNth bvec j first
-                                  fv <- valueLit s first
                                   if fv == LiftedF
                                     then do ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
                                             set' qHead =<< get' trail
@@ -422,7 +426,7 @@ propagate s@Solver{..} = do
                             case ret of
                               LiftedT -> forClause (i + 1) j               -- find another watch
                               LBottom -> forClause (i + 1) (j + 1)         -- unit clause
-                              LiftedF -> shrinkBy ws (i - j) >> return c   -- conflict
+                              _       -> shrinkBy ws (i - j) >> return c   -- conflict
       c <- forClause 0 0
       while c =<< ((<) <$> get' qHead <*> get' trail)
   while NullClause =<< ((<) <$> get' qHead <*> get' trail)
