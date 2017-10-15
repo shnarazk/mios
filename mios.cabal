@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                   mios
-version:                1.4.1
+version:                1.4.2
 synopsis:               A Minisat-based SAT solver in Haskell
 description:
 
@@ -90,7 +90,7 @@ library
   else
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields
 
-executable mios-sla
+executable mios-1.4.2
   hs-source-dirs:	src app
   main-is:              mios.hs
   if flag(prof)
@@ -117,7 +117,7 @@ executable mios-sla
                         SAT.Mios.Vec
                         SAT.Mios
 
-executable mios-sla-prof
+executable mios-1.4.2-prof
   hs-source-dirs:	src app
   main-is:              mios.hs
   if flag(prof)
