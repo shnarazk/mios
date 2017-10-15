@@ -196,6 +196,7 @@ markClause ClauseExtManager{..} c = do
   let
     seekIndex :: Int -> IO ()
     seekIndex k = do
+      -- assert (k < n)
       c' <- MV.unsafeRead v k
       if c' == c then MV.unsafeWrite v k C.NullClause else seekIndex $ k + 1
   unless (n == 0) $ do

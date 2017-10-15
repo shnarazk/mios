@@ -1,6 +1,7 @@
 {-# LANGUAGE
     BangPatterns
   , MultiParamTypeClasses
+  , PatternSynonyms
   #-}
 {-# LANGUAGE Safe #-}
 
@@ -23,11 +24,10 @@ module SAT.Mios.Types
        , var2lit
        , negateLit
          -- * Assignment on the lifted Bool domain
---       , LiftedBool (..)
---       , lbool
-       , lFalse
-       , lTrue
-       , lBottom
+       , LiftedBool
+       , lit2lbool
+       , Int (LiftedF, LiftedT, LBottom, Conflict)
+       -- a heap
        , VarOrder (..)
          -- * CNF
        , CNFDescription (..)
@@ -175,40 +175,37 @@ lit2int l = case divMod l 2 of
   (i, 0) -> i
   (i, _) -> - i
 
-{-
 -- | Lifted Boolean domain (p.7) that extends 'Bool' with "⊥" means /undefined/
 -- design note: _|_ should be null = 0; True literals are coded to even numbers. So it should be 2.
-data LiftedBool = Bottom | LFalse | LTrue
-  deriving (Bounded, Eq, Ord, Read, Show)
+type LiftedBool = Int
 
-instance Enum LiftedBool where
-  {-# SPECIALIZE INLINE toEnum :: Int -> LiftedBool #-}
-  toEnum        1 = LTrue
-  toEnum     (-1) = LFalse
-  toEnum        _ = Bottom
-  {-# SPECIALIZE INLINE fromEnum :: LiftedBool -> Int #-}
-  fromEnum Bottom = 0
-  fromEnum LFalse = 1
-  fromEnum LTrue  = 2
+-- | /FALSE/ on the Lifted Bool domain
+pattern LiftedF :: Int
+pattern LiftedF = -1
 
+-- | /TRUE/ on the Lifted Bool domain
+pattern LiftedT :: Int
+pattern LiftedT = 1
+
+-- | /UNDEFINED/ on the Lifted Bool domain
+pattern LBottom :: Int
+pattern LBottom = 0
+
+-- | /CONFLICT/ on the Lifted Bool domain
+pattern Conflict :: Int
+pattern Conflict = 2
+
+{-# INLINE lit2lbool #-}
+lit2lbool :: Lit -> LiftedBool
+lit2lbool l = if positiveLit l then LiftedT else LiftedF
+
+{-
 -- | converts 'Bool' into 'LBool'
 {-# INLINE lbool #-}
 lbool :: Bool -> LiftedBool
 lbool True = LTrue
 lbool False = LFalse
 -}
-
--- | /FALSE/ on the Lifted Bool domain
-lFalse:: Int
-lFalse = -1
-
--- | /TRUE/ on the Lifted Bool domain
-lTrue :: Int
-lTrue = 1
-
--- | /UNDEFINED/ on the Lifted Bool domain
-lBottom :: Int
-lBottom = 0
 
 -- | Assisting ADT for the dynamic variable ordering of the solver.
 -- The constructor takes references to the assignment vector and the activity
@@ -253,7 +250,7 @@ data CNFDescription = CNFDescription
 data MiosConfiguration = MiosConfiguration
                          {
                            variableDecayRate  :: !Double  -- ^ decay rate for variable activity
---                         , clauseDecayRate    :: !Double  -- ^ decay rate for clause activity
+                         , clauseDecayRate    :: !Double  -- ^ decay rate for clause activity
                          }
   deriving (Eq, Ord, Read, Show)
 
@@ -265,7 +262,7 @@ data MiosConfiguration = MiosConfiguration
 -- * Mios-1.2     uses @(0.95, 0.999, 0)@.
 --
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 {- 0.999 -} {- 0 -}
+defaultConfiguration = MiosConfiguration 0.95 0.999 {- 0 -}
 
 -------------------------------------------------------------------------------- Statistics
 
@@ -273,6 +270,7 @@ defaultConfiguration = MiosConfiguration 0.95 {- 0.999 -} {- 0 -}
 data StatIndex =
     NumOfBackjump               -- ^ the number of backjump
   | NumOfRestart                -- ^ the number of restart
+  | NumOfPropagation            -- ^ the number of propagation
   | EndOfStatIndex              -- ^ Don't use this dummy.
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 

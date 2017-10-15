@@ -29,8 +29,8 @@ module SAT.Mios.Solver
        , assume
        , cancelUntil
          -- * Activities
---       , claBumpActivity
---       , claDecayActivity
+       , claBumpActivity
+       , claDecayActivity
 --       , claRescaleActivityAfterRestart
 --       , claActivityThreshold
        , varBumpActivity
@@ -74,12 +74,17 @@ data Solver = Solver
 {-            Configuration -}
               , config     :: !MiosConfiguration -- ^ search paramerters
               , nVars      :: !Int               -- ^ number of variables
+              , claInc     :: !Double'           -- ^ Clause activity increment amount to bump with.
 {-
-              -- , claInc     :: !Double'           -- ^ Clause activity increment amount to bump with.
+
               -- , varDecay   :: !Double'           -- ^ used to set 'varInc'
 -}
               , varInc     :: !Double'           -- ^ Variable activity increment amount to bump with.
               , rootLevel  :: !Int'              -- ^ Separates incremental and search assumptions.
+{-            Learnt DB Size Adjustment -}
+              , learntSAdj :: Double'            -- ^ used in 'SAT.Mios.Main.search'
+              , learntSCnt :: Int'               -- ^ used in 'SAT.Mios.Main.search'
+              , maxLearnts :: Double'            -- ^ used in 'SAT.Mios.Main.search'
 {-            Working Memory -}
               , ok         :: !Bool'             -- ^ /return value/ holder
               , an'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.analyze'
@@ -96,18 +101,18 @@ data Solver = Solver
 
 -- | returns an everything-is-initialized solver from the arguments.
 newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
-newSolver conf (CNFDescription nv nc _) = do
+newSolver conf (CNFDescription nv dummy_nc _) = do
   Solver
     -- Public Interface
     <$> newVec nv 0                        -- model
     <*> newStack nv                        -- coflict
     -- Clause Database
-    <*> newManager nc                      -- clauses
-    <*> newManager nc                      -- learnts
+    <*> newManager dummy_nc                -- clauses
+    <*> newManager dummy_nc                -- learnts
     <*> newWatcherList nv 2                -- watches
     -- Assignment Management
-    <*> newVec nv lBottom                  -- assigns
-    <*> newVec nv lBottom                  -- phases
+    <*> newVec nv LBottom                  -- assigns
+    <*> newVec nv LBottom                  -- phases
     <*> newStack nv                        -- trail
     <*> newStack nv                        -- trailLim
     <*> new' 0                             -- qHead
@@ -119,10 +124,14 @@ newSolver conf (CNFDescription nv nc _) = do
     -- Configuration
     <*> return conf                        -- config
     <*> return nv                          -- nVars
---  <*> new' 1.0                           -- claInc
+    <*> new' 1.0                           -- claInc
 --  <*> new' (variableDecayRate conf)      -- varDecay
     <*> new' 1.0                           -- varInc
     <*> new' 0                             -- rootLevel
+    -- Learnt DB Size Adjustment
+    <*> new' 100                           -- learntSAdj
+    <*> new' 100                           -- learntSCnt
+    <*> new' 100                           -- maxLearnts
     -- Working Memory
     <*> new' True                          -- ok
     <*> newVec nv 0                        -- an'seen
@@ -296,7 +305,7 @@ clauseNew s@Solver{..} ps isLearnt = do
            varBumpActivity s v' -- this is a just good chance to bump activities of literals in this clause
            a <- getNth assigns v'
            b <- getNth level v'
-           if (a /= lBottom) && (val < b)
+           if (a /= LBottom) && (val < b)
              then findMax (i + 1) i b
              else findMax (i + 1) j val
        -- Let @max_i@ be the index of the literal with highest decision level
@@ -306,7 +315,7 @@ clauseNew s@Solver{..} ps isLearnt = do
        -- x <- asList c
        -- unless (length x == length (nub x)) $ error "new clause contains a element doubly"
        -- Bumping:
-       -- claBumpActivity s c -- newly learnt clauses should be considered active
+       claBumpActivity s c -- newly learnt clauses should be considered active
      -- Add clause to watcher lists:
      l1 <- negateLit <$> getNth lstack 1
      pushClauseWithKey (getNthWatcher watches l1) c 0
@@ -329,10 +338,10 @@ enqueue s@Solver{..} p from = do
     k <- (12 +) <$> decisionLevel s
     when (k < l) $ set' (lbd from) k
 -}
-  let signumP = if positiveLit p then lTrue else lFalse
+  let signumP = lit2lbool p
   let v = lit2var p
   val <- valueVar s v
-  if val /= lBottom
+  if val /= LBottom
     then do -- Existing consistent assignment -- don't enqueue
         return $ val == signumP
     else do
@@ -368,7 +377,7 @@ cancelUntil s@Solver{..} lvl = do
       loopOnTrail c = do
         x <- lit2var <$> getNth trail c
         setNth phases x =<< getNth assigns x
-        setNth assigns x lBottom
+        setNth assigns x LBottom
         -- #reason to set reason Null
         -- if we don't clear @reason[x] :: Clause@ here, @reason[x]@ remains as locked.
         -- This means we can't reduce it from clause DB and affects the performance.
@@ -395,7 +404,7 @@ instance VarOrder Solver where
     -- Version 0.4:: push watches =<< newVec      -- push'
     -- push undos =<< newVec        -- push'
     -- push reason NullClause       -- push'
-    -- push assigns lBottom
+    -- push assigns LBottom
     -- push level (-1)
     -- push activities (0.0 :: Double)
     -- newVar order
@@ -419,7 +428,7 @@ instance VarOrder Solver where
           else do
               v <- getHeapRoot s
               x <- getNth asg v
-              if x == lBottom then return v else loop
+              if x == LBottom then return v else loop
     loop
 
 -------------------------------------------------------------------------------- Activities
@@ -452,7 +461,6 @@ varRescaleActivity Solver{..} = do
   loop 1
   modify' varInc (/ varActivityThreshold)
 
-{-
 -- | value for rescaling clause activity.
 claActivityThreshold :: Double
 claActivityThreshold = 1e20
@@ -460,19 +468,15 @@ claActivityThreshold = 1e20
 -- | __Fig. 14 (p.19)__
 {-# INLINE claBumpActivity #-}
 claBumpActivity :: Solver -> Clause -> IO ()
-claBumpActivity s Clause{..} = do
-  dl <- decisionLevel s
-  a <- (fromIntegral dl +) <$> get' activity
+claBumpActivity s@Solver{..} Clause{..} = do
+  a <- (+) <$> get' activity <*> get' claInc
   set' activity a
-  -- set' protected True
   when (claActivityThreshold <= a) $ claRescaleActivity s
 
-{-
 -- | __Fig. 14 (p.19)__
 {-# INLINE claDecayActivity #-}
 claDecayActivity :: Solver -> IO ()
-claDecayActivity Solver{..} = modifyDouble claInc (/ clauseDecayRate config)
--}
+claDecayActivity Solver{..} = modify' claInc (/ clauseDecayRate config)
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE claRescaleActivity #-}
@@ -488,7 +492,7 @@ claRescaleActivity Solver{..} = do
       modify' (activity c) (/ claActivityThreshold)
       loopOnVector $ i + 1
   loopOnVector 0
-  -- modifyDouble claInc (/ claActivityThreshold)
+  modify' claInc (/ claActivityThreshold)
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE claRescaleActivityAfterRestart #-}
@@ -505,10 +509,9 @@ claRescaleActivityAfterRestart Solver{..} = do
       if d < 9
         then modify' (activity c) sqrt
         else set' (activity c) 0
-      set' (protected c) False
+      -- set' (protected c) False
       loopOnVector $ i + 1
   loopOnVector 0
--}
 
 -------------------------------------------------------------------------------- VarHeap
 

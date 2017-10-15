@@ -24,6 +24,7 @@ import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.Solver
 
+-- | returns a POSIVITE value
 {-# INLINABLE lbdOf #-}
 lbdOf :: Solver -> Stack -> IO Int
 lbdOf Solver{..} vec = do
@@ -31,10 +32,10 @@ lbdOf Solver{..} vec = do
   set' lbd'key k                -- store the last used value
   nv <- getNth vec 0
   let loop :: Int -> Int -> IO Int
-      loop ((<= nv) -> False) n = return n
+      loop ((<= nv) -> False) n = return $ max 1 n
       loop i n = do l <- getNth level . lit2var =<< getNth vec i
                     x <- getNth lbd'seen l
-                    if x /= k
+                    if x /= k && l /= 0
                       then setNth lbd'seen l k >> loop (i + 1) (n + 1)
                       else loop (i + 1) n
   loop 1 0
