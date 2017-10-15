@@ -813,7 +813,7 @@ solve s@Solver{..} assumps = do
     then return False
     else do set' rootLevel =<< decisionLevel s
             -- SOLVE:
-            let useLuby = False -- True
+            let useLuby = False
                 -- nv = logBase 2 $ fromIntegral nVars
                 steps = 100 {- 10 * nv -}  :: Double
                 nk = 2 {- + 0.1 * nv -} :: Double
