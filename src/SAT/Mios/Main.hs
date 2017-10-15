@@ -82,6 +82,7 @@ newLearntClause s@Solver{..} ps = do
        unsafeEnqueue s l1 c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
        setLBD s c
+       -- assert (0 < rank c)
        -- set' (protected c) True
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
@@ -138,9 +139,9 @@ analyze s@Solver{..} confl = do
   let
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
-      when (learnt c) $ claBumpActivity s c
-      -- update LBD like #Glucose4.0
       d <- get' (rank c)
+      when (0 /= d) $ claBumpActivity s c
+      -- update LBD like #Glucose4.0
       when (2 < d) $ do
         nblevels <- lbdOf s (lits c)
         when (nblevels + 1 < d) $ do -- improve the LBD
@@ -165,7 +166,9 @@ analyze s@Solver{..} confl = do
                   then do
                       -- glucose heuristics
                       r <- getNth reason v
-                      when (r /= NullClause && learnt r) $ pushTo an'lastDL q
+                      when (r /= NullClause) $ do
+                        ra <- get' (rank r)
+                        when (0 /= ra) $ pushTo an'lastDL q
                       -- end of glucose heuristics
                       loopOnLiterals (j + 1) b (pc + 1)
                   else pushTo litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
@@ -388,18 +391,22 @@ propagate s@Solver{..} = do
                       forClause (i + 1) (j + 1)
               else do                               -- Make sure the false literal is data[1]:
                   (c :: Clause) <- getNth cvec i
-                  let lstack = lits c
-                  ((falseLit ==) <$> getNth lstack 1) >>= (`when` swapBetween lstack 1 2)
-                  (first :: Lit) <- getNth lstack 1 -- If 0th watch is true, already satisfied
-                  satisfied <- if first /= blocker then valueLit s first else return LiftedF
-                  if satisfied == LiftedT
+                  let !lstack = lits c
+                  tmp <- getNth lstack 1
+                  first <- if falseLit == tmp
+                           then do l2 <- getNth lstack 2
+                                   setNth lstack 2 tmp
+                                   setNth lstack 1 l2
+                                   return l2
+                           else return tmp
+                  fv <- valueLit s first
+                  if first /= blocker && fv == LiftedT
                     then setNth cvec j c >> setNth bvec j first >> forClause (i + 1) (j + 1)
                     else do cs <- get' c           -- Look for new watch:
                             let newWatch :: Int -> IO LiftedBool
                                 newWatch ((<= cs) -> False) = do -- Did not find watch
                                   setNth cvec j c
                                   setNth bvec j first
-                                  fv <- valueLit s first
                                   if fv == LiftedF
                                     then do ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
                                             set' qHead =<< get' trail
@@ -419,7 +426,7 @@ propagate s@Solver{..} = do
                             case ret of
                               LiftedT -> forClause (i + 1) j               -- find another watch
                               LBottom -> forClause (i + 1) (j + 1)         -- unit clause
-                              LiftedF -> shrinkBy ws (i - j) >> return c   -- conflict
+                              _       -> shrinkBy ws (i - j) >> return c   -- conflict
       c <- forClause 0 0
       while c =<< ((<) <$> get' qHead <*> get' trail)
   while NullClause =<< ((<) <$> get' qHead <*> get' trail)
@@ -806,7 +813,7 @@ solve s@Solver{..} assumps = do
     then return False
     else do set' rootLevel =<< decisionLevel s
             -- SOLVE:
-            let useLuby = False -- True
+            let useLuby = False
                 -- nv = logBase 2 $ fromIntegral nVars
                 steps = 100 {- 10 * nv -}  :: Double
                 nk = 2 {- + 0.1 * nv -} :: Double

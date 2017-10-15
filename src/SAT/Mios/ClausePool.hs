@@ -57,13 +57,15 @@ makeClauseFromStack pool v = do
                 loop i = (setNth lstack i =<< getNth v i) >> loop (i + 1)
             loop 0
             -- the caller (newLearntClause) should set these slots
+            -- * rank
+            -- * protected
             set' (activity c) 0.0
-            -- set' (protected c) False
             return c
 
 -- | Note: only not-too-large and learnt clauses are recycled.
 {-# INLINE putBackToPool #-}
 putBackToPool :: ClausePool -> Clause -> IO ()
-putBackToPool pool c =
-  when (learnt c) $ do let n = realLengthOfStack (lits c) - 3
-                       when (n <= storeLimit) $ pushTo (getManager pool n) c
+putBackToPool pool c = do
+  l <- get' (rank c)
+  when (0 /= l) $ do let n = realLengthOfStack (lits c) - 3
+                     when (n <= storeLimit) $ pushTo (getManager pool n) c

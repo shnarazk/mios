@@ -32,8 +32,7 @@ import SAT.Mios.Types
 -- This matches both of @Clause@ and @GClause@ in MiniSat.
 data Clause = Clause
               {
-                learnt     :: !Bool     -- ^ whether this is a learnt clause
-              , rank       :: !Int'     -- ^ goodness like LBD; computed in 'Ranking'
+                rank       :: !Int'     -- ^ goodness like LBD; computed in 'Ranking'
               , activity   :: !Double'  -- ^ activity of this clause
 --              , protected  :: !Bool'    -- ^ protected from reduce
               , lits       :: !Stack    -- ^ which this clause consists of
@@ -112,7 +111,7 @@ newClauseFromStack l vec = do
     loop ((<= n) -> False) = return ()
     loop i = (setNth v i =<< getNth vec i) >> loop (i + 1)
   loop 0
-  Clause l <$> new' 0 <*> new' 0.0 {- <*> new' False -} <*> return v
+  Clause <$> new' (if l then 1 else 0) <*> new' 0.0 {- <*> new' False -} <*> return v
 
 -------------------------------------------------------------------------------- Clause Vector
 
