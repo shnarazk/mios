@@ -16,7 +16,6 @@ module SAT.Mios.Main
         where
 
 import Control.Monad (unless, void, when)
--- import Data.List
 import Data.Bits
 import Data.Foldable (foldrM)
 import SAT.Mios.Types
@@ -283,7 +282,7 @@ analyzeRemovable Solver{..} p minLevel = do
                             pushTo an'toClear p'  -- analyze_toclear.push(p);
                             loopOnLit $ i + 1
                         else do
-                            -- loopOnLit (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
+                            -- for (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
                             top' <- get' an'toClear
                             let clearAll :: Int -> IO ()
                                 clearAll ((<= top') -> False) = return ()
@@ -323,30 +322,29 @@ analyzeFinal Solver{..} confl skipFirst = do
     tls <- get' trailLim
     trs <- get' trail
     tlz <- getNth trailLim 1
-    let
-      loopOnTrail :: Int -> IO ()
-      loopOnTrail ((tlz <=) -> False) = return ()
-      loopOnTrail i = do
-        (l :: Lit) <- getNth trail (i + 1)
-        let (x :: Var) = lit2var l
-        saw <- getNth an'seen x
-        when (saw == 1) $ do
-          (r :: Clause) <- getNth reason x
-          if r == NullClause
-            then pushTo conflicts (negateLit l)
-            else do
-                k <- get' r
-                let lstack' = lits r
-                    loopOnLits :: Int -> IO ()
-                    loopOnLits ((<= k) -> False) = return ()
-                    loopOnLits j = do
-                      (v :: Var) <- lit2var <$> getNth lstack' j
-                      lv <- getNth level v
-                      when (0 < lv) $ setNth an'seen v 1
-                      loopOnLits $ i + 1
-                loopOnLits 2
-        setNth an'seen x 0
-        loopOnTrail $ i - 1
+    let loopOnTrail :: Int -> IO ()
+        loopOnTrail ((tlz <=) -> False) = return ()
+        loopOnTrail i = do
+          (l :: Lit) <- getNth trail (i + 1)
+          let (x :: Var) = lit2var l
+          saw <- getNth an'seen x
+          when (saw == 1) $ do
+            (r :: Clause) <- getNth reason x
+            if r == NullClause
+              then pushTo conflicts (negateLit l)
+              else do
+                  k <- get' r
+                  let lstack' = lits r
+                      loopOnLits :: Int -> IO ()
+                      loopOnLits ((<= k) -> False) = return ()
+                      loopOnLits j = do
+                        (v :: Var) <- lit2var <$> getNth lstack' j
+                        lv <- getNth level v
+                        when (0 < lv) $ setNth an'seen v 1
+                        loopOnLits $ i + 1
+                  loopOnLits 2
+          setNth an'seen x 0
+          loopOnTrail $ i - 1
     loopOnTrail =<< if tls <= rl then return (trs - 1) else getNth trailLim (rl + 1)
 
 -- | M114:
@@ -652,10 +650,6 @@ search s@Solver{..} nOfConflicts = do
                   analyzeFinal s confl False
                   return LiftedF
               else do
---                  u <- (== 0) . (flip mod 5000) <$> getNth stats (fromEnum NumOfBackjump)
---                  when u $ do
---                    d <- get' varDecay
---                    when (d < 0.95) $ modify' varDecay (+ 0.01)
                   backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
                   (s `cancelUntil`) . max backtrackLevel =<< get' rootLevel
                   newLearntClause s litsLearnt
@@ -763,25 +757,25 @@ solve s@Solver{..} assumps = do
     else do set' rootLevel =<< decisionLevel s
             -- SOLVE:
             let useLuby = False
+                -- restart based on Luby series
                 -- nv = logBase 2 $ fromIntegral nVars
                 steps = 100 {- 10 * nv -}  :: Double
                 nk = 2 {- + 0.1 * nv -} :: Double
-                -- restart based on Luby series
-                while :: Int -> IO Bool
-                while nRestart = do
+                loopL :: Int -> IO Bool
+                loopL nRestart = do
                   status <- search s . floor $ steps * luby nk nRestart
                   if status == LBottom
-                    then while (nRestart + 1)
+                    then loopL (nRestart + 1)
                     else cancelUntil s 0 >> return (status == LiftedT)
-                -- restart based on a geometric series
-                while' :: Double -> IO Bool
-                while' nOfConflicts = do
+                -- restart based on a Geometric series
+                loopG :: Double -> IO Bool
+                loopG nOfConflicts = do
                   status <- search s (floor nOfConflicts)
                   if status == LBottom
-                    then while' (1.5 * nOfConflicts)
+                    then loopG (1.5 * nOfConflicts)
                     else cancelUntil s 0 >> return (status == LiftedT)
             set' maxLearnts . (/ 3) . fromIntegral =<< nClauses s
-            if useLuby then while 0 else while' steps
+            if useLuby then loopL 0 else loopG steps
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
 {-# INLINABLE unsafeEnqueue #-}
