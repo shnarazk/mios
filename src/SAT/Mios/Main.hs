@@ -527,7 +527,6 @@ sortClauses s cm = do
       scaleAct x
         | x < 1e-20 = activityMax
         | otherwise = activityMax * floor (1 - logBase 10 (x * 1e20) / 40)
-      -- returns the number of clauses that should be kept.
       assignKey :: Int -> IO ()
       assignKey ((< n) -> False) = return ()
       assignKey i = do
@@ -543,20 +542,6 @@ sortClauses s cm = do
                             | otherwise ->  min rankMax r                -- rank can be one
                   setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
         assignKey (i + 1)
-{-
-                  a <- get' (activity c)
-                  case a <= at of
-                    _ | l  -> do setNth keys i $ shiftL 1 shiftLBD + i      -- locked
-                                 assignKey (i + 1) (nr + 1) nb
-                    False  -> do let v = activityMax - floor (scaleAct a)   -- Second one... based on LBD
-                                 r <- get' (rank c)
-                                 let d = min (rankMax - 1) (r + 1) -- rank can be one
-                                 setNth keys i $ shiftL d shiftLBD + shiftL v indexWidth + i
-                                 assignKey (i + 1) nr nb
-                    True   -> do let v = activityMax - floor (scaleAct a)    -- purge inactive learnts
-                                 setNth keys i $ shiftL rankMax shiftLBD + shiftL v indexWidth + i
-                                 assignKey (i + 1) nr (nb + 1)
--}
   assignKey 0
   let limit = div n 2
   -- 2: sort keyVector
@@ -587,15 +572,6 @@ sortClauses s cm = do
             sortOnRange left (m - 1)
             sortOnRange (m + 1) right
   sortOnRange 0 (n - 1)
-  --  let to :: Int -> Int -> (Int, Bool, Int, Int, Int)
-  --      to i x = (i, r == 1, r, a, c)
-  --        where
-  --          r = rankMax .&. (shiftR x shiftLBD)
-  --          a = activityMax .&. (shiftR x indexWidth)
-  --          c = indexMax .&. x
-  -- (print . zipWith to [0 ..]) =<< mapM (getNth keys) [0 .. 100]
-  -- (print . filter (\(_, b,_,_,_) -> b) . zipWith to [0 ..]) =<< mapM (getNth keys) [0 .. 100]
-  -- error "finish"
   -- 3: place clauses in 'vec' based on the order stored in 'keys'.
   -- To recylce existing clauses, we must reserve all clauses for now.
   let seek :: Int -> IO ()
@@ -616,12 +592,7 @@ sortClauses s cm = do
                                      sweep k'
           sweep i -- (indexMax .&. bits)
         seek $ i + 1 
-  -- (print . filter ((2 ==) . snd) . zip [0 ..]) =<< mapM get' =<< mapM (getNth vec) [0 .. n - 1]
   seek 0
-  -- check LBD
-  -- (print . filter ((2 ==) . snd) . zip [0 ..]) =<< mapM get' =<< mapM (getNth vec) [0 .. n - 1]
-  -- print =<< mapM (get' . rank) =<< mapM (getNth vec) [0 .. n - 1]
-  return ()
 
 -- | #M22
 --
