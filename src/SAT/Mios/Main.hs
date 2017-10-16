@@ -441,30 +441,13 @@ reduceDB :: Solver -> IO ()
 reduceDB s@Solver{..} = do
   n <- nLearnts s
   cvec <- getClauseVector learnts
-  bvec <- getKeyVector learnts
-{-
-  at <- (/ fromIntegral n) <$> get' claInc -- activity threshold
-  let loop :: Int -> Int -> IO Int
-      loop ((< n) -> False) j = return j
-      loop i j = do c <- getNth cvec i
-                    l <- locked s c
-                    a <- get' (activity c)
-                    k <- get' c
-                    if not l && 2 < k && (a < at || div n 2 < i)
-                      then do removeWatch s c
-                              loop (i + 1) j
-                      else do setNth cvec j c
-                              (setNth bvec j =<< getNth bvec i)
-                              loop (i + 1) (j + 1)
--}
   let loop :: Int -> IO ()
       loop ((< n) -> False) = return ()
       loop i = do
         removeWatch s =<< getNth cvec i
         loop $ i + 1
-  sortClauses s learnts -- k is the number of clauses not to be purged
-  -- l <- sort . map sort . take n <$> mapM (asList <=< getNth cvec) [0 .. n -1]
-  -- when (l /= nub l) $ error (show (length l, length (nub l)))
+  let k = div n 2
+  sortClauses s learnts k -- k is the number of clauses not to be purged
 {- #GLUCOSE3.0
   -- keep more
   t3 <- get' . rank =<< getNth vec (thr -1)
@@ -476,11 +459,8 @@ reduceDB s@Solver{..} = do
             (_, _)         -> min n (thr + 1000)
   -- let k = div thr 2
 -}
-  -- k <- loop 0 0
-  let k = div n 2
-  loop k
-  putStrLn $ "reduceDB: purge " ++ show (n - k) ++ " out of " ++ show n
-  --loop k                               -- CAVEAT: `vec` is a zero-based vector
+  loop k                               -- CAVEAT: `vec` is a zero-based vector
+  -- putStrLn $ "reduceDB: purge " ++ show (n - k) ++ " out of " ++ show n
   reset watches
   shrinkBy learnts (n - k)
 
@@ -507,14 +487,12 @@ rankMax :: Int
 rankMax = 2 ^ rankWidth - 1
 activityMax :: Int
 activityMax = 2 ^ activityWidth - 1
-activityScale :: Double
-activityScale = fromIntegral activityMax
 indexMax :: Int
 indexMax = 2 ^ indexWidth - 1 -- 2^6 G = 64G
 
 -- | sort clauses (good to bad) by using a 'proxy' @Vec Int64@ that holds weighted index.
-sortClauses :: Solver -> ClauseExtManager -> IO ()
-sortClauses s cm = do
+sortClauses :: Solver -> ClauseExtManager -> Int -> IO ()
+sortClauses s cm limit = do
   n <- get' cm
   -- assert (n < indexMax)
   vec <- getClauseVector cm
@@ -543,7 +521,6 @@ sortClauses s cm = do
                   setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
         assignKey (i + 1)
   assignKey 0
-  let limit = div n 2
   -- 2: sort keyVector
   let sortOnRange :: Int -> Int -> IO ()
       sortOnRange left right
@@ -591,7 +568,7 @@ sortClauses s cm = do
                                      getNth bvec k' >>= setNth bvec k
                                      sweep k'
           sweep i -- (indexMax .&. bits)
-        seek $ i + 1 
+        seek $ i + 1
   seek 0
 
 -- | #M22
@@ -696,6 +673,7 @@ search s@Solver{..} nOfConflicts = do
                     set' learntSAdj t'
                     set' learntSCnt $ floor t'
                     modify' maxLearnts (* 1.1)
+{-
                     -- verbose
                     let w8 :: Int -> String -> String
                         w8 (show -> i) p = take (8 - length i) "          " ++ i ++ p
@@ -707,6 +685,7 @@ search s@Solver{..} nOfConflicts = do
                     vn <- (nVars -) <$> if va == 0 then get' trail else getNth trailLim 1
                     vp <- getStat s NumOfPropagation
                     putStrLn $ w8 vb " | " ++ w8 vn " " ++ w8 gc " | " ++ w8 vm " " ++ w8 vc " | " ++ w8 vp ""
+-}
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
@@ -719,12 +698,11 @@ search s@Solver{..} nOfConflicts = do
             case () of
              _ | k2 == nVars -> do
                    -- Model found:
-                   let
-                     toInt :: Var -> IO Lit
-                     toInt v = (\p -> if LiftedT == p then v else negate v) <$> valueVar s v
-                     setModel :: Int -> IO ()
-                     setModel ((<= nVars) -> False) = return ()
-                     setModel v = (setNth model v =<< toInt v) >> setModel (v + 1)
+                   let toInt :: Var -> IO Lit
+                       toInt v = (\p -> if LiftedT == p then v else negate v) <$> valueVar s v
+                       setModel :: Int -> IO ()
+                       setModel ((<= nVars) -> False) = return ()
+                       setModel v = (setNth model v =<< toInt v) >> setModel (v + 1)
                    setModel 1
                    return LiftedT
              _ | conflictC >= nOfConflicts -> do
