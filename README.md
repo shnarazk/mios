@@ -15,12 +15,14 @@ a part of my research theme.
 
 ##### benchmark results
 
+* SAT-Competition 2017 Main track with timeout 400 sec. 
+
+![cactus plot on SAT Competion 2017 main with a short timeout](https://user-images.githubusercontent.com/997855/31651450-a7f5c50e-b356-11e7-9fd4-110ed218bf36.png)
+
 * On a subset of SAT-Race 2015 Application Problems (timeout: 1200 sec)
 
 This is a result on a subset the problems of which MiniSat-2.2.0 can solve
 in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSat-2.2.0*.
-
-![cactus plot on SAT Competion 2017 main with a short timeout](https://user-images.githubusercontent.com/997855/31651450-a7f5c50e-b356-11e7-9fd4-110ed218bf36.png)
 
 ![cactus plot on SAT-RACE2015](https://cloud.githubusercontent.com/assets/997855/18457723/e9c6b91c-7995-11e6-8cc5-ecad36259fa7.png)
 
