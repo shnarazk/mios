@@ -16,6 +16,7 @@ Check assignments which mios returns.
 1. install GNU parallel
 1. change to a directory that contains CNF files
 1. run `parallel "mios {} | mios -: -X {}" ::: *.cnf`
+1. No parallel? Then run `for f in *.cnf ; do mios $f | mios -: -X $f; done`
 
 Note: Mios with Option `-:` checks the given assignment in very pure functional (time-consuming) way.
 I supposed there's no programming error.
