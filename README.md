@@ -15,7 +15,7 @@ a part of my research theme.
 
 #### benchmark results
 
-* SAT-Competition 2017 Main track with timeout 400 sec.
+* SAT-Competition 2017 Main track with a 400 second timeout
 
 ![cactus plot on SAT Competion 2017 main with a short timeout](https://user-images.githubusercontent.com/997855/31651450-a7f5c50e-b356-11e7-9fd4-110ed218bf36.png)
 
