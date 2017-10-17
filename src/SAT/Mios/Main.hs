@@ -1,3 +1,4 @@
+-- | This file is a part of MIOS.
 {-# LANGUAGE
     BangPatterns
   , MultiWayIf
@@ -7,7 +8,6 @@
   #-}
 {-# LANGUAGE Safe #-}
 
--- | This is a part of MIOS; main heuristics.
 module SAT.Mios.Main
        (
          simplifyDB
@@ -80,7 +80,7 @@ newLearntClause s@Solver{..} ps = do
        -- update the solver state by @l@
        unsafeEnqueue s l1 c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
-       setLBD s c
+       set' (rank c) =<< lbdOf s (lits c)
        -- assert (0 < rank c)
        -- set' (protected c) True
 
@@ -218,7 +218,7 @@ analyze s@Solver{..} confl = do
   loopOnLits 2 2                -- the first literal is specail
   -- glucose heuristics
   nld <- get' an'lastDL
-  r <- get' litsLearnt -- this is estimated LBD value based on the clause size
+  r <- get' litsLearnt -- this is an estimated LBD value based on the clause size
   let loopOnLastDL :: Int -> IO ()
       loopOnLastDL ((<= nld) -> False) = return ()
       loopOnLastDL i = do v <- lit2var <$> getNth an'lastDL i

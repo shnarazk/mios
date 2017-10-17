@@ -1,3 +1,4 @@
+-- | This file is a part of MIOS.
 {-# LANGUAGE
     BangPatterns
   , ViewPatterns

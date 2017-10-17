@@ -1,4 +1,4 @@
--- | This is an implementaion of MiniSat 1.14 in Haskell
+-- | This file is a part of MIOS.
 {-# LANGUAGE
     BangPatterns
   , FlexibleContexts
@@ -14,14 +14,10 @@
 module SAT.Mios.Glucose
        (
          lbdOf
-       , setLBD
---       , updateLBD
---       , nextReduction
        )
         where
 
 import SAT.Mios.Types
-import SAT.Mios.Clause
 import SAT.Mios.Solver
 
 -- | returns a POSIVITE value
@@ -40,6 +36,7 @@ lbdOf Solver{..} vec = do
                       else loop (i + 1) n
   loop 1 0
 
+{-
 {-# INLINE setLBD #-}
 setLBD :: Solver -> Clause -> IO ()
 setLBD _ NullClause = error "LBD44"
@@ -71,3 +68,4 @@ updateLBD s c@Clause{..} = do
 nextReduction :: Int -> Int -> Int
 -- nextReduction _ n = 30000 + 10000 * n
 nextReduction b n = b {- * (n + 1) -} + 300 * n {- * (n + 1) -}
+-}

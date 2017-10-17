@@ -1,3 +1,4 @@
+-- | This is a part of MIOS.
 {-# LANGUAGE
     BangPatterns
   , RecordWildCards
