@@ -20,6 +20,8 @@ a part of my research theme.
 This is a result on a subset the problems of which MiniSat-2.2.0 can solve
 in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSat-2.2.0*.
 
+![cactus plot on SAT Competion 2017 main with a short timeout](https://user-images.githubusercontent.com/997855/31647981-543fa67e-b346-11e7-9c4e-2de136575922.png)
+
 ![cactus plot on SAT-RACE2015](https://cloud.githubusercontent.com/assets/997855/18457723/e9c6b91c-7995-11e6-8cc5-ecad36259fa7.png)
 
 * Performances on [various 3SAT problems (uf-* series)](http://www.cs.ubc.ca/~hoos/SATLIB/benchm.html)
