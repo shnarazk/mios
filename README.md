@@ -30,9 +30,9 @@ in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSa
 
 ### > Release Note
 
-##### 1.4.2
+##### 1.5.0
 
-* implement LBD
+* **implement LBD**
 * misc micro tuning
 * add some utilities
 * switch to SAT Competition 2017 main track for benchmark
