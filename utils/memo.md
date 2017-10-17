@@ -6,7 +6,7 @@
 1. run `sat-benchmark -t bench/* --timeout=200 minisat > r1.csv`
 1. run `sat-benchmark -t bench/* --timeout=200 mios1 > r2.csv`
 1. run ... (alternatively run `sat-benchmark ... solver1 solver2 solver3 ... > all.csv`)
-1. make a list file with: `ls -1 *.csv > runs`
+1. make a file containing a list of filenames with: `ls -1 *.csv > runs`
 1. make a cactus with: `mkCactus.R runs`
 
 # A consistency check (only on SAT problems)
