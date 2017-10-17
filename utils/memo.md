@@ -14,7 +14,7 @@
 Check assignments which mios returns.
 
 1. install GNU parallel
-1. change the working directory that contains CNF files
+1. change to a directory that contains CNF files
 1. run `parallel "mios {} | mios -: -X {}" ::: *.cnf`
 
 Note: Mios with Option `-:` checks the given assignment in very pure functional (time-consuming) way.
