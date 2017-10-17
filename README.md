@@ -10,7 +10,8 @@ a part of my research theme.
   * Firstly, version 1.0 was based on N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518.
   * Version 1.1 was a *line-to-line* translation of [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip).
   * Version 1.2 imported some idea used in Glucose 4.0.
-* runs in `IO` monad, uses `Data.Vector.Mutable.Unboxed` and `reallyUnsafePtrEquality`.
+  * Version 1.5 uses Literal Block Distance (LBD).
+* runs in `IO` monad, uses `Data.Primitive.ByteArray` mainly and `reallyUnsafePtrEquality`.
 * very fast, compared with other SAT solvers written in Haskell; see below.
 
 #### benchmark results
