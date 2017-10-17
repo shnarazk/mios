@@ -13,9 +13,9 @@ a part of my research theme.
 * runs in `IO` monad, uses `Data.Vector.Mutable.Unboxed` and `reallyUnsafePtrEquality`.
 * very fast, compared with other SAT solvers written in Haskell; see below.
 
-##### benchmark results
+#### benchmark results
 
-* SAT-Competition 2017 Main track with timeout 400 sec. 
+* SAT-Competition 2017 Main track with timeout 400 sec.
 
 ![cactus plot on SAT Competion 2017 main with a short timeout](https://user-images.githubusercontent.com/997855/31651450-a7f5c50e-b356-11e7-9fd4-110ed218bf36.png)
 
