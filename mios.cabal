@@ -6,9 +6,8 @@ version:                1.5.0
 synopsis:               A Minisat-based SAT solver in Haskell
 description:
 
-  A modern and fast SAT solver written in Haskell, based on Minisat-1.14 and 2.2.
-  By using CDCL, watch literals, VSIDS, restart, blocking-literals, LBD and so on.
-  The current version is only 2.0 time slower than Minisat-2.2.
+  A modern and very fast SAT solver written in Haskell, using CDCL, watch literals, VSIDS,
+  restart, blocking-literals, LBD and so on.
   'Mios' is an abbreviation of 'Minisat-based Implementation and Optimization Study on SAT solver'.
   .
 
