@@ -58,7 +58,7 @@ reportElapsedTime _ mes t = do
   now <- getCPUTime
   let toSecond = 1000000000000 :: Double
   hPutStr stderr mes
-  hPutStrLn stderr $ showFFloat (Just 3) ((fromIntegral (now - t)) / toSecond) " sec"
+  hPutStrLn stderr $ showFFloat (Just 3) (fromIntegral (now - t) / toSecond) " sec"
   return now
 
 -- | executes a solver on the given CNF file.
@@ -198,11 +198,9 @@ validateAssignment desc cls asg = do
 -- >>> do y <- solve s ... ; dumpAssigmentAsCNF "result.cnf" y <$> model s
 --
 dumpAssigmentAsCNF :: FilePath -> Bool -> [Int] -> IO ()
-dumpAssigmentAsCNF fname False _ = do
-  withFile fname WriteMode $ \h -> hPutStrLn h "UNSAT"
+dumpAssigmentAsCNF fname False _ = writeFile fname "UNSAT"
 
-dumpAssigmentAsCNF fname True l = do
-  withFile fname WriteMode $ \h -> do hPutStrLn h "SAT"; hPutStrLn h . unwords $ map show l
+dumpAssigmentAsCNF fname True l = withFile fname WriteMode $ \h -> do hPutStrLn h "SAT"; hPutStrLn h . unwords $ map show l
 
 --------------------------------------------------------------------------------
 -- DIMACS CNF Reader
@@ -282,16 +280,15 @@ readClause :: Solver -> Stack -> Vec Int -> B.ByteString -> IO B.ByteString
 readClause s buffer bvec stream = do
   let
     loop :: Int -> B.ByteString -> IO B.ByteString
-    loop !i !b = do
-      case parseInt $ skipWhitespace b of
-        (0, b') -> do setNth buffer 0 $ i - 1
-                      sortStack buffer
-                      void $ addClause s buffer
-                      return b'
-        (k, b') -> case int2lit k of
-                     l -> do setNth buffer i l
-                             setNth bvec l LiftedT
-                             loop (i + 1) b'
+    loop !i !b = case parseInt $ skipWhitespace b of
+                   (0, b') -> do setNth buffer 0 $ i - 1
+                                 sortStack buffer
+                                 void $ addClause s buffer
+                                 return b'
+                   (k, b') -> case int2lit k of
+                                l -> do setNth buffer i l
+                                        setNth bvec l LiftedT
+                                        loop (i + 1) b'
   loop 1 . skipComments . skipWhitespace $ stream
 
 showPath :: FilePath -> String
