@@ -21,7 +21,8 @@ a part of my research theme.
 ![Cactus Plot 1 on SAT Competition 2017 main](https://user-images.githubusercontent.com/997855/31651450-a7f5c50e-b356-11e7-9fd4-110ed218bf36.png)
   * with 800-second timeout, **3 jobs in parallel** on Intel Core i7-3930K @ 12x
   3.8GHz. (Therefore results at about T=800 should be affected by other threads more or less.)
-![Cactus plot 2 on SAT Competition 2017 main](https://user-images.githubusercontent.com/997855/31846195-3d5adaaa-b643-11e7-926c-9fd0e4874a02.png)
+![Cactus plot 2 on SAT Competition 2017 main](https://user-images.githubusercontent.com/997855/31846591-048da436-b649-11e7-9aa9-338076a51373.png)
+
 
 * On a subset of SAT-Race 2015 Application Problems (timeout: 1200 sec)
 
