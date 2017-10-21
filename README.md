@@ -18,9 +18,9 @@ a part of my research theme.
 
 * SAT-Competition 2017 Main track
 
-- With a 400 second timeout, 3 jobs in parallel on Intel Core i7-3930K @ 12x 3.8GHz
+  - With a 400 second timeout, 3 jobs in parallel on Intel Core i7-3930K @ 12x 3.8GHz
 ![cactus plot on SAT Competion 2017 main with a short timeout](https://user-images.githubusercontent.com/997855/31651450-a7f5c50e-b356-11e7-9fd4-110ed218bf36.png)
-- With a 800 second timeout, 3 jobs in parallel on Intel Core i7-3930K @ 12x 3.8GHz
+  - With a 800 second timeout, 3 jobs in parallel on Intel Core i7-3930K @ 12x 3.8GHz
 ![cactus-sc17main-810-1 5 0](https://user-images.githubusercontent.com/997855/31846195-3d5adaaa-b643-11e7-926c-9fd0e4874a02.png)
 
 * On a subset of SAT-Race 2015 Application Problems (timeout: 1200 sec)
