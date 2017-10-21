@@ -10,10 +10,18 @@ a part of my research theme.
   * Firstly, version 1.0 was based on N. Een and N. Sorensson, *“An extensible SAT-solver [extended version 1.2],”* in 6th Int. Conf. on Theory and Applications of Satisfiability Testing (SAT2003), 2003, pp. 502–518.
   * Version 1.1 was a *line-to-line* translation of [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip).
   * Version 1.2 imported some idea used in Glucose 4.0.
-* runs in `IO` monad, uses `Data.Vector.Mutable.Unboxed` and `reallyUnsafePtrEquality`.
+  * Version 1.5 uses Literal Block Distance (LBD).
+* runs in `IO` monad, uses `Data.Primitive.ByteArray` mainly and `reallyUnsafePtrEquality`.
 * very fast, compared with other SAT solvers written in Haskell; see below.
 
-##### benchmark results
+#### benchmark results
+
+* SAT-Competition 2017 Main track
+  * with 400-second timeout on Intel Core i7-3930K @ 12x 3.8GHz
+![Cactus Plot 1 on SAT Competition 2017 main](https://user-images.githubusercontent.com/997855/31651450-a7f5c50e-b356-11e7-9fd4-110ed218bf36.png)
+  * with 800-second timeout, **3 jobs in parallel** on Intel Core i7-3930K @ 12x
+  3.8GHz. (Therefore results at about T=800 should be affected by other threads more or less.)
+![Cactus plot 2 on SAT Competition 2017 main](https://user-images.githubusercontent.com/997855/31846195-3d5adaaa-b643-11e7-926c-9fd0e4874a02.png)
 
 * On a subset of SAT-Race 2015 Application Problems (timeout: 1200 sec)
 
@@ -28,6 +36,13 @@ in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSa
 
 ### > Release Note
 
+##### 1.5.0
+
+* **implement LBD**
+* misc micro tuning
+* add some utilities
+* switch to SAT Competition 2017 main track for benchmark
+
 ##### 1.4.1
 
 A maintenance release:
@@ -41,7 +56,7 @@ A maintenance release:
 
 ##### 1.3.0
 
-* replace LBD heuristics with a simpler metrics, inspired by S. Jabbour, et. al: “*Revisiting the Learned Clauses Database Reduction Strategies*,” 2013.
+* replace LBD heuristics with a simpler metrics, inspired by S. Jabbour et al.: “*Revisiting the Learned Clauses Database Reduction Strategies*,” 2013.
 * change the module structure
 
 ##### 1.2.1
@@ -62,7 +77,7 @@ Note: mios requires optimization flag `-O2`; it's crucial.
 
 ##### 1.1.2
 
-* fix a bug in DIMACS CNF parser; only single space between literals were accepted
+* fix a bug in DIMACS CNF parser; only single space between literals was accepted
 
 This would be the last version based on [MiniSat 1.14](https://github.com/shnarazk/minisat114/).
 
@@ -86,7 +101,7 @@ This would be the last version based on [MiniSat 1.14](https://github.com/shnara
 ##### 1.0.3
 
 * uses vector-based containers instead of pointer-based clause containers
-* adds self checking option (`--validate`), which works only on satisfiable problems
+* adds self-checking option (`--validate`), which works only on satisfiable problems
 * `stack install` installs `mios`. `stack install --flag mios:devel` installs `mios-1.0.3` for developers.
 
 This is the last version based on *“An extensible SAT-solver [extended version 1.2].”*
