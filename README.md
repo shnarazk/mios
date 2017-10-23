@@ -1,7 +1,7 @@
-# mios -- Minisat-based Implementation and Optimization Study
+# Mios -- Minisat-based Implementation and Optimization Study
 ----
 
-`mios` is yet another minisat-based SAT solver implementation in Haskell, as
+`Mios` is yet another minisat-based SAT solver implementation in Haskell, as
 a part of my research theme.
 
 ### > Features
@@ -16,22 +16,18 @@ a part of my research theme.
 
 #### benchmark results
 
-* SAT-Competition 2017 Main track
-  * with 400-second timeout on Intel Core i7-3930K @ 12x 3.8GHz
-![Cactus Plot 1 on SAT Competition 2017 main](https://user-images.githubusercontent.com/997855/31651450-a7f5c50e-b356-11e7-9fd4-110ed218bf36.png)
-  * with 800-second timeout, **3 jobs in parallel** on Intel Core i7-3930K @ 12x
-  3.8GHz. (Therefore results at about T=800 should be affected by other threads more or less.)
-![Cactus plot 2 on SAT Competition 2017 main](https://user-images.githubusercontent.com/997855/31846591-048da436-b649-11e7-9aa9-338076a51373.png)
+- SAT-Competition 2017 Main track, running 3 jobs *in parallel* with 400-second timeout on Intel Core i7-3930K @ 12x 3.8GHz
+  (Therefore results near the threshold should be affected by other threads more or less.)
+![Cactus Plot 1 on SAT Competition 2017 main](https://user-images.githubusercontent.com/997855/31916640-a7464b14-b88e-11e7-81c6-ec90d084aa3c.png)
 
-
-* On a subset of SAT-Race 2015 Application Problems (timeout: 1200 sec)
+- A subset of SAT-Race 2015 Application Problems (timeout: 1200 sec)
 
 This is a result on a subset the problems of which MiniSat-2.2.0 can solve
 in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSat-2.2.0*.
 
 ![cactus plot on SAT-RACE2015](https://cloud.githubusercontent.com/assets/997855/18457723/e9c6b91c-7995-11e6-8cc5-ecad36259fa7.png)
 
-* Performances on [various 3SAT problems (uf-* series)](http://www.cs.ubc.ca/~hoos/SATLIB/benchm.html)
+- Performances on [various 3SAT problems (uf-* series)](http://www.cs.ubc.ca/~hoos/SATLIB/benchm.html)
 
 ![](https://docs.google.com/spreadsheets/d/1cNltZ4FIu_exSUQMcXe53w4fADr3sOUxpo3L7oM0H_Q/pubchart?oid=297581252&format=image)
 
@@ -65,7 +61,7 @@ A maintenance release:
 * tiny changes for uploading to [hackage](http://hackage.haskell.org/)
 * add a CNF handling library under 'SAT.Util'
 
-Note: mios requires optimization flag `-O2`; it's crucial.
+Note: Mios requires optimization flag `-O2`; it's crucial.
 
 ##### 1.2.0
 
@@ -136,7 +132,7 @@ It's an invalid assignment.
 
 ```
 git clone https://github.com/shnarazk/mios
-stack init --resolver nightly-2016-XX-XX
+stack init --resolver nightly-2017-XX-XX  # for ghc-8.2.X
 stack install
 ```
 
