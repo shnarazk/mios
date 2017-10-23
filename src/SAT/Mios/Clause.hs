@@ -39,7 +39,7 @@ data Clause = Clause
               , lits       :: !Stack    -- ^ which this clause consists of
               }
   | NullClause                              -- as null pointer
---  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
+  | BiCause Lit Lit                     -- binary clause consists of only propagating literals
 
 -- | The equality on 'Clause' is defined with 'reallyUnsafePtrEquality'.
 instance Eq Clause where
@@ -49,6 +49,7 @@ instance Eq Clause where
 instance Show Clause where
   show NullClause = "NullClause"
   show _ = "a clause"
+  show (BiCause a b) = "Binary" ++ show (a, b)
 
 -- | 'Clause' is a 'VecFamily' of 'Lit'.
 instance VecFamily Clause Lit where
@@ -58,6 +59,7 @@ instance VecFamily Clause Lit where
   setNth Clause{..} n x = error "no setNth for Clause"
   -- | returns a vector of literals in it.
   asList NullClause = return []
+  asList (BiCause a b) = return [a, b]
   asList Clause{..} = take <$> get' lits <*> (tail <$> asList lits)
   -- dump mes NullClause = return $ mes ++ "Null"
   -- dump mes Clause{..} = return $ mes ++ "a clause"
@@ -107,12 +109,13 @@ instance StackFamily Clause Lit where
 newClauseFromStack :: Bool -> Stack -> IO Clause
 newClauseFromStack l vec = do
   n <- get' vec
-  v <- newStack n
-  let
-    loop ((<= n) -> False) = return ()
-    loop i = (setNth v i =<< getNth vec i) >> loop (i + 1)
-  loop 0
-  Clause <$> new' (if l then 1 else 0) <*> new' 0.0 {- <*> new' False -} <*> return v
+  if n == 2 && False
+    then do BiCause <$> getNth vec 1 <*> getNth vec 2
+    else do v <- newStack n
+            let loop ((<= n) -> False) = return ()
+                loop i = (setNth v i =<< getNth vec i) >> loop (i + 1)
+            loop 0
+            Clause <$> new' (if l then 1 else 0) <*> new' 0.0 {- <*> new' False -} <*> return v
 
 -------------------------------------------------------------------------------- Clause Vector
 
