@@ -147,7 +147,7 @@ analyze s@Solver{..} confl = do
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain NullClause lit _ _ _ = error $ "strange analyze loop: " ++ show lit
     loopOnClauseChain c@(BiClause l1 l2) p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
-      putStrLn $ "analyze on biclause: " ++ show (c, confl, confl == c)
+      -- putStrLn $ "analyze on biclause: " ++ show (c, confl, confl == c)
       let
         loopOnLiterals :: Lit -> Int -> Int -> IO (Int, Int)
         loopOnLiterals q b pc = do
@@ -158,7 +158,6 @@ analyze s@Solver{..} confl = do
             then do
                 varBumpActivity s v
                 setNth an'seen v 1
-                print v
                 if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
                   then do
                       -- glucose heuristics
@@ -174,11 +173,6 @@ analyze s@Solver{..} confl = do
                       return (b, pc + 1)
                   else pushTo litsLearnt q >> return (max b l, pc) -- loopOnLiterals (j + 1) (max b l) pc
             else return (b, pc) -- loopOnLiterals (j + 1) b pc
-      r1 <- getNth reason (lit2var l1)
---      r2 <- getNth reason (lit2var l2)
---      v1 <- valueLit s l1
---      v2 <- valueLit s l2
-      when ((c == confl) /= (p == LBottom)) $ error "!!!@@@@@@@@@@@@@@@22"
       -- Two posibility:
       -- * this biclause @b@ is used on the depdendency tree; target should be the literal which reason is NOT @b@.
       -- * this biclause @b@ is the conflicting clause; @b@ is not stored in reason; target is the literal which is assigned.
@@ -186,7 +180,8 @@ analyze s@Solver{..} confl = do
       (b', pathC') <- if p == LBottom
                       then do (b1, pathC1) <- loopOnLiterals l1 bl pathC
                               loopOnLiterals l2 b1 pathC1
-                      else loopOnLiterals (if r1 == c then l2 else l1) bl pathC
+                      else do r1 <- getNth reason (lit2var l1)
+                              loopOnLiterals (if r1 == c then l2 else l1) bl pathC
 {-
       let target = if r1 /= c && r2 /= c
                    then if v1 /= LBottom then 1 else 2 -- if r1 == NullClause then 2 else 1
@@ -230,7 +225,6 @@ analyze s@Solver{..} confl = do
             then do
                 varBumpActivity s v
                 setNth an'seen v 1
-                when (sc == 2) (print v)
                 if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
                   then do
                       -- UPDATEVARACTIVITY: glucose heuristics
@@ -261,7 +255,6 @@ analyze s@Solver{..} confl = do
         else setNth litsLearnt 1 (negateLit nextP) >> return b'
   ti <- subtract 1 <$> get' trail
   levelToReturn <- loopOnClauseChain confl bottomLit ti 0 0
-  putStrLn "done"
   -- Simplify phase (implemented only @expensive_ccmin@ path)
   n <- get' litsLearnt
   reset an'stack           -- analyze_stack.clear();
@@ -468,20 +461,16 @@ propagate s@Solver{..} = do
                   (c :: Clause) <- getNth cvec i
                   case c of
                     BiClause l1 l2 -> do
-                      let first = if l1 == falseLit then l1 else l2
                       let second = if l1 == falseLit then l2 else l1
-                      ch <- valueLit s first
-                      bv' <- valueLit s blocker
                       sv <- valueLit s second
-                      when (ch /= LiftedF) $ error $ "strange literal" ++ show ((blocker, bv'), l1, l2, (ch, sv))
                       setNth cvec j c >> setNth bvec j l1
                       case sv of
                         LiftedT -> do forClause (i + 1) (j + 1)
                         LBottom -> do unsafeEnqueue s second c
-                                      putStrLn $ "Biclause propagation from: " ++ show p ++ " to " ++ show second ++ " by " ++ show c
+                                      -- putStrLn $ "Biclause propagation from: " ++ show p ++ " to " ++ show second ++ " by " ++ show c
                                       forClause (i + 1) (j + 1)
                         LiftedF -> do ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
-                                      putStrLn $ "Biclause conflict with: " ++ show p ++ " and " ++ show second ++ " by " ++ show c
+                                      -- putStrLn $ "Biclause conflict with: " ++ show p ++ " and " ++ show second ++ " by " ++ show c
                                       set' qHead =<< get' trail
                                       copy (i + 1) (j + 1)
                                       shrinkBy ws (i - j) >> return c
