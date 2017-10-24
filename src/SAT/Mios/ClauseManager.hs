@@ -258,6 +258,7 @@ instance VecFamily ClauseExtManager C.Clause where
   setNth = error "no setNth method for ClauseExtManager"
   {-# SPECIALIZE INLINE reset :: ClauseExtManager -> IO () #-}
   reset m = set' (_nActives m) 0
+  asList m = take <$> get' m <*> (asList =<< getClauseVector m)
 {-
   dump mes ClauseExtManager{..} = do
     n <- get' _nActives
