@@ -147,7 +147,6 @@ analyze s@Solver{..} confl = do
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain NullClause lit _ _ _ = error $ "strange analyze loop: " ++ show lit
     loopOnClauseChain c@(BiClause l1 l2) p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
-      -- putStrLn $ "analyze on biclause: " ++ show (c, confl, confl == c)
       let
         loopOnLiterals :: Lit -> Int -> Int -> IO (Int, Int)
         loopOnLiterals q b pc = do
@@ -163,31 +162,21 @@ analyze s@Solver{..} confl = do
                       -- glucose heuristics
                       r <- getNth reason v
                       case r of
-                        NullClause   -> return () -- setNth an'seen v 0
-                        BiClause _ _ -> return ()
-                        _            -> do
-                          ra <- get' (rank r)
-                          when (0 /= ra) $ pushTo an'lastDL q
+                        Clause{} -> do ra <- get' (rank r)
+                                       when (0 /= ra) $ pushTo an'lastDL q
+                        _        -> return ()
                       -- end of glucose heuristics
-                      -- loopOnLiterals (j + 1) b (pc + 1)
                       return (b, pc + 1)
-                  else pushTo litsLearnt q >> return (max b l, pc) -- loopOnLiterals (j + 1) (max b l) pc
-            else return (b, pc) -- loopOnLiterals (j + 1) b pc
+                  else pushTo litsLearnt q >> return (max b l, pc)
+            else return (b, pc)
       -- Two posibility:
       -- * this biclause @b@ is used on the depdendency tree; target should be the literal which reason is NOT @b@.
       -- * this biclause @b@ is the conflicting clause; @b@ is not stored in reason; target is the literal which is assigned.
-      -- print (r1 == c, r2 == c, r1 == NullClause, r2 == NullClause) 
       (b', pathC') <- if p == LBottom
                       then do (b1, pathC1) <- loopOnLiterals l1 bl pathC
                               loopOnLiterals l2 b1 pathC1
                       else do r1 <- getNth reason (lit2var l1)
                               loopOnLiterals (if r1 == c then l2 else l1) bl pathC
-{-
-      let target = if r1 /= c && r2 /= c
-                   then if v1 /= LBottom then 1 else 2 -- if r1 == NullClause then 2 else 1
-                   else if r1 == c then 2 else 1
-      (b', pathC') <- loopOnLiterals target bl pathC
--}
       let
         -- select next clause to look at
         nextPickedUpLit :: Int -> IO Int
@@ -230,11 +219,9 @@ analyze s@Solver{..} confl = do
                       -- UPDATEVARACTIVITY: glucose heuristics
                       r <- getNth reason v
                       case r of
-                        NullClause   -> return ()
-                        BiClause _ _ -> return ()
-                        _            -> do
-                          ra <- get' (rank r)
-                          when (0 /= ra) $ pushTo an'lastDL q
+                        Clause{} -> do ra <- get' (rank r)
+                                       when (0 /= ra) $ pushTo an'lastDL q
+                        _        -> return ()
                       -- end of glucose heuristics
                       loopOnLiterals (j + 1) b (pc + 1)
                   else pushTo litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
@@ -304,7 +291,7 @@ analyze s@Solver{..} confl = do
   cleaner 1
   return levelToReturn
 
--- | #M114
+-- | #M114 @litRedundant@
 -- Check if 'p' can be removed, 'abstract_levels' is used to abort early if the algorithm is
 -- visiting literals at levels that cannot be removed later.
 --
@@ -314,7 +301,7 @@ analyze s@Solver{..} confl = do
 --   This is used only in this function and @analyze@.
 --
 analyzeRemovable :: Solver -> Lit -> Int -> IO Bool
-analyzeRemovable Solver{..} p minLevel = do
+analyzeRemovable s@Solver{..} p minLevel = do
   -- assert (reason[var(p)] != NullClause);
   reset an'stack      -- analyze_stack.clear()
   pushTo an'stack p   -- analyze_stack.push(p);
@@ -330,7 +317,28 @@ analyzeRemovable Solver{..} p minLevel = do
             popFrom an'stack             -- analyze_stack.pop();
             c <- getNth reason (lit2var sl) -- getRoot sl
             case c of
-              BiClause l1 l2 -> do return False
+              BiClause l1 l2 -> do
+                a1 <- valueLit s l1
+                let p' = if a1 == LiftedF then l1 else l2 -- See: glucose/core/Solver.cc l.699
+                    v' = lit2var p'
+                l' <- getNth level v'
+                c1 <- (1 /=) <$> getNth an'seen v'
+                if c1 && (0 /= l')
+                  then do
+                      c3 <- (NullClause /=) <$> getNth reason v'
+                      if c3 && testBit minLevel (l' .&. 31)
+                        then do setNth an'seen v' 1   -- analyze_seen[var(p)] = 1;
+                                pushTo an'stack p'    -- analyze_stack.push(p);
+                                pushTo an'toClear p'  -- analyze_toclear.push(p);
+                                loopOnStack
+                        else do top' <- get' an'toClear
+                                let clearAll :: Int -> IO ()
+                                    clearAll ((<= top') -> False) = return ()
+                                    clearAll j = do x <- getNth an'toClear j; setNth an'seen (lit2var x) 0; clearAll (j + 1)
+                                clearAll $ top + 1
+                                shrinkBy an'toClear $ top' - top
+                                return False
+                  else loopOnStack
               _ -> do
                 nl <- get' c
                 let
