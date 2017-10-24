@@ -50,9 +50,17 @@ newLearntClause s@Solver{..} ps = do
     -- Since this solver must generate only healthy learnt clauses, we need not to run misc check in 'newClause'
     k <- get' ps
     case k of
-     1 -> do
+     1 -> do                    -- a fact
        l <- getNth ps 1
        unsafeEnqueue s l NullClause
+     2 -> do                    -- biclause
+       l1 <- getNth ps 1
+       l2 <- getNth ps 2
+       let c = BiClause l1 l2
+       pushTo clauses c
+       pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
+       pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
+       unsafeEnqueue s l1 c
      _ -> do
        -- allocate clause:
        c <- makeClauseFromStack clsPool ps --  newClauseFromStack True ps
@@ -137,6 +145,67 @@ analyze s@Solver{..} confl = do
   dl <- decisionLevel s
   let
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
+    loopOnClauseChain NullClause lit _ _ _ = error $ "strange analyze loop: " ++ show lit
+    loopOnClauseChain c@(BiClause l1 l2) p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
+      putStrLn $ "analyze on biclause: " ++ show (c, confl, confl == c)
+      let
+        loopOnLiterals :: Lit -> Int -> Int -> IO (Int, Int)
+        loopOnLiterals q b pc = do
+          let v = lit2var q
+          sn <- getNth an'seen v
+          l <- getNth level v
+          if sn == 0 && 0 < l
+            then do
+                varBumpActivity s v
+                setNth an'seen v 1
+                print v
+                if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
+                  then do
+                      -- glucose heuristics
+                      r <- getNth reason v
+                      case r of
+                        NullClause   -> return () -- setNth an'seen v 0
+                        BiClause _ _ -> return ()
+                        _            -> do
+                          ra <- get' (rank r)
+                          when (0 /= ra) $ pushTo an'lastDL q
+                      -- end of glucose heuristics
+                      -- loopOnLiterals (j + 1) b (pc + 1)
+                      return (b, pc + 1)
+                  else pushTo litsLearnt q >> return (max b l, pc) -- loopOnLiterals (j + 1) (max b l) pc
+            else return (b, pc) -- loopOnLiterals (j + 1) b pc
+      r1 <- getNth reason (lit2var l1)
+--      r2 <- getNth reason (lit2var l2)
+--      v1 <- valueLit s l1
+--      v2 <- valueLit s l2
+      when ((c == confl) /= (p == LBottom)) $ error "!!!@@@@@@@@@@@@@@@22"
+      -- Two posibility:
+      -- * this biclause @b@ is used on the depdendency tree; target should be the literal which reason is NOT @b@.
+      -- * this biclause @b@ is the conflicting clause; @b@ is not stored in reason; target is the literal which is assigned.
+      -- print (r1 == c, r2 == c, r1 == NullClause, r2 == NullClause) 
+      (b', pathC') <- if p == LBottom
+                      then do (b1, pathC1) <- loopOnLiterals l1 bl pathC
+                              loopOnLiterals l2 b1 pathC1
+                      else loopOnLiterals (if r1 == c then l2 else l1) bl pathC
+{-
+      let target = if r1 /= c && r2 /= c
+                   then if v1 /= LBottom then 1 else 2 -- if r1 == NullClause then 2 else 1
+                   else if r1 == c then 2 else 1
+      (b', pathC') <- loopOnLiterals target bl pathC
+-}
+      let
+        -- select next clause to look at
+        nextPickedUpLit :: Int -> IO Int
+        nextPickedUpLit i = do x <- getNth an'seen . lit2var =<< getNth trail i
+                               if x == 0 then nextPickedUpLit (i - 1) else return (i - 1)
+      ti' <- nextPickedUpLit (ti + 1)
+      nextP <- getNth trail (ti' + 1)
+      let nextV = lit2var nextP
+      confl' <- getNth reason nextV
+      setNth an'seen nextV 0
+      if 1 < pathC'
+        then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
+        else setNth litsLearnt 1 (negateLit nextP) >> return b'
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
       d <- get' (rank c)
       when (0 /= d) $ claBumpActivity s c
@@ -161,13 +230,17 @@ analyze s@Solver{..} confl = do
             then do
                 varBumpActivity s v
                 setNth an'seen v 1
+                when (sc == 2) (print v)
                 if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
                   then do
                       -- UPDATEVARACTIVITY: glucose heuristics
                       r <- getNth reason v
-                      when (r /= NullClause) $ do
-                        ra <- get' (rank r)
-                        when (0 /= ra) $ pushTo an'lastDL q
+                      case r of
+                        NullClause   -> return ()
+                        BiClause _ _ -> return ()
+                        _            -> do
+                          ra <- get' (rank r)
+                          when (0 /= ra) $ pushTo an'lastDL q
                       -- end of glucose heuristics
                       loopOnLiterals (j + 1) b (pc + 1)
                   else pushTo litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
@@ -188,6 +261,7 @@ analyze s@Solver{..} confl = do
         else setNth litsLearnt 1 (negateLit nextP) >> return b'
   ti <- subtract 1 <$> get' trail
   levelToReturn <- loopOnClauseChain confl bottomLit ti 0 0
+  putStrLn "done"
   -- Simplify phase (implemented only @expensive_ccmin@ path)
   n <- get' litsLearnt
   reset an'stack           -- analyze_stack.clear();
@@ -262,37 +336,40 @@ analyzeRemovable Solver{..} p minLevel = do
             sl <- lastOf an'stack
             popFrom an'stack             -- analyze_stack.pop();
             c <- getNth reason (lit2var sl) -- getRoot sl
-            nl <- get' c
-            let
-              lstack = lits c
-              loopOnLit :: Int -> IO Bool -- loopOnLit (int i = 1; i < c.size(); i++){
-              loopOnLit ((<= nl) -> False) = loopOnStack
-              loopOnLit i = do
-                p' <- getNth lstack i              -- valid range is [1 .. nl]
-                let v' = lit2var p'
-                l' <- getNth level v'
-                c1 <- (1 /=) <$> getNth an'seen v'
-                if c1 && (0 /= l')   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
-                  then do
-                      c3 <- (NullClause /=) <$> getNth reason v'
-                      if c3 && testBit minLevel (l' .&. 31) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
-                        then do
-                            setNth an'seen v' 1   -- analyze_seen[var(p)] = 1;
-                            pushTo an'stack p'    -- analyze_stack.push(p);
-                            pushTo an'toClear p'  -- analyze_toclear.push(p);
-                            loopOnLit $ i + 1
-                        else do
-                            -- for (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
-                            top' <- get' an'toClear
-                            let clearAll :: Int -> IO ()
-                                clearAll ((<= top') -> False) = return ()
-                                clearAll j = do x <- getNth an'toClear j; setNth an'seen (lit2var x) 0; clearAll (j + 1)
-                            clearAll $ top + 1
-                            -- analyze_toclear.shrink(analyze_toclear.size() - top); note: shrink n == repeat n pop
-                            shrinkBy an'toClear $ top' - top
-                            return False
-                  else loopOnLit $ i + 1
-            loopOnLit 2
+            case c of
+              BiClause l1 l2 -> do return False
+              _ -> do
+                nl <- get' c
+                let
+                  lstack = lits c
+                  loopOnLit :: Int -> IO Bool -- loopOnLit (int i = 1; i < c.size(); i++){
+                  loopOnLit ((<= nl) -> False) = loopOnStack
+                  loopOnLit i = do
+                    p' <- getNth lstack i              -- valid range is [1 .. nl]
+                    let v' = lit2var p'
+                    l' <- getNth level v'
+                    c1 <- (1 /=) <$> getNth an'seen v'
+                    if c1 && (0 /= l')   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
+                      then do
+                          c3 <- (NullClause /=) <$> getNth reason v'
+                          if c3 && testBit minLevel (l' .&. 31) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
+                            then do
+                                setNth an'seen v' 1   -- analyze_seen[var(p)] = 1;
+                                pushTo an'stack p'    -- analyze_stack.push(p);
+                                pushTo an'toClear p'  -- analyze_toclear.push(p);
+                                loopOnLit $ i + 1
+                            else do
+                                -- for (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
+                                top' <- get' an'toClear
+                                let clearAll :: Int -> IO ()
+                                    clearAll ((<= top') -> False) = return ()
+                                    clearAll j = do x <- getNth an'toClear j; setNth an'seen (lit2var x) 0; clearAll (j + 1)
+                                clearAll $ top + 1
+                                -- analyze_toclear.shrink(analyze_toclear.size() - top); note: shrink n == repeat n pop
+                                shrinkBy an'toClear $ top' - top
+                                return False
+                      else loopOnLit $ i + 1
+                loopOnLit 2
   loopOnStack
 
 -- | #114
@@ -389,42 +466,62 @@ propagate s@Solver{..} = do
                       forClause (i + 1) (j + 1)
               else do                               -- Make sure the false literal is data[1]:
                   (c :: Clause) <- getNth cvec i
-                  let !lstack = lits c
-                  tmp <- getNth lstack 1
-                  first <- if falseLit == tmp
-                           then do l2 <- getNth lstack 2
-                                   setNth lstack 2 tmp
-                                   setNth lstack 1 l2
-                                   return l2
-                           else return tmp
-                  fv <- valueLit s first
-                  if first /= blocker && fv == LiftedT
-                    then setNth cvec j c >> setNth bvec j first >> forClause (i + 1) (j + 1)
-                    else do cs <- get' c           -- Look for new watch:
-                            let newWatch :: Int -> IO LiftedBool
-                                newWatch ((<= cs) -> False) = do -- Did not find watch
-                                  setNth cvec j c
-                                  setNth bvec j first
-                                  if fv == LiftedF
-                                    then do ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
-                                            set' qHead =<< get' trail
-                                            copy (i + 1) (j + 1)
-                                            return LiftedF                 -- conflict
-                                    else do unsafeEnqueue s first c
-                                            return LBottom                 -- unit clause
-                                newWatch !k = do (l' :: Lit) <- getNth lstack k
-                                                 lv <- valueLit s l'
-                                                 if lv /= LiftedF
-                                                   then do setNth lstack 2 l'
-                                                           setNth lstack k falseLit
-                                                           pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
-                                                           return LiftedT  -- find another watch
-                                                   else newWatch $! k + 1
-                            ret <- newWatch 3
-                            case ret of
-                              LiftedT -> forClause (i + 1) j               -- find another watch
-                              LBottom -> forClause (i + 1) (j + 1)         -- unit clause
-                              _       -> shrinkBy ws (i - j) >> return c   -- conflict
+                  case c of
+                    BiClause l1 l2 -> do
+                      let first = if l1 == falseLit then l1 else l2
+                      let second = if l1 == falseLit then l2 else l1
+                      ch <- valueLit s first
+                      bv' <- valueLit s blocker
+                      sv <- valueLit s second
+                      when (ch /= LiftedF) $ error $ "strange literal" ++ show ((blocker, bv'), l1, l2, (ch, sv))
+                      setNth cvec j c >> setNth bvec j l1
+                      case sv of
+                        LiftedT -> do forClause (i + 1) (j + 1)
+                        LBottom -> do unsafeEnqueue s second c
+                                      putStrLn $ "Biclause propagation from: " ++ show p ++ " to " ++ show second ++ " by " ++ show c
+                                      forClause (i + 1) (j + 1)
+                        LiftedF -> do ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
+                                      putStrLn $ "Biclause conflict with: " ++ show p ++ " and " ++ show second ++ " by " ++ show c
+                                      set' qHead =<< get' trail
+                                      copy (i + 1) (j + 1)
+                                      shrinkBy ws (i - j) >> return c
+                    _ -> do
+                      let !lstack = lits c
+                      tmp <- getNth lstack 1
+                      first <- if falseLit == tmp
+                               then do l2 <- getNth lstack 2
+                                       setNth lstack 2 tmp
+                                       setNth lstack 1 l2
+                                       return l2
+                               else return tmp
+                      fv <- valueLit s first
+                      if first /= blocker && fv == LiftedT
+                        then setNth cvec j c >> setNth bvec j first >> forClause (i + 1) (j + 1)
+                        else do cs <- get' c           -- Look for new watch:
+                                let newWatch :: Int -> IO LiftedBool
+                                    newWatch ((<= cs) -> False) = do -- Did not find watch
+                                      setNth cvec j c
+                                      setNth bvec j first
+                                      if fv == LiftedF
+                                        then do ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
+                                                set' qHead =<< get' trail
+                                                copy (i + 1) (j + 1)
+                                                return LiftedF                 -- conflict
+                                        else do unsafeEnqueue s first c
+                                                return LBottom                 -- unit clause
+                                    newWatch !k = do (l' :: Lit) <- getNth lstack k
+                                                     lv <- valueLit s l'
+                                                     if lv /= LiftedF
+                                                       then do setNth lstack 2 l'
+                                                               setNth lstack k falseLit
+                                                               pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
+                                                               return LiftedT  -- find another watch
+                                                       else newWatch $! k + 1
+                                ret <- newWatch 3
+                                case ret of
+                                  LiftedT -> forClause (i + 1) j               -- find another watch
+                                  LBottom -> forClause (i + 1) (j + 1)         -- unit clause
+                                  _       -> shrinkBy ws (i - j) >> return c   -- conflict
       c <- forClause 0 0
       while c =<< ((<) <$> get' qHead <*> get' trail)
   while NullClause =<< ((<) <$> get' qHead <*> get' trail)

@@ -35,11 +35,10 @@ data Clause = Clause
               {
                 rank       :: !Int'     -- ^ goodness like LBD; computed in 'Ranking'
               , activity   :: !Double'  -- ^ activity of this clause
---              , protected  :: !Bool'    -- ^ protected from reduce
               , lits       :: !Stack    -- ^ which this clause consists of
               }
-  | NullClause                              -- as null pointer
-  | BiCause Lit Lit                     -- binary clause consists of only propagating literals
+  | NullClause                          -- as null pointer
+  | BiClause Lit Lit                    -- binary clause consists of only propagating literals
 
 -- | The equality on 'Clause' is defined with 'reallyUnsafePtrEquality'.
 instance Eq Clause where
@@ -48,8 +47,8 @@ instance Eq Clause where
 
 instance Show Clause where
   show NullClause = "NullClause"
+  show (BiClause a b) = "Binary" ++ show (a, b)
   show _ = "a clause"
-  show (BiCause a b) = "Binary" ++ show (a, b)
 
 -- | 'Clause' is a 'VecFamily' of 'Lit'.
 instance VecFamily Clause Lit where
@@ -59,7 +58,7 @@ instance VecFamily Clause Lit where
   setNth Clause{..} n x = error "no setNth for Clause"
   -- | returns a vector of literals in it.
   asList NullClause = return []
-  asList (BiCause a b) = return [a, b]
+  asList (BiClause a b) = return [a, b]
   asList Clause{..} = take <$> get' lits <*> (tail <$> asList lits)
   -- dump mes NullClause = return $ mes ++ "Null"
   -- dump mes Clause{..} = return $ mes ++ "a clause"
@@ -76,11 +75,11 @@ instance SingleStorage Clause Int where
   -- | returns the number of literals in a clause, even if the given clause is a binary clause
   {-# SPECIALIZE INLINE get' :: Clause -> IO Int #-}
   get' = get' . lits
-  -- getSize (BinaryClause _) = return 1
+  -- getSize (BiClause _) = return 1
   -- | sets the number of literals in a clause, even if the given clause is a binary clause
   {-# SPECIALIZE INLINE set' :: Clause -> Int -> IO () #-}
   set' c n = set' (lits c) n
-  -- getSize (BinaryClause _) = return 1
+  -- getSize (BiClause _) = return 1
 
 -- | 'Clause' is a 'Stackfamily'on literals since literals in it will be discared if satisifed at level = 0.
 instance StackFamily Clause Lit where
@@ -88,20 +87,20 @@ instance StackFamily Clause Lit where
   {-# SPECIALIZE INLINE shrinkBy :: Clause -> Int -> IO () #-}
   shrinkBy c n = modifyNth (lits c) (subtract n) 0
 
--- returns True if it is a 'BinaryClause'.
+-- returns True if it is a 'BiClause'.
 -- FIXME: this might be discarded in minisat 2.2
 -- isLit :: Clause -> Bool
--- isLit (BinaryClause _) = True
+-- isLit (BiClause _) = True
 -- isLit _ = False
 
--- returns the literal in a BinaryClause.
+-- returns the literal in a BiClause.
 -- FIXME: this might be discarded in minisat 2.2
 -- getLit :: Clause -> Lit
--- getLit (BinaryClause x) = x
+-- getLit (BiClause x) = x
 
 -- coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes.
 -- liftToClause :: Clause -> Clause
--- liftToClause (BinaryClause _) = error "So far I use generic function approach instead of lifting"
+-- liftToClause (BiClause _) = error "So far I use generic function approach instead of lifting"
 
 -- | copies /vec/ and return a new 'Clause'.
 -- Since 1.0.100 DIMACS reader should use a scratch buffer allocated statically.
@@ -110,7 +109,7 @@ newClauseFromStack :: Bool -> Stack -> IO Clause
 newClauseFromStack l vec = do
   n <- get' vec
   if n == 2 && False
-    then do BiCause <$> getNth vec 1 <*> getNth vec 2
+    then do BiClause <$> getNth vec 1 <*> getNth vec 2
     else do v <- newStack n
             let loop ((<= n) -> False) = return ()
                 loop i = (setNth v i =<< getNth vec i) >> loop (i + 1)

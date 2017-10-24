@@ -187,6 +187,7 @@ valueLit (assigns -> a) p = (\x -> if positiveLit p then x else negate x) <$> ge
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__
 {-# INLINE locked #-}
 locked :: Solver -> Clause -> IO Bool
+locked s c@(BiClause a _) = (c ==) <$> getNth (reason s) (lit2var a)
 locked s c = (c ==) <$> (getNth (reason s) . lit2var =<< getNth (lits c) 1)
 
 -------------------------------------------------------------------------------- Statistics
