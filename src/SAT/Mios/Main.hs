@@ -61,7 +61,7 @@ newLearntClause s@Solver{..} ps = do
        l1 <- getNth ps 1
        l2 <- getNth ps 2
        let c = BiClause l1 l2
-       pushTo clauses c
+       inplaceSubsume s learnts c
        pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
        pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
        unsafeEnqueue s l1 c
@@ -909,3 +909,55 @@ luby y x_ = loop 1 0
     loop2 x sz sq
       | sz - 1 == x = y ** fromIntegral sq
       | otherwise   = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
+
+inplaceSubsume :: Solver -> ClauseExtManager -> Clause -> IO Bool
+inplaceSubsume s clss b@(BiClause l1 l2) = do
+  n <- get' clss
+  cvec <- getClauseVector clss
+  bvec <- getKeyVector clss
+  let loop ((< n) -> False) = return False
+      loop i = do
+        c <- getNth cvec i
+        case c :: Clause of
+          Clause{..} -> do
+            x <- getNth lits 1
+            y <- getNth lits 2
+            if (x == l1 && y == l2) || (x == l2 && y == l1)
+              then do removeWatch s c
+                      reset (watches s)
+                      setNth cvec i b
+                      setNth bvec i l2
+                      return True
+              else loop (i + 1)
+          _ -> loop (i + 1)
+  loop (div n 2)
+
+-- | purges all clauses which the biclause can subsume
+subsumeAll :: Solver -> ClauseExtManager -> Clause -> IO Bool
+subsumeAll s clss (BiClause l1 l2) = do
+  n <- get' clss
+  cvec <- getClauseVector clss
+  bvec <- getKeyVector clss
+  let loop ((< n) -> False) j = return j
+      loop i j = do
+        c <- getNth cvec i
+        b <- getNth bvec i
+        case c :: Clause of
+          Clause{..} -> do
+            let check :: Lit -> Lit -> Int -> IO Bool
+                check _ 0 0 _ = return True
+                check _ _ 0 = return False
+                check a b i = do
+                  l <- getNth lits i
+                  check (if l == a then 0 else a) (if l == b then 0 else b) (i - 1)
+            y <- check l1 l2 =<< get' c
+            if y                -- subsumed
+              then removeWatch s c >> loop (i + 1) j
+              else do unless (i == j) $ setNth cvec j c >> setNth bvec j b
+                      loop (i + 1) (j + 1)
+          _ -> do unless (i == j) $ setNth cvec j c >> setNth bvec j b
+                  loop (i + 1) (j + 1)
+  n' <- loop 0 0
+  if n' < n
+    then shrinkBy clss (n - n') >> reset (watches s) >> return True
+    else return False
