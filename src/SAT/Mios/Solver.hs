@@ -470,6 +470,7 @@ claActivityThreshold = 1e20
 -- | __Fig. 14 (p.19)__
 {-# INLINE claBumpActivity #-}
 claBumpActivity :: Solver -> Clause -> IO ()
+claBumpActivity s@Solver{..} (BiClause _ _) = return ()
 claBumpActivity s@Solver{..} Clause{..} = do
   a <- (+) <$> get' activity <*> get' claInc
   set' activity a
@@ -491,7 +492,9 @@ claRescaleActivity Solver{..} = do
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
       c <- getNth vec i
-      modify' (activity c) (/ claActivityThreshold)
+      case c of
+        Clause{..} -> do modify' activity (/ claActivityThreshold)
+        _ -> return ()
       loopOnVector $ i + 1
   loopOnVector 0
   modify' claInc (/ claActivityThreshold)
