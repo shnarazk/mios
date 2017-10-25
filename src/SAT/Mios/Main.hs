@@ -61,7 +61,11 @@ newLearntClause s@Solver{..} ps = do
        l1 <- getNth ps 1
        l2 <- getNth ps 2
        let c = BiClause l1 l2
-       inplaceSubsume s learnts c
+       -- inplaceSubsume s clauses c
+       subsumeAll s 1 c
+       subsumeAll s 2 c
+       pushTo learnts c
+       -- pushTo clauses c
        pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
        pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
        unsafeEnqueue s l1 c
@@ -149,7 +153,7 @@ analyze s@Solver{..} confl = do
   dl <- decisionLevel s
   let
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
-    loopOnClauseChain NullClause lit _ _ _ = error $ "strange analyze loop: " ++ show lit
+    loopOnClauseChain NullClause lit _ _ _ = error $ "strange analyze loop: " ++ show (lit, confl)
     loopOnClauseChain c@(BiClause l1 l2) p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
       let
         loopOnLiterals :: Lit -> Int -> Int -> IO (Int, Int)
@@ -921,12 +925,14 @@ inplaceSubsume s clss b@(BiClause l1 l2) = do
                       return True
               else loop (i + 1)
           _ -> loop (i + 1)
-  loop (div n 2)
+  loop 0
 
 -- | purges all clauses which the biclause can subsume
-subsumeAll :: Solver -> ClauseExtManager -> Clause -> IO Bool
-subsumeAll s clss (BiClause l1 l2) = do
+subsumeAll :: Solver -> Int -> Clause -> IO Bool
+subsumeAll s kin (BiClause l1 l2) = do
+  let clss = if kin == 1 then clauses s else learnts s
   n <- get' clss
+  let start = if kin == 1 then 0 else div n 2
   cvec <- getClauseVector clss
   bvec <- getKeyVector clss
   let loop ((< n) -> False) j = return j
@@ -935,20 +941,25 @@ subsumeAll s clss (BiClause l1 l2) = do
         b <- getNth bvec i
         case c :: Clause of
           Clause{..} -> do
-            let check :: Lit -> Lit -> Int -> IO Bool
-                check 0 0 _ = return True
+            let check :: Bool -> Bool -> Int -> IO Bool
+                check True True _ = return True
                 check _ _ 0 = return False
-                check a b i = do
-                  l <- getNth lits i
-                  check (if l == a then 0 else a) (if l == b then 0 else b) (i - 1)
-            y <- check l1 l2 =<< get' c
+                check a b i = do l <- getNth lits i
+                                 if -l == l1 || -1 == l2
+                                   then return False
+                                   else check (l == l1 || a) (l == l2 || b) (i - 1)
+            y <- check False False =<< get' c
+            -- l <- locked s c
+            -- when (l && y) $ error "AAAA"
+            -- locked s c ; interestingly, a clause that can be subsumed is never used as reason.
+            -- The literal which level is highest in a learnt has been unassigned by cancelUntil.
             if y                -- subsumed
               then removeWatch s c >> loop (i + 1) j
               else do unless (i == j) $ setNth cvec j c >> setNth bvec j b
                       loop (i + 1) (j + 1)
           _ -> do unless (i == j) $ setNth cvec j c >> setNth bvec j b
                   loop (i + 1) (j + 1)
-  n' <- loop 0 0
+  n' <- loop start start
   if n' < n
     then shrinkBy clss (n - n') >> reset (watches s) >> return True
     else return False
