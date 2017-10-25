@@ -62,10 +62,10 @@ newLearntClause s@Solver{..} ps = do
        l2 <- getNth ps 2
        let c = BiClause l1 l2
        -- inplaceSubsume s clauses c
-       subsumeAll s 1 c
-       subsumeAll s 2 c
-       pushTo learnts c
-       -- pushTo clauses c
+       -- subsumeAll s 1 c
+       -- subsumeAll s 2 c
+       -- pushTo learnts c
+       pushTo clauses c
        pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
        pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
        unsafeEnqueue s l1 c
@@ -966,6 +966,14 @@ subsumeAll s kin (BiClause l1 l2) = do
               then removeWatch s c >> loop (i + 1) j
               else do unless (i == j) $ setNth cvec j c >> setNth bvec j b
                       loop (i + 1) (j + 1)
+          BiClause x y | lit2var x == lit2var l1 -> do
+                           -- print ((x,y), (l1, l2))
+                           unless (i == j) $ setNth cvec j c >> setNth bvec j b
+                           loop (i + 1) (j + 1)
+          BiClause x y | lit2var x == lit2var l2 -> do
+                           -- print ((x,y), (l2, l1))
+                           unless (i == j) $ setNth cvec j c >> setNth bvec j b
+                           loop (i + 1) (j + 1)
           _ -> do unless (i == j) $ setNth cvec j c >> setNth bvec j b
                   loop (i + 1) (j + 1)
   n' <- loop start start
