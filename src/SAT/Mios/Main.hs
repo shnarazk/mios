@@ -945,7 +945,7 @@ subsumeAll s clss (BiClause l1 l2) = do
         case c :: Clause of
           Clause{..} -> do
             let check :: Lit -> Lit -> Int -> IO Bool
-                check _ 0 0 _ = return True
+                check 0 0 _ = return True
                 check _ _ 0 = return False
                 check a b i = do
                   l <- getNth lits i
