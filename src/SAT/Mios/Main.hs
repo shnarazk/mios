@@ -28,6 +28,10 @@ import SAT.Mios.Glucose
 -- | #114: __RemoveWatch__
 {-# INLINABLE removeWatch #-}
 removeWatch :: Solver -> Clause -> IO ()
+removeWatch Solver{..} c@(BiClause l1 l2) = do
+  markClause (getNthWatcher watches (negateLit l1)) c
+  markClause (getNthWatcher watches (negateLit l2)) c
+
 removeWatch Solver{..} c = do
   let lstack = lits c
   l1 <- negateLit <$> getNth lstack 1
@@ -601,15 +605,17 @@ sortClauses s cm limit = do
       assignKey ((< n) -> False) = return ()
       assignKey i = do
         c <- getNth vec i
-        k <- get' c
-        if k == 2                  -- Main criteria. Like in MiniSat we keep all binary clauses
-          then do setNth keys i $ shiftL 1 indexWidth + i
-          else do a <- get' (activity c)               -- Second one... based on LBD
+        case c of
+          -- Main criteria. Like in MiniSat we keep all binary clauses
+          BiClause _ _ -> setNth keys i $ shiftL 1 indexWidth + i
+          _ -> do -- k <- get' c
+                  -- when (k == 2) $ error "strange k"
+                  a <- get' (activity c)                 -- Second one... based on LBD
                   r <- get' (rank c)
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax
-                            | otherwise ->  min rankMax r                -- rank can be one
+                            | otherwise -> min rankMax r -- rank can be one
                   setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
         assignKey (i + 1)
   assignKey 0
@@ -701,11 +707,14 @@ simplifyDB s@Solver{..} = do
                   loopOnVector ((< n') -> False) j = shrinkBy ptr (n' - j) >> return True
                   loopOnVector i j = do
                         c <- getNth vec' i
-                        l <- locked s c
-                        r <- simplify s c
-                        if not l && r
-                          then removeWatch s c >> loopOnVector (i + 1) j
-                          else setNth vec' j c >> loopOnVector (i + 1) (j + 1)
+                        case c of
+                          BiClause{} -> setNth vec' j c >> loopOnVector (i + 1) (j + 1)
+                          _ -> do
+                            l <- locked s c
+                            r <- simplify s c
+                            if not l && r
+                              then removeWatch s c >> loopOnVector (i + 1) j
+                              else setNth vec' j c >> loopOnVector (i + 1) (j + 1)
                 loopOnVector 0 0
             ret <- for 0
             reset watches
