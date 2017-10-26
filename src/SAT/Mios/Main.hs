@@ -690,14 +690,6 @@ simplifyDB s@Solver{..} = do
       if p /= NullClause
         then set' ok False >> return False
         else do
-            -- Clear watcher lists:
-            n <- get' trail
-            let loopOnLit ((< n) -> False) = return ()
-                loopOnLit i = do l <- getNth trail i
-                                 reset . getNthWatcher watches $ l
-                                 reset . getNthWatcher watches $ negateLit l
-                                 loopOnLit $ i + 1
-            loopOnLit 1
             -- Remove satisfied clauses:
             let
               for :: Int -> IO Bool
