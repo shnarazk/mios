@@ -62,8 +62,8 @@ newLearntClause s@Solver{..} ps = do
        l2 <- getNth ps 2
        let c = BiClause l1 l2
        -- inplaceSubsume s clauses c
-       -- subsumeAll s 1 c
-       -- subsumeAll s 2 c
+       subsumeAll s 1 c
+       subsumeAll s 2 c
        -- pushTo learnts c
        pushTo clauses c
        pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
