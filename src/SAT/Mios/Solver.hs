@@ -222,7 +222,18 @@ addClause s@Solver{..} vecLits = do
   result <- clauseNew s vecLits False
   case result of
    Left b  -> return b   -- No new clause was returned becaues a confilct occured or the clause is a literal
-   Right c -> pushTo clauses c >> return True
+   Right c -> do
+     pushTo clauses c
+     tn <- get' clauses
+     when (tn == 66597 + 1) $ do
+       c' <- map lit2int <$> asList c
+       g1 <- getNth (lits c) 1
+       g2 <- getNth (lits c) 2
+       print ("addClause", (c', lit2int g1, lit2int g2), tn)
+       c1 <- checkWatch (getNthWatcher watches (negateLit g1)) c
+       c2 <- checkWatch (getNthWatcher watches (negateLit g2)) c
+       print ("watch " ++ show (lit2int (negateLit g1)), c1, "watch " ++ show (lit2int (negateLit g2)), c2)
+     return True
 
 -- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists.
 -- Constructor function for clauses. Returns @False@ if top-level conflict is determined.
@@ -319,10 +330,10 @@ clauseNew s@Solver{..} ps isLearnt = do
        -- Bumping:
        claBumpActivity s c -- newly learnt clauses should be considered active
      -- Add clause to watcher lists:
-     l1 <- negateLit <$> getNth lstack 1
-     pushClauseWithKey (getNthWatcher watches l1) c 0
-     l2 <- negateLit <$> getNth lstack 2
-     pushClauseWithKey (getNthWatcher watches l2) c 0
+     l1 <- getNth lstack 1
+     l2 <- getNth lstack 2
+     pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
+     pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
      return (Right c)
 
 -- | __Fig. 9 (p.14)__

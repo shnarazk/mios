@@ -26,7 +26,7 @@ import SAT.Mios.ClausePool
 import SAT.Mios.Glucose
 
 -- | #114: __RemoveWatch__
-{-# INLINABLE removeWatch #-}
+{-- -# INLINABLE removeWatch #-}
 removeWatch :: Solver -> Clause -> IO ()
 removeWatch Solver{..} c@(BiClause l1 l2) = do
   markClause (getNthWatcher watches (negateLit l1)) c
@@ -35,8 +35,10 @@ removeWatch Solver{..} c@(BiClause l1 l2) = do
 removeWatch Solver{..} c = do
   let lstack = lits c
   l1 <- negateLit <$> getNth lstack 1
+  when (l1 == 0) $ error (show ("removeWatch got a clause which the first watch is 0.", c, l1))
   markClause (getNthWatcher watches l1) c
   l2 <- negateLit <$> getNth lstack 2
+  when (l2 == 0) $ error (show ("removeWatch got a clause which the second watch is 0.", c, l1, l2))
   markClause (getNthWatcher watches l2) c
   putBackToPool clsPool c
 
@@ -467,6 +469,12 @@ propagate s@Solver{..} = do
           forClause i@((< end) -> False) !j = shrinkBy ws (i - j) >> return confl
           forClause !i !j = do
             (blocker :: Lit) <- getNth bvec i        -- Try to avoid inspecting the clause:
+            when (lit2int falseLit == -3743) $ do
+              (c :: Clause) <- getNth cvec i
+              c' <- show . map lit2int <$> asList c
+              tm <- valueLit s blocker
+              putStrLn $ "AAAA: " ++ c' ++ " blocker " ++ show (lit2int blocker, tm, (i, j))
+              print . map (map lit2int) =<< mapM asList =<< asList ws
             bv <- if blocker == 0 then return LiftedF else valueLit s blocker
             if bv == LiftedT
               then do unless (i == j) $ do (c :: Clause) <- getNth cvec i
@@ -520,11 +528,11 @@ propagate s@Solver{..} = do
                                                        then do setNth lstack 2 l'
                                                                setNth lstack k falseLit
                                                                pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
-                                                               return LiftedT  -- find another watch
+                                                               return LiftedT  -- found another watch
                                                        else newWatch $! k + 1
                                 ret <- newWatch 3
                                 case ret of
-                                  LiftedT -> forClause (i + 1) j               -- find another watch
+                                  LiftedT -> forClause (i + 1) j               -- found another watch
                                   LBottom -> forClause (i + 1) (j + 1)         -- unit clause
                                   _       -> shrinkBy ws (i - j) >> return c   -- conflict
       c <- forClause 0 0
@@ -708,7 +716,7 @@ simplifyDB s@Solver{..} = do
                 n' <- get' ptr
                 let
                   loopOnVector :: Int -> Int -> IO Bool
-                  loopOnVector ((< n') -> False) j = shrinkBy ptr (n' - j) >> return True
+                  loopOnVector ((< n') -> False) j = shrinkBy ptr (n' - j) >> when (n' > j) (print (n', j)) >> return True
                   loopOnVector i j = do
                         c <- getNth vec' i
                         case c of
@@ -939,15 +947,28 @@ inplaceSubsume s clss b@(BiClause l1 l2) = do
 -- | purges all clauses which the biclause can subsume
 subsumeAll :: Solver -> Int -> Clause -> IO Bool
 subsumeAll s kin (BiClause l1 l2) = do
+  when (kin == 1) (putStrLn "start subsumeAll")
   let clss = if kin == 1 then clauses s else learnts s
   n <- get' clss
   let start = if kin == 1 then 0 else div n 2
   cvec <- getClauseVector clss
   bvec <- getKeyVector clss
+  when (kin == 1) (print =<< getNth cvec 66597)
+  when (kin == 1) (print =<< getNth bvec 66597)
   let loop ((< n) -> False) j = return j
       loop i j = do
+        when (i >= 66597) (print (i, j, n, start, kin))
         c <- getNth cvec i
         b <- getNth bvec i
+        when (i >= 66597) $ do
+          c' <- map lit2int <$> asList c
+          g1 <- getNth (lits c) 1
+          g2 <- getNth (lits c) 2
+          (print ("accessed both vectors", (c', lit2int g1, lit2int g2), b))
+          c1 <- checkWatch (getNthWatcher (watches s) (negateLit g1)) c
+          c2 <- checkWatch (getNthWatcher (watches s) (negateLit g2)) c
+          print . map (map lit2int) =<< mapM asList =<< asList (getNthWatcher (watches s) (int2lit 3743))
+          print ("watch " ++ show (lit2int (negateLit g1)), c1, "watch " ++ show (lit2int (negateLit g2)), c2)
         case c :: Clause of
           Clause{..} -> do
             let check :: Bool -> Bool -> Int -> IO Bool
@@ -958,12 +979,14 @@ subsumeAll s kin (BiClause l1 l2) = do
                                    then return False
                                    else check (l == l1 || a) (l == l2 || b) (i - 1)
             y <- check False False =<< get' c
+            when (i >= 66597) $ do
+              (print ("checked", y))
             -- l <- locked s c
             -- when (l && y) $ error "AAAA"
             -- locked s c ; interestingly, a clause that can be subsumed is never used as reason.
             -- The literal which level is highest in a learnt has been unassigned by cancelUntil.
             if y                -- subsumed
-              then removeWatch s c >> loop (i + 1) j
+              then removeWatch s c >> print "removeWatch done" >> loop (i + 1) j
               else do unless (i == j) $ setNth cvec j c >> setNth bvec j b
                       loop (i + 1) (j + 1)
           BiClause x y | lit2var x == lit2var l1 -> do
@@ -974,9 +997,10 @@ subsumeAll s kin (BiClause l1 l2) = do
                            -- print ((x,y), (l2, l1))
                            unless (i == j) $ setNth cvec j c >> setNth bvec j b
                            loop (i + 1) (j + 1)
+          NullClause -> do error (show (i, j, n, start))
           _ -> do unless (i == j) $ setNth cvec j c >> setNth bvec j b
                   loop (i + 1) (j + 1)
   n' <- loop start start
   if n' < n
-    then shrinkBy clss (n - n') >> reset (watches s) >> return True
+    then shrinkBy clss (n - n') >> putStrLn "shrink" >> reset (watches s) >> return True
     else return False

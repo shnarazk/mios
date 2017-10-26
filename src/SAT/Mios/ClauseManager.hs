@@ -16,7 +16,7 @@ module SAT.Mios.ClauseManager
          -- * Simple Clause Manager
        , ClauseSimpleManager
          -- * Manager with an extra Int (used as sort key or blocking literal)
-       , ClauseExtManager
+       , ClauseExtManager (..)
        , pushClauseWithKey
        , getKeyVector
        , markClause
@@ -25,6 +25,8 @@ module SAT.Mios.ClauseManager
        , WatcherList
        , newWatcherList
        , getNthWatcher
+         -- * debug
+       , checkWatch
        )
        where
 
@@ -122,12 +124,15 @@ instance StackFamily ClauseExtManager C.Clause where
     if MV.length v - 1 <= n
       then do
           let len = max 8 $ MV.length v
+          c1 <- map lit2int <$> (asList =<< getNth v 0)
           v' <- MV.unsafeGrow v len
           b' <- growBy b len
           MV.unsafeWrite v' n c
           setNth b' n 0
           IORef.writeIORef _clauseVector v'
           IORef.writeIORef _keyVector b'
+          c2 <- map lit2int <$> (asList =<< getNth v' 0)
+          putStrLn $ "enlarge: " ++ show (c1, c2)
       else MV.unsafeWrite v n c >> setNth b n 0
     modify' _nActives (1 +)
   popFrom m = modify' (_nActives m) (subtract 1)
@@ -189,13 +194,17 @@ instance ClauseManager ClauseExtManager where
 -}
 
 -- | sets the expire flag to a clause.
-{-# INLINABLE markClause #-}
+-- {-# INLINABLE markClause #-}
 markClause :: ClauseExtManager -> C.Clause -> IO ()
 markClause ClauseExtManager{..} c = do
   !n <- get' _nActives
   !v <- IORef.readIORef _clauseVector
   let
     seekIndex :: Int -> IO ()
+    seekIndex ((< n) -> False) = do
+      print c
+      cl <- map lit2int <$> asList c
+      error $ "markClause failed to seek" ++ show cl
     seekIndex k = do
       -- assert (k < n)
       c' <- MV.unsafeRead v k
@@ -241,14 +250,16 @@ pushClauseWithKey !ClauseExtManager{..} !c k = do
   !v <- IORef.readIORef _clauseVector
   !b <- IORef.readIORef _keyVector
   if MV.length v - 1 <= n
-    then do
-        let len = max 8 $ MV.length v
-        v' <- MV.unsafeGrow v len
-        b' <- growBy b len
-        MV.unsafeWrite v' n c
-        setNth b' n k
-        IORef.writeIORef _clauseVector v'
-        IORef.writeIORef _keyVector b'
+    then do let len = max 8 $ MV.length v
+            c1 <- asList =<< getNth v (n - 1)
+            v' <- MV.unsafeGrow v len
+            b' <- growBy b len
+            MV.unsafeWrite v' n c
+            setNth b' n k
+            IORef.writeIORef _clauseVector v'
+            IORef.writeIORef _keyVector b'
+            c2 <- asList =<< getNth v' (n - 1)
+            when (c1 /= c1) $ error $ "pushClauseWithKey extended the vector: the last element was/is " ++ show (c1, c2)
     else MV.unsafeWrite v n c >> setNth b n k
   modify' _nActives (1 +)
 
@@ -292,3 +303,16 @@ instance VecFamily WatcherList C.Clause where
   {-# SPECIALIZE INLINE reset :: WatcherList -> IO () #-}
   reset = V.mapM_ purifyManager
 --  dump _ _ = (mes ++) . concat <$> mapM (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i)) [1 .. V.length wl - 1]
+
+
+-- | sets the expire flag to a clause.
+-- {-# INLINABLE markClause #-}
+checkWatch :: ClauseExtManager -> C.Clause -> IO Bool
+checkWatch ClauseExtManager{..} c = do
+  n <- get' _nActives
+  v <- IORef.readIORef _clauseVector
+  let seekIndex :: Int -> IO Bool
+      seekIndex ((< n) -> False) = return False
+      seekIndex k = do c' <- MV.unsafeRead v k
+                       if c' == c then return True else seekIndex $ k + 1
+  seekIndex 0
