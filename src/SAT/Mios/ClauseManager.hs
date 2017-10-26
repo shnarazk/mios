@@ -202,7 +202,6 @@ markClause ClauseExtManager{..} c = do
   let
     seekIndex :: Int -> IO ()
     seekIndex ((< n) -> False) = do
-      print c
       cl <- map lit2int <$> asList c
       error $ "markClause failed to seek" ++ show cl
     seekIndex k = do

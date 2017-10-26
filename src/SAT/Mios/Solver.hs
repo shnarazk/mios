@@ -225,14 +225,6 @@ addClause s@Solver{..} vecLits = do
    Right c -> do
      pushTo clauses c
      tn <- get' clauses
-     when (tn == 66597 + 1) $ do
-       c' <- map lit2int <$> asList c
-       g1 <- getNth (lits c) 1
-       g2 <- getNth (lits c) 2
-       print ("addClause", (c', lit2int g1, lit2int g2), tn)
-       c1 <- checkWatch (getNthWatcher watches (negateLit g1)) c
-       c2 <- checkWatch (getNthWatcher watches (negateLit g2)) c
-       print ("watch " ++ show (lit2int (negateLit g1)), c1, "watch " ++ show (lit2int (negateLit g2)), c2)
      return True
 
 -- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists.
