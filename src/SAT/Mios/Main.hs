@@ -457,6 +457,9 @@ propagate s@Solver{..} = do
       incrementStat s NumOfPropagation 1
       let (ws :: ClauseExtManager) = getNthWatcher watches p
           !falseLit = negateLit p
+      cs <- mapM (\c -> take 2 <$> asList c) =<< asList ws
+      let cs' = filter (notElem falseLit) cs
+      when (cs' /= []) $ putStrLn $ show (lit2int p) ++ ":" ++ show cs
       end <- get' ws
       cvec <- getClauseVector ws
       bvec <- getKeyVector ws
