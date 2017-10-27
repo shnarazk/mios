@@ -61,7 +61,7 @@ newLearntClause s@Solver{..} ps = do
        l1 <- getNth ps 1
        l2 <- getNth ps 2
        let c = BiClause l1 l2
-       print (l1, l2)
+       -- print (l1, l2)
        -- inplaceSubsume s clauses c
        -- subsumeAll s clauses c
        -- unbumpSubsumables learnts c
@@ -770,7 +770,7 @@ search s@Solver{..} nOfConflicts = do
                     set' learntSAdj t'
                     set' learntSCnt $ floor t'
                     modify' maxLearnts (* 1.1)
-{-
+-- {-
                     -- verbose
                     let w8 :: Int -> String -> String
                         w8 (show -> i) p = take (8 - length i) "          " ++ i ++ p
@@ -782,7 +782,7 @@ search s@Solver{..} nOfConflicts = do
                     vn <- (nVars -) <$> if va == 0 then get' trail else getNth trailLim 1
                     vp <- getStat s NumOfPropagation
                     putStrLn $ w8 vb " | " ++ w8 vn " " ++ w8 gc " | " ++ w8 vm " " ++ w8 vc " | " ++ w8 vp ""
--}
+-- -}
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
