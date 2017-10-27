@@ -61,6 +61,7 @@ newLearntClause s@Solver{..} ps = do
        l1 <- getNth ps 1
        l2 <- getNth ps 2
        let c = BiClause l1 l2
+       print (l1, l2)
        -- inplaceSubsume s clauses c
        -- subsumeAll s clauses c
        -- unbumpSubsumables learnts c
