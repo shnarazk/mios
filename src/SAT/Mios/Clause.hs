@@ -108,7 +108,7 @@ instance StackFamily Clause Lit where
 newClauseFromStack :: Bool -> Stack -> IO Clause
 newClauseFromStack l vec = do
   n <- get' vec
-  if n == 2 && False
+  if n == 2
     then do BiClause <$> getNth vec 1 <*> getNth vec 2
     else do v <- newStack n
             let loop ((<= n) -> False) = return ()
