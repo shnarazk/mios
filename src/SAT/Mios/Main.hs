@@ -484,6 +484,7 @@ propagate s@Solver{..} = do
                       let second = if l1 == falseLit then l2 else l1
                       sv <- valueLit s second
                       setNth cvec j c >> setNth bvec j l1
+                      print sv
                       case sv of
                         LiftedT -> do forClause (i + 1) (j + 1)
                         LBottom -> do unsafeEnqueue s second c
