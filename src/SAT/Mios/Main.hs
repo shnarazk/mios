@@ -75,6 +75,7 @@ newLearntClause s@Solver{..} ps = do
        pushTo learnts c
        l1 <- getNth lstack 1
        l2 <- getNth lstack 2
+       when (k == 2) $ print (l1, l2)
        pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
        pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
        -- update the solver state by @l@
