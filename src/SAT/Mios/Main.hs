@@ -391,6 +391,7 @@ propagate s@Solver{..} = do
               else do                               -- Make sure the false literal is data[1]:
                   (c :: Clause) <- getNth cvec i
                   let !lstack = lits c
+                  nn <- get' lstack
                   tmp <- getNth lstack 1
                   first <- if falseLit == tmp
                            then do l2 <- getNth lstack 2
@@ -400,7 +401,7 @@ propagate s@Solver{..} = do
                            else return tmp
                   fv <- valueLit s first
                   if first /= blocker && fv == LiftedT
-                    then setNth cvec j c >> setNth bvec j first >> forClause (i + 1) (j + 1)
+                    then setNth cvec j c >> setNth bvec j first >> when (nn == 2) (print (i, first, fv)) >> forClause (i + 1) (j + 1)
                     else do cs <- get' c           -- Look for new watch:
                             let newWatch :: Int -> IO LiftedBool
                                 newWatch ((<= cs) -> False) = do -- Did not find watch
@@ -422,6 +423,7 @@ propagate s@Solver{..} = do
                                                            return LiftedT  -- find another watch
                                                    else newWatch $! k + 1
                             ret <- newWatch 3
+                            when (nn == 2) (print ret)
                             case ret of
                               LiftedT -> forClause (i + 1) j               -- find another watch
                               LBottom -> forClause (i + 1) (j + 1)         -- unit clause
