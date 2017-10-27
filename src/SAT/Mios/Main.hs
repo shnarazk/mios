@@ -18,6 +18,7 @@ module SAT.Mios.Main
 import Control.Monad (unless, void, when)
 import Data.Bits
 import Data.Foldable (foldrM)
+import Data.List
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -484,7 +485,8 @@ propagate s@Solver{..} = do
                       let second = if l1 == falseLit then l2 else l1
                       sv <- valueLit s second
                       setNth cvec j c >> setNth bvec j l1
-                      print (i, second, sv)
+                      x <- asList c
+                      print (i, sort x, sv)
                       case sv of
                         LiftedT -> do forClause (i + 1) (j + 1)
                         LBottom -> do unsafeEnqueue s second c
