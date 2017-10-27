@@ -401,7 +401,10 @@ propagate s@Solver{..} = do
                            else return tmp
                   fv <- valueLit s first
                   if first /= blocker && fv == LiftedT
-                    then setNth cvec j c >> setNth bvec j first >> when (nn == 2) (print (i, first, fv)) >> forClause (i + 1) (j + 1)
+                    then do when (nn == 2) $ do
+                              x <- asList c
+                              print (i, x, LiftedT)
+                            setNth cvec j c >> setNth bvec j first >> forClause (i + 1) (j + 1)
                     else do cs <- get' c           -- Look for new watch:
                             let newWatch :: Int -> IO LiftedBool
                                 newWatch ((<= cs) -> False) = do -- Did not find watch
@@ -423,7 +426,7 @@ propagate s@Solver{..} = do
                                                            return LiftedT  -- find another watch
                                                    else newWatch $! k + 1
                             ret <- newWatch 3
-                            when (nn == 2) (print ret)
+                            when (nn == 2) $ do x <- asList c ; print (i, x, ret)
                             case ret of
                               LiftedT -> forClause (i + 1) j               -- find another watch
                               LBottom -> forClause (i + 1) (j + 1)         -- unit clause
