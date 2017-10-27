@@ -75,7 +75,7 @@ newLearntClause s@Solver{..} ps = do
        pushTo learnts c
        l1 <- getNth lstack 1
        l2 <- getNth lstack 2
-       when (k == 2) $ print (l1, l2)
+       -- when (k == 2) $ print (l1, l2)
        pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
        pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
        -- update the solver state by @l@
@@ -668,7 +668,7 @@ search s@Solver{..} nOfConflicts = do
                     set' learntSAdj t'
                     set' learntSCnt $ floor t'
                     modify' maxLearnts (* 1.1)
-{-
+-- {-
                     -- verbose
                     let w8 :: Int -> String -> String
                         w8 (show -> i) p = take (8 - length i) "          " ++ i ++ p
@@ -680,7 +680,7 @@ search s@Solver{..} nOfConflicts = do
                     vn <- (nVars -) <$> if va == 0 then get' trail else getNth trailLim 1
                     vp <- getStat s NumOfPropagation
                     putStrLn $ w8 vb " | " ++ w8 vn " " ++ w8 gc " | " ++ w8 vm " " ++ w8 vc " | " ++ w8 vp ""
--}
+-- -}
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
