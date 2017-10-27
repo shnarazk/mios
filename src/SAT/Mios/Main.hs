@@ -18,6 +18,7 @@ module SAT.Mios.Main
 import Control.Monad (unless, void, when)
 import Data.Bits
 import Data.Foldable (foldrM)
+import Data.List
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -75,7 +76,7 @@ newLearntClause s@Solver{..} ps = do
        pushTo learnts c
        l1 <- getNth lstack 1
        l2 <- getNth lstack 2
-       -- when (k == 2) $ print (l1, l2)
+       when (k == 2) $ print (l1, l2)
        pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
        pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
        -- update the solver state by @l@
@@ -161,6 +162,7 @@ analyze s@Solver{..} confl = do
           if sn == 0 && 0 < l
             then do
                 varBumpActivity s v
+                putStrLn ("bump " ++ show v)
                 setNth an'seen v 1
                 if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
                   then do
@@ -168,7 +170,7 @@ analyze s@Solver{..} confl = do
                       r <- getNth reason v
                       when (r /= NullClause) $ do
                         ra <- get' (rank r)
-                        when (0 /= ra) $ pushTo an'lastDL q
+                        when (2 < ra) $ pushTo an'lastDL q -- only non-binary and learnt 
                       -- end of glucose heuristics
                       loopOnLiterals (j + 1) b (pc + 1)
                   else pushTo litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
@@ -224,7 +226,7 @@ analyze s@Solver{..} confl = do
       loopOnLastDL ((<= nld) -> False) = return ()
       loopOnLastDL i = do v <- lit2var <$> getNth an'lastDL i
                           r' <- get' =<< getNth reason v
-                          when (r < r') $ varBumpActivity s v
+                          when (2 < r' && r < r') $ varBumpActivity s v >> putStrLn ("bump loopOnLastDL" ++ show v)
                           loopOnLastDL $ i + 1
   loopOnLastDL 1
   reset an'lastDL
@@ -381,17 +383,21 @@ propagate s@Solver{..} = do
       let forClause :: Int -> Int -> IO Clause
           forClause i@((< end) -> False) !j = shrinkBy ws (i - j) >> return confl
           forClause !i !j = do
+            qq <- getNth cvec i
+            qn <- get' qq
+            qc <- sort <$> asList qq
             (blocker :: Lit) <- getNth bvec i        -- Try to avoid inspecting the clause:
+            when (qn == 2) $ do putStr $ show qc ++ ":" ++ show (p, blocker) ++ " => "
             bv <- if blocker == 0 then return LiftedF else valueLit s blocker
             if bv == LiftedT
               then do unless (i == j) $ do (c :: Clause) <- getNth cvec i
                                            setNth cvec j c
                                            setNth bvec j blocker
+                      when (qn == 2) $ do print (falseLit, i, qc, LiftedT, i - j, blocker)
                       forClause (i + 1) (j + 1)
               else do                               -- Make sure the false literal is data[1]:
                   (c :: Clause) <- getNth cvec i
                   let !lstack = lits c
-                  nn <- get' lstack
                   tmp <- getNth lstack 1
                   first <- if falseLit == tmp
                            then do l2 <- getNth lstack 2
@@ -401,15 +407,15 @@ propagate s@Solver{..} = do
                            else return tmp
                   fv <- valueLit s first
                   if first /= blocker && fv == LiftedT
-                    then do when (nn == 2) $ do
-                              x <- asList c
-                              print (i, x, LiftedT)
+                    then do when (qn == 2) $ do
+                              print (falseLit, i, qc, LiftedT, first)
                             setNth cvec j c >> setNth bvec j first >> forClause (i + 1) (j + 1)
                     else do cs <- get' c           -- Look for new watch:
                             let newWatch :: Int -> IO LiftedBool
                                 newWatch ((<= cs) -> False) = do -- Did not find watch
                                   setNth cvec j c
                                   setNth bvec j first
+                                  when (qn == 2) $ do x <- asList c ; print (falseLit, i, qc, fv, i - j, first)
                                   if fv == LiftedF
                                     then do ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
                                             set' qHead =<< get' trail
@@ -423,10 +429,10 @@ propagate s@Solver{..} = do
                                                    then do setNth lstack 2 l'
                                                            setNth lstack k falseLit
                                                            pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
+                                                           when (qn == 2) $ do x <- asList c ; print (falseLit, i, qc, LiftedT, i - j, blocker)
                                                            return LiftedT  -- find another watch
                                                    else newWatch $! k + 1
                             ret <- newWatch 3
-                            when (nn == 2) $ do x <- asList c ; print (i, x, ret)
                             case ret of
                               LiftedT -> forClause (i + 1) j               -- find another watch
                               LBottom -> forClause (i + 1) (j + 1)         -- unit clause
@@ -689,7 +695,7 @@ search s@Solver{..} nOfConflicts = do
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
-            when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
+            -- when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
             k1 <- get' learnts
             k2 <- nAssigns s
             when (k1 - k2 >= nOfLearnts) $ do   -- This is a cheap check.
@@ -756,7 +762,7 @@ solve s@Solver{..} assumps = do
                             cancelUntil s 0
                             return False
                     else return True
-  good <- simplifyDB s
+  good <- return True -- simplifyDB s
   x <- if good then foldrM inject True assumps else return False
   if not x
     then return False
@@ -787,6 +793,8 @@ solve s@Solver{..} assumps = do
 {-# INLINABLE unsafeEnqueue #-}
 unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
 unsafeEnqueue s@Solver{..} p from = do
+  c <- asList from
+  putStrLn $ "Unsafe Enqueue: " ++ show (p, sort c)
   let v = lit2var p
   setNth assigns v $ lit2lbool p
   setNth level v =<< decisionLevel s
