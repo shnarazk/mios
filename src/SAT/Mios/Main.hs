@@ -62,10 +62,13 @@ newLearntClause s@Solver{..} ps = do
        l2 <- getNth ps 2
        let c = BiClause l1 l2
        -- inplaceSubsume s clauses c
-       -- subsumeAll s 1 c
-       -- subsumeAll s 2 c
-       -- pushTo learnts c
-       pushTo clauses c
+       -- subsumeAll s clauses c
+       -- unbumpSubsumables learnts c
+       -- unbumpSubsumees (getNthWatcher watches (negateLit l1)) c
+       -- unbumpSubsumees (getNthWatcher watches (negateLit l2)) c
+       -- subsumeAll s learnts c
+       pushTo learnts c
+       -- pushTo clauses c
        pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
        pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
        unsafeEnqueue s l1 c
@@ -929,13 +932,11 @@ inplaceSubsume s clss b@(BiClause l1 l2) = do
   loop 0
 
 -- | purges all clauses which the biclause can subsume
-subsumeAll :: Solver -> Int -> Clause -> IO Bool
-subsumeAll s kin (BiClause l1 l2) = do
-  let clss = if kin == 1 then clauses s else learnts s
-  n <- get' clss
-  let start = if kin == 1 then 0 else div n 2
-  cvec <- getClauseVector clss
-  bvec <- getKeyVector clss
+subsumeAll :: Solver -> ClauseExtManager -> Clause -> IO Bool
+subsumeAll s mgr (BiClause l1 l2) = do
+  n <- get' mgr
+  cvec <- getClauseVector mgr
+  bvec <- getKeyVector mgr
   let loop ((< n) -> False) j = return j
       loop i j = do
         c <- getNth cvec i
@@ -968,7 +969,30 @@ subsumeAll s kin (BiClause l1 l2) = do
                            loop (i + 1) (j + 1)
           _ -> do unless (i == j) $ setNth cvec j c >> setNth bvec j b
                   loop (i + 1) (j + 1)
-  n' <- loop start start
+  n' <- loop 0 0
   if n' < n
-    then shrinkBy clss (n - n') >> reset (watches s) >> return True
+    then shrinkBy mgr (n - n') >> reset (watches s) >> return True
     else return False
+
+-- | _purges_ degrade activity of all clauses which the biclause can subsume
+unbumpSubsumees :: ClauseExtManager -> Clause -> IO ()
+unbumpSubsumees mgr (BiClause l1 l2) = do
+  n <- get' mgr
+  cvec <- getClauseVector mgr
+  let loop ((< n) -> False) = return ()
+      loop i = do
+        c <- getNth cvec i
+        case c of
+          Clause{..} -> do
+            let check :: Bool -> Bool -> Int -> IO Bool
+                check True True _ = return True
+                check _ _ 0 = return False
+                check a b i = do l <- getNth lits i
+                                 if -l == l1 || -1 == l2
+                                   then return False
+                                   else check (l == l1 || a) (l == l2 || b) (i - 1)
+            y <- check False False =<< get' c
+            when y $ modify' activity (* 0.1)
+          _ -> return ()
+        loop (i + 1)
+  loop 0
