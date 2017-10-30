@@ -794,7 +794,7 @@ search s@Solver{..} nOfConflicts = do
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
-            when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
+            -- when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
             k1 <- get' learnts
             k2 <- nAssigns s
             when (k1 - k2 >= nOfLearnts) $ do   -- This is a cheap check.
@@ -823,6 +823,7 @@ search s@Solver{..} nOfConflicts = do
                        toggleAt ((<= nv) -> False) = return ()
                        toggleAt i = modifyNth phases toggle i >> toggleAt (i + 1)
                    toggleAt 1
+                   void $ simplifyDB s -- our simplifier cannot return @False@ here
                    incrementStat s NumOfRestart 1
                    return LBottom
              _ -> do
