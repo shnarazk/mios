@@ -168,7 +168,7 @@ analyze s@Solver{..} confl = do
                       when (r /= NullClause) $ do
                         ra <- get' (rank r)
                         rn <- get' r
-                        when (rn ==2 || 0 < ra) $ pushTo an'lastDL q -- only non-binary and learnt
+                        when (rn == 2 || 0 < ra) $ pushTo an'lastDL q -- only non-binary and learnt
                       -- end of glucose heuristics
                       loopOnLiterals (j + 1) b (pc + 1)
                   else pushTo litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
@@ -224,7 +224,7 @@ analyze s@Solver{..} confl = do
       loopOnLastDL ((<= nld) -> False) = return ()
       loopOnLastDL i = do v <- lit2var <$> getNth an'lastDL i
                           r' <- get' =<< getNth reason v
-                          when (2 < r' && r < r') $ varBumpActivity s v -- >> putStrLn ("bump loopOnLastDL" ++ show v)
+                          when (2 /= r' && r < r') $ varBumpActivity s v
                           loopOnLastDL $ i + 1
   loopOnLastDL 1
   reset an'lastDL
@@ -587,14 +587,6 @@ simplifyDB s@Solver{..} = do
       if p /= NullClause
         then set' ok False >> return False
         else do
-            -- Clear watcher lists:
-            n <- get' trail
-            let loopOnLit ((< n) -> False) = return ()
-                loopOnLit i = do l <- getNth trail i
-                                 reset . getNthWatcher watches $ l
-                                 reset . getNthWatcher watches $ negateLit l
-                                 loopOnLit $ i + 1
-            loopOnLit 1
             -- Remove satisfied clauses:
             let
               for :: Int -> IO Bool
