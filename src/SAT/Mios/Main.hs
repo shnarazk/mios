@@ -720,9 +720,9 @@ simplifyDB s@Solver{..} = do
                   loopOnVector ((< n') -> False) j = shrinkBy ptr (n' - j) >> return True
                   loopOnVector i j = do
                         c <- getNth vec' i
-                        l <- locked s c
+                        -- l <- locked s c
                         r <- simplify s c
-                        if not l && r
+                        if r -- not l && r
                           then removeWatch s c >> loopOnVector (i + 1) j
                           else setNth vec' j c >> loopOnVector (i + 1) (j + 1)
                 loopOnVector 0 0
@@ -796,7 +796,7 @@ search s@Solver{..} nOfConflicts = do
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
-            when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
+            -- when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
             k1 <- get' learnts
             k2 <- nAssigns s
             when (k1 - k2 >= nOfLearnts) $ do   -- This is a cheap check.
@@ -825,6 +825,7 @@ search s@Solver{..} nOfConflicts = do
                        toggleAt ((<= nv) -> False) = return ()
                        toggleAt i = modifyNth phases toggle i >> toggleAt (i + 1)
                    toggleAt 1
+                   void $ simplifyDB s -- our simplifier cannot return @False@ here
                    incrementStat s NumOfRestart 1
                    return LBottom
              _ -> do
