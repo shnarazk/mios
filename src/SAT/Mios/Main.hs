@@ -62,7 +62,7 @@ newLearntClause s@Solver{..} ps = do
        l1 <- getNth ps 1
        l2 <- getNth ps 2
        let c = BiClause l1 l2
-       print (l1, l2)
+       -- print (l1, l2)
        -- inplaceSubsume s clauses c
        -- subsumeAll s clauses c
        -- subsumeAll s learnts c
@@ -170,7 +170,7 @@ analyze s@Solver{..} confl = do
           if sn == 0 && 0 < l
             then do
                 varBumpActivity s v
-                putStrLn ("bump " ++ show v)
+                -- putStrLn ("bump " ++ show v)
                 setNth an'seen v 1
                 if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
                   then do
@@ -228,7 +228,7 @@ analyze s@Solver{..} confl = do
           if sn == 0 && 0 < l
             then do
                 varBumpActivity s v
-                putStrLn ("bump " ++ show v)
+                -- putStrLn ("bump " ++ show v)
                 setNth an'seen v 1
                 if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
                   then do
@@ -296,7 +296,7 @@ analyze s@Solver{..} confl = do
                           case rc of
                             Clause{..} -> do
                               r' <- get' rc
-                              when (2 < r' && r < r') $ varBumpActivity s v >> putStrLn ("bump loopOnLastDL" ++ show v)
+                              when (2 < r' && r < r') $ varBumpActivity s v -- >> putStrLn ("bump loopOnLastDL" ++ show v)
                             _ -> return ()
                           loopOnLastDL $ i + 1
   loopOnLastDL 1
@@ -483,13 +483,13 @@ propagate s@Solver{..} = do
                          BiClause {} -> do qc <- asList qq; return (2, sort qc)
                          _ -> return (0, [])
             (blocker :: Lit) <- getNth bvec i        -- Try to avoid inspecting the clause:
-            when (qn == 2) $ do putStr $ show qc ++ ":" ++ show (p, blocker) ++ " => "
+            -- when (qn == 2) $ do putStr $ show qc ++ ":" ++ show (p, blocker) ++ " => "
             bv <- if blocker == 0 then return LiftedF else valueLit s blocker
             if bv == LiftedT
               then do unless (i == j) $ do (c :: Clause) <- getNth cvec i
                                            setNth cvec j c
                                            setNth bvec j blocker
-                      when (qn == 2) $ print (falseLit, i, qc, LiftedT, i - j, blocker)
+                      -- when (qn == 2) $ print (falseLit, i, qc, LiftedT, i - j, blocker)
                       forClause (i + 1) (j + 1)
               else do                               -- Make sure the false literal is data[1]:
                   (c :: Clause) <- getNth cvec i
@@ -499,15 +499,15 @@ propagate s@Solver{..} = do
                       sv <- valueLit s second
                       setNth cvec j c >> setNth bvec j l1
                       case sv of
-                        LiftedT -> do print (falseLit, i, qc, sv, i - j, l1)
+                        LiftedT -> do -- print (falseLit, i, qc, sv, i - j, l1)
                                       forClause (i + 1) (j + 1)
                         LBottom -> do setNth bvec j second
-                                      print (falseLit, i, qc, sv, i - j, second)
+                                      -- print (falseLit, i, qc, sv, i - j, second)
                                       unsafeEnqueue s second c
                                       -- putStrLn $ "Biclause propagation from: " ++ show p ++ " to " ++ show second ++ " by " ++ show c
                                       forClause (i + 1) (j + 1)
                         LiftedF -> do setNth bvec j second
-                                      print (falseLit, i, qc, sv, i - j, second)
+                                      -- print (falseLit, i, qc, sv, i - j, second)
                                       ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
                                       -- putStrLn $ "Biclause conflict with: " ++ show p ++ " and " ++ show second ++ " by " ++ show c
                                       set' qHead =<< get' trail
@@ -904,7 +904,7 @@ solve s@Solver{..} assumps = do
 unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
 unsafeEnqueue s@Solver{..} p from = do
   c <- asList from
-  putStrLn $ "Unsafe Enqueue: " ++ show (p, sort c)
+  -- putStrLn $ "Unsafe Enqueue: " ++ show (p, sort c)
   let v = lit2var p
   setNth assigns v $ lit2lbool p
   setNth level v =<< decisionLevel s
