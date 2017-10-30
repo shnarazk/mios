@@ -18,7 +18,6 @@ module SAT.Mios.Main
 import Control.Monad (unless, void, when)
 import Data.Bits
 import Data.Foldable (foldrM)
-import Data.List
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -62,7 +61,6 @@ newLearntClause s@Solver{..} ps = do
        l1 <- getNth ps 1
        l2 <- getNth ps 2
        let c = BiClause l1 l2
-       -- print (l1, l2)
        -- inplaceSubsume s clauses c
        -- subsumeAll s clauses c
        -- subsumeAll s learnts c
@@ -170,7 +168,6 @@ analyze s@Solver{..} confl = do
           if sn == 0 && 0 < l
             then do
                 varBumpActivity s v
-                -- putStrLn ("bump " ++ show v)
                 setNth an'seen v 1
                 if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
                   then do
@@ -178,7 +175,8 @@ analyze s@Solver{..} confl = do
                       r <- getNth reason v
                       case r of
                         Clause{} -> do ra <- get' (rank r)
-                                       when (2 < ra) $ pushTo an'lastDL q
+                                       rn <- get' r
+                                       when (rn == 2 || 0 < ra) $ pushTo an'lastDL q --
                         _        -> return ()
                       -- end of glucose heuristics
                       return (b, pc + 1)
@@ -228,7 +226,6 @@ analyze s@Solver{..} confl = do
           if sn == 0 && 0 < l
             then do
                 varBumpActivity s v
-                -- putStrLn ("bump " ++ show v)
                 setNth an'seen v 1
                 if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
                   then do
@@ -236,7 +233,8 @@ analyze s@Solver{..} confl = do
                       r <- getNth reason v
                       case r of
                         Clause{} -> do ra <- get' (rank r)
-                                       when (2 < ra && 0 /= ra) $ pushTo an'lastDL q
+                                       rn <- get' r
+                                       when (rn == 2 || 0 < ra) $ pushTo an'lastDL q
                         _        -> return ()
                       -- end of glucose heuristics
                       loopOnLiterals (j + 1) b (pc + 1)
@@ -296,7 +294,7 @@ analyze s@Solver{..} confl = do
                           case rc of
                             Clause{..} -> do
                               r' <- get' rc
-                              when (2 < r' && r < r') $ varBumpActivity s v -- >> putStrLn ("bump loopOnLastDL" ++ show v)
+                              when (2 < r' && r < r') $ varBumpActivity s v
                             _ -> return ()
                           loopOnLastDL $ i + 1
   loopOnLastDL 1
@@ -478,18 +476,12 @@ propagate s@Solver{..} = do
       let forClause :: Int -> Int -> IO Clause
           forClause i@((< end) -> False) !j = shrinkBy ws (i - j) >> return confl
           forClause !i !j = do
-            qq <- getNth cvec i
-            (qn, qc) <- case qq of
-                         BiClause {} -> do qc <- asList qq; return (2, sort qc)
-                         _ -> return (0, [])
             (blocker :: Lit) <- getNth bvec i        -- Try to avoid inspecting the clause:
-            -- when (qn == 2) $ do putStr $ show qc ++ ":" ++ show (p, blocker) ++ " => "
             bv <- if blocker == 0 then return LiftedF else valueLit s blocker
             if bv == LiftedT
               then do unless (i == j) $ do (c :: Clause) <- getNth cvec i
                                            setNth cvec j c
                                            setNth bvec j blocker
-                      -- when (qn == 2) $ print (falseLit, i, qc, LiftedT, i - j, blocker)
                       forClause (i + 1) (j + 1)
               else do                               -- Make sure the false literal is data[1]:
                   (c :: Clause) <- getNth cvec i
@@ -499,17 +491,12 @@ propagate s@Solver{..} = do
                       sv <- valueLit s second
                       setNth cvec j c >> setNth bvec j l1
                       case sv of
-                        LiftedT -> do -- print (falseLit, i, qc, sv, i - j, l1)
-                                      forClause (i + 1) (j + 1)
+                        LiftedT -> do forClause (i + 1) (j + 1)
                         LBottom -> do setNth bvec j second
-                                      -- print (falseLit, i, qc, sv, i - j, second)
                                       unsafeEnqueue s second c
-                                      -- putStrLn $ "Biclause propagation from: " ++ show p ++ " to " ++ show second ++ " by " ++ show c
                                       forClause (i + 1) (j + 1)
                         LiftedF -> do setNth bvec j second
-                                      -- print (falseLit, i, qc, sv, i - j, second)
                                       ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
-                                      -- putStrLn $ "Biclause conflict with: " ++ show p ++ " and " ++ show second ++ " by " ++ show c
                                       set' qHead =<< get' trail
                                       copy (i + 1) (j + 1)
                                       shrinkBy ws (i - j) >> return (BiClause second falseLit)
@@ -788,7 +775,7 @@ search s@Solver{..} nOfConflicts = do
                     set' learntSAdj t'
                     set' learntSCnt $ floor t'
                     modify' maxLearnts (* 1.1)
--- {-
+{-
                     -- verbose
                     let w8 :: Int -> String -> String
                         w8 (show -> i) p = take (8 - length i) "          " ++ i ++ p
@@ -800,11 +787,11 @@ search s@Solver{..} nOfConflicts = do
                     vn <- (nVars -) <$> if va == 0 then get' trail else getNth trailLim 1
                     vp <- getStat s NumOfPropagation
                     putStrLn $ w8 vb " | " ++ w8 vn " " ++ w8 gc " | " ++ w8 vm " " ++ w8 vc " | " ++ w8 vp ""
--- -}
+-}
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
-            -- when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
+            when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
             k1 <- get' learnts
             k2 <- nAssigns s
             when (k1 - k2 >= nOfLearnts) $ do   -- This is a cheap check.
@@ -871,7 +858,7 @@ solve s@Solver{..} assumps = do
                             cancelUntil s 0
                             return False
                     else return True
-  good <- return True -- simplifyDB s
+  good <- simplifyDB s
   x <- if good then foldrM inject True assumps else return False
   if not x
     then return False
@@ -902,8 +889,6 @@ solve s@Solver{..} assumps = do
 {-# INLINABLE unsafeEnqueue #-}
 unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
 unsafeEnqueue s@Solver{..} p from = do
-  c <- asList from
-  -- putStrLn $ "Unsafe Enqueue: " ++ show (p, sort c)
   let v = lit2var p
   setNth assigns v $ lit2lbool p
   setNth level v =<< decisionLevel s
