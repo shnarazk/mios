@@ -174,9 +174,9 @@ analyze s@Solver{..} confl = do
                       -- glucose heuristics
                       r <- getNth reason v
                       case r of
+                        BiClause{} -> pushTo an'lastDL q
                         Clause{} -> do ra <- get' (rank r)
-                                       rn <- get' r
-                                       when (rn == 2 || 0 < ra) $ pushTo an'lastDL q --
+                                       when (0 < ra) $ pushTo an'lastDL q
                         _        -> return ()
                       -- end of glucose heuristics
                       return (b, pc + 1)
@@ -232,9 +232,9 @@ analyze s@Solver{..} confl = do
                       -- UPDATEVARACTIVITY: glucose heuristics
                       r <- getNth reason v
                       case r of
+                        BiClause{} -> pushTo an'lastDL q
                         Clause{} -> do ra <- get' (rank r)
-                                       rn <- get' r
-                                       when (rn == 2 || 0 < ra) $ pushTo an'lastDL q
+                                       when (0 < ra) $ pushTo an'lastDL q
                         _        -> return ()
                       -- end of glucose heuristics
                       loopOnLiterals (j + 1) b (pc + 1)
@@ -292,9 +292,10 @@ analyze s@Solver{..} confl = do
       loopOnLastDL i = do v <- lit2var <$> getNth an'lastDL i
                           rc <- getNth reason v
                           case rc of
+                            BiClause{} -> varBumpActivity s v
                             Clause{..} -> do
                               r' <- get' rc
-                              when (2 < r' && r < r') $ varBumpActivity s v
+                              when (r < r') $ varBumpActivity s v
                             _ -> return ()
                           loopOnLastDL $ i + 1
   loopOnLastDL 1
