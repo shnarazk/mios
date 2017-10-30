@@ -693,7 +693,8 @@ sortClauses s cm limit = do
 --   thing done here is the removal of satisfied clauses, but more things can be put here.
 --
 simplifyDB :: Solver -> IO Bool
-simplifyDB s@Solver{..} = do
+simplifyDB s@Solver{..} = do return True
+{-
   good <- get' ok
   if good
     then do
@@ -726,6 +727,7 @@ simplifyDB s@Solver{..} = do
             reset watches
             return True
     else return False
+-}
 
 -- | #M22
 --
