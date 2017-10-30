@@ -113,13 +113,19 @@ newLearntClause s@Solver{..} ps = do
 -- MIOS NOTE: the original doesn't update watchers; only checks its satisfiabiliy.
 {-# INLINABLE simplify #-}
 simplify :: Solver -> Clause -> IO Bool
+simplify s (BiClause l1 l2) = do
+  v <- valueLit s l1
+  if v == LiftedT
+    then return True
+    else do w <- valueLit s l2
+            return (w == LiftedT)
 simplify s c = do
   n <- get' c
   let lstack = lits c
       loop ::Int -> IO Bool
       loop ((<= n) -> False) = return False
       loop i = do v <- valueLit s =<< getNth lstack i
-                  if v == 1 then return True else loop (i + 1)
+                  if v == LiftedT then return True else loop (i + 1)
   loop 1
 
 --------------------------------------------------------------------------------
@@ -292,7 +298,7 @@ analyze s@Solver{..} confl = do
       loopOnLastDL i = do v <- lit2var <$> getNth an'lastDL i
                           rc <- getNth reason v
                           case rc of
-                            BiClause{} -> varBumpActivity s v
+                            -- BiClause{} -> varBumpActivity s v
                             Clause{..} -> do
                               r' <- get' rc
                               when (r < r') $ varBumpActivity s v
@@ -693,8 +699,7 @@ sortClauses s cm limit = do
 --   thing done here is the removal of satisfied clauses, but more things can be put here.
 --
 simplifyDB :: Solver -> IO Bool
-simplifyDB s@Solver{..} = do return True
-{-
+simplifyDB s@Solver{..} = do
   good <- get' ok
   if good
     then do
@@ -715,20 +720,16 @@ simplifyDB s@Solver{..} = do return True
                   loopOnVector ((< n') -> False) j = shrinkBy ptr (n' - j) >> return True
                   loopOnVector i j = do
                         c <- getNth vec' i
-                        case c of
-                          BiClause{} -> setNth vec' j c >> loopOnVector (i + 1) (j + 1)
-                          _ -> do
-                            l <- locked s c
-                            r <- simplify s c
-                            if not l && r
-                              then removeWatch s c >> loopOnVector (i + 1) j
-                              else setNth vec' j c >> loopOnVector (i + 1) (j + 1)
+                        l <- locked s c
+                        r <- simplify s c
+                        if not l && r
+                          then removeWatch s c >> loopOnVector (i + 1) j
+                          else setNth vec' j c >> loopOnVector (i + 1) (j + 1)
                 loopOnVector 0 0
             ret <- for 0
             reset watches
             return ret
     else return False
--}
 
 -- | #M22
 --
