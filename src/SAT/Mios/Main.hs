@@ -167,7 +167,8 @@ analyze s@Solver{..} confl = do
                       r <- getNth reason v
                       when (r /= NullClause) $ do
                         ra <- get' (rank r)
-                        when (2 < ra) $ pushTo an'lastDL q -- only non-binary and learnt
+                        rn <- get' r
+                        when (rn ==2 || 0 < ra) $ pushTo an'lastDL q -- only non-binary and learnt
                       -- end of glucose heuristics
                       loopOnLiterals (j + 1) b (pc + 1)
                   else pushTo litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
