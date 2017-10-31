@@ -281,7 +281,8 @@ analyze s@Solver{..} confl = do
   loopOnLits 2 2                -- the first literal is specail
   -- UPDATEVARACTIVITY: glucose heuristics
   nld <- get' an'lastDL
-  r <- get' litsLearnt -- this is an estimated LBD value based on the clause size
+  -- r <- get' litsLearnt -- this is an estimated LBD value based on the clause size
+  r <- lbdOf s litsLearnt
   let loopOnLastDL :: Int -> IO ()
       loopOnLastDL ((<= nld) -> False) = return ()
       loopOnLastDL i = do v <- lit2var <$> getNth an'lastDL i
@@ -289,8 +290,8 @@ analyze s@Solver{..} confl = do
                           case rc of
                             BiClause{} -> varBumpActivity s v
                             Clause{..} -> do
-                              r' <- get' rc
-                              when (r < r') $ varBumpActivity s v
+                              r' <- get' rank -- get' rc
+                              when (r' < r) $ varBumpActivity s v
                             _ -> return ()
                           loopOnLastDL $ i + 1
   loopOnLastDL 1
