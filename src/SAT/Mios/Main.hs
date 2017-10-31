@@ -61,12 +61,7 @@ newLearntClause s@Solver{..} ps = do
        l1 <- getNth ps 1
        l2 <- getNth ps 2
        let c = BiClause l1 l2
-       -- inplaceSubsume s clauses c
-       -- subsumeAll s clauses c
-       -- subsumeAll s learnts c
-       -- unbumpSubsumables learnts c
-       -- unbumpSubsumees (getNthWatcher watches (negateLit l1)) c
-       -- unbumpSubsumees (getNthWatcher watches (negateLit l2)) c
+       subsumeAll s clauses c
        -- subsumeAll s learnts c
        pushTo learnts c
        -- pushTo clauses c
@@ -697,35 +692,40 @@ simplifyDB s@Solver{..} = do return True
 {-
   good <- get' ok
   if good
-    then do
-      p <- propagate s
-      if p /= NullClause
-        then set' ok False >> return False
-        else do
-            -- Remove satisfied clauses and their watcher lists:
-            let
-              for :: ClauseExtManager -> IO ()
-              for mgr = do
-                vec' <- getClauseVector mgr
-                n' <- get' mgr
-                let
-                  loopOnVector :: Int -> Int -> IO ()
-                  loopOnVector ((< n') -> False) j = shrinkBy mgr (n' - j)
-                  loopOnVector i j = do
-                        c <- getNth vec' i
-                        case c of
-                          BiClause{} -> unless (i == j) (setNth vec' j c) >> loopOnVector (i + 1) (j + 1)
-                          _ -> do
-                            l <- locked s c
-                            r <- if l then return False else simplify s c
-                            if r
-                              then removeWatch s c >> loopOnVector (i + 1) j
-                              else unless (i == j) (setNth vec' j c) >> loopOnVector (i + 1) (j + 1)
-                loopOnVector 0 0
-            for clauses
-            for learnts
-            reset watches
-            return True
+    then do p <- propagate s
+            if p /= NullClause
+              then set' ok False >> return False
+              else do let check :: Int -> IO () -- canonize reasons at level = 0
+                          check ((< nVars) -> False) = return ()
+                          check i = do asg <- getNth assigns i
+                                       l <- getNth level i
+                                       when (asg /= LBottom && l == 0) $ do
+                                         r <- getNth reason i
+                                         when (r /= NullClause) $ setNth reason i NullClause
+                                       check $ i + 1
+                      check 0
+                      let for :: ClauseExtManager -> IO ()
+                          for mgr = do
+                            vec' <- getClauseVector mgr
+                            n' <- get' mgr
+                            let loopOnVector :: Int -> Int -> IO ()
+                                loopOnVector ((< n') -> False) j = shrinkBy mgr (n' - j)
+                                loopOnVector i j = do
+                                  c <- getNth vec' i
+                                  case c of
+                                    BiClause{} -> unless (i == j) (setNth vec' j c) >> loopOnVector (i + 1) (j + 1)
+                                    _ -> do
+                                      l <- locked s c
+                                      r <- if l then return False else simplify s c
+                                      if r
+                                        then removeWatch s c >> loopOnVector (i + 1) j
+                                        else unless (i == j) (setNth vec' j c) >> loopOnVector (i + 1) (j + 1)
+                            loopOnVector 0 0
+                      -- Remove satisfied clauses:
+                      for clauses
+                      for learnts
+                      reset watches
+                      return True
     else return False
 -}
 
@@ -794,7 +794,7 @@ search s@Solver{..} nOfConflicts = do
                   loop $ conflictC + 1
         else do                 -- NO CONFLICT
             -- Simplify the set of problem clauses:
-            -- when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
+            when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
             k1 <- get' learnts
             k2 <- nAssigns s
             when (k1 - k2 >= nOfLearnts) $ do   -- This is a cheap check.
@@ -823,7 +823,6 @@ search s@Solver{..} nOfConflicts = do
                        toggleAt ((<= nv) -> False) = return ()
                        toggleAt i = modifyNth phases toggle i >> toggleAt (i + 1)
                    toggleAt 1
-                   void $ simplifyDB s -- our simplifier cannot return @False@ here
                    incrementStat s NumOfRestart 1
                    return LBottom
              _ -> do
@@ -919,6 +918,48 @@ luby y x_ = loop 1 0
       | sz - 1 == x = y ** fromIntegral sq
       | otherwise   = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
 
+-- | purges all clauses which the biclause can subsume
+subsumeAll :: Solver -> ClauseExtManager -> Clause -> IO Bool
+subsumeAll s mgr (BiClause l1 l2) = do
+  n <- get' mgr
+  cvec <- getClauseVector mgr
+  bvec <- getKeyVector mgr
+  let loop ((< n) -> False) j = return j
+      loop i j = do
+        c <- getNth cvec i
+        b <- getNth bvec i
+        case c :: Clause of
+          Clause{..} -> do
+            let check :: Bool -> Bool -> Int -> IO Bool
+                check True True _ = return True
+                check _ _ 0 = return False
+                check a b i = do l <- getNth lits i
+                                 if -l == l1 || -1 == l2
+                                   then return False
+                                   else check (l == l1 || a) (l == l2 || b) (i - 1)
+            y <- check False False =<< get' c
+            -- locked s c ; interestingly, a clause that can be subsumed is never used as reason.
+            -- The literal which level is highest in a learnt has been unassigned by cancelUntil.
+            if y                -- subsumed
+              then removeWatch s c >> loop (i + 1) j
+              else do unless (i == j) $ setNth cvec j c >> setNth bvec j b
+                      loop (i + 1) (j + 1)
+          BiClause x y | lit2var x == lit2var l1 -> do
+                           -- print ((x,y), (l1, l2))
+                           unless (i == j) $ setNth cvec j c >> setNth bvec j b
+                           loop (i + 1) (j + 1)
+          BiClause x y | lit2var x == lit2var l2 -> do
+                           -- print ((x,y), (l2, l1))
+                           unless (i == j) $ setNth cvec j c >> setNth bvec j b
+                           loop (i + 1) (j + 1)
+          _ -> do unless (i == j) $ setNth cvec j c >> setNth bvec j b
+                  loop (i + 1) (j + 1)
+  n' <- loop 0 0
+  if n' < n
+    then shrinkBy mgr (n - n') >> reset (watches s) >> return True
+    else return False
+
+{-
 inplaceSubsume :: Solver -> ClauseExtManager -> Clause -> IO Bool
 inplaceSubsume s clss b@(BiClause l1 l2) = do
   n <- get' clss
@@ -941,49 +982,6 @@ inplaceSubsume s clss b@(BiClause l1 l2) = do
           _ -> loop (i + 1)
   loop 0
 
--- | purges all clauses which the biclause can subsume
-subsumeAll :: Solver -> ClauseExtManager -> Clause -> IO Bool
-subsumeAll s mgr (BiClause l1 l2) = do
-  n <- get' mgr
-  cvec <- getClauseVector mgr
-  bvec <- getKeyVector mgr
-  let loop ((< n) -> False) j = return j
-      loop i j = do
-        c <- getNth cvec i
-        b <- getNth bvec i
-        case c :: Clause of
-          Clause{..} -> do
-            let check :: Bool -> Bool -> Int -> IO Bool
-                check True True _ = return True
-                check _ _ 0 = return False
-                check a b i = do l <- getNth lits i
-                                 if -l == l1 || -1 == l2
-                                   then return False
-                                   else check (l == l1 || a) (l == l2 || b) (i - 1)
-            y <- check False False =<< get' c
-            -- l <- locked s c
-            -- when (l && y) $ error "AAAA"
-            -- locked s c ; interestingly, a clause that can be subsumed is never used as reason.
-            -- The literal which level is highest in a learnt has been unassigned by cancelUntil.
-            if y                -- subsumed
-              then removeWatch s c >> loop (i + 1) j
-              else do unless (i == j) $ setNth cvec j c >> setNth bvec j b
-                      loop (i + 1) (j + 1)
-          BiClause x y | lit2var x == lit2var l1 -> do
-                           -- print ((x,y), (l1, l2))
-                           unless (i == j) $ setNth cvec j c >> setNth bvec j b
-                           loop (i + 1) (j + 1)
-          BiClause x y | lit2var x == lit2var l2 -> do
-                           -- print ((x,y), (l2, l1))
-                           unless (i == j) $ setNth cvec j c >> setNth bvec j b
-                           loop (i + 1) (j + 1)
-          _ -> do unless (i == j) $ setNth cvec j c >> setNth bvec j b
-                  loop (i + 1) (j + 1)
-  n' <- loop 0 0
-  if n' < n
-    then shrinkBy mgr (n - n') >> reset (watches s) >> return True
-    else return False
-
 -- | _purges_ degrade activity of all clauses which the biclause can subsume
 unbumpSubsumees :: ClauseExtManager -> Clause -> IO ()
 unbumpSubsumees mgr (BiClause l1 l2) = do
@@ -1002,7 +1000,8 @@ unbumpSubsumees mgr (BiClause l1 l2) = do
                                    then return False
                                    else check (l == l1 || a) (l == l2 || b) (i - 1)
             y <- check False False =<< get' c
-            when y $ modify' activity (* 0.1)
+            when y $ set' activity 0 -- modify' activity (* 0.1)
           _ -> return ()
         loop (i + 1)
   loop 0
+-}
