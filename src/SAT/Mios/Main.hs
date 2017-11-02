@@ -225,7 +225,7 @@ analyze s@Solver{..} confl = do
                           r' <- get' =<< getNth reason v
                           when (r < r') $ varBumpActivity s v
                           loopOnLastDL $ i + 1
-  loopOnLastDL $ div nld 2 + 1
+  loopOnLastDL 1
   reset an'lastDL
   -- Clear seen
   k <- get' an'toClear
