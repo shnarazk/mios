@@ -220,16 +220,12 @@ analyze s@Solver{..} confl = do
   nld <- get' an'lastDL
   first <- getNth litsLearnt 1
   setNth level (lit2var first) levelToReturn
-  r1 <- get' litsLearnt
-  r2 <- lbdOf s litsLearnt -- this is an estimated LBD value based on the clause size
+  r <- lbdOf s litsLearnt -- this is an estimated LBD value based on the clause size
   let loopOnLastDL :: Int -> IO ()
       loopOnLastDL ((<= nld) -> False) = return ()
       loopOnLastDL i = do v <- lit2var <$> getNth an'lastDL i
-                          c <- getNth reason v
-                          r1' <- get' c
-                          r2' <- lbdOf s (lits c) -- get' (rank c)
-                          set' (rank c) r2'
-                          when ((r2' == r2 && r1' < r1) || (r2' < r2)) $ varBumpActivity s v
+                          r' <- lbdOf s . lits =<< getNth reason v
+                          when (r' < r) $ varBumpActivity s v
                           loopOnLastDL $ i + 1
   loopOnLastDL 1
   reset an'lastDL
