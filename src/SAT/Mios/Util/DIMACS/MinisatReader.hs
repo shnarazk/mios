@@ -39,7 +39,7 @@ seqNums = do
   skipSpaces
   x <- int
   skipSpaces
-  if (x == 0) then return []  else (x :) <$> seqNums
+  if x == 0 then return []  else (x :) <$> seqNums
 
 -- |top level interface for parsing CNF
 {-# INLINE parseMinisatOutput #-}
