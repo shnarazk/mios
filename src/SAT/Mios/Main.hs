@@ -218,11 +218,11 @@ analyze s@Solver{..} confl = do
   loopOnLits 2 2                -- the first literal is specail
   -- glucose heuristics
   nld <- get' an'lastDL
-  r <- get' litsLearnt -- this is an estimated LBD value based on the clause size
+  r <- lbdOf s litsLearnt -- this is an estimated LBD value based on the clause size
   let loopOnLastDL :: Int -> IO ()
       loopOnLastDL ((<= nld) -> False) = return ()
       loopOnLastDL i = do v <- lit2var <$> getNth an'lastDL i
-                          r' <- get' =<< getNth reason v
+                          r' <- lbdOf s . lits =<< getNth reason v
                           when (r < r') $ varBumpActivity s v
                           loopOnLastDL $ i + 1
   loopOnLastDL 1
