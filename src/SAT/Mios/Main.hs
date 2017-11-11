@@ -163,7 +163,7 @@ analyze s@Solver{..} confl = do
                 setNth an'seen v 1
                 if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
                   then do
-                      -- glucose heuristics
+                      -- UPDATEVARACTIVITY: glucose heuristics
                       r <- getNth reason v
                       when (r /= NullClause) $ do
                         ra <- get' (rank r)
@@ -216,14 +216,14 @@ analyze s@Solver{..} confl = do
              then setNth litsLearnt j l >> loopOnLits (i + 1) (j + 1)
              else loopOnLits (i + 1) j
   loopOnLits 2 2                -- the first literal is specail
-  -- glucose heuristics
+  -- UPDATEVARACTIVITY: glucose heuristics
   nld <- get' an'lastDL
   r <- get' litsLearnt -- this is an estimated LBD value based on the clause size
   let loopOnLastDL :: Int -> IO ()
       loopOnLastDL ((<= nld) -> False) = return ()
       loopOnLastDL i = do v <- lit2var <$> getNth an'lastDL i
                           r' <- get' =<< getNth reason v
-                          when (r' < r) $ varBumpActivity s v
+                          when (r < r') $ varBumpActivity s v
                           loopOnLastDL $ i + 1
   loopOnLastDL 1
   reset an'lastDL
