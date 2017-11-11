@@ -163,7 +163,7 @@ analyze s@Solver{..} confl = do
                 setNth an'seen v 1
                 if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
                   then do
-                      -- glucose heuristics
+                      -- UPDATEVARACTIVITY: glucose heuristics
                       r <- getNth reason v
                       when (r /= NullClause) $ do
                         ra <- get' (rank r)
@@ -216,7 +216,7 @@ analyze s@Solver{..} confl = do
              then setNth litsLearnt j l >> loopOnLits (i + 1) (j + 1)
              else loopOnLits (i + 1) j
   loopOnLits 2 2                -- the first literal is specail
-  -- glucose heuristics
+  -- UPDATEVARACTIVITY: glucose heuristics
   nld <- get' an'lastDL
   r <- get' litsLearnt -- this is an estimated LBD value based on the clause size
   let loopOnLastDL :: Int -> IO ()
@@ -586,36 +586,27 @@ simplifyDB s@Solver{..} = do
       if p /= NullClause
         then set' ok False >> return False
         else do
-            -- Clear watcher lists:
-            n <- get' trail
-            let loopOnLit ((< n) -> False) = return ()
-                loopOnLit i = do l <- getNth trail i
-                                 reset . getNthWatcher watches $ l
-                                 reset . getNthWatcher watches $ negateLit l
-                                 loopOnLit $ i + 1
-            loopOnLit 1
-            -- Remove satisfied clauses:
+            -- Remove satisfied clauses and their watcher lists:
             let
-              for :: Int -> IO Bool
-              for ((< 2) -> False) = return True
-              for t = do
-                let ptr = if t == 0 then learnts else clauses
-                vec' <- getClauseVector ptr
-                n' <- get' ptr
+              for :: ClauseExtManager -> IO ()
+              for mgr = do
+                vec' <- getClauseVector mgr
+                n' <- get' mgr
                 let
-                  loopOnVector :: Int -> Int -> IO Bool
-                  loopOnVector ((< n') -> False) j = shrinkBy ptr (n' - j) >> return True
+                  loopOnVector :: Int -> Int -> IO ()
+                  loopOnVector ((< n') -> False) j = shrinkBy mgr (n' - j)
                   loopOnVector i j = do
                         c <- getNth vec' i
                         l <- locked s c
-                        r <- simplify s c
-                        if not l && r
+                        r <- if l then return False else simplify s c
+                        if r
                           then removeWatch s c >> loopOnVector (i + 1) j
-                          else setNth vec' j c >> loopOnVector (i + 1) (j + 1)
+                          else unless (i == j) (setNth vec' j c) >> loopOnVector (i + 1) (j + 1)
                 loopOnVector 0 0
-            ret <- for 0
+            for clauses
+            for learnts
             reset watches
-            return ret
+            return True
     else return False
 
 -- | #M22

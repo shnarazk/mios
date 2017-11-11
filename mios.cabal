@@ -29,10 +29,6 @@ Flag llvm
   Description:	        Compile with llvm
   Default:	        False
 
-Flag lib
-  Description:	        Build the solver library
-  Default:	        False
-
 Flag prof
   Description:	        Build the profiler
   Default:	        False
@@ -46,11 +42,7 @@ Flag utils
   Default:	        False
 
 library
-  hs-source-dirs:	.
-  if flag(lib)
-    buildable:	        True
-  else
-    buildable:	        False
+  hs-source-dirs:	src
   default-language:	Haskell2010
   default-extensions:   Strict
   other-extensions:	    BangPatterns
@@ -71,10 +63,11 @@ library
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
                         SAT.Mios.ClausePool
-                        SAT.Mios.Vec
+                        SAT.Mios.Glucose
                         SAT.Mios.Main
                         SAT.Mios.OptionParser
                         SAT.Mios.Solver
+                        SAT.Mios.Vec
                         SAT.Mios.Types
                         SAT.Mios.Validator
                         SAT.Mios.Util.DIMACS.MinisatReader
@@ -85,87 +78,51 @@ library
                         SAT.Mios
   build-depends:        base >=4.10, vector >=0.12, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
   if flag(llvm)
-    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O2 -optlc-O2
+    ghc-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -fwarn-missing-signatures
   else
-    ghc-options:	-O2 -ignore-asserts -funbox-strict-fields
+    ghc-options:	-O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
 
-executable mios-WIP
-  hs-source-dirs:	src app
+executable mios-52
+  hs-source-dirs:	app
   main-is:              mios.hs
   if flag(prof)
     buildable:	        False
   else
     buildable:	        True
   default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base >=4.10, vector >=0.12, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
+  default-extensions:   Strict
+  build-depends:        base, mios
   if flag(llvm)
     ghc-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -rtsopts -fwarn-missing-signatures
   else
     ghc-options:	-O2 -funbox-strict-fields -msse2 -rtsopts -fwarn-missing-signatures
-  other-modules:
-                        SAT.Mios.Clause
-                        SAT.Mios.ClauseManager
-                        SAT.Mios.ClausePool
-                        SAT.Mios.Glucose
-                        SAT.Mios.Main
-                        SAT.Mios.OptionParser
-                        SAT.Mios.Solver
-                        SAT.Mios.Types
-                        SAT.Mios.Validator
-                        SAT.Mios.Vec
-                        SAT.Mios
 
-executable mios-WIP-prof
-  hs-source-dirs:	src app
+executable mios-52-prof
+  hs-source-dirs:	app
   main-is:              mios.hs
   if flag(prof)
     buildable:	        True
   else
     buildable:	        False
   default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base >=4.10, vector >=0.12, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
+  default-extensions:   Strict
+  build-depends:        base, mios
   if flag(llvm)
     ghc-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -prof -fprof-auto -rtsopts -ddump-simpl
   else
     ghc-options:	-O2 -funbox-strict-fields -prof -fprof-auto -rtsopts -ddump-simpl
-  other-modules:
-                        SAT.Mios.Clause
-                        SAT.Mios.ClauseManager
-                        SAT.Mios.ClausePool
-                        SAT.Mios.Glucose
-                        SAT.Mios.Main
-                        SAT.Mios.OptionParser
-                        SAT.Mios.Solver
-                        SAT.Mios.Types
-                        SAT.Mios.Validator
-                        SAT.Mios.Vec
-                        SAT.Mios
 
 executable cnf-stat
-  hs-source-dirs:	src utils
+  hs-source-dirs:	utils
   main-is:              cnf-stat.hs
   if flag(utils)
     buildable:	        True
   else
     buildable:	        False
   default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base >=4.10, vector >=0.12, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
-  ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
-  other-modules:
-                        SAT.Mios.Clause
-                        SAT.Mios.ClauseManager
-                        SAT.Mios.ClausePool
-                        SAT.Mios.Glucose
-                        SAT.Mios.Main
-                        SAT.Mios.OptionParser
-                        SAT.Mios.Solver
-                        SAT.Mios.Types
-                        SAT.Mios.Validator
-                        SAT.Mios.Vec
-                        SAT.Mios
+  default-extensions:   Strict
+  build-depends:        base, mios, bytestring >=0.10
+  ghc-options:	        -O1 -ignore-asserts -funbox-strict-fields
 
 executable mios-mc
   hs-source-dirs:	MultiConflict app
@@ -175,22 +132,12 @@ executable mios-mc
   else
     buildable:	        False
   default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base >=4.10, vector >=0.12, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
+  default-extensions:   Strict
+  build-depends:        base, mios, bytestring >=0.10
   if flag(llvm)
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -fllvm -optlo-O2 -optlc-O2
   else
     ghc-options:	-O2 -ignore-asserts -funbox-strict-fields
-  other-modules:
-                        SAT.Mios.Clause
-                        SAT.Mios.ClauseManager
-                        SAT.Mios.Main
-                        SAT.Mios.OptionParser
-                        SAT.Mios.Solver
-                        SAT.Mios.Types
-                        SAT.Mios.Validator
-                        SAT.Mios.Vec
-                        SAT.Mios
 
 executable mios-mc-prof
   hs-source-dirs:	MultiConflict app
@@ -200,19 +147,9 @@ executable mios-mc-prof
   else
     buildable:	        False
   default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base >=4.10, vector >=0.12, ghc-prim >=0.5, bytestring >=0.10, primitive >=0.6
-  ghc-options:	-O2 -ignore-asserts -funbox-strict-fields -prof -fprof-auto
-  other-modules:
-                        SAT.Mios.Clause
-                        SAT.Mios.ClauseManager
-                        SAT.Mios.Main
-                        SAT.Mios.OptionParser
-                        SAT.Mios.Solver
-                        SAT.Mios.Types
-                        SAT.Mios.Validator
-                        SAT.Mios.Vec
-                        SAT.Mios
+  default-extensions:   Strict
+  build-depends:        base, mios, bytestring >=0.10
+  ghc-options:	        -O2 -ignore-asserts -funbox-strict-fields -prof -fprof-auto
 
 executable mc-dump2csv
   hs-source-dirs:	MultiConflict
@@ -222,13 +159,9 @@ executable mc-dump2csv
   else
     buildable:	        False
   default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base >=4.10, vector >= 0.12, bytestring >=0.10, primitive >=0.6
-  ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
-  other-modules:
-                        SAT.Mios.Types
-                        SAT.Mios.Util.Stat
-                        SAT.Mios.Vec
+  default-extensions:   Strict
+  build-depends:        base, mios, bytestring >=0.10
+  ghc-options:	        -O1 -ignore-asserts -funbox-strict-fields
 
 executable mc-averagecsv
   hs-source-dirs:	MultiConflict
@@ -238,13 +171,9 @@ executable mc-averagecsv
   else
     buildable:	        False
   default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base >=4.10, vector >= 0.12, bytestring >=0.10, primitive >=0.6
-  ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
-  other-modules:
-                        SAT.Mios.Types
-                        SAT.Mios.Util.Stat
-                        SAT.Mios.Vec
+  default-extensions:   Strict
+  build-depends:        base, mios, bytestring >=0.10
+  ghc-options:	        -O1 -ignore-asserts -funbox-strict-fields
 
 executable mc-summary
   hs-source-dirs:	MultiConflict
@@ -254,13 +183,9 @@ executable mc-summary
   else
     buildable:	        False
   default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base >=4.10, vector >= 0.12, bytestring >=0.10, primitive >=0.6
-  ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
-  other-modules:
-                        SAT.Mios.Types
-                        SAT.Mios.Util.Stat
-                        SAT.Mios.Vec
+  default-extensions:   Strict
+  build-depends:        base, mios, bytestring >=0.10
+  ghc-options:	        -O1 -ignore-asserts -funbox-strict-fields
 
 executable mc-stat2csv
   hs-source-dirs:	MultiConflict
@@ -270,13 +195,9 @@ executable mc-stat2csv
   else
     buildable:	        False
   default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base >=4.10, vector >= 0.11, bytestring >=0.10, primitive >=0.6
-  ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
-  other-modules:
-                        SAT.Mios.Types
-                        SAT.Mios.Util.Stat
-                        SAT.Mios.Vec
+  default-extensions:   Strict
+  build-depends:        base, mios, bytestring >=0.10
+  ghc-options:	        -O1 -ignore-asserts -funbox-strict-fields
 
 executable mc-pickup
   hs-source-dirs:	MultiConflict
@@ -286,13 +207,9 @@ executable mc-pickup
   else
     buildable:	        False
   default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base >=4.10, vector >= 0.12, bytestring >=0.10, primitive >=0.6
-  ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
-  other-modules:
-                        SAT.Mios.Types
-                        SAT.Mios.Util.Stat
-                        SAT.Mios.Vec
+  default-extensions:   Strict
+  build-depends:        base, mios, bytestring >=0.10
+  ghc-options:	        -O1 -ignore-asserts -funbox-strict-fields
 
 executable mc-numbers
   hs-source-dirs:	MultiConflict
@@ -302,10 +219,6 @@ executable mc-numbers
   else
     buildable:	        False
   default-language:	Haskell2010
-  default-extensions:  Strict
-  build-depends:        base >=4.10, vector >= 0.12, bytestring >=0.10, primitive >=0.6
-  ghc-options:	-O1 -ignore-asserts -funbox-strict-fields
-  other-modules:
-                        SAT.Mios.Types
-                        SAT.Mios.Util.Stat
-                        SAT.Mios.Vec
+  default-extensions:   Strict
+  build-depends:        base, mios, bytestring >=0.10
+  ghc-options:	        -O1 -ignore-asserts -funbox-strict-fields
