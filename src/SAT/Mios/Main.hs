@@ -57,17 +57,19 @@ newLearntClause s@Solver{..} ps = do
      1 -> do                    -- a fact
        l <- getNth ps 1
        unsafeEnqueue s l NullClause
+{-
      2 -> do                    -- biclause
        l1 <- getNth ps 1
        l2 <- getNth ps 2
        let c = BiClause l1 l2
-       subsumeAll s clauses c
+       -- subsumeAll s clauses c
        -- subsumeAll s learnts c
        pushTo learnts c
        -- pushTo clauses c
        pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
        pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
        unsafeEnqueue s l1 c
+-}
      _ -> do
        -- allocate clause:
        c <- makeClauseFromStack clsPool ps --  newClauseFromStack True ps
@@ -109,6 +111,7 @@ newLearntClause s@Solver{..} ps = do
 {-# INLINABLE simplify #-}
 simplify :: Solver -> Clause -> IO Bool
 simplify s (BiClause l1 l2) = do
+  error "oooo"
   v <- valueLit s l1
   if v == LiftedT
     then return True
@@ -286,9 +289,10 @@ analyze s@Solver{..} confl = do
              else loopOnLits (i + 1) j
   loopOnLits 2 2                -- the first literal is specail
   -- UPDATEVARACTIVITY: glucose heuristics
+  nld <- get' an'lastDL
   r <- get' litsLearnt -- this is an estimated LBD value based on the clause size
   let loopOnLastDL :: Int -> IO ()
-      loopOnLastDL ((1 <=) -> False) = reset an'lastDL
+      loopOnLastDL ((<= nld) -> False) = reset an'lastDL
       loopOnLastDL i = do v <- lit2var <$> getNth an'lastDL i
                           rc <- getNth reason v
                           case rc of
@@ -297,8 +301,8 @@ analyze s@Solver{..} confl = do
                               when (r < r') $ varBumpActivity s v
                             BiClause{} | r == 1 -> varBumpActivity s v
                             _ -> return ()
-                          loopOnLastDL $ i - 1
-  loopOnLastDL =<< get' an'lastDL
+                          loopOnLastDL $ i + 1
+  loopOnLastDL 1
   -- Clear seen
   k <- get' an'toClear
   let cleaner :: Int -> IO ()
@@ -341,7 +345,7 @@ analyzeRemovable s@Solver{..} p minLevel = do
                     v' = lit2var p'
                 l' <- getNth level v'
                 c1 <- (1 /=) <$> getNth an'seen v'
-                if c1 && (0 /= l')
+                if c1 && (0 /= l')   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
                   then do
                       c3 <- (NullClause /=) <$> getNth reason v'
                       if c3 && testBit minLevel (l' .&. 31)
@@ -630,7 +634,10 @@ sortClauses s cm limit = do
                   let d =if | l -> 0
                             | a < at -> rankMax
                             | otherwise -> min rankMax r -- rank can be one
-                  setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
+                  k <- get' c
+                  if k == 2
+                    then setNth keys i $ shiftL 1 indexWidth + i
+                    else setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
         assignKey (i + 1)
   assignKey 0
   -- 2: sort keyVector
@@ -692,8 +699,7 @@ sortClauses s cm limit = do
 --   thing done here is the removal of satisfied clauses, but more things can be put here.
 --
 simplifyDB :: Solver -> IO Bool
-simplifyDB s@Solver{..} = do return True
-{-
+simplifyDB s@Solver{..} = do
   good <- get' ok
   if good
     then do p <- propagate s
@@ -717,7 +723,7 @@ simplifyDB s@Solver{..} = do return True
                                 loopOnVector i j = do
                                   c <- getNth vec' i
                                   case c of
-                                    BiClause{} -> unless (i == j) (setNth vec' j c) >> loopOnVector (i + 1) (j + 1)
+                                    -- BiClause{} -> unless (i == j) (setNth vec' j c) >> loopOnVector (i + 1) (j + 1)
                                     _ -> do
                                       l <- locked s c
                                       r <- if l then return False else simplify s c
@@ -731,7 +737,6 @@ simplifyDB s@Solver{..} = do return True
                       reset watches
                       return True
     else return False
--}
 
 -- | #M22
 --
