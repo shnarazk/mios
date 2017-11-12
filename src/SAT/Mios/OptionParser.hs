@@ -37,6 +37,7 @@ data MiosProgramOption = MiosProgramOption
                      , _validateAssignment :: !Bool
                      , _displayHelp :: !Bool
                      , _displayVersion :: !Bool
+                     , _confDumpClauses :: Maybe String
                      }
 
 -- | default option settings
@@ -57,6 +58,7 @@ miosDefaultOption = MiosProgramOption
   , _validateAssignment = False
   , _displayHelp = False
   , _displayVersion = False
+  , _confDumpClauses = Nothing
   }
 
 -- | definition of mios option
@@ -104,6 +106,9 @@ miosOptions =
   , Option [] ["version"]
     (NoArg (\c -> c { _displayVersion = True }))
     "[misc] display program ID"
+  , Option [] ["dump-clauses"]
+    (ReqArg (\v c -> c { _confDumpClauses = Just v }) "header")
+    "[evaluation] dump clauses and learnts as ([[Int]],[[Int]])"
   ]
 
 -- | generates help message

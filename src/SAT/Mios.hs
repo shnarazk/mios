@@ -48,7 +48,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "mios-1.5.0WIP #48"
+versionId = "mios-1.5.0WIP #48 #49"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ _ = return 0
@@ -106,6 +106,12 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
   when (_confStatProbe opts) $ do
     hPutStrLn stderr $ "## [" ++ showPath cnfFile ++ "]"
     hPutStrLn stderr . intercalate "\n" . map (\(k, v) -> show k ++ ": " ++ show v) . init =<< getStats s
+  case _confDumpClauses opts of
+    Just h -> do cs <- mapM (\x -> map lit2int <$> asList x) =<< asList (clauses s)
+                 ls <- mapM (\x -> map lit2int <$> asList x) =<< asList (learnts s)
+                 putStr h
+                 print (cs, ls)
+    Nothing -> return ()
 
 executeSolver _ = return ()
 
