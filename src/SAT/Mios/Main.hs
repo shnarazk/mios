@@ -108,13 +108,19 @@ newLearntClause s@Solver{..} ps = do
 -- MIOS NOTE: the original doesn't update watchers; only checks its satisfiabiliy.
 {-# INLINABLE simplify #-}
 simplify :: Solver -> Clause -> IO Bool
+simplify s (BiClause l1 l2) = do
+  v <- valueLit s l1
+  if v == LiftedT
+    then return True
+    else do w <- valueLit s l2
+            return (w == LiftedT)
 simplify s c = do
   n <- get' c
   let lstack = lits c
       loop ::Int -> IO Bool
       loop ((<= n) -> False) = return False
       loop i = do v <- valueLit s =<< getNth lstack i
-                  if v == 1 then return True else loop (i + 1)
+                  if v == LiftedT then return True else loop (i + 1)
   loop 1
 
 --------------------------------------------------------------------------------
