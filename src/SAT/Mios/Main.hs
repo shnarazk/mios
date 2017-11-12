@@ -57,7 +57,6 @@ newLearntClause s@Solver{..} ps = do
      1 -> do                    -- a fact
        l <- getNth ps 1
        unsafeEnqueue s l NullClause
-{-
      2 -> do                    -- biclause
        l1 <- getNth ps 1
        l2 <- getNth ps 2
@@ -69,7 +68,6 @@ newLearntClause s@Solver{..} ps = do
        pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
        pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
        unsafeEnqueue s l1 c
--}
      _ -> do
        -- allocate clause:
        c <- makeClauseFromStack clsPool ps --  newClauseFromStack True ps
@@ -111,7 +109,6 @@ newLearntClause s@Solver{..} ps = do
 {-# INLINABLE simplify #-}
 simplify :: Solver -> Clause -> IO Bool
 simplify s (BiClause l1 l2) = do
-  error "oooo"
   v <- valueLit s l1
   if v == LiftedT
     then return True

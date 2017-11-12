@@ -297,15 +297,13 @@ clauseNew s@Solver{..} ps isLearnt = do
    1 -> do
      l <- getNth ps 1
      Left <$> enqueue s l NullClause
-{-
    2 -> do                    -- biclause
      l1 <- getNth ps 1
      l2 <- getNth ps 2
      let c = BiClause l1 l2
-     pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
-     pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
+     pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
+     pushClauseWithKey (getNthWatcher watches (negateLit l2)) c 0
      return (Right c)
--}
    _ -> do
     -- allocate clause:
      c <- newClauseFromStack isLearnt ps
