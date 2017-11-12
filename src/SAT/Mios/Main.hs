@@ -295,6 +295,7 @@ analyze s@Solver{..} confl = do
                             Clause{..} -> do
                               r' <- get' rc
                               when (r < r') $ varBumpActivity s v
+                            BiClause{} | r == 1 -> varBumpActivity s v
                             _ -> return ()
                           loopOnLastDL $ i - 1
   loopOnLastDL =<< get' an'lastDL
