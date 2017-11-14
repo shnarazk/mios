@@ -417,7 +417,7 @@ propagate s@Solver{..} = do
                                                  if lv /= LiftedF
                                                    then do setNth lstack 2 l'
                                                            setNth lstack k falseLit
-                                                           pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
+                                                           pushClauseWithKey (getNthWatcher watches (negateLit l')) c l'
                                                            return LiftedT  -- find another watch
                                                    else newWatch $! k + 1
                             ret <- newWatch 3
