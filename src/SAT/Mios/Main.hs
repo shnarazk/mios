@@ -417,7 +417,7 @@ propagate s@Solver{..} = do
                                                  if lv /= LiftedF
                                                    then do setNth lstack 2 l'
                                                            setNth lstack k falseLit
-                                                           when (lv == LiftedT) $ getNth bvec j l' -- update blocker with a satisfied litearl
+                                                           when (lv == LiftedT) $ setNth bvec j l' -- update blocker with a satisfied litearl
                                                            pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
                                                            return LiftedT  -- found another watch
                                                    else newWatch $! k + 1
