@@ -417,12 +417,13 @@ propagate s@Solver{..} = do
                                                  if lv /= LiftedF
                                                    then do setNth lstack 2 l'
                                                            setNth lstack k falseLit
-                                                           pushClauseWithKey (getNthWatcher watches (negateLit l')) c l'
-                                                           return LiftedT  -- find another watch
+                                                           when (lv == LiftedT) $ getNth bvec j l' -- update blocker with a satisfied litearl
+                                                           pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
+                                                           return LiftedT  -- found another watch
                                                    else newWatch $! k + 1
                             ret <- newWatch 3
                             case ret of
-                              LiftedT -> forClause (i + 1) j               -- find another watch
+                              LiftedT -> forClause (i + 1) j               -- found another watch
                               LBottom -> forClause (i + 1) (j + 1)         -- unit clause
                               _       -> shrinkBy ws (i - j) >> return c   -- conflict
       c <- forClause 0 0
