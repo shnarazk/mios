@@ -75,8 +75,8 @@ newLearntClause s@Solver{..} ps = do
        pushTo learnts c
        l1 <- getNth lstack 1
        l2 <- getNth lstack 2
-       pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
-       pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
+       pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
+       pushClauseWithKey (getNthWatcher watches (negateLit l2)) c 0
        -- update the solver state by @l@
        unsafeEnqueue s l1 c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
