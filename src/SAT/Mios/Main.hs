@@ -398,8 +398,10 @@ propagate s@Solver{..} = do
                                    return l2
                            else return tmp
                   fv <- valueLit s first
-                  if first /= blocker && fv == LiftedT
-                    then setNth cvec j c >> setNth bvec j first >> forClause (i + 1) (j + 1)
+                  if fv == LiftedT
+                    then do unless (i == j) $ setNth cvec j c
+                            setNth bvec j first
+                            forClause (i + 1) (j + 1)
                     else do cs <- get' c           -- Look for new watch:
                             let newWatch :: Int -> IO LiftedBool
                                 newWatch ((<= cs) -> False) = do -- Did not find watch
@@ -418,11 +420,11 @@ propagate s@Solver{..} = do
                                                    then do setNth lstack 2 l'
                                                            setNth lstack k falseLit
                                                            pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
-                                                           return LiftedT  -- find another watch
+                                                           return LiftedT  -- found another watch
                                                    else newWatch $! k + 1
                             ret <- newWatch 3
                             case ret of
-                              LiftedT -> forClause (i + 1) j               -- find another watch
+                              LiftedT -> forClause (i + 1) j               -- found another watch
                               LBottom -> forClause (i + 1) (j + 1)         -- unit clause
                               _       -> shrinkBy ws (i - j) >> return c   -- conflict
       c <- forClause 0 0
@@ -586,6 +588,14 @@ simplifyDB s@Solver{..} = do
       if p /= NullClause
         then set' ok False >> return False
         else do
+--            -- Clear watcher lists:
+--            n <- get' trail
+--            let loopOnLit ((< n) -> False) = return ()
+--                loopOnLit i = do l <- getNth trail i
+--                                 reset . getNthWatcher watches $ l
+--                                 reset . getNthWatcher watches $ negateLit l
+--                                 loopOnLit $ i + 1
+--            loopOnLit 1
             -- Remove satisfied clauses and their watcher lists:
             let
               for :: ClauseExtManager -> IO ()
