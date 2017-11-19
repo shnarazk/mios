@@ -28,6 +28,10 @@ import SAT.Mios.Glucose
 -- | #114: __RemoveWatch__
 {-# INLINABLE removeWatch #-}
 removeWatch :: Solver -> Clause -> IO ()
+removeWatch Solver{..} c@(BiClause l1 l2) = do
+  markClause (getNthWatcher watches (negateLit l1)) c
+  markClause (getNthWatcher watches (negateLit l2)) c
+
 removeWatch Solver{..} c = do
   let lstack = lits c
   l1 <- negateLit <$> getNth lstack 1
@@ -50,9 +54,20 @@ newLearntClause s@Solver{..} ps = do
     -- Since this solver must generate only healthy learnt clauses, we need not to run misc check in 'newClause'
     k <- get' ps
     case k of
-     1 -> do
+     1 -> do                    -- a fact
        l <- getNth ps 1
        unsafeEnqueue s l NullClause
+     2 -> do                    -- biclause
+       l1 <- getNth ps 1
+       l2 <- getNth ps 2
+       let c = BiClause l1 l2
+       -- subsumeAll s clauses c
+       -- subsumeAll s learnts c
+       pushTo learnts c
+       -- pushTo clauses c
+       pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
+       pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
+       unsafeEnqueue s l1 c
      _ -> do
        -- allocate clause:
        c <- makeClauseFromStack clsPool ps --  newClauseFromStack True ps
@@ -93,13 +108,19 @@ newLearntClause s@Solver{..} ps = do
 -- MIOS NOTE: the original doesn't update watchers; only checks its satisfiabiliy.
 {-# INLINABLE simplify #-}
 simplify :: Solver -> Clause -> IO Bool
+simplify s (BiClause l1 l2) = do
+  v <- valueLit s l1
+  if v == LiftedT
+    then return True
+    else do w <- valueLit s l2
+            return (w == LiftedT)
 simplify s c = do
   n <- get' c
   let lstack = lits c
       loop ::Int -> IO Bool
       loop ((<= n) -> False) = return False
       loop i = do v <- valueLit s =<< getNth lstack i
-                  if v == 1 then return True else loop (i + 1)
+                  if v == LiftedT then return True else loop (i + 1)
   loop 1
 
 --------------------------------------------------------------------------------
@@ -137,6 +158,52 @@ analyze s@Solver{..} confl = do
   dl <- decisionLevel s
   let
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
+    loopOnClauseChain NullClause lit _ _ _ = error $ "strange analyze loop: " ++ show (lit, confl)
+    loopOnClauseChain c@(BiClause l1 l2) p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
+      let
+        loopOnLiterals :: Lit -> Int -> Int -> IO (Int, Int)
+        loopOnLiterals q b pc = do
+          let v = lit2var q
+          sn <- getNth an'seen v
+          l <- getNth level v
+          if sn == 0 && 0 < l
+            then do
+                varBumpActivity s v
+                setNth an'seen v 1
+                if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
+                  then do
+                      -- glucose heuristics
+                      r <- getNth reason v
+                      case r of
+                        BiClause{} -> pushTo an'lastDL q
+                        Clause{} -> do ra <- get' (rank r)
+                                       when (0 < ra) $ pushTo an'lastDL q
+                        _        -> return ()
+                      -- end of glucose heuristics
+                      return (b, pc + 1)
+                  else pushTo litsLearnt q >> return (max b l, pc)
+            else return (b, pc)
+      -- Two posibility:
+      -- * this biclause @b@ is used on the depdendency tree; target should be the literal which reason is NOT @b@.
+      -- * this biclause @b@ is the conflicting clause; @b@ is not stored in reason; target is the literal which is assigned.
+      (b', pathC') <- if p == LBottom
+                      then do (b1, pathC1) <- loopOnLiterals l1 bl pathC
+                              loopOnLiterals l2 b1 pathC1
+                      else do r1 <- getNth reason (lit2var l1)
+                              loopOnLiterals (if r1 == c then l2 else l1) bl pathC
+      let
+        -- select next clause to look at
+        nextPickedUpLit :: Int -> IO Int
+        nextPickedUpLit i = do x <- getNth an'seen . lit2var =<< getNth trail i
+                               if x == 0 then nextPickedUpLit (i - 1) else return (i - 1)
+      ti' <- nextPickedUpLit (ti + 1)
+      nextP <- getNth trail (ti' + 1)
+      let nextV = lit2var nextP
+      confl' <- getNth reason nextV
+      setNth an'seen nextV 0
+      if 1 < pathC'
+        then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
+        else setNth litsLearnt 1 (negateLit nextP) >> return b'
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
       d <- get' (rank c)
       when (0 /= d) $ claBumpActivity s c
@@ -165,9 +232,11 @@ analyze s@Solver{..} confl = do
                   then do
                       -- UPDATEVARACTIVITY: glucose heuristics
                       r <- getNth reason v
-                      when (r /= NullClause) $ do
-                        ra <- get' (rank r)
-                        when (0 /= ra) $ pushTo an'lastDL q
+                      case r of
+                        BiClause{} -> pushTo an'lastDL q
+                        Clause{} -> do ra <- get' (rank r)
+                                       when (0 < ra) $ pushTo an'lastDL q
+                        _        -> return ()
                       -- end of glucose heuristics
                       loopOnLiterals (j + 1) b (pc + 1)
                   else pushTo litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
@@ -220,13 +289,17 @@ analyze s@Solver{..} confl = do
   nld <- get' an'lastDL
   r <- get' litsLearnt -- this is an estimated LBD value based on the clause size
   let loopOnLastDL :: Int -> IO ()
-      loopOnLastDL ((<= nld) -> False) = return ()
+      loopOnLastDL ((<= nld) -> False) = reset an'lastDL
       loopOnLastDL i = do v <- lit2var <$> getNth an'lastDL i
-                          r' <- get' =<< getNth reason v
-                          when (r < r') $ varBumpActivity s v
+                          rc <- getNth reason v
+                          case rc of
+                            Clause{..} -> do
+                              r' <- get' rc
+                              when (r < r') $ varBumpActivity s v
+                            BiClause{} | r == 1 -> varBumpActivity s v
+                            _ -> return ()
                           loopOnLastDL $ i + 1
   loopOnLastDL 1
-  reset an'lastDL
   -- Clear seen
   k <- get' an'toClear
   let cleaner :: Int -> IO ()
@@ -237,7 +310,7 @@ analyze s@Solver{..} confl = do
   cleaner 1
   return levelToReturn
 
--- | #M114
+-- | #M114 @litRedundant@
 -- Check if 'p' can be removed, 'abstract_levels' is used to abort early if the algorithm is
 -- visiting literals at levels that cannot be removed later.
 --
@@ -247,7 +320,7 @@ analyze s@Solver{..} confl = do
 --   This is used only in this function and @analyze@.
 --
 analyzeRemovable :: Solver -> Lit -> Int -> IO Bool
-analyzeRemovable Solver{..} p minLevel = do
+analyzeRemovable s@Solver{..} p minLevel = do
   -- assert (reason[var(p)] != NullClause);
   reset an'stack      -- analyze_stack.clear()
   pushTo an'stack p   -- analyze_stack.push(p);
@@ -262,37 +335,61 @@ analyzeRemovable Solver{..} p minLevel = do
             sl <- lastOf an'stack
             popFrom an'stack             -- analyze_stack.pop();
             c <- getNth reason (lit2var sl) -- getRoot sl
-            nl <- get' c
-            let
-              lstack = lits c
-              loopOnLit :: Int -> IO Bool -- loopOnLit (int i = 1; i < c.size(); i++){
-              loopOnLit ((<= nl) -> False) = loopOnStack
-              loopOnLit i = do
-                p' <- getNth lstack i              -- valid range is [1 .. nl]
-                let v' = lit2var p'
+            case c of
+              BiClause l1 l2 -> do
+                a1 <- valueLit s l1
+                let p' = if a1 == LiftedF then l1 else l2 -- See: glucose/core/Solver.cc l.699
+                    v' = lit2var p'
                 l' <- getNth level v'
                 c1 <- (1 /=) <$> getNth an'seen v'
                 if c1 && (0 /= l')   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
                   then do
                       c3 <- (NullClause /=) <$> getNth reason v'
-                      if c3 && testBit minLevel (l' .&. 31) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
-                        then do
-                            setNth an'seen v' 1   -- analyze_seen[var(p)] = 1;
-                            pushTo an'stack p'    -- analyze_stack.push(p);
-                            pushTo an'toClear p'  -- analyze_toclear.push(p);
-                            loopOnLit $ i + 1
-                        else do
-                            -- for (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
-                            top' <- get' an'toClear
-                            let clearAll :: Int -> IO ()
-                                clearAll ((<= top') -> False) = return ()
-                                clearAll j = do x <- getNth an'toClear j; setNth an'seen (lit2var x) 0; clearAll (j + 1)
-                            clearAll $ top + 1
-                            -- analyze_toclear.shrink(analyze_toclear.size() - top); note: shrink n == repeat n pop
-                            shrinkBy an'toClear $ top' - top
-                            return False
-                  else loopOnLit $ i + 1
-            loopOnLit 2
+                      if c3 && testBit minLevel (l' .&. 31)
+                        then do setNth an'seen v' 1   -- analyze_seen[var(p)] = 1;
+                                pushTo an'stack p'    -- analyze_stack.push(p);
+                                pushTo an'toClear p'  -- analyze_toclear.push(p);
+                                loopOnStack
+                        else do top' <- get' an'toClear
+                                let clearAll :: Int -> IO ()
+                                    clearAll ((<= top') -> False) = return ()
+                                    clearAll j = do x <- getNth an'toClear j; setNth an'seen (lit2var x) 0; clearAll (j + 1)
+                                clearAll $ top + 1
+                                shrinkBy an'toClear $ top' - top
+                                return False
+                  else loopOnStack
+              _ -> do
+                nl <- get' c
+                let
+                  lstack = lits c
+                  loopOnLit :: Int -> IO Bool -- loopOnLit (int i = 1; i < c.size(); i++){
+                  loopOnLit ((<= nl) -> False) = loopOnStack
+                  loopOnLit i = do
+                    p' <- getNth lstack i              -- valid range is [1 .. nl]
+                    let v' = lit2var p'
+                    l' <- getNth level v'
+                    c1 <- (1 /=) <$> getNth an'seen v'
+                    if c1 && (0 /= l')   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
+                      then do
+                          c3 <- (NullClause /=) <$> getNth reason v'
+                          if c3 && testBit minLevel (l' .&. 31) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
+                            then do
+                                setNth an'seen v' 1   -- analyze_seen[var(p)] = 1;
+                                pushTo an'stack p'    -- analyze_stack.push(p);
+                                pushTo an'toClear p'  -- analyze_toclear.push(p);
+                                loopOnLit $ i + 1
+                            else do
+                                -- for (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
+                                top' <- get' an'toClear
+                                let clearAll :: Int -> IO ()
+                                    clearAll ((<= top') -> False) = return ()
+                                    clearAll j = do x <- getNth an'toClear j; setNth an'seen (lit2var x) 0; clearAll (j + 1)
+                                clearAll $ top + 1
+                                -- analyze_toclear.shrink(analyze_toclear.size() - top); note: shrink n == repeat n pop
+                                shrinkBy an'toClear $ top' - top
+                                return False
+                      else loopOnLit $ i + 1
+                loopOnLit 2
   loopOnStack
 
 -- | #114
@@ -389,44 +486,60 @@ propagate s@Solver{..} = do
                       forClause (i + 1) (j + 1)
               else do                               -- Make sure the false literal is data[1]:
                   (c :: Clause) <- getNth cvec i
-                  let !lstack = lits c
-                  tmp <- getNth lstack 1
-                  first <- if falseLit == tmp
-                           then do l2 <- getNth lstack 2
-                                   setNth lstack 2 tmp
-                                   setNth lstack 1 l2
-                                   return l2
-                           else return tmp
-                  fv <- valueLit s first
-                  if fv == LiftedT
-                    then do unless (i == j) $ setNth cvec j c
-                            setNth bvec j first
-                            forClause (i + 1) (j + 1)
-                    else do cs <- get' c           -- Look for new watch:
-                            let newWatch :: Int -> IO LiftedBool
-                                newWatch ((<= cs) -> False) = do -- Did not find watch
-                                  setNth cvec j c
-                                  setNth bvec j first
-                                  if fv == LiftedF
-                                    then do ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
-                                            set' qHead =<< get' trail
-                                            copy (i + 1) (j + 1)
-                                            return LiftedF                 -- conflict
-                                    else do unsafeEnqueue s first c
-                                            return LBottom                 -- unit clause
-                                newWatch !k = do (l' :: Lit) <- getNth lstack k
-                                                 lv <- valueLit s l'
-                                                 if lv /= LiftedF
-                                                   then do setNth lstack 2 l'
-                                                           setNth lstack k falseLit
-                                                           pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
-                                                           return LiftedT  -- found another watch
-                                                   else newWatch $! k + 1
-                            ret <- newWatch 3
-                            case ret of
-                              LiftedT -> forClause (i + 1) j               -- found another watch
-                              LBottom -> forClause (i + 1) (j + 1)         -- unit clause
-                              _       -> shrinkBy ws (i - j) >> return c   -- conflict
+                  case c of
+                    BiClause l1 l2 -> do
+                      let second = if l1 == falseLit then l2 else l1
+                      sv <- valueLit s second
+                      setNth cvec j c >> setNth bvec j l1
+                      case sv of
+                        LiftedT -> do forClause (i + 1) (j + 1)
+                        LBottom -> do setNth bvec j second
+                                      unsafeEnqueue s second c
+                                      forClause (i + 1) (j + 1)
+                        LiftedF -> do setNth bvec j second
+                                      ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
+                                      set' qHead =<< get' trail
+                                      copy (i + 1) (j + 1)
+                                      shrinkBy ws (i - j) >> return (BiClause second falseLit)
+                    _ -> do
+                      let !lstack = lits c
+                      tmp <- getNth lstack 1
+                      first <- if falseLit == tmp
+                               then do l2 <- getNth lstack 2
+                                       setNth lstack 2 tmp
+                                       setNth lstack 1 l2
+                                       return l2
+                               else return tmp
+                      fv <- valueLit s first
+                      if fv == LiftedT
+                        then do unless (i == j) $ setNth cvec j c
+                               setNth bvec j first
+                               forClause (i + 1) (j + 1)
+                        else do cs <- get' c           -- Look for new watch:
+                                let newWatch :: Int -> IO LiftedBool
+                                    newWatch ((<= cs) -> False) = do -- Did not find watch
+                                      setNth cvec j c
+                                      setNth bvec j first
+                                      if fv == LiftedF
+                                        then do ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
+                                                set' qHead =<< get' trail
+                                                copy (i + 1) (j + 1)
+                                                return LiftedF                 -- conflict
+                                        else do unsafeEnqueue s first c
+                                                return LBottom                 -- unit clause
+                                    newWatch !k = do (l' :: Lit) <- getNth lstack k
+                                                     lv <- valueLit s l'
+                                                     if lv /= LiftedF
+                                                       then do setNth lstack 2 l'
+                                                               setNth lstack k falseLit
+                                                               pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
+                                                               return LiftedT  -- find another watch
+                                                       else newWatch $! k + 1
+                                ret <- newWatch 3
+                                case ret of
+                                  LiftedT -> forClause (i + 1) j               -- find another watch
+                                  LBottom -> forClause (i + 1) (j + 1)         -- unit clause
+                                  _       -> shrinkBy ws (i - j) >> return c   -- conflict
       c <- forClause 0 0
       while c =<< ((<) <$> get' qHead <*> get' trail)
   while NullClause =<< ((<) <$> get' qHead <*> get' trail)
@@ -509,16 +622,21 @@ sortClauses s cm limit = do
       assignKey ((< n) -> False) = return ()
       assignKey i = do
         c <- getNth vec i
-        k <- get' c
-        if k == 2                  -- Main criteria. Like in MiniSat we keep all binary clauses
-          then do setNth keys i $ shiftL 1 indexWidth + i
-          else do a <- get' (activity c)               -- Second one... based on LBD
+        case c of
+          -- Main criteria. Like in MiniSat we keep all binary clauses
+          BiClause _ _ -> setNth keys i $ shiftL 1 indexWidth + i
+          _ -> do -- k <- get' c
+                  -- when (k == 2) $ error "strange k"
+                  a <- get' (activity c)                 -- Second one... based on LBD
                   r <- get' (rank c)
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax
-                            | otherwise ->  min rankMax r                -- rank can be one
-                  setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
+                            | otherwise -> min rankMax r -- rank can be one
+                  k <- get' c
+                  if k == 2
+                    then setNth keys i $ shiftL 1 indexWidth + i
+                    else setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
         assignKey (i + 1)
   assignKey 0
   -- 2: sort keyVector
@@ -583,40 +701,40 @@ simplifyDB :: Solver -> IO Bool
 simplifyDB s@Solver{..} = do
   good <- get' ok
   if good
-    then do
-      p <- propagate s
-      if p /= NullClause
-        then set' ok False >> return False
-        else do
---            -- Clear watcher lists:
---            n <- get' trail
---            let loopOnLit ((< n) -> False) = return ()
---                loopOnLit i = do l <- getNth trail i
---                                 reset . getNthWatcher watches $ l
---                                 reset . getNthWatcher watches $ negateLit l
---                                 loopOnLit $ i + 1
---            loopOnLit 1
-            -- Remove satisfied clauses and their watcher lists:
-            let
-              for :: ClauseExtManager -> IO ()
-              for mgr = do
-                vec' <- getClauseVector mgr
-                n' <- get' mgr
-                let
-                  loopOnVector :: Int -> Int -> IO ()
-                  loopOnVector ((< n') -> False) j = shrinkBy mgr (n' - j)
-                  loopOnVector i j = do
-                        c <- getNth vec' i
-                        l <- locked s c
-                        r <- if l then return False else simplify s c
-                        if r
-                          then removeWatch s c >> loopOnVector (i + 1) j
-                          else unless (i == j) (setNth vec' j c) >> loopOnVector (i + 1) (j + 1)
-                loopOnVector 0 0
-            for clauses
-            for learnts
-            reset watches
-            return True
+    then do p <- propagate s
+            if p /= NullClause
+              then set' ok False >> return False
+              else do let check :: Int -> IO () -- canonize reasons at level = 0
+                          check ((< nVars) -> False) = return ()
+                          check i = do asg <- getNth assigns i
+                                       l <- getNth level i
+                                       when (asg /= LBottom && l == 0) $ do
+                                         r <- getNth reason i
+                                         when (r /= NullClause) $ setNth reason i NullClause
+                                       check $ i + 1
+                      check 0
+                      let for :: ClauseExtManager -> IO ()
+                          for mgr = do
+                            vec' <- getClauseVector mgr
+                            n' <- get' mgr
+                            let loopOnVector :: Int -> Int -> IO ()
+                                loopOnVector ((< n') -> False) j = shrinkBy mgr (n' - j)
+                                loopOnVector i j = do
+                                  c <- getNth vec' i
+                                  case c of
+                                    -- BiClause{} -> unless (i == j) (setNth vec' j c) >> loopOnVector (i + 1) (j + 1)
+                                    _ -> do
+                                      l <- locked s c
+                                      r <- if l then return False else simplify s c
+                                      if r
+                                        then removeWatch s c >> loopOnVector (i + 1) j
+                                        else unless (i == j) (setNth vec' j c) >> loopOnVector (i + 1) (j + 1)
+                            loopOnVector 0 0
+                      -- Remove satisfied clauses:
+                      for clauses
+                      for learnts
+                      reset watches
+                      return True
     else return False
 
 -- | #M22
@@ -807,3 +925,91 @@ luby y x_ = loop 1 0
     loop2 x sz sq
       | sz - 1 == x = y ** fromIntegral sq
       | otherwise   = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
+
+-- | purges all clauses which the biclause can subsume
+subsumeAll :: Solver -> ClauseExtManager -> Clause -> IO Bool
+subsumeAll s mgr (BiClause l1 l2) = do
+  n <- get' mgr
+  cvec <- getClauseVector mgr
+  bvec <- getKeyVector mgr
+  let loop ((< n) -> False) j = return j
+      loop i j = do
+        c <- getNth cvec i
+        b <- getNth bvec i
+        case c :: Clause of
+          Clause{..} -> do
+            let check :: Bool -> Bool -> Int -> IO Bool
+                check True True _ = return True
+                check _ _ 0 = return False
+                check a b i = do l <- getNth lits i
+                                 if -l == l1 || -1 == l2
+                                   then return False
+                                   else check (l == l1 || a) (l == l2 || b) (i - 1)
+            y <- check False False =<< get' c
+            -- locked s c ; interestingly, a clause that can be subsumed is never used as reason.
+            -- The literal which level is highest in a learnt has been unassigned by cancelUntil.
+            if y                -- subsumed
+              then removeWatch s c >> loop (i + 1) j
+              else do unless (i == j) $ setNth cvec j c >> setNth bvec j b
+                      loop (i + 1) (j + 1)
+          BiClause x y | lit2var x == lit2var l1 -> do
+                           -- print ((x,y), (l1, l2))
+                           unless (i == j) $ setNth cvec j c >> setNth bvec j b
+                           loop (i + 1) (j + 1)
+          BiClause x y | lit2var x == lit2var l2 -> do
+                           -- print ((x,y), (l2, l1))
+                           unless (i == j) $ setNth cvec j c >> setNth bvec j b
+                           loop (i + 1) (j + 1)
+          _ -> do unless (i == j) $ setNth cvec j c >> setNth bvec j b
+                  loop (i + 1) (j + 1)
+  n' <- loop 0 0
+  if n' < n
+    then shrinkBy mgr (n - n') >> reset (watches s) >> return True
+    else return False
+
+{-
+inplaceSubsume :: Solver -> ClauseExtManager -> Clause -> IO Bool
+inplaceSubsume s clss b@(BiClause l1 l2) = do
+  n <- get' clss
+  cvec <- getClauseVector clss
+  bvec <- getKeyVector clss
+  let loop ((< n) -> False) = return False
+      loop i = do
+        c <- getNth cvec i
+        case c :: Clause of
+          Clause{..} -> do
+            x <- getNth lits 1
+            y <- getNth lits 2
+            if (x == l1 && y == l2) || (x == l2 && y == l1)
+              then do removeWatch s c
+                      reset (watches s)
+                      setNth cvec i b
+                      setNth bvec i l2
+                      return True
+              else loop (i + 1)
+          _ -> loop (i + 1)
+  loop 0
+
+-- | _purges_ degrade activity of all clauses which the biclause can subsume
+unbumpSubsumees :: ClauseExtManager -> Clause -> IO ()
+unbumpSubsumees mgr (BiClause l1 l2) = do
+  n <- get' mgr
+  cvec <- getClauseVector mgr
+  let loop ((< n) -> False) = return ()
+      loop i = do
+        c <- getNth cvec i
+        case c of
+          Clause{..} -> do
+            let check :: Bool -> Bool -> Int -> IO Bool
+                check True True _ = return True
+                check _ _ 0 = return False
+                check a b i = do l <- getNth lits i
+                                 if -l == l1 || -1 == l2
+                                   then return False
+                                   else check (l == l1 || a) (l == l2 || b) (i - 1)
+            y <- check False False =<< get' c
+            when y $ set' activity 0 -- modify' activity (* 0.1)
+          _ -> return ()
+        loop (i + 1)
+  loop 0
+-}

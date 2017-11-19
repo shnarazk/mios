@@ -187,6 +187,11 @@ valueLit (assigns -> a) p = (\x -> if positiveLit p then x else negate x) <$> ge
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__
 {-# INLINE locked #-}
 locked :: Solver -> Clause -> IO Bool
+locked s c@(BiClause a b) = do
+  p1 <- (c ==) <$> getNth (reason s) (lit2var a)
+  if p1
+    then return True
+    else (c ==) <$> getNth (reason s) (lit2var b)
 locked s c = (c ==) <$> (getNth (reason s) . lit2var =<< getNth (lits c) 1)
 
 -------------------------------------------------------------------------------- Statistics
@@ -292,6 +297,13 @@ clauseNew s@Solver{..} ps isLearnt = do
    1 -> do
      l <- getNth ps 1
      Left <$> enqueue s l NullClause
+   2 -> do                    -- biclause
+     l1 <- getNth ps 1
+     l2 <- getNth ps 2
+     let c = BiClause l1 l2
+     pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
+     pushClauseWithKey (getNthWatcher watches (negateLit l2)) c 0
+     return (Right c)
    _ -> do
     -- allocate clause:
      c <- newClauseFromStack isLearnt ps
@@ -469,6 +481,7 @@ claActivityThreshold = 1e20
 -- | __Fig. 14 (p.19)__
 {-# INLINE claBumpActivity #-}
 claBumpActivity :: Solver -> Clause -> IO ()
+claBumpActivity s@Solver{..} (BiClause _ _) = return ()
 claBumpActivity s@Solver{..} Clause{..} = do
   a <- (+) <$> get' activity <*> get' claInc
   set' activity a
@@ -490,7 +503,9 @@ claRescaleActivity Solver{..} = do
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
       c <- getNth vec i
-      modify' (activity c) (/ claActivityThreshold)
+      case c of
+        Clause{..} -> do modify' activity (/ claActivityThreshold)
+        _ -> return ()
       loopOnVector $ i + 1
   loopOnVector 0
   modify' claInc (/ claActivityThreshold)
