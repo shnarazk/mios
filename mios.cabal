@@ -7,7 +7,7 @@ synopsis:               A Minisat-based SAT solver in Haskell
 description:
 
   A modern and very fast SAT solver written in Haskell, using CDCL, watch literals, VSIDS,
-  restart, blocking-literals, LBD and so on.
+  restart, blocking-literals, LBD, phase saving and so on.
   'Mios' is an abbreviation of 'Minisat-based Implementation and Optimization Study on SAT solver'.
   .
 
@@ -19,7 +19,7 @@ maintainer:             Shuji Narazaki <narazaki@nagasaki-u.ac.jp>
 category:               Artificial Intelligence, Constraints
 build-type:             Simple
 cabal-version:          >=1.16
-extra-source-files:  app/sample.hs
+extra-source-files:     app/sample.hs
 
 source-repository head
   type:                 git
@@ -45,20 +45,20 @@ library
   hs-source-dirs:	src
   default-language:	Haskell2010
   default-extensions:   Strict
-  other-extensions:	    BangPatterns
-                            FlexibleContexts
-                            FlexibleInstances
-                            FunctionalDependencies
-                            MagicHash
-                            MultiParamTypeClasses
-                            RecordWildCards
-                            ScopedTypeVariables
-                            TypeFamilies
-                            Trustworthy
-                            TupleSections
-                            Safe
-                            UndecidableInstances
-                            ViewPatterns
+  other-extensions:	BangPatterns
+                        FlexibleContexts
+                        FlexibleInstances
+                        FunctionalDependencies
+                        MagicHash
+                        MultiParamTypeClasses
+                        RecordWildCards
+                        ScopedTypeVariables
+                        TypeFamilies
+                        Trustworthy
+                        TupleSections
+                        Safe
+                        UndecidableInstances
+                        ViewPatterns
   exposed-modules:
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
@@ -82,7 +82,7 @@ library
   else
     ghc-options:	-O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
 
-executable mios-48
+executable mios-54
   hs-source-dirs:	app
   main-is:              mios.hs
   if flag(prof)
@@ -97,7 +97,7 @@ executable mios-48
   else
     ghc-options:	-O2 -funbox-strict-fields -msse2 -rtsopts -fwarn-missing-signatures
 
-executable mios-48-prof
+executable mios-54-prof
   hs-source-dirs:	app
   main-is:              mios.hs
   if flag(prof)
