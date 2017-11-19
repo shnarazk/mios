@@ -513,8 +513,8 @@ propagate s@Solver{..} = do
                       fv <- valueLit s first
                       if fv == LiftedT
                         then do unless (i == j) $ setNth cvec j c
-                               setNth bvec j first
-                               forClause (i + 1) (j + 1)
+                                setNth bvec j first
+                                forClause (i + 1) (j + 1)
                         else do cs <- get' c           -- Look for new watch:
                                 let newWatch :: Int -> IO LiftedBool
                                     newWatch ((<= cs) -> False) = do -- Did not find watch
