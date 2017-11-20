@@ -704,16 +704,7 @@ simplifyDB s@Solver{..} = do
     then do p <- propagate s
             if p /= NullClause
               then set' ok False >> return False
-              else do let check :: Int -> IO () -- canonize reasons at level = 0
-                          check ((< nVars) -> False) = return ()
-                          check i = do asg <- getNth assigns i
-                                       l <- getNth level i
-                                       when (asg /= LBottom && l == 0) $ do
-                                         r <- getNth reason i
-                                         when (r /= NullClause) $ setNth reason i NullClause
-                                       check $ i + 1
-                      check 0
-                      let for :: ClauseExtManager -> IO ()
+              else do let for :: ClauseExtManager -> IO ()
                           for mgr = do
                             vec' <- getClauseVector mgr
                             n' <- get' mgr
