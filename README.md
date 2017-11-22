@@ -33,6 +33,13 @@ in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSa
 
 ### > Release Note
 
+##### 1.5.1
+
+* fix a bug in simplifyDB
+* revise VARUPDATEACTIVITY (#52)
+* revise blockers (#53)
+* refactor mios.cabal
+
 ##### 1.5.0
 
 * **implement LBD**
