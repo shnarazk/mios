@@ -39,6 +39,7 @@ in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSa
 * revise VARUPDATEACTIVITY (#52)
 * revise blockers (#53)
 * refactor mios.cabal
+* add `--benchmark` option
 
 ##### 1.5.0
 
