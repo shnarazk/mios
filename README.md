@@ -18,14 +18,16 @@ a part of my research theme.
 
 - SAT-Competition 2017 Main track, running 3 jobs *in parallel* with 400-second timeout on Intel Core i7-3930K @ 12x 3.8GHz
   (Therefore results near the threshold should be affected by other threads more or less.)
-![Cactus Plot 1 on SAT Competition 2017 main](https://user-images.githubusercontent.com/997855/31916640-a7464b14-b88e-11e7-81c6-ec90d084aa3c.png)
+
+![Cactus plot 1: SAT Competition 2017 main](https://user-images.githubusercontent.com/997855/33189424-d2caaf04-d0e5-11e7-911a-7f2ff63e1b1c.png)
+
 
 - A subset of SAT-Race 2015 Application Problems (timeout: 1200 sec)
 
 This is a result on a subset the problems of which MiniSat-2.2.0 can solve
 in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSat-2.2.0*.
 
-![cactus plot on SAT-RACE2015](https://cloud.githubusercontent.com/assets/997855/18457723/e9c6b91c-7995-11e6-8cc5-ecad36259fa7.png)
+![Cactus plot 2:SAT-RACE2015](https://cloud.githubusercontent.com/assets/997855/18457723/e9c6b91c-7995-11e6-8cc5-ecad36259fa7.png)
 
 - Performances on [various 3SAT problems (uf-* series)](http://www.cs.ubc.ca/~hoos/SATLIB/benchm.html)
 
