@@ -16,7 +16,7 @@ a part of my research theme.
 
 #### benchmark results
 
-- SAT-Competition 2017 Main track, running 3 jobs *in parallel* with 400-second timeout on Intel Core i7-3930K @ 12x 3.8GHz
+- SAT-Competition 2017 Main track, running 3 jobs *in parallel* with a 510 second timeout on Intel Core i7-3930K @ 12x 3.8GHz
   (Therefore results near the threshold should be affected by other threads more or less.)
 
 ![Cactus plot 1: SAT Competition 2017 main](https://user-images.githubusercontent.com/997855/33189424-d2caaf04-d0e5-11e7-911a-7f2ff63e1b1c.png)
