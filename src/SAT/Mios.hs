@@ -51,9 +51,9 @@ versionId :: String
 versionId = "mios-1.5.1 -- https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
-reportElapsedTime False _ _ = return 0
-reportElapsedTime _ _ 0 = getCPUTime
-reportElapsedTime _ mes t = do
+reportElapsedTime False _ 0 = return 0
+reportElapsedTime False _ _ = getCPUTime
+reportElapsedTime True mes t = do
   now <- getCPUTime
   let toSecond = 1000000000000 :: Double
   hPutStr stderr mes
@@ -69,7 +69,7 @@ executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just pat
 -- This is another entry point for standalone programs.
 executeSolver :: MiosProgramOption -> IO ()
 executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
-  t0 <- reportElapsedTime (_confTimeProbe opts) "" 0
+  t0 <- reportElapsedTime False "" $ if _confTimeProbe opts || 0 <= _confBenchmark opts then -1 else 0
   (desc, cls) <- parseCNF target <$> B.readFile cnfFile
   when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
   s <- newSolver (toMiosConf opts) desc
@@ -81,6 +81,7 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
   res <- simplifyDB s
   result <- if res then solve s [] else return False
   case result of
+    _ | 0 <= _confBenchmark opts -> return ()
     True  | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "SATISFIABLE"
     False | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "UNSATISFIABLE"
     True  -> print =<< getModel s
@@ -106,6 +107,20 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
   when (_confStatProbe opts) $ do
     hPutStrLn stderr $ "## [" ++ showPath cnfFile ++ "]"
     hPutStrLn stderr . intercalate "\n" . map (\(k, v) -> show k ++ ": " ++ show v) . init =<< getStats s
+  when (0 <= _confBenchmark opts) $ do
+    putStr $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
+    ret <- get' (ok s)
+    valid <- case ret of
+               LiftedT | result -> do asg <- getModel s
+                                      s' <- newSolver (toMiosConf opts) desc
+                                      injectClausesFromCNF s' desc cls
+                                      validate s' asg
+               LiftedF | not result -> return True
+               _ -> return False
+    putStr $ (if valid then "1" else "0") ++ ","
+    putStr $ "\"" ++ cnfFile ++ "\","
+    let toSecond = 1000000000000 :: Double
+    putStrLn $ if valid then showFFloat (Just 4) (fromIntegral (t2 - t0) / toSecond) "" else show (_confBenchmark opts)
 
 executeSolver _ = return ()
 

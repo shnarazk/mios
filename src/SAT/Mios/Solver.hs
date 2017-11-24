@@ -87,7 +87,7 @@ data Solver = Solver
               , learntSCnt :: Int'               -- ^ used in 'SAT.Mios.Main.search'
               , maxLearnts :: Double'            -- ^ used in 'SAT.Mios.Main.search'
 {-            Working Memory -}
-              , ok         :: !Bool'             -- ^ /return value/ holder
+              , ok         :: !Int'              -- ^ /return value/ holder
               , an'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.analyze'
               , an'toClear :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
               , an'stack   :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
@@ -134,7 +134,7 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> new' 100                           -- learntSCnt
     <*> new' 100                           -- maxLearnts
     -- Working Memory
-    <*> new' True                          -- ok
+    <*> new' LiftedT                       -- ok
     <*> newVec nv 0                        -- an'seen
     <*> newStack nv                        -- an'toClear
     <*> newStack nv                        -- an'stack

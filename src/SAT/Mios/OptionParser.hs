@@ -33,6 +33,7 @@ data MiosProgramOption = MiosProgramOption
                      , _confVerbose :: !Bool
                      , _confTimeProbe :: !Bool
                      , _confStatProbe :: !Bool
+                     , _confBenchmark :: Integer
                      , _confNoAnswer :: !Bool
                      , _validateAssignment :: !Bool
                      , _displayHelp :: !Bool
@@ -53,6 +54,7 @@ miosDefaultOption = MiosProgramOption
   , _confVerbose = False
   , _confTimeProbe = False
   , _confStatProbe = False
+  , _confBenchmark = -1
   , _confNoAnswer = False
   , _validateAssignment = False
   , _displayHelp = False
@@ -98,6 +100,9 @@ miosOptions =
   , Option [] ["stat"]
     (NoArg (\c -> c { _confStatProbe = True }))
     "[option] display statistics information"
+  , Option [] ["benchmark"]
+    (ReqArg (\v c -> c { _confBenchmark = read v }) "-1 or 0 or N")
+    "[option] -1:no/no time out/time out benchmark"
   , Option ['h'] ["help"]
     (NoArg (\c -> c { _displayHelp = True }))
     "[misc] display this help message"
@@ -130,5 +135,6 @@ toMiosConf opts = MiosConfiguration
                  {
                    variableDecayRate = _confVariableDecayRate opts
                  , clauseDecayRate = _confClauseDecayRate opts
+                 , timeout = 1000000000000 * _confBenchmark opts
 --                 , randomDecisionRate = _confRandomDecisionRate opts
                  }

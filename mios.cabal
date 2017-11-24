@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                   mios
-version:                1.5.1
+version:                1.5.2
 synopsis:               A Minisat-based CDCL SAT solver in Haskell
 description:
 

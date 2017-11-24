@@ -18,6 +18,7 @@ module SAT.Mios.Main
 import Control.Monad (unless, void, when)
 import Data.Bits
 import Data.Foldable (foldrM)
+import System.CPUTime
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -44,7 +45,7 @@ removeWatch Solver{..} c = do
 -- This is a strippped-down version of 'newClause' in Solver.
 newLearntClause :: Solver -> Stack -> IO ()
 newLearntClause s@Solver{..} ps = do
-  good <- get' ok
+  good <- (LiftedT ==) <$> get' ok
   when good $ do
     -- ps is a 'SizedVectorInt'; ps[0] is the number of active literals
     -- Since this solver must generate only healthy learnt clauses, we need not to run misc check in 'newClause'
@@ -408,7 +409,7 @@ propagate s@Solver{..} = do
                                   setNth cvec j c
                                   setNth bvec j first
                                   if fv == LiftedF
-                                    then do ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
+                                    then do ((== 0) <$> decisionLevel s) >>= (`when` set' ok LiftedF)
                                             set' qHead =<< get' trail
                                             copy (i + 1) (j + 1)
                                             return LiftedF                 -- conflict
@@ -581,12 +582,12 @@ sortClauses s cm limit = do
 --
 simplifyDB :: Solver -> IO Bool
 simplifyDB s@Solver{..} = do
-  good <- get' ok
+  good <- (LiftedT ==) <$> get' ok
   if good
     then do
       p <- propagate s
       if p /= NullClause
-        then set' ok False >> return False
+        then set' ok LiftedF >> return False
         else do
             -- Remove satisfied clauses and their watcher lists:
             let
@@ -715,7 +716,7 @@ search s@Solver{..} nOfConflicts = do
                unsafeAssume s $ var2lit v (0 < oldVal) -- cannot return @False@
                -- >> #phasesaving
                loop conflictC
-  good <- get' ok
+  good <- (LiftedT ==) <$> get' ok
   if good then loop 0 else return LiftedF
 
 -- | __Fig. 16. (p.20)__
@@ -726,6 +727,7 @@ search s@Solver{..} nOfConflicts = do
 -- non-usable internal state) cannot be distinguished from a conflict under assumptions.
 solve :: (Foldable t) => Solver -> t Lit -> IO Bool
 solve s@Solver{..} assumps = do
+  to <- if 0 < timeout config then (timeout config +) <$> getCPUTime else return 0
   -- PUSH INCREMENTAL ASSUMPTIONS:
   let inject :: Lit -> Bool -> IO Bool
       inject _ False = return False
@@ -758,14 +760,24 @@ solve s@Solver{..} assumps = do
                 loopL nRestart = do
                   status <- search s . floor $ steps * luby nk nRestart
                   if status == LBottom
-                    then loopL (nRestart + 1)
+                    then if 0 < to
+                         then do now <- getCPUTime
+                                 if to < now
+                                   then set' ok LBottom >> return False
+                                   else loopL (nRestart + 1)
+                         else loopL (nRestart + 1)
                     else cancelUntil s 0 >> return (status == LiftedT)
                 -- restart based on a Geometric series
                 loopG :: Double -> IO Bool
                 loopG nOfConflicts = do
                   status <- search s (floor nOfConflicts)
                   if status == LBottom
-                    then loopG (1.5 * nOfConflicts)
+                    then if 0 < to
+                         then do et <- getCPUTime
+                                 if to < et
+                                   then set' ok LBottom >> return False
+                                   else loopG (1.5 * nOfConflicts)
+                         else loopG (1.5 * nOfConflicts)
                     else cancelUntil s 0 >> return (status == LiftedT)
             set' maxLearnts . (/ 3) . fromIntegral =<< nClauses s
             if useLuby then loopL 0 else loopG steps
