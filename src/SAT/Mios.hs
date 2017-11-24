@@ -31,6 +31,8 @@ module SAT.Mios
        )
        where
 
+import Control.Concurrent
+import Control.Exception
 import Control.Monad ((<=<), unless, void, when)
 import Data.Char
 import qualified Data.ByteString.Char8 as B
@@ -68,7 +70,20 @@ executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just pat
 -- | executes a solver on the given 'arg :: MiosConfiguration'.
 -- This is another entry point for standalone programs.
 executeSolver :: MiosProgramOption -> IO ()
-executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
+executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKilled -> exitWith (ExitFailure 1)) $ do
+  solverID <- myThreadId
+  killerID <- if (0 < _confBenchmark opts)
+              then forkIO (do let fromMicro = 1000000 :: Int
+                              threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
+                              killThread solverID
+                              when (0 <= _confBenchmark opts) $ do
+                                putStr $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
+                                putStr $ (show (_confBenchSeq opts)) ++ ","
+                                putStr $ "\"" ++ cnfFile ++ "\","
+                                putStr $ show (_confBenchmark opts)
+                                putStrLn $ ",0"
+                          )
+              else return solverID
   t0 <- reportElapsedTime False "" $ if _confTimeProbe opts || 0 <= _confBenchmark opts then -1 else 0
   (desc, cls) <- parseCNF target <$> B.readFile cnfFile
   when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
@@ -86,7 +101,7 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
     False | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "UNSATISFIABLE"
     True  -> print =<< getModel s
     False -> do          -- contradiction
-      -- FIXMEin future
+      -- FIXME in future
       when (_confVerbose opts) $ hPutStrLn stderr "UNSAT"
       -- print =<< map lit2int <$> asList (conflict s)
       putStrLn "[]"
@@ -108,6 +123,8 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
     hPutStrLn stderr $ "## [" ++ showPath cnfFile ++ "]"
     hPutStrLn stderr . intercalate "\n" . map (\(k, v) -> show k ++ ": " ++ show v) . init =<< getStats s
   when (0 <= _confBenchmark opts) $ do
+    let fromPico = 1000000000000 :: Double
+    killThread killerID
     ret <- get' (ok s)
     valid <- case ret of
                LiftedT | result -> do asg <- getModel s
@@ -119,8 +136,7 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
     putStr $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
     putStr $ (show (_confBenchSeq opts)) ++ ","
     putStr $ "\"" ++ cnfFile ++ "\","
-    let toSecond = 1000000000000 :: Double
-    putStr $ if valid then showFFloat (Just 4) (fromIntegral (t2 - t0) / toSecond) "" else show (_confBenchmark opts)
+    putStr $ if valid then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "" else show (_confBenchmark opts)
     putStrLn $ "," ++ (if valid then "1" else "0")
 
 executeSolver _ = return ()

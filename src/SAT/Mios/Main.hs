@@ -18,7 +18,6 @@ module SAT.Mios.Main
 import Control.Monad (unless, void, when)
 import Data.Bits
 import Data.Foldable (foldrM)
-import System.CPUTime
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -727,7 +726,6 @@ search s@Solver{..} nOfConflicts = do
 -- non-usable internal state) cannot be distinguished from a conflict under assumptions.
 solve :: (Foldable t) => Solver -> t Lit -> IO Bool
 solve s@Solver{..} assumps = do
-  to <- if 0 < timeout config then (timeout config +) <$> getCPUTime else return 0
   -- PUSH INCREMENTAL ASSUMPTIONS:
   let inject :: Lit -> Bool -> IO Bool
       inject _ False = return False
@@ -760,24 +758,14 @@ solve s@Solver{..} assumps = do
                 loopL nRestart = do
                   status <- search s . floor $ steps * luby nk nRestart
                   if status == LBottom
-                    then if 0 < to
-                         then do now <- getCPUTime
-                                 if to < now
-                                   then set' ok LBottom >> return False
-                                   else loopL (nRestart + 1)
-                         else loopL (nRestart + 1)
+                    then loopL (nRestart + 1)
                     else cancelUntil s 0 >> return (status == LiftedT)
                 -- restart based on a Geometric series
                 loopG :: Double -> IO Bool
                 loopG nOfConflicts = do
                   status <- search s (floor nOfConflicts)
                   if status == LBottom
-                    then if 0 < to
-                         then do et <- getCPUTime
-                                 if to < et
-                                   then set' ok LBottom >> return False
-                                   else loopG (1.5 * nOfConflicts)
-                         else loopG (1.5 * nOfConflicts)
+                    then loopG (1.5 * nOfConflicts)
                     else cancelUntil s 0 >> return (status == LiftedT)
             set' maxLearnts . (/ 3) . fromIntegral =<< nClauses s
             if useLuby then loopL 0 else loopG steps
