@@ -48,7 +48,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "mios-1.5.1 -- https://github.com/shnarazk/mios"
+versionId = "mios-1.5.1#56 -- https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ 0 = return 0
@@ -108,7 +108,6 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
     hPutStrLn stderr $ "## [" ++ showPath cnfFile ++ "]"
     hPutStrLn stderr . intercalate "\n" . map (\(k, v) -> show k ++ ": " ++ show v) . init =<< getStats s
   when (0 <= _confBenchmark opts) $ do
-    putStr $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
     ret <- get' (ok s)
     valid <- case ret of
                LiftedT | result -> do asg <- getModel s
@@ -117,10 +116,12 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
                                       validate s' asg
                LiftedF | not result -> return True
                _ -> return False
-    putStr $ (if valid then "1" else "0") ++ ","
+    putStr $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
+    putStr $ (show (_confBenchSeq opts)) ++ ","
     putStr $ "\"" ++ cnfFile ++ "\","
     let toSecond = 1000000000000 :: Double
-    putStrLn $ if valid then showFFloat (Just 4) (fromIntegral (t2 - t0) / toSecond) "" else show (_confBenchmark opts)
+    putStr $ if valid then showFFloat (Just 4) (fromIntegral (t2 - t0) / toSecond) "" else show (_confBenchmark opts)
+    putStrLn $ "," ++ (if valid then "1" else "0")
 
 executeSolver _ = return ()
 
