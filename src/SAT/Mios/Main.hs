@@ -44,7 +44,7 @@ removeWatch Solver{..} c = do
 -- This is a strippped-down version of 'newClause' in Solver.
 newLearntClause :: Solver -> Stack -> IO ()
 newLearntClause s@Solver{..} ps = do
-  good <- get' ok
+  good <- (LiftedT ==) <$> get' ok
   when good $ do
     -- ps is a 'SizedVectorInt'; ps[0] is the number of active literals
     -- Since this solver must generate only healthy learnt clauses, we need not to run misc check in 'newClause'
@@ -408,7 +408,7 @@ propagate s@Solver{..} = do
                                   setNth cvec j c
                                   setNth bvec j first
                                   if fv == LiftedF
-                                    then do ((== 0) <$> decisionLevel s) >>= (`when` set' ok False)
+                                    then do ((== 0) <$> decisionLevel s) >>= (`when` set' ok LiftedF)
                                             set' qHead =<< get' trail
                                             copy (i + 1) (j + 1)
                                             return LiftedF                 -- conflict
@@ -581,12 +581,12 @@ sortClauses s cm limit = do
 --
 simplifyDB :: Solver -> IO Bool
 simplifyDB s@Solver{..} = do
-  good <- get' ok
+  good <- (LiftedT ==) <$> get' ok
   if good
     then do
       p <- propagate s
       if p /= NullClause
-        then set' ok False >> return False
+        then set' ok LiftedF >> return False
         else do
             -- Remove satisfied clauses and their watcher lists:
             let
@@ -715,7 +715,7 @@ search s@Solver{..} nOfConflicts = do
                unsafeAssume s $ var2lit v (0 < oldVal) -- cannot return @False@
                -- >> #phasesaving
                loop conflictC
-  good <- get' ok
+  good <- (LiftedT ==) <$> get' ok
   if good then loop 0 else return LiftedF
 
 -- | __Fig. 16. (p.20)__

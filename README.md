@@ -35,93 +35,97 @@ in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSa
 
 ### > Release Note
 
+##### 1.5.2
+
+- add options for benchmark, using a timeout thread
+
 ##### 1.5.1
 
-* fix a bug in simplifyDB
-* revise VARUPDATEACTIVITY (#52)
-* revise blockers (#53)
-* refactor mios.cabal
+- fix a bug in simplifyDB
+- revise VARUPDATEACTIVITY (#52)
+- revise blockers (#53)
+- refactor mios.cabal
 
 ##### 1.5.0
 
-* **implement LBD**
-* misc micro tuning
-* add some utilities
-* switch to SAT Competition 2017 main track for benchmark
+- **implement LBD**
+- misc micro tuning
+- add some utilities
+- switch to SAT Competition 2017 main track for benchmark
 
 ##### 1.4.1
 
 A maintenance release:
 
-* use `ByteArray`; no performance boost.
-* add a copy of a branch: MultiConflict.
+- use `ByteArray`; no performance boost.
+- add a copy of a branch: MultiConflict.
 
 ##### 1.4.0
 
-* new classes and methods
+- new classes and methods
 
 ##### 1.3.0
 
-* replace LBD heuristics with a simpler metrics, inspired by S. Jabbour et al.: “*Revisiting the Learned Clauses Database Reduction Strategies*,” 2013.
-* change the module structure
+- replace LBD heuristics with a simpler metrics, inspired by S. Jabbour et al.: “*Revisiting the Learned Clauses Database Reduction Strategies*,” 2013.
+- change the module structure
 
 ##### 1.2.1
 
-* tiny changes for uploading to [hackage](http://hackage.haskell.org/)
-* add a CNF handling library under 'SAT.Util'
+- tiny changes for uploading to [hackage](http://hackage.haskell.org/)
+- add a CNF handling library under 'SAT.Util'
 
 Note: Mios requires optimization flag `-O2`; it's crucial.
 
 ##### 1.2.0
 
-* use *blocking literals*
-* implement *literal block distance (LBD)* (not tested well)
-* revise `reduceDB`
-* use phase-saving
-* remove random literal selection
-* remove 'Criterion' from dependency list
+- use *blocking literals*
+- implement *literal block distance (LBD)* (not tested well)
+- revise `reduceDB`
+- use phase-saving
+- remove random literal selection
+- remove 'Criterion' from dependency list
 
 ##### 1.1.2
 
-* fix a bug in DIMACS CNF parser; only single space between literals was accepted
+- fix a bug in DIMACS CNF parser; only single space between literals was accepted
 
 This would be the last version based on [MiniSat 1.14](https://github.com/shnarazk/minisat114/).
 
 ##### 1.1.1
 
-* tiny changes on the output format
-* tiny changes on random variable decision rate
-* update REDAME.md with a figure on a benchmark run sequentially; the old ones were multi-threaded and got very inaccurate numbers.
+- tiny changes on the output format
+- tiny changes on random variable decision rate
+- update REDAME.md with a figure on a benchmark run sequentially; the old ones were multi-threaded and got very inaccurate numbers.
 
 ##### 1.1.0
 
-* Based on [MiniSat 1.14](https://github.com/shnarazk/minisat114/), but lacks the binary clause implementation so far.
-* The arguments of `solveSAT`and `validateAssignment` were curried.
-* `Solver` holds a literal set internally in the case of contradiction.
-* literals are encoded  to positive integers
-* no more queue; `propQ` was merged to `trail`
-* added a simple pre-processor
-* a new CNF DIMACS parser
-* solutions can be saved to a file with `--output` option
+- Based on [MiniSat 1.14](https://github.com/shnarazk/minisat114/), but lacks the binary clause implementation so far.
+- The arguments of `solveSAT`and `validateAssignment` were curried.
+- `Solver` holds a literal set internally in the case of contradiction.
+- literals are encoded  to positive integers
+- no more queue; `propQ` was merged to `trail`
+- added a simple pre-processor
+- a new CNF DIMACS parser
+- solutions can be saved to a file with `--output` option
 
 ##### 1.0.3
 
-* uses vector-based containers instead of pointer-based clause containers
-* adds self-checking option (`--validate`), which works only on satisfiable problems
-* `stack install` installs `mios`. `stack install --flag mios:devel` installs `mios-1.0.3` for developers.
+- uses vector-based containers instead of pointer-based clause containers
+- adds self-checking option (`--validate`), which works only on satisfiable problems
+- `stack install` installs `mios`. `stack install --flag mios:devel` installs `mios-1.0.3` for developers.
 
 This is the last version based on *“An extensible SAT-solver [extended version 1.2].”*
 
 ##### 1.0.2
 
-* fixes a bug on CNF reader at 1.0.1
+- fixes a bug on CNF reader at 1.0.1
 
 ##### 1.0.1 => canceled by a bug on CNF reader
 
-* CNF reader was changed from a parser based on 'Parsec' to a simple *reader* based on `Data.ByteString.Char8.readInt`
-* uses a true `sortOnActivity` implementation
-* phase saving
-* provides assignment validation mode (see below)
+- CNF reader was changed from a parser based on 'Parsec' to a simple *reader* based on `Data.ByteString.Char8.readInt`
+- uses a true `sortOnActivity` implementation
+- phase saving
+- provides assignment validation mode (see below)
 
 ```
 $ mios test/data/uf200-012.cnf | mios -: test/data/uf200-012.cnf      # `-:` is the option for validation.
@@ -134,8 +138,8 @@ It's an invalid assignment.
 
 ##### Requirements
 
-* ghc-8.0.1 or upper (By deleting `default-extensions` from mios.cabal, you can use ghc-7.10.x.)
-* [Stack](http://www.haskellstack.org/) or `cabal-install`
+- ghc-8.0.1 or upper (By deleting `default-extensions` from mios.cabal, you can use ghc-7.10.x.)
+- [Stack](http://www.haskellstack.org/) or `cabal-install`
 
 ##### Stack
 

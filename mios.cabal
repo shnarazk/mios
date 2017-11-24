@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                   mios
-version:                1.5.1
+version:                1.5.2
 synopsis:               A Minisat-based CDCL SAT solver in Haskell
 description:
 
@@ -82,7 +82,7 @@ library
   else
     ghc-options:	-O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
 
-executable mios-1.5.1
+executable mios-1.5.2
   hs-source-dirs:	app
   main-is:              mios.hs
   if flag(prof)
@@ -97,7 +97,7 @@ executable mios-1.5.1
   else
     ghc-options:	-O2 -funbox-strict-fields -msse2 -rtsopts -fwarn-missing-signatures
 
-executable mios-1.5.1-prof
+executable mios-1.5.2-prof
   hs-source-dirs:	app
   main-is:              mios.hs
   if flag(prof)

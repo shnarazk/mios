@@ -31,6 +31,8 @@ module SAT.Mios
        )
        where
 
+import Control.Concurrent
+import Control.Exception
 import Control.Monad ((<=<), unless, void, when)
 import Data.Char
 import qualified Data.ByteString.Char8 as B
@@ -48,12 +50,12 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "mios-1.5.1 -- https://github.com/shnarazk/mios"
+versionId = "mios-1.5.2 -- https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
-reportElapsedTime False _ _ = return 0
-reportElapsedTime _ _ 0 = getCPUTime
-reportElapsedTime _ mes t = do
+reportElapsedTime False _ 0 = return 0
+reportElapsedTime False _ _ = getCPUTime
+reportElapsedTime True mes t = do
   now <- getCPUTime
   let toSecond = 1000000000000 :: Double
   hPutStr stderr mes
@@ -68,8 +70,21 @@ executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just pat
 -- | executes a solver on the given 'arg :: MiosConfiguration'.
 -- This is another entry point for standalone programs.
 executeSolver :: MiosProgramOption -> IO ()
-executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
-  t0 <- reportElapsedTime (_confTimeProbe opts) "" 0
+executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKilled -> exitWith (ExitFailure 1)) $ do
+  solverID <- myThreadId
+  killerID <- if (0 < _confBenchmark opts)
+              then forkIO (do let fromMicro = 1000000 :: Int
+                              threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
+                              killThread solverID
+                              when (0 <= _confBenchmark opts) $ do
+                                putStr $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
+                                putStr $ (show (_confBenchSeq opts)) ++ ","
+                                putStr $ "\"" ++ cnfFile ++ "\","
+                                putStr $ show (_confBenchmark opts)
+                                putStrLn $ ",0"
+                          )
+              else return solverID
+  t0 <- reportElapsedTime False "" $ if _confTimeProbe opts || 0 <= _confBenchmark opts then -1 else 0
   (desc, cls) <- parseCNF target <$> B.readFile cnfFile
   when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
   s <- newSolver (toMiosConf opts) desc
@@ -81,11 +96,12 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
   res <- simplifyDB s
   result <- if res then solve s [] else return False
   case result of
+    _ | 0 <= _confBenchmark opts -> return ()
     True  | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "SATISFIABLE"
     False | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "UNSATISFIABLE"
     True  -> print =<< getModel s
     False -> do          -- contradiction
-      -- FIXMEin future
+      -- FIXME in future
       when (_confVerbose opts) $ hPutStrLn stderr "UNSAT"
       -- print =<< map lit2int <$> asList (conflict s)
       putStrLn "[]"
@@ -106,6 +122,22 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
   when (_confStatProbe opts) $ do
     hPutStrLn stderr $ "## [" ++ showPath cnfFile ++ "]"
     hPutStrLn stderr . intercalate "\n" . map (\(k, v) -> show k ++ ": " ++ show v) . init =<< getStats s
+  when (0 <= _confBenchmark opts) $ do
+    let fromPico = 1000000000000 :: Double
+    when (0 < _confBenchmark opts) $ killThread killerID
+    ret <- get' (ok s)
+    valid <- case ret of
+               LiftedT | result -> do asg <- getModel s
+                                      s' <- newSolver (toMiosConf opts) desc
+                                      injectClausesFromCNF s' desc cls
+                                      validate s' asg
+               LiftedF | not result -> return True
+               _ -> return False
+    putStr $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
+    putStr $ (show (_confBenchSeq opts)) ++ ","
+    putStr $ "\"" ++ cnfFile ++ "\","
+    putStr $ if valid then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "" else show (_confBenchmark opts)
+    putStrLn $ "," ++ (if valid then "1" else "0")
 
 executeSolver _ = return ()
 
