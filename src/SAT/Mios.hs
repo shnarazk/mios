@@ -124,7 +124,7 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKille
     hPutStrLn stderr . intercalate "\n" . map (\(k, v) -> show k ++ ": " ++ show v) . init =<< getStats s
   when (0 <= _confBenchmark opts) $ do
     let fromPico = 1000000000000 :: Double
-    killThread killerID
+    when (0 < _confBenchmark opts) $ killThread killerID
     ret <- get' (ok s)
     valid <- case ret of
                LiftedT | result -> do asg <- getModel s
