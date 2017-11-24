@@ -3,7 +3,7 @@
 
 name:                   mios
 version:                1.5.1
-synopsis:               A Minisat-based SAT solver in Haskell
+synopsis:               A Minisat-based CDCL SAT solver in Haskell
 description:
 
   A modern and very fast SAT solver written in Haskell, using CDCL, watch literals, VSIDS,
