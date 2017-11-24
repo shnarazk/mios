@@ -33,7 +33,6 @@ data MiosProgramOption = MiosProgramOption
                      , _confVerbose :: !Bool
                      , _confTimeProbe :: !Bool
                      , _confStatProbe :: !Bool
-                     , _confBenchmark :: !Bool
                      , _confNoAnswer :: !Bool
                      , _validateAssignment :: !Bool
                      , _displayHelp :: !Bool
@@ -54,7 +53,6 @@ miosDefaultOption = MiosProgramOption
   , _confVerbose = False
   , _confTimeProbe = False
   , _confStatProbe = False
-  , _confBenchmark = False
   , _confNoAnswer = False
   , _validateAssignment = False
   , _displayHelp = False
@@ -100,9 +98,6 @@ miosOptions =
   , Option [] ["stat"]
     (NoArg (\c -> c { _confStatProbe = True }))
     "[option] display statistics information"
-  , Option [] ["benchmark"]
-    (NoArg (\c -> c { _confBenchmark = True }))
-    "[option] display the elapsed time as an CSV"
   , Option ['h'] ["help"]
     (NoArg (\c -> c { _displayHelp = True }))
     "[misc] display this help message"
