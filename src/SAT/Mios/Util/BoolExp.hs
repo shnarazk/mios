@@ -67,7 +67,10 @@ numberOfVariables (Cnf (a, b) _) = a + b - tseitinBase
 numberOfClauses :: BoolForm -> Int
 numberOfClauses (Cnf _ l) = length l
 
+boolFormTrue :: BoolForm
 boolFormTrue = Cnf (-1, 1) []
+
+boolFormFalse :: BoolForm
 boolFormFalse = Cnf (-1, -1) []
 
 instance BoolComponent Bool where
@@ -186,6 +189,7 @@ disjunctionOf [] = boolFormFalse
 disjunctionOf (x:l) = foldl' (-|-) x l
 
 -- | an alias of 'disjunctionOf'
+(-|||-) :: [BoolForm] -> BoolForm
 (-|||-) = disjunctionOf
 
 -- | merge [BoolForm] by '(-&-)'
@@ -194,6 +198,7 @@ conjunctionOf [] = boolFormTrue
 conjunctionOf (x:l) = foldl' (-&-) x l
 
 -- | an alias of 'conjunctionOf'
+(-&&&-) :: [BoolForm] -> BoolForm
 (-&&&-) = conjunctionOf
 
 -- | converts a BoolForm to "[[Int]]"

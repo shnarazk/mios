@@ -163,7 +163,7 @@ analyze s@Solver{..} confl = do
                 setNth an'seen v 1
                 if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
                   then do
-                      -- glucose heuristics
+                      -- UPDATEVARACTIVITY: glucose heuristics
                       r <- getNth reason v
                       when (r /= NullClause) $ do
                         ra <- get' (rank r)
@@ -216,7 +216,7 @@ analyze s@Solver{..} confl = do
              then setNth litsLearnt j l >> loopOnLits (i + 1) (j + 1)
              else loopOnLits (i + 1) j
   loopOnLits 2 2                -- the first literal is specail
-  -- glucose heuristics
+  -- UPDATEVARACTIVITY: glucose heuristics
   nld <- get' an'lastDL
   r <- get' litsLearnt -- this is an estimated LBD value based on the clause size
   let loopOnLastDL :: Int -> IO ()
@@ -398,8 +398,10 @@ propagate s@Solver{..} = do
                                    return l2
                            else return tmp
                   fv <- valueLit s first
-                  if first /= blocker && fv == LiftedT
-                    then setNth cvec j c >> setNth bvec j first >> forClause (i + 1) (j + 1)
+                  if fv == LiftedT
+                    then do unless (i == j) $ setNth cvec j c
+                            setNth bvec j first
+                            forClause (i + 1) (j + 1)
                     else do cs <- get' c           -- Look for new watch:
                             let newWatch :: Int -> IO LiftedBool
                                 newWatch ((<= cs) -> False) = do -- Did not find watch
@@ -418,11 +420,11 @@ propagate s@Solver{..} = do
                                                    then do setNth lstack 2 l'
                                                            setNth lstack k falseLit
                                                            pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
-                                                           return LiftedT  -- find another watch
+                                                           return LiftedT  -- found another watch
                                                    else newWatch $! k + 1
                             ret <- newWatch 3
                             case ret of
-                              LiftedT -> forClause (i + 1) j               -- find another watch
+                              LiftedT -> forClause (i + 1) j               -- found another watch
                               LBottom -> forClause (i + 1) (j + 1)         -- unit clause
                               _       -> shrinkBy ws (i - j) >> return c   -- conflict
       c <- forClause 0 0
@@ -586,36 +588,27 @@ simplifyDB s@Solver{..} = do
       if p /= NullClause
         then set' ok False >> return False
         else do
-            -- Clear watcher lists:
-            n <- get' trail
-            let loopOnLit ((< n) -> False) = return ()
-                loopOnLit i = do l <- getNth trail i
-                                 reset . getNthWatcher watches $ l
-                                 reset . getNthWatcher watches $ negateLit l
-                                 loopOnLit $ i + 1
-            loopOnLit 1
-            -- Remove satisfied clauses:
+            -- Remove satisfied clauses and their watcher lists:
             let
-              for :: Int -> IO Bool
-              for ((< 2) -> False) = return True
-              for t = do
-                let ptr = if t == 0 then learnts else clauses
-                vec' <- getClauseVector ptr
-                n' <- get' ptr
+              for :: ClauseExtManager -> IO ()
+              for mgr = do
+                vec' <- getClauseVector mgr
+                n' <- get' mgr
                 let
-                  loopOnVector :: Int -> Int -> IO Bool
-                  loopOnVector ((< n') -> False) j = shrinkBy ptr (n' - j) >> return True
+                  loopOnVector :: Int -> Int -> IO ()
+                  loopOnVector ((< n') -> False) j = shrinkBy mgr (n' - j)
                   loopOnVector i j = do
                         c <- getNth vec' i
                         l <- locked s c
-                        r <- simplify s c
-                        if not l && r
+                        r <- if l then return False else simplify s c
+                        if r
                           then removeWatch s c >> loopOnVector (i + 1) j
-                          else setNth vec' j c >> loopOnVector (i + 1) (j + 1)
+                          else unless (i == j) (setNth vec' j c) >> loopOnVector (i + 1) (j + 1)
                 loopOnVector 0 0
-            ret <- for 0
+            for clauses
+            for learnts
             reset watches
-            return ret
+            return True
     else return False
 
 -- | #M22
