@@ -81,7 +81,7 @@ miosOptions =
     "[solver] read an assignment from STDIN and validate it"
   , Option [] ["validate"]
     (NoArg (\c -> c { _confCheckAnswer = True }))
-    "[solver] self-check (satisfied) assignment"
+    "[solver] self-check (satisfiable) assignment"
   , Option ['o'] ["output"]
     (ReqArg (\v c -> c { _outputFile = Just v }) "file")
     "[option] filename to store result"
