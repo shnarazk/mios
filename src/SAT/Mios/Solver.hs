@@ -32,7 +32,7 @@ module SAT.Mios.Solver
          -- * Activities
        , claBumpActivity
        , claDecayActivity
---       , claRescaleActivityAfterRestart
+       , claResetActivityAfterRestart
 --       , claActivityThreshold
        , varBumpActivity
        , varDecayActivity
@@ -495,10 +495,10 @@ claRescaleActivity Solver{..} = do
   loopOnVector 0
   modify' claInc (/ claActivityThreshold)
 
--- | __Fig. 14 (p.19)__
-{-# INLINABLE claRescaleActivityAfterRestart #-}
-claRescaleActivityAfterRestart :: Solver -> IO ()
-claRescaleActivityAfterRestart Solver{..} = do
+-- | #59
+{-# INLINABLE claResetActivityAfterRestart #-}
+claResetActivityAfterRestart :: Solver -> IO ()
+claResetActivityAfterRestart Solver{..} = do
   vec <- getClauseVector learnts
   n <- get' learnts
   let
@@ -506,11 +506,7 @@ claRescaleActivityAfterRestart Solver{..} = do
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
       c <- getNth vec i
-      d <- get' c
-      if d < 9
-        then modify' (activity c) sqrt
-        else set' (activity c) 0
-      -- set' (protected c) False
+      set' (activity c) 0
       loopOnVector $ i + 1
   loopOnVector 0
 
