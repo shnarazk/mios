@@ -36,6 +36,7 @@ module SAT.Mios.Solver
 --       , claActivityThreshold
        , varBumpActivity
        , varDecayActivity
+       , varResetActivityAfterRestart
          -- * Stats
        , StatIndex (..)
        , getStat
@@ -461,6 +462,15 @@ varRescaleActivity Solver{..} = do
     loop i = modifyNth activities (/ varActivityThreshold) i >> loop (i + 1)
   loop 1
   modify' varInc (/ varActivityThreshold)
+
+-- | #59
+{-# INLINABLE varResetActivityAfterRestart #-}
+varResetActivityAfterRestart :: Solver -> IO ()
+varResetActivityAfterRestart Solver{..} = do
+  let
+    loop ((<= nVars) -> False) = return ()
+    loop i = setNth activities i 0 >> loop (i + 1)
+  loop 1
 
 -- | value for rescaling clause activity.
 claActivityThreshold :: Double
