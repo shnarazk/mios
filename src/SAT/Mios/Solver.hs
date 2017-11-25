@@ -99,6 +99,7 @@ data Solver = Solver
               , stats      :: !(Vec [Int])       -- ^ statistics information holder
               , lbd'seen   :: !(Vec Int)         -- ^ used in lbd computation
               , lbd'key    :: !Int'              -- ^ used in lbd computation
+              , lastNBC    :: !Int'              -- ^ used in restart#59
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
@@ -146,6 +147,7 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> newVec (fromEnum EndOfStatIndex) 0 -- stats
     <*> newVec nv 0                        -- lbd'seen
     <*> new' 0                             -- lbd'key
+    <*> new' 0                             -- lastNBC
 
 --------------------------------------------------------------------------------
 -- Accessors
