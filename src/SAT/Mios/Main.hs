@@ -695,7 +695,7 @@ search s@Solver{..} nOfConflicts = do
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
                    (s `cancelUntil`) =<< get' rootLevel -- force a restart
-                   -- claRescaleActivityAfterRestart s
+                   claResetActivityAfterRestart s
                    let toggle :: Int -> Int
                        toggle LiftedT = LiftedF
                        toggle LiftedF = LiftedT
