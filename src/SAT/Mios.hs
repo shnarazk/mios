@@ -32,6 +32,7 @@ module SAT.Mios
        where
 
 import Control.Concurrent
+import Control.Concurrent.MVar
 import Control.Exception
 import Control.Monad ((<=<), unless, void, when)
 import Data.Char
@@ -71,19 +72,19 @@ executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just pat
 -- This is another entry point for standalone programs.
 executeSolver :: MiosProgramOption -> IO ()
 executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKilled -> exitWith (ExitFailure 1)) $ do
-  solverID <- myThreadId
-  killerID <- if (0 < _confBenchmark opts)
-              then forkIO (do let fromMicro = 1000000 :: Int
-                              threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
-                              killThread solverID
-                              when (0 <= _confBenchmark opts) $ do
-                                putStr $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
-                                putStr $ (show (_confBenchSeq opts)) ++ ","
-                                putStr $ "\"" ++ cnfFile ++ "\","
-                                putStr $ show (_confBenchmark opts)
-                                putStrLn $ ",0"
-                          )
-              else return solverID
+  token <- newMVar LBottom
+  when (0 < _confBenchmark opts) $ do
+    solverID <- myThreadId
+    void $ forkIO $ do let fromMicro = 1000000 :: Int
+                       threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
+                       turn <- swapMVar token LiftedF
+                       when (turn == LBottom) $ do
+                         killThread solverID
+                         putStr $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
+                         putStr $ (show (_confBenchSeq opts)) ++ ","
+                         putStr $ "\"" ++ cnfFile ++ "\","
+                         putStr $ show (_confBenchmark opts)
+                         putStrLn $ ",0"
   t0 <- reportElapsedTime False "" $ if _confTimeProbe opts || 0 <= _confBenchmark opts then -1 else 0
   (desc, cls) <- parseCNF target <$> B.readFile cnfFile
   when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
@@ -93,8 +94,11 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKille
   when (_confVerbose opts) $ do
     nc <- nClauses s
     hPutStrLn stderr $ cnfFile ++ " was loaded: #v = " ++ show (nVars s, _numberOfVariables desc) ++ " #c = " ++ show (nc, _numberOfClauses desc)
-  res <- simplifyDB s
-  result <- if res then solve s [] else return False
+  result <- solve s []
+  when (0 < _confBenchmark opts) $ do
+    turn <- swapMVar token LiftedT
+    unless (turn == LBottom) $ exitWith (ExitFailure 1)
+  t2 <- reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Solve: ") t1
   case result of
     _ | 0 <= _confBenchmark opts -> return ()
     True  | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "SATISFIABLE"
@@ -108,7 +112,6 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKille
   case _outputFile opts of
     Just fname -> dumpAssigmentAsCNF fname result =<< getModel s
     Nothing -> return ()
-  t2 <- reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Solve: ") t1
   when (result && _confCheckAnswer opts) $ do
     asg <- getModel s
     s' <- newSolver (toMiosConf opts) desc
@@ -124,7 +127,6 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKille
     hPutStrLn stderr . intercalate "\n" . map (\(k, v) -> show k ++ ": " ++ show v) . init =<< getStats s
   when (0 <= _confBenchmark opts) $ do
     let fromPico = 1000000000000 :: Double
-    when (0 < _confBenchmark opts) $ killThread killerID
     ret <- get' (ok s)
     valid <- case ret of
                LiftedT | result -> do asg <- getModel s
