@@ -39,6 +39,7 @@ data MiosProgramOption = MiosProgramOption
                      , _validateAssignment :: !Bool
                      , _displayHelp :: !Bool
                      , _displayVersion :: !Bool
+                     , _expConfig :: !Int
                      }
 
 -- | default option settings
@@ -61,6 +62,7 @@ miosDefaultOption = MiosProgramOption
   , _validateAssignment = False
   , _displayHelp = False
   , _displayVersion = False
+  , _expConfig = expConfig defaultConfiguration
   }
 
 -- | definition of mios option
@@ -114,6 +116,9 @@ miosOptions =
   , Option [] ["version"]
     (NoArg (\c -> c { _displayVersion = True }))
     "[misc] display program ID"
+  , Option ['e'] ["expConfig"]
+    (ReqArg (\v c -> c { _expConfig = read v }) "0")
+    "[#59] experimental configuration"
   ]
 
 -- | generates help message
@@ -141,4 +146,5 @@ toMiosConf opts = MiosConfiguration
                    variableDecayRate = _confVariableDecayRate opts
                  , clauseDecayRate = _confClauseDecayRate opts
 --                 , randomDecisionRate = _confRandomDecisionRate opts
+                 , expConfig = _expConfig opts
                  }
