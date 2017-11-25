@@ -67,6 +67,6 @@ graph = function (d, subt) {
     cairo_pdf(filename=targetPDF, width=11, height=7, antialias="subpixel", onefile=TRUE)
     graph(merged, subt)
     ggsave(filename=targetPDF, width=11, height=7)
-    ggsave(filename=targetPNG, width=11, height=7)
+    ggsave(filename=targetPNG, width=11, height=7,dpi=200)
     # dev.off()
 })()
