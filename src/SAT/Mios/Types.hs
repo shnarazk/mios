@@ -273,6 +273,8 @@ data StatIndex =
     NumOfBackjump               -- ^ the number of backjump
   | NumOfRestart                -- ^ the number of restart
   | NumOfPropagation            -- ^ the number of propagation
+  | NumOfPureLitElimination     -- ^ the number of pure literal elimination
+  | NumOfBinaryClause           -- ^ the number of binary learnt clause
   | EndOfStatIndex              -- ^ Don't use this dummy.
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 

@@ -53,6 +53,7 @@ newLearntClause s@Solver{..} ps = do
      1 -> do
        l <- getNth ps 1
        unsafeEnqueue s l NullClause
+       incrementStat s NumOfPureLitElimination 1
      _ -> do
        -- allocate clause:
        c <- makeClauseFromStack clsPool ps --  newClauseFromStack True ps
@@ -83,6 +84,7 @@ newLearntClause s@Solver{..} ps = do
        set' (rank c) =<< lbdOf s (lits c)
        -- assert (0 < rank c)
        -- set' (protected c) True
+       when (k == 2) $ incrementStat s NumOfBinaryClause 1
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
 -- simplify its representation (returns @False@) or state that the constraint is
@@ -695,8 +697,13 @@ search s@Solver{..} nOfConflicts = do
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
                    (s `cancelUntil`) =<< get' rootLevel -- force a restart
-                   when (mod (expConfig config) 2 == 1) $ varResetActivityAfterRestart s
-                   when (mod (expConfig config) 3 == 2) $ claResetActivityAfterRestart s
+                   b0 <- get' lastNBC
+                   b1 <- getStat s NumOfPureLitElimination
+                   b2 <- getStat s NumOfBinaryClause
+                   set' lastNBC $ b1 + b2
+                   unless (b0 < b1 + b2) $ do
+                     when (mod (expConfig config) 2 == 1) $ varResetActivityAfterRestart s
+                     when (mod (expConfig config) 3 == 2) $ claResetActivityAfterRestart s
                    let toggle :: Int -> Int
                        toggle LiftedT = LiftedF
                        toggle LiftedF = LiftedT
