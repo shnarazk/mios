@@ -75,8 +75,11 @@ newLearntClause s@Solver{..} ps = do
        pushTo learnts c
        l1 <- getNth lstack 1
        l2 <- getNth lstack 2
-       pushClauseWithKey (getNthWatcher watches (negateLit l1)) c k l2
-       pushClauseWithKey (getNthWatcher watches (negateLit l2)) c k l1
+       if k == 2
+         then do pushClauseWithKey' (getNthWatcher watches (negateLit l1)) c l2
+                 pushClauseWithKey' (getNthWatcher watches (negateLit l2)) c l1
+         else do pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
+                 pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
        -- update the solver state by @l@
        unsafeEnqueue s l1 c
        -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
@@ -419,7 +422,7 @@ propagate s@Solver{..} = do
                                                  if lv /= LiftedF
                                                    then do setNth lstack 2 l'
                                                            setNth lstack k falseLit
-                                                           pushClauseWithKey (getNthWatcher watches (negateLit l')) c 3 first
+                                                           pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
                                                            return LiftedT  -- found another watch
                                                    else newWatch $! k + 1
                             ret <- newWatch 3
