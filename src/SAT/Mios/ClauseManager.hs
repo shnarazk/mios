@@ -260,21 +260,17 @@ pushClauseWithKey' !ClauseExtManager{..} !c' k' = do
   n <- get' _nActives
   v <- IORef.readIORef _clauseVector
   b <- IORef.readIORef _keyVector
-  let seek :: Int -> IO Int
-      seek ((< n) -> False) = return (-1)
-      seek i = do w <- get' =<< getNth v i
-                  if 2 < w then do return i else seek (i + 1)
-  i <- seek 0
-  c <- if i == -1
-       then return c'
-       else do c <- getNth v i
-               setNth v i c'
-               return c
-  k <- if i == -1
-       then return k'
-       else do k <- getNth b i
-               setNth b i k'
-               return k
+  let seek :: Int -> IO (C.Clause, Int)
+      seek ((< n) -> False) = return (c',k')
+      seek i = do c <- MV.unsafeRead v i
+                  w <- get' c
+                  if 2 < w
+                    then do MV.unsafeWrite v i c'
+                            k <- getNth b i
+                            setNth b i k'
+                            return (c,k)
+                    else seek (i + 1)
+  (c,k) <- seek 0
   if MV.length v - 1 <= n
     then do
         let len = max 8 $ MV.length v
