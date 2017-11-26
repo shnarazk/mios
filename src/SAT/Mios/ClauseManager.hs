@@ -18,6 +18,7 @@ module SAT.Mios.ClauseManager
          -- * Manager with an extra Int (used as sort key or blocking literal)
        , ClauseExtManager
        , pushClauseWithKey
+       , pushClauseWithKey'
        , getKeyVector
        , markClause
 --       , purifyManager
@@ -232,28 +233,48 @@ purifyManager ClauseExtManager{..} = do
 getKeyVector :: ClauseExtManager -> IO (Vec [Int])
 getKeyVector ClauseExtManager{..} = IORef.readIORef _keyVector
 
--- | almost O(1) inserter
+-- | O(1) inserter
 {-# INLINABLE pushClauseWithKey #-}
-pushClauseWithKey :: ClauseExtManager -> C.Clause -> Int -> Lit -> IO ()
-pushClauseWithKey !ClauseExtManager{..} !c' w' k' = do
+pushClauseWithKey :: ClauseExtManager -> C.Clause -> Lit -> IO ()
+pushClauseWithKey !ClauseExtManager{..} !c k = do
+  -- checkConsistency m c
+  !n <- get' _nActives
+  !v <- IORef.readIORef _clauseVector
+  !b <- IORef.readIORef _keyVector
+  if MV.length v - 1 <= n
+    then do
+        let len = max 8 $ MV.length v
+        v' <- MV.unsafeGrow v len
+        b' <- growBy b len
+        MV.unsafeWrite v' n c
+        setNth b' n k
+        IORef.writeIORef _clauseVector v'
+        IORef.writeIORef _keyVector b'
+    else MV.unsafeWrite v n c >> setNth b n k
+  modify' _nActives (1 +)
+
+{-# INLINABLE pushClauseWithKey' #-}
+pushClauseWithKey' :: ClauseExtManager -> C.Clause -> Lit -> IO ()
+pushClauseWithKey' !ClauseExtManager{..} !c' k' = do
   -- checkConsistency m c
   n <- get' _nActives
   v <- IORef.readIORef _clauseVector
   b <- IORef.readIORef _keyVector
-  -- w' <- get' c'
-  (c, k) <- case w' of
-              2 -> do let seek :: Int -> IO (C.Clause, Int)
-                          seek ((< n) -> False) = return (c', k')
-                          seek i = do c <- MV.unsafeRead v i
-                                      w <- get' c
-                                      if 2 < w
-                                        then do y <- getNth b i
-                                                MV.unsafeWrite v i c'
-                                                setNth b i k'
-                                                return (c, y)
-                                        else seek (i + 1)
-                      seek 0
-              _ -> return (c', k')
+  let seek :: Int -> IO Int
+      seek ((< n) -> False) = return (-1)
+      seek i = do w <- get' =<< getNth v i
+                  if 2 < w then do return i else seek (i + 1)
+  i <- seek 0
+  c <- if i == -1
+       then return c'
+       else do c <- getNth v i
+               setNth v i c'
+               return c
+  k <- if i == -1
+       then return k'
+       else do k <- getNth b i
+               setNth b i k'
+               return k
   if MV.length v - 1 <= n
     then do
         let len = max 8 $ MV.length v
