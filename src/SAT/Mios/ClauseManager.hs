@@ -18,6 +18,7 @@ module SAT.Mios.ClauseManager
          -- * Manager with an extra Int (used as sort key or blocking literal)
        , ClauseExtManager
        , pushClauseWithKey
+       , pushClauseWithKey'
        , getKeyVector
        , markClause
 --       , purifyManager
@@ -240,6 +241,36 @@ pushClauseWithKey !ClauseExtManager{..} !c k = do
   !n <- get' _nActives
   !v <- IORef.readIORef _clauseVector
   !b <- IORef.readIORef _keyVector
+  if MV.length v - 1 <= n
+    then do
+        let len = max 8 $ MV.length v
+        v' <- MV.unsafeGrow v len
+        b' <- growBy b len
+        MV.unsafeWrite v' n c
+        setNth b' n k
+        IORef.writeIORef _clauseVector v'
+        IORef.writeIORef _keyVector b'
+    else MV.unsafeWrite v n c >> setNth b n k
+  modify' _nActives (1 +)
+
+{-# INLINABLE pushClauseWithKey' #-}
+pushClauseWithKey' :: ClauseExtManager -> C.Clause -> Lit -> IO ()
+pushClauseWithKey' !ClauseExtManager{..} !c' k' = do
+  -- checkConsistency m c
+  n <- get' _nActives
+  v <- IORef.readIORef _clauseVector
+  b <- IORef.readIORef _keyVector
+  let seek :: Int -> IO (C.Clause, Int)
+      seek ((< n) -> False) = return (c',k')
+      seek i = do c <- MV.unsafeRead v i
+                  w <- get' c
+                  if 2 < w
+                    then do MV.unsafeWrite v i c'
+                            k <- getNth b i
+                            setNth b i k'
+                            return (c,k)
+                    else seek (i + 1)
+  (c,k) <- seek 0
   if MV.length v - 1 <= n
     then do
         let len = max 8 $ MV.length v
