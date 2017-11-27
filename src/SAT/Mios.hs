@@ -97,7 +97,7 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKille
   result <- solve s []
   when (0 < _confBenchmark opts) $ do
     turn <- swapMVar token LiftedT
-    unless (turn == LBottom) $ exitWith (ExitFailure 1)
+    unless (turn == LBottom) $ threadDelay 10000000 >> exitWith (ExitFailure 1) -- let it kill me before suicide
   t2 <- reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Solve: ") t1
   case result of
     _ | 0 <= _confBenchmark opts -> return ()
