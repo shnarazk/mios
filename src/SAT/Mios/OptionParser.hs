@@ -40,6 +40,7 @@ data MiosProgramOption = MiosProgramOption
                      , _displayHelp :: !Bool
                      , _displayVersion :: !Bool
                      , _expConfig :: !Int
+                     , _expDumpAS :: !Bool
                      }
 
 -- | default option settings
@@ -63,6 +64,7 @@ miosDefaultOption = MiosProgramOption
   , _displayHelp = False
   , _displayVersion = False
   , _expConfig = expConfig defaultConfiguration
+  , _expDumpAS = expDumpAS defaultConfiguration
   }
 
 -- | definition of mios option
@@ -119,6 +121,9 @@ miosOptions =
   , Option ['e'] ["expConfig"]
     (ReqArg (\v c -> c { _expConfig = read v }) "0")
     "[#59] experimental configuration"
+  , Option [] ["dumpAS"]
+    (NoArg (\c -> c { _expDumpAS = True }))
+    "[#59] dump assignment similarity"
   ]
 
 -- | generates help message
@@ -145,6 +150,7 @@ toMiosConf opts = MiosConfiguration
                  {
                    variableDecayRate = _confVariableDecayRate opts
                  , clauseDecayRate = _confClauseDecayRate opts
---                 , randomDecisionRate = _confRandomDecisionRate opts
                  , expConfig = _expConfig opts
+                 , expDumpAS = _expDumpAS opts
+                 , expSatAsg = []
                  }

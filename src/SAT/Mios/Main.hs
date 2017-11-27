@@ -807,3 +807,16 @@ luby y x_ = loop 1 0
     loop2 x sz sq
       | sz - 1 == x = y ** fromIntegral sq
       | otherwise   = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
+
+---- #59
+dumpAssignmentSimilarity :: Solver -> IO ()
+dumpAssignmentSimilarity (config -> expSatAsg -> null -> True) = return ()
+dumpAssignmentSimilarity s@Solver{..} = do
+  let loop :: Int -> [LiftedBool] -> Int -> IO Double
+      loop _ [] v    = return $ fromIntegral v / fromIntegral nVars
+      loop i (a:l) v = do b <- getNth assigns i
+                          case (a == b) of
+                            True                 -> loop (i + 1) l (v + 1)
+                            False | b == LBottom -> loop (i + 1) l v
+                            False                -> loop (i + 1) l (v - 1)
+  print =<< loop 1 (expSatAsg config) 0
