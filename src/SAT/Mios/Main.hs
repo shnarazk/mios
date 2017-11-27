@@ -702,8 +702,8 @@ search s@Solver{..} nOfConflicts = do
                    b2 <- getStat s NumOfBinaryClause
                    set' lastNBC $ b1 + b2
                    unless (b0 < b1 + b2) $ do
-                     when (mod (expConfig config) 2 == 1) $ varResetActivityAfterRestart s
-                     when (mod (expConfig config) 3 == 2) $ claResetActivityAfterRestart s
+                     when (testBit (expConfig config) 1) $ varResetActivityAfterRestart s
+                     when (testBit (expConfig config) 2) $ claResetActivityAfterRestart s
                    let toggle :: Int -> Int
                        toggle LiftedT = LiftedF
                        toggle LiftedF = LiftedT
@@ -712,7 +712,7 @@ search s@Solver{..} nOfConflicts = do
                        toggleAt :: Int -> IO ()
                        toggleAt ((<= nv) -> False) = return ()
                        toggleAt i = modifyNth phases toggle i >> toggleAt (i + 1)
-                   -- toggleAt 1
+                   when (testBit (expConfig config) 0) $ toggleAt 1
                    incrementStat s NumOfRestart 1
                    return LBottom
              _ -> do
