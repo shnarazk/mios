@@ -830,11 +830,14 @@ dumpAssignmentSimilarity :: Solver -> IO ()
 dumpAssignmentSimilarity s@Solver{..} = do
   n <- getStat s NumOfBackjump
   d <- decisionLevel s
-  d1 <- assignmentSimilarity' nVars 100 accAssigns lastAssigns
-  d2 <- assignmentSimilarity' nVars 100 accAssigns satAssigns
-  putStr $ "expConfig=" ++ show (expConfig config) ++ ","
+  d0 <- assignmentSimilarity' nVars (expDumpAS config) accAssigns satAssigns
+  d1 <- assignmentSimilarity' nVars (expDumpAS config) accAssigns lastAssigns
+  modify' intDiffSim (+ d1)
+  dd <- get' intDiffSim
+  putStr $ "\"expConfig=" ++ show (expConfig config) ++ "\","
   putStr $ show n ++ "," ++ show d ++ ","
-  putStr $ showFFloat (Just 3) d1 "" ++ "," ++ showFFloat (Just 3) d2 "\n"
+  putStr $ showFFloat (Just 3) d0 "" ++ ","
+  putStr $ showFFloat (Just 3) d1 "" ++ "," ++ showFFloat (Just 3) dd "\n"
 
 pushCurrentAssingment :: Solver -> IO ()
 pushCurrentAssingment Solver{..} = copyVec (nVars + 1) assigns lastAssigns
@@ -858,8 +861,8 @@ assignmentSimilarity' n c v1 v2 = do
       loop ((<= n) -> False) a x y
         | x == 0 || y == 0 = return 0
         | otherwise        = return $ a / sqrt (x * y)
-      loop i a x y = do p <- (/ fromIntegral c) . fromIntegral <$> getNth v1 i
-                        q <- fromIntegral <$> getNth v2 i
+      loop i a x y = do p <- abs . (/ fromIntegral c) . fromIntegral <$> getNth v1 i
+                        q <- abs . fromIntegral <$> getNth v2 i
                         loop (i + 1) (a + p * q) (x + p ** 2) (y + q ** 2)
   loop 1 0 0 0
 
@@ -868,6 +871,6 @@ accumVec n acm v = do
   let loop :: Int -> IO ()
       loop ((<= n) -> False) = return ()
       loop i = do a <- getNth v i
-                  modifyNth acm (+ a) i
+                  modifyNth acm (+ (abs a)) i
                   loop (i + 1)
   loop 0

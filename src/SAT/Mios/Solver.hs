@@ -104,6 +104,7 @@ data Solver = Solver
               , lastAssigns :: !(Vec Int)        -- ^ used in #59
               , satAssigns :: !(Vec Int)         -- ^ used in #59
               , tmpAssigns :: !(Vec Int)         -- ^ used in #59
+              , intDiffSim :: !Double'           -- ^ used in #59
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
@@ -156,6 +157,7 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> newVec nv LBottom                  -- lastAssigns
     <*> newVec nv LBottom                  -- satAssigns
     <*> newVec nv LBottom                  -- tmpAssigns
+    <*> new' 0.0                           -- intDiffSim
 
 --------------------------------------------------------------------------------
 -- Accessors
