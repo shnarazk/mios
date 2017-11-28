@@ -40,7 +40,7 @@ data MiosProgramOption = MiosProgramOption
                      , _displayHelp :: !Bool
                      , _displayVersion :: !Bool
                      , _expConfig :: !Int
-                     , _expDumpAS :: !Bool
+                     , _expDumpAS :: !Int
                      }
 
 -- | default option settings
@@ -122,7 +122,7 @@ miosOptions =
     (ReqArg (\v c -> c { _expConfig = read v }) "0")
     "[#59] experimental configuration"
   , Option [] ["dumpAS"]
-    (NoArg (\c -> c { _expDumpAS = True }))
+    (ReqArg (\v c -> c { _expDumpAS = read v }) (show (_expDumpAS miosDefaultOption)))
     "[#59] dump assignment similarity"
   ]
 

@@ -140,10 +140,10 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKille
     putStr $ "\"" ++ cnfFile ++ "\","
     putStr $ if valid then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "" else show (_confBenchmark opts)
     putStrLn $ "," ++ (if valid then "1" else "0")
-  when (_expDumpAS opts && result) $ do
+  when (0 < _expDumpAS opts && result) $ do
     putStrLn "config,nbackjump,level,prev,goal"
     let conf = toMiosConf opts
-    s' <- newSolver (conf { expDumpAS = True }) desc
+    s' <- newSolver (conf { expDumpAS = _expDumpAS opts }) desc
     injectClausesFromCNF s' desc cls
     copyVec (nVars s) (assigns s) (satAssigns s')
     void $ solve s' []

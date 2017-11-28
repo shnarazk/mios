@@ -648,7 +648,12 @@ search s@Solver{..} nOfConflicts = do
               else do
                   backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
                   -- #59 >>>>
-                  when (expDumpAS config) $ dumpAssignmentSimilarity s
+                  when (0 < expDumpAS config) $ do
+                    nb <- getStat s NumOfBackjump
+                    accumVec nVars accAssigns assigns
+                    when (mod nb (expDumpAS config) == 0) $ do
+                      dumpAssignmentSimilarity s
+                      setAll accAssigns 0
                   -- #59 <<<<
                   (s `cancelUntil`) . max backtrackLevel =<< get' rootLevel
                   newLearntClause s litsLearnt
@@ -701,7 +706,8 @@ search s@Solver{..} nOfConflicts = do
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
                    -- #59 >>>>
-                   when (expDumpAS config) $ copyVec (nVars + 1) assigns lastAssigns
+                   when (0 < expDumpAS config) $ do
+                     copyVec (nVars + 1) tmpAssigns lastAssigns
                    -- #59 <<<<
                    (s `cancelUntil`) =<< get' rootLevel -- force a restart
                    b0 <- get' lastNBC
@@ -724,6 +730,10 @@ search s@Solver{..} nOfConflicts = do
                    return LBottom
              _ -> do
                -- New variable decision:
+               -- #59 >>>>
+               when (0 < expDumpAS config) $ do
+                 copyVec (nVars + 1) assigns tmpAssigns
+               -- #59 <<<<
                v <- select s -- many have heuristic for polarity here
                -- << #phasesaving
                oldVal <- getNth phases v
@@ -820,8 +830,8 @@ dumpAssignmentSimilarity :: Solver -> IO ()
 dumpAssignmentSimilarity s@Solver{..} = do
   n <- getStat s NumOfBackjump
   d <- decisionLevel s
-  d1 <- assignmentSimilarity nVars assigns lastAssigns
-  d2 <- assignmentSimilarity nVars assigns satAssigns
+  d1 <- assignmentSimilarity' nVars 100 accAssigns lastAssigns
+  d2 <- assignmentSimilarity' nVars 100 accAssigns satAssigns
   putStr $ "expConfig=" ++ show (expConfig config) ++ ","
   putStr $ show n ++ "," ++ show d ++ ","
   putStr $ showFFloat (Just 3) d1 "" ++ "," ++ showFFloat (Just 3) d2 "\n"
@@ -841,3 +851,23 @@ assignmentSimilarity n v1 v2 = do
                       False | a == LBottom || b == LBottom -> loop (i + 1) (v - 0.5)
                       False -> loop (i + 1) (v - 1)
   loop 1 0
+
+assignmentSimilarity' :: Int -> Int -> (Vec Int) -> (Vec Int) -> IO Double
+assignmentSimilarity' n c v1 v2 = do
+  let loop :: Int -> Double -> Double -> Double -> IO Double
+      loop ((<= n) -> False) a x y
+        | x == 0 || y == 0 = return 0
+        | otherwise        = return $ a / sqrt (x * y)
+      loop i a x y = do p <- (/ fromIntegral c) . fromIntegral <$> getNth v1 i
+                        q <- fromIntegral <$> getNth v2 i
+                        loop (i + 1) (a + p * q) (x + p ** 2) (y + q ** 2)
+  loop 1 0 0 0
+
+accumVec :: Int -> Vec Int -> Vec Int -> IO ()
+accumVec n acm v = do
+  let loop :: Int -> IO ()
+      loop ((<= n) -> False) = return ()
+      loop i = do a <- getNth v i
+                  modifyNth acm (+ a) i
+                  loop (i + 1)
+  loop 0
