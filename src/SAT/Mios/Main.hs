@@ -18,6 +18,7 @@ module SAT.Mios.Main
 import Control.Monad (unless, void, when)
 import Data.Bits
 import Data.Foldable (foldrM)
+import Numeric (showFFloat)
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -646,6 +647,9 @@ search s@Solver{..} nOfConflicts = do
                   return LiftedF
               else do
                   backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
+                  -- #59 >>>>
+                  when (expDumpAS config) $ dumpAssignmentSimilarity s
+                  -- #59 <<<<
                   (s `cancelUntil`) . max backtrackLevel =<< get' rootLevel
                   newLearntClause s litsLearnt
                   k <- get' litsLearnt
@@ -696,6 +700,9 @@ search s@Solver{..} nOfConflicts = do
                    return LiftedT
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
+                   -- #59 >>>>
+                   when (expDumpAS config) $ copyVec (nVars + 1) assigns lastAssigns
+                   -- #59 <<<<
                    (s `cancelUntil`) =<< get' rootLevel -- force a restart
                    b0 <- get' lastNBC
                    b1 <- getStat s NumOfPureLitElimination
@@ -810,13 +817,27 @@ luby y x_ = loop 1 0
 
 ---- #59
 dumpAssignmentSimilarity :: Solver -> IO ()
-dumpAssignmentSimilarity (config -> expSatAsg -> null -> True) = return ()
 dumpAssignmentSimilarity s@Solver{..} = do
-  let loop :: Int -> [LiftedBool] -> Int -> IO Double
-      loop _ [] v    = return $ fromIntegral v / fromIntegral nVars
-      loop i (a:l) v = do b <- getNth assigns i
-                          case (a == b) of
-                            True                 -> loop (i + 1) l (v + 1)
-                            False | b == LBottom -> loop (i + 1) l v
-                            False                -> loop (i + 1) l (v - 1)
-  print =<< loop 1 (expSatAsg config) 0
+  n <- getStat s NumOfBackjump
+  d <- decisionLevel s
+  d1 <- assignmentSimilarity nVars assigns lastAssigns
+  d2 <- assignmentSimilarity nVars assigns satAssigns
+  putStr $ "expConfig=" ++ show (expConfig config) ++ ","
+  putStr $ show n ++ "," ++ show d ++ ","
+  putStr $ showFFloat (Just 3) d1 "" ++ "," ++ showFFloat (Just 3) d2 "\n"
+
+pushCurrentAssingment :: Solver -> IO ()
+pushCurrentAssingment Solver{..} = copyVec (nVars + 1) assigns lastAssigns
+
+assignmentSimilarity :: Int -> (Vec Int) -> (Vec Int) -> IO Double
+assignmentSimilarity n v1 v2 = do
+  let loop :: Int -> Double -> IO Double
+      loop ((<= n) -> False) v = return $ v / fromIntegral n
+      loop i v = do a <- getNth v1 i
+                    b <- getNth v2 i
+                    case (a == b) of
+                      True | a == LBottom || b == LBottom -> loop (i + 1) (v + 0.5)
+                      True  -> loop (i + 1) (v + 1)
+                      False | a == LBottom || b == LBottom -> loop (i + 1) (v - 0.5)
+                      False -> loop (i + 1) (v - 1)
+  loop 1 0

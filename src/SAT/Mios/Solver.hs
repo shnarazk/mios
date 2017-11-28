@@ -100,6 +100,8 @@ data Solver = Solver
               , lbd'seen   :: !(Vec Int)         -- ^ used in lbd computation
               , lbd'key    :: !Int'              -- ^ used in lbd computation
               , lastNBC    :: !Int'              -- ^ used in restart#59
+              , lastAssigns :: !(Vec Int)        -- ^ used in #59
+              , satAssigns :: !(Vec Int)         -- ^ used in #59
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
@@ -148,7 +150,8 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> newVec nv 0                        -- lbd'seen
     <*> new' 0                             -- lbd'key
     <*> new' 0                             -- lastNBC
-
+    <*> newVec nv LBottom                  -- lastAssigns
+    <*> newVec nv LBottom                  -- satAssigns
 --------------------------------------------------------------------------------
 -- Accessors
 

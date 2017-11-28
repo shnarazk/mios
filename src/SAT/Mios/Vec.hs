@@ -27,6 +27,7 @@ module SAT.Mios.Vec
        , realLengthOfStack
          -- * support functions
        , sortStack
+       , copyVec
        )
        where
 
@@ -354,3 +355,12 @@ sortStack vec = do
             sortOnRange left (m - 1)
             sortOnRange (m + 1) right
   sortOnRange 1 n
+
+{-# INLINABLE copyVec #-}
+copyVec :: Int -> (Vec Int) -> (Vec Int) -> IO ()
+copyVec n from to = do
+  let loop :: Int -> IO ()
+      loop i
+        | n <= i = return ()
+        | otherwise = (setNth to i =<< getNth from i) >> loop (i + 1)
+  loop 0

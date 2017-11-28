@@ -151,6 +151,5 @@ toMiosConf opts = MiosConfiguration
                    variableDecayRate = _confVariableDecayRate opts
                  , clauseDecayRate = _confClauseDecayRate opts
                  , expConfig = _expConfig opts
-                 , expDumpAS = _expDumpAS opts
-                 , expSatAsg = []
+                 , expDumpAS = expDumpAS defaultConfiguration
                  }
