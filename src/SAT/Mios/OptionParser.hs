@@ -122,7 +122,7 @@ miosOptions =
     (ReqArg (\v c -> c { _expConfig = read v }) "0")
     "[#59] experimental configuration"
   , Option [] ["dumpAS"]
-    (ReqArg (\v c -> c { _expDumpAS = read v }) (show (_expDumpAS miosDefaultOption)))
+    (ReqArg (\v c -> c { _expDumpAS = read v, _confNoAnswer = True }) (show (_expDumpAS miosDefaultOption)))
     "[#59] dump assignment similarity"
   ]
 

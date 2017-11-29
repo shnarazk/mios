@@ -101,10 +101,12 @@ data Solver = Solver
               , lbd'key    :: !Int'              -- ^ used in lbd computation
               , lastNBC    :: !Int'              -- ^ used in restart#59
               , accAssigns :: !(Vec Int)         -- ^ used in #59
-              , lastAssigns :: !(Vec Int)        -- ^ used in #59
-              , satAssigns :: !(Vec Int)         -- ^ used in #59
               , tmpAssigns :: !(Vec Int)         -- ^ used in #59
-              , intDiffSim :: !Double'           -- ^ used in #59
+              , assignsRst :: !(Vec Int)         -- ^ used in #59
+              , assignsSmp :: !(Vec Int)         -- ^ used in #59
+              , assignsTrg :: !(Vec Int)         -- ^ used in #59
+              , accRDS     :: !Double'           -- ^ used in #59
+              , accSDS     :: !Double'           -- ^ used in #59
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
@@ -154,10 +156,12 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> new' 0                             -- lbd'key
     <*> new' 0                             -- lastNBC
     <*> newVec nv LBottom                  -- accAssigns
-    <*> newVec nv LBottom                  -- lastAssigns
-    <*> newVec nv LBottom                  -- satAssigns
     <*> newVec nv LBottom                  -- tmpAssigns
-    <*> new' 0.0                           -- intDiffSim
+    <*> newVec nv LBottom                  -- assignsRst
+    <*> newVec nv LBottom                  -- assignsSmp
+    <*> newVec nv LBottom                  -- assignsTrg
+    <*> new' 0                             -- accRDS
+    <*> new' 0                             -- accSDS
 
 --------------------------------------------------------------------------------
 -- Accessors

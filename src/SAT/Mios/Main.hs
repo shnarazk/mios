@@ -611,6 +611,9 @@ simplifyDB s@Solver{..} = do
             for clauses
             for learnts
             reset watches
+            -- #59 >>>>
+            when (0 < expDumpAS config) $ dumpASSimplify s
+            -- #59 <<<<
             return True
     else return False
 
@@ -706,26 +709,36 @@ search s@Solver{..} nOfConflicts = do
              _ | conflictC >= nOfConflicts -> do
                    -- Reached bound on number of conflicts
                    -- #59 >>>>
-                   when (0 < expDumpAS config) $ do
-                     copyVec (nVars + 1) tmpAssigns lastAssigns
+                   when (0 < expDumpAS config) $ dumpASRestart s
                    -- #59 <<<<
                    (s `cancelUntil`) =<< get' rootLevel -- force a restart
-                   b0 <- get' lastNBC
-                   b1 <- getStat s NumOfPureLitElimination
-                   b2 <- getStat s NumOfBinaryClause
-                   set' lastNBC $ b1 + b2
-                   unless (b0 < b1 + b2) $ do
+                   -- #59 >>>>
+                   cond <- case shiftR (expConfig config) 3 of
+                             0 -> return True
+                             1 -> do b0 <- get' lastNBC
+                                     b1 <- getStat s NumOfPureLitElimination
+                                     b2 <- getStat s NumOfBinaryClause
+                                     set' lastNBC $ b1 + b2
+                                     return $ b0 == b1 + b2
+                             2 -> do b0 <- get' lastNBC
+                                     b1 <- getStat s NumOfPureLitElimination
+                                     b2 <- getStat s NumOfBinaryClause
+                                     set' lastNBC $ b1 + b2
+                                     return $ b0 < b1 + b2
+                             _ -> return False
+                   when cond $ do
+                     let toggle :: Int -> Int
+                         toggle LiftedT = LiftedF
+                         toggle LiftedF = LiftedT
+                         toggle x = x
+                         nv = nVars
+                         togglePhase :: Int -> IO ()
+                         togglePhase ((<= nv) -> False) = return ()
+                         togglePhase i = modifyNth phases toggle i >> togglePhase (i + 1)
+                     when (testBit (expConfig config) 0) $ togglePhase 1
                      when (testBit (expConfig config) 1) $ varResetActivityAfterRestart s
                      when (testBit (expConfig config) 2) $ claResetActivityAfterRestart s
-                   let toggle :: Int -> Int
-                       toggle LiftedT = LiftedF
-                       toggle LiftedF = LiftedT
-                       toggle x = x
-                       nv = nVars
-                       toggleAt :: Int -> IO ()
-                       toggleAt ((<= nv) -> False) = return ()
-                       toggleAt i = modifyNth phases toggle i >> toggleAt (i + 1)
-                   when (testBit (expConfig config) 0) $ toggleAt 1
+                   -- #59 <<<<
                    incrementStat s NumOfRestart 1
                    return LBottom
              _ -> do
@@ -830,20 +843,57 @@ dumpAssignmentSimilarity :: Solver -> IO ()
 dumpAssignmentSimilarity s@Solver{..} = do
   n <- getStat s NumOfBackjump
   d <- decisionLevel s
-  d0 <- assignmentSimilarity' nVars (expDumpAS config) accAssigns satAssigns
-  d1 <- assignmentSimilarity' nVars (expDumpAS config) accAssigns lastAssigns
-  modify' intDiffSim (+ d1)
-  dd <- get' intDiffSim
-  putStr $ "\"expConfig=" ++ show (expConfig config) ++ "\","
-  putStr $ show n ++ "," ++ show d ++ ","
-  putStr $ showFFloat (Just 3) d0 "" ++ ","
-  putStr $ showFFloat (Just 3) d1 "" ++ "," ++ showFFloat (Just 3) dd "\n"
+  d0 <- assignmentSimilarity nVars (expDumpAS config) accAssigns assignsRst
+  d1 <- assignmentSimilarity nVars (expDumpAS config) accAssigns assignsSmp
+  d2 <- assignmentSimilarity nVars (expDumpAS config) accAssigns assignsTrg
+  let cond = expConfig config
+      trigger = case shiftR cond 3 of
+                  0 -> "Any"
+                  1 -> "OK"
+                  2 -> "NG"
+      strCon :: [String] -> String
+      strCon [] = "\"" ++ show cond ++ "=" ++ "NOP\","
+      strCon l = "\"" ++ show cond ++ "=" ++ trigger ++ ":{" ++ strCon' l ++ "\","
+      strCon' [a] = a ++ "}"
+      strCon' (a:l) = a ++ "," ++ strCon' l
+      actions = strCon . map snd $ filter (testBit cond . fst) [(0,"phase"),(1,"varAct"),(2,"claAct")]
+  -- ID, Conflict Index, Decision Level, restart, simplify, target
+  putStr $ actions ++ show n ++ "," ++ show d ++ ","
+  putStr $ showFFloat (Just 3) d0 ","
+  putStr $ showFFloat (Just 3) d1 ","
+  putStr $ showFFloat (Just 3) d2 "\n"
 
-pushCurrentAssingment :: Solver -> IO ()
-pushCurrentAssingment Solver{..} = copyVec (nVars + 1) assigns lastAssigns
+dumpASRestart :: Solver -> IO ()
+dumpASRestart s@Solver{..} = do
+  n <- getStat s NumOfBackjump
+  i <- getStat s NumOfRestart
+  d <- assignmentSimilarity nVars (expDumpAS config) accAssigns assignsRst
+  sum <- (d +) <$> get' accRDS
+  -- "RESTART", Conflict Index, Restart Index, restart, 0, RDR
+  putStr $ "\"RESTART\"," ++ show n ++ "," ++ show i ++ ","
+  putStr $ showFFloat (Just 3) d ","
+  putStr $ showFFloat (Just 3) 0 ","
+  putStr $ showFFloat (Just 3) sum "\n"
+  set' accRDS sum
+  copyVec (nVars + 1) assigns assignsRst
 
-assignmentSimilarity :: Int -> (Vec Int) -> (Vec Int) -> IO Double
-assignmentSimilarity n v1 v2 = do
+dumpASSimplify :: Solver -> IO ()
+dumpASSimplify s@Solver{..} = do
+  n <- getStat s NumOfBackjump
+  i <- return 0 -- getStat s NumOfSimplify
+  d <- assignmentSimilarity nVars (expDumpAS config) accAssigns assignsSmp
+  sum <- (d +) <$> get' accSDS
+  -- "SIMPLIFY", Conflict Index, Simplify Index, 0, simplify, SDR
+  putStr $ "\"SIMPLIFY\"," ++ show n ++ "," ++ show i ++ ","
+  putStr $ showFFloat (Just 3) 0 ","
+  putStr $ showFFloat (Just 3) d ","
+  putStr $ showFFloat (Just 3) sum "\n"
+  set' accSDS sum
+  copyVec (nVars + 1) assigns assignsSmp
+
+-- | old similarity 
+_assignmentSimilarity :: Int -> (Vec Int) -> (Vec Int) -> IO Double
+_assignmentSimilarity n v1 v2 = do
   let loop :: Int -> Double -> IO Double
       loop ((<= n) -> False) v = return $ v / fromIntegral n
       loop i v = do a <- getNth v1 i
@@ -855,6 +905,19 @@ assignmentSimilarity n v1 v2 = do
                       False -> loop (i + 1) (v - 1)
   loop 1 0
 
+-- | Variable based similarity 
+assignmentSimilarity :: Int -> Int -> (Vec Int) -> (Vec Int) -> IO Double
+assignmentSimilarity n c v1 v2 = do
+  let loop :: Int -> Double -> Double -> Double -> IO Double
+      loop ((<= n) -> False) a x y
+        | x == 0 || y == 0 = return 0
+        | otherwise        = return $ a / sqrt (x * y)
+      loop i a x y = do p <- (/ fromIntegral c) . fromIntegral <$> getNth v1 i
+                        q <- fromIntegral <$> getNth v2 i
+                        loop (i + 1) (a + p * q) (x + p ** 2) (y + q ** 2)
+  loop 1 0 0 0
+
+-- | Variable based similarity 
 assignmentSimilarity' :: Int -> Int -> (Vec Int) -> (Vec Int) -> IO Double
 assignmentSimilarity' n c v1 v2 = do
   let loop :: Int -> Double -> Double -> Double -> IO Double
@@ -866,11 +929,12 @@ assignmentSimilarity' n c v1 v2 = do
                         loop (i + 1) (a + p * q) (x + p ** 2) (y + q ** 2)
   loop 1 0 0 0
 
+-- | Literal based
 accumVec :: Int -> Vec Int -> Vec Int -> IO ()
 accumVec n acm v = do
   let loop :: Int -> IO ()
       loop ((<= n) -> False) = return ()
       loop i = do a <- getNth v i
-                  modifyNth acm (+ (abs a)) i
+                  modifyNth acm (+ a) i
                   loop (i + 1)
   loop 0
