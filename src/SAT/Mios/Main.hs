@@ -442,6 +442,9 @@ propagate s@Solver{..} = do
 --   clauses are clauses that are reason to some assignment. Binary clauses are never removed.
 reduceDB :: Solver -> IO ()
 reduceDB s@Solver{..} = do
+  -- #59 >>>>
+  when (0 < expDumpAS config) $ dumpASReduction s
+  -- #59 <<<<
   n <- nLearnts s
   cvec <- getClauseVector learnts
   let loop :: Int -> IO ()
@@ -611,9 +614,6 @@ simplifyDB s@Solver{..} = do
             for clauses
             for learnts
             reset watches
-            -- #59 >>>>
-            when (0 < expDumpAS config) $ dumpASSimplify s
-            -- #59 <<<<
             return True
     else return False
 
@@ -844,7 +844,7 @@ dumpAssignmentSimilarity s@Solver{..} = do
   n <- getStat s NumOfBackjump
   d <- decisionLevel s
   d0 <- assignmentSimilarity nVars (expDumpAS config) accAssigns assignsRst
-  d1 <- assignmentSimilarity nVars (expDumpAS config) accAssigns assignsSmp
+  d1 <- assignmentSimilarity nVars (expDumpAS config) accAssigns assignsRdc
   d2 <- assignmentSimilarity nVars (expDumpAS config) accAssigns assignsTrg
   let cond = expConfig config
       trigger = case shiftR cond 3 of
@@ -857,7 +857,7 @@ dumpAssignmentSimilarity s@Solver{..} = do
       strCon' [a] = a ++ "}"
       strCon' (a:l) = a ++ "," ++ strCon' l
       actions = strCon . map snd $ filter (testBit cond . fst) [(0,"phase"),(1,"varAct"),(2,"claAct")]
-  -- ID, Conflict Index, Decision Level, restart, simplify, target
+  -- ID, Conflict Index, Decision Level, restart, reduction, target
   putStr $ actions ++ show n ++ "," ++ show d ++ ","
   putStr $ showFFloat (Just 3) d0 ","
   putStr $ showFFloat (Just 3) d1 ","
@@ -877,19 +877,19 @@ dumpASRestart s@Solver{..} = do
   set' accRDS sum
   copyVec (nVars + 1) assigns assignsRst
 
-dumpASSimplify :: Solver -> IO ()
-dumpASSimplify s@Solver{..} = do
+dumpASReduction :: Solver -> IO ()
+dumpASReduction s@Solver{..} = do
   n <- getStat s NumOfBackjump
   i <- return 0 -- getStat s NumOfSimplify
-  d <- assignmentSimilarity nVars (expDumpAS config) accAssigns assignsSmp
+  d <- assignmentSimilarity nVars (expDumpAS config) accAssigns assignsRdc
   sum <- (d +) <$> get' accSDS
-  -- "SIMPLIFY", Conflict Index, Simplify Index, 0, simplify, SDR
-  putStr $ "\"SIMPLIFY\"," ++ show n ++ "," ++ show i ++ ","
+  -- "SIMPLIFY", Conflict Index, Reduction Index, 0, simplify, SDR
+  putStr $ "\"REDUCTION\"," ++ show n ++ "," ++ show i ++ ","
   putStr $ showFFloat (Just 3) 0 ","
   putStr $ showFFloat (Just 3) d ","
   putStr $ showFFloat (Just 3) sum "\n"
   set' accSDS sum
-  copyVec (nVars + 1) assigns assignsSmp
+  copyVec (nVars + 1) assigns assignsRdc
 
 -- | old similarity 
 _assignmentSimilarity :: Int -> (Vec Int) -> (Vec Int) -> IO Double

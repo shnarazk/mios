@@ -102,8 +102,8 @@ data Solver = Solver
               , lastNBC    :: !Int'              -- ^ used in restart#59
               , accAssigns :: !(Vec Int)         -- ^ used in #59
               , tmpAssigns :: !(Vec Int)         -- ^ used in #59
+              , assignsRdc :: !(Vec Int)         -- ^ used in #59
               , assignsRst :: !(Vec Int)         -- ^ used in #59
-              , assignsSmp :: !(Vec Int)         -- ^ used in #59
               , assignsTrg :: !(Vec Int)         -- ^ used in #59
               , accRDS     :: !Double'           -- ^ used in #59
               , accSDS     :: !Double'           -- ^ used in #59

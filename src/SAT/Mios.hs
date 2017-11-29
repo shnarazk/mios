@@ -141,9 +141,9 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKille
     putStr $ if valid then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "" else show (_confBenchmark opts)
     putStrLn $ "," ++ (if valid then "1" else "0")
   when (0 < _expDumpAS opts && result) $ do
-    putStrLn "# id, conflict index, decision level, restart, simplify, target"
-    putStrLn "# \"RESTART\", Conflict Index, Restart Index, restart, 0, RDR"
-    putStrLn "# \"SIMPLIFY\",Conflict Index, Simplify Index, 0, simplify, SDR"
+    putStrLn "# id           , conflict index, decision level , restart, reduction, target"
+    putStrLn "# \"RESTART\"  , conflict Index, restart Index  , restart, 0        , sum"
+    putStrLn "# \"REDUCTION\", conflict Index, reduction Index, 0      , simplify , sum"
     putStrLn "config,ci,level,d0,d1,d2"
     let conf = toMiosConf opts
     s' <- newSolver (conf { expDumpAS = _expDumpAS opts }) desc
