@@ -5,7 +5,7 @@
 #
 # SHORT TUTORIAL
 # 1. parallel "mios-era -e {} --dumpAS=1000 > dump-{}.csv" ::: *.cnf
-# 2. parallel "echo -n {}, ; tail -1 {} | sed -e 's/.*\".*\",\([^,]*\),.*/\1/g'" ::: *.csv | sort -n -k 2 -t, | gawk -F, '{ print $1 }'
+# 2. parallel "echo -n {}, ; tail -1 {} | sed -e 's/.*\".*\",\([^,]*\),.*/\1/g'" ::: *.csv | sort -n -k 2 -t, | gawk -F, '{ print $1 }' > dump.runs
 # 3. mk59.R dump.runs
 
 library("ggplot2")
