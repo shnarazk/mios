@@ -719,12 +719,12 @@ search s@Solver{..} nOfConflicts = do
                                      b1 <- getStat s NumOfPureLitElimination
                                      b2 <- getStat s NumOfBinaryClause
                                      set' lastNBC $ b1 + b2
-                                     return $ b0 == b1 + b2
+                                     return $ b0 < b1 + b2 -- progressed
                              2 -> do b0 <- get' lastNBC
                                      b1 <- getStat s NumOfPureLitElimination
                                      b2 <- getStat s NumOfBinaryClause
                                      set' lastNBC $ b1 + b2
-                                     return $ b0 < b1 + b2
+                                     return $ b0 == b1 + b2 -- wasted
                              _ -> return False
                    when cond $ do
                      let toggle :: Int -> Int
