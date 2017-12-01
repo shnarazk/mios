@@ -104,6 +104,7 @@ data Solver = Solver
               , emaFast    :: !Double'
               , emaSlow    :: !Double'
               , emaRate    :: !Double'
+              , nextRestart:: !Int'
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
@@ -155,6 +156,7 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> new' 0.0                           -- emaFast
     <*> new' 0.0                           -- emaSlow
     <*> new' 0.0                           -- emaRate
+    <*> new' 100                           -- nextRestart
 
 --------------------------------------------------------------------------------
 -- Accessors
@@ -630,16 +632,18 @@ getHeapRoot s@(order -> VarHeap to at) = do
 -- | #62
 checkRestartCondition :: Solver -> Int -> IO Bool
 checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
+  let step = 100
+  next <- get' nextRestart
   count <- getStat s NumOfBackjump
   nas <- fromIntegral <$> nAssigns s
-  let updateEMA a f x  = do f' <- ((a * x) +) . ((1 - a) *) <$> get' f
-                            set' f f'
-                            return f'
-  fast <- updateEMA (2 ** ( -5)) emaFast lbd
-  slow <- updateEMA (2 ** (-14)) emaSlow lbd
-  rate <- updateEMA (2 ** (-12)) emaRate nas
+  let update a f x  = do f' <- ((a * x) +) . ((1 - a) *) <$> get' f
+                         set' f f'
+                         return f'
+  fast <- update (2 ** ( -5)) emaFast lbd
+  slow <- update (2 ** (-14)) emaSlow lbd
+  rate <- update (2 ** (-12)) emaRate nas
   case () of
-    _ | 0 < mod count 500  -> return False
-    _ | nas > 1.4 * rate   -> return False
-    _ | fast > 1.15 * slow -> return True
+    _ | count < next       -> return False
+    _ | nas > 1.40 * rate  -> set' nextRestart (count + step) >> return False
+    _ | fast > 1.15 * slow -> set' nextRestart (count + step) >> return True
     _ -> return False

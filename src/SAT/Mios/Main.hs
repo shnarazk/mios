@@ -50,7 +50,7 @@ newLearntClause s@Solver{..} ps = do
   case k of
    1 -> do l <- getNth ps 1
            unsafeEnqueue s l NullClause
-           return 0
+           return 1
    _ -> do c <- makeClauseFromStack clsPool ps --  newClauseFromStack True ps
            let lstack = lits c
                findMax :: Int -> Int -> Int -> IO Int -- Pick a second literal to watch:
@@ -442,8 +442,7 @@ reduceDB s@Solver{..} = do
       loop i = do
         removeWatch s =<< getNth cvec i
         loop $ i + 1
-  let k = div n 2
-  purge <- sortClauses s learnts k -- k is the number of clauses not to be purged
+  k <- sortClauses s learnts $ div n 2 -- k is the number of clauses not to be purged
 {- #GLUCOSE3.0
   -- keep more
   t3 <- get' . rank =<< getNth vec (thr -1)
@@ -455,11 +454,10 @@ reduceDB s@Solver{..} = do
             (_, _)         -> min n (thr + 1000)
   -- let k = div thr 2
 -}
-  when purge $ do
-    loop k                               -- CAVEAT: `vec` is a zero-based vector
-    -- putStrLn $ "reduceDB: purge " ++ show (n - k) ++ " out of " ++ show n
-    reset watches
-    shrinkBy learnts (n - k)
+  loop k                               -- CAVEAT: `vec` is a zero-based vector
+  -- putStrLn $ "reduceDB: purge " ++ show (n - k) ++ " out of " ++ show n
+  reset watches
+  shrinkBy learnts (n - k)
 
 -- | (Good to Bad) Quick sort the key vector based on their activities and returns number of privileged clauses.
 -- this function uses the same metrix as reduceDB_lt in glucose 4.0:
@@ -488,8 +486,8 @@ indexMax :: Int
 indexMax = 2 ^ indexWidth - 1 -- 2^6 G = 64G
 
 -- | sort clauses (good to bad) by using a 'proxy' @Vec Int64@ that holds weighted index.
-sortClauses :: Solver -> ClauseExtManager -> Int -> IO Bool
-sortClauses s cm limit = do
+sortClauses :: Solver -> ClauseExtManager -> Int -> IO Int
+sortClauses s cm limit' = do
   n <- get' cm
   -- assert (n < indexMax)
   vec <- getClauseVector cm
@@ -517,8 +515,8 @@ sortClauses s cm limit = do
                             | a < at -> rankMax
                             | otherwise ->  min rankMax r                -- rank can be one
                   setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
-                  assignKey (i + 1) $ if l then (t + 1) else t
-  passed <- (< limit) <$> assignKey 0 0
+                  assignKey (i + 1) $ if l then t + 1 else t
+  limit <- max limit' <$> assignKey 0 0
   -- 2: sort keyVector
   let sortOnRange :: Int -> Int -> IO ()
       sortOnRange left right
@@ -546,6 +544,7 @@ sortClauses s cm limit = do
             swapBetween keys left m
             sortOnRange left (m - 1)
             sortOnRange (m + 1) right
+  sortOnRange 0 (n - 1)
   -- 3: place clauses in 'vec' based on the order stored in 'keys'.
   -- To recylce existing clauses, we must reserve all clauses for now.
   let seek :: Int -> IO ()
@@ -566,8 +565,8 @@ sortClauses s cm limit = do
                                      sweep k'
           sweep i -- (indexMax .&. bits)
         seek $ i + 1
-  when passed $ sortOnRange 0 (n - 1) >> seek 0
-  return passed
+  seek 0
+  return limit
 
 -- | #M22
 --
@@ -627,7 +626,6 @@ search s@Solver{..} = do
   let
     loop :: Bool -> IO Bool
     loop restart = do
-      nOfLearnts <- floor <$> get' maxLearnts
       !confl <- propagate s
       d <- decisionLevel s
       if confl /= NullClause
@@ -677,7 +675,8 @@ search s@Solver{..} = do
             when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
             k1 <- get' learnts
             k2 <- nAssigns s
-            when (k1 - k2 >= nOfLearnts {- && d == 0 -}) $ reduceDB s -- Reduce the set of learnt clauses.
+            nl <- floor <$> get' maxLearnts
+            when (nl < k1 - k2) $ reduceDB s    -- Reduce the set of learnt clauses.
             case () of
              _ | k2 == nVars -> do
                    -- Model found:
