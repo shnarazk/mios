@@ -42,6 +42,8 @@ module SAT.Mios.Solver
        , setStat
        , incrementStat
        , getStats
+       -- #62
+       , checkRestartCondition
        )
         where
 
@@ -98,6 +100,10 @@ data Solver = Solver
               , stats      :: !(Vec [Int])       -- ^ statistics information holder
               , lbd'seen   :: !(Vec Int)         -- ^ used in lbd computation
               , lbd'key    :: !Int'              -- ^ used in lbd computation
+              -- #62
+              , emaFast    :: !Double'
+              , emaSlow    :: !Double'
+              , emaRate    :: !Double'
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
@@ -145,6 +151,10 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> newVec (fromEnum EndOfStatIndex) 0 -- stats
     <*> newVec nv 0                        -- lbd'seen
     <*> new' 0                             -- lbd'key
+    -- #62
+    <*> new' 0.0                           -- emaFast
+    <*> new' 0.0                           -- emaSlow
+    <*> new' 0.0                           -- emaRate
 
 --------------------------------------------------------------------------------
 -- Accessors
@@ -616,3 +626,24 @@ getHeapRoot s@(order -> VarHeap to at) = do
   n <- getNth to 0
   when (1 < n) $ percolateDown s 1
   return r
+
+---- #62
+
+checkRestartCondition :: Solver -> Int -> IO Bool
+checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
+  count <- getStat s NumOfBackjump
+  nas <- fromIntegral <$> nAssigns s
+  let updateEMA a f x  = do f' <- ((a * x) +) . ((1 - a) *) <$> get' f
+                            set' f f'
+                            return f'
+  fast <- updateEMA (2 ** ( -5)) emaFast lbd
+  slow <- updateEMA (2 ** (-14)) emaSlow lbd
+  rate <- updateEMA (2 ** (-12)) emaRate nas
+  case () of
+    _ | 0 < mod count 500 -> return False
+    _ | nas > 1.4 * rate   -> return False
+    _ | fast > 1.15 * slow -> do
+          n <- nLearnts s
+          putStrLn $ "restart " ++ show (count, n)
+          return True
+    _ -> return False
