@@ -623,93 +623,80 @@ simplifyDB s@Solver{..} = do
 search :: Solver -> IO Bool
 search s@Solver{..} = do
   -- clear model
-  let
-    loop :: Bool -> IO Bool
-    loop restart = do
-      !confl <- propagate s
-      d <- decisionLevel s
-      if confl /= NullClause
-        then do
-            -- CONFLICT
-            incrementStat s NumOfBackjump 1
-            r <- get' rootLevel
-            if d == r
-              then do
-                  -- Contradiction found:
-                  analyzeFinal s confl False
-                  return False
-              else do
-                  backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
-                  (s `cancelUntil`) . max backtrackLevel =<< get' rootLevel
-                  lbd' <- newLearntClause s litsLearnt
-                  k <- get' litsLearnt
-                  when (k == 1) $ do
-                    (v :: Var) <- lit2var <$> getNth litsLearnt 1
-                    setNth level v 0
-                  varDecayActivity s
-                  claDecayActivity s
-                  -- learnt DB Size Adjustment
-                  modify' learntSCnt (subtract 1)
-                  cnt <- get' learntSCnt
-                  when (cnt == 0) $ do
-                    t' <- (* 1.5) <$> get' learntSAdj
-                    set' learntSAdj t'
-                    set' learntSCnt $ floor t'
-                    modify' maxLearnts (* 1.1)
+  let loop :: Bool -> IO Bool
+      loop restart = do
+        confl <- propagate s
+        d <- decisionLevel s
+        if confl /= NullClause  -- CONFLICT
+          then do incrementStat s NumOfBackjump 1
+                  r <- get' rootLevel
+                  if d == r                       -- Contradiction found:
+                    then analyzeFinal s confl False >> return False
+                    else do backtrackLevel <- analyze s confl -- 'analyze' resets litsLearnt by itself
+                            (s `cancelUntil`) . max backtrackLevel =<< get' rootLevel
+                            lbd' <- newLearntClause s litsLearnt
+                            k <- get' litsLearnt
+                            when (k == 1) $ do
+                              (v :: Var) <- lit2var <$> getNth litsLearnt 1
+                              setNth level v 0
+                            varDecayActivity s
+                            claDecayActivity s
+                            -- learnt DB Size Adjustment
+                            modify' learntSCnt (subtract 1)
+                            cnt <- get' learntSCnt
+                            when (cnt == 0) $ do
+                              t' <- (* 1.5) <$> get' learntSAdj
+                              set' learntSAdj t'
+                              set' learntSCnt $ floor t'
+                              modify' maxLearnts (* 1.1)
 {-
-                    -- verbose
-                    let w8 :: Int -> String -> String
-                        w8 (show -> i) p = take (8 - length i) "          " ++ i ++ p
-                    vb <- getStat s NumOfBackjump
-                    vm <- floor <$> get' maxLearnts
-                    vc <- get' learnts
-                    gc <- get' clauses
-                    va <- get' trailLim
-                    vn <- (nVars -) <$> if va == 0 then get' trail else getNth trailLim 1
-                    vp <- getStat s NumOfPropagation
-                    putStrLn $ w8 vb " | " ++ w8 vn " " ++ w8 gc " | " ++ w8 vm " " ++ w8 vc " | " ++ w8 vp ""
+                            -- verbose
+                            let w8 :: Int -> String -> String
+                                w8 (show -> i) p = take (8 - length i) "          " ++ i ++ p
+                            vb <- getStat s NumOfBackjump
+                            vm <- floor <$> get' maxLearnts
+                            vc <- get' learnts
+                            gc <- get' clauses
+                            va <- get' trailLim
+                            vn <- (nVars -) <$> if va == 0 then get' trail else getNth trailLim 1
+                            vp <- getStat s NumOfPropagation
+                            putStrLn $ w8 vb " | " ++ w8 vn " " ++ w8 gc " | " ++ w8 vm " " ++ w8 vc " | " ++ w8 vp ""
 -}
-                  loop =<< checkRestartCondition s lbd'
-        else do                 -- NO CONFLICT
-            -- Simplify the set of problem clauses:
-            when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
-            k1 <- get' learnts
-            k2 <- nAssigns s
-            nl <- floor <$> get' maxLearnts
-            when (nl < k1 - k2) $ reduceDB s    -- Reduce the set of learnt clauses.
-            case () of
-             _ | k2 == nVars -> do
-                   -- Model found:
-                   let toInt :: Var -> IO Lit
-                       toInt v = (\p -> if LiftedT == p then v else negate v) <$> valueVar s v
-                       setModel :: Int -> IO ()
-                       setModel ((<= nVars) -> False) = return ()
-                       setModel v = (setNth model v =<< toInt v) >> setModel (v + 1)
-                   setModel 1
-                   return True
-             _ | restart -> do
-                   -- Reached bound on number of conflicts
-                   (s `cancelUntil`) =<< get' rootLevel -- force a restart
-                   -- claRescaleActivityAfterRestart s
-                   let toggle :: Int -> Int
-                       toggle LiftedT = LiftedF
-                       toggle LiftedF = LiftedT
-                       toggle x = x
-                       nv = nVars
-                       toggleAt :: Int -> IO ()
-                       toggleAt ((<= nv) -> False) = return ()
-                       toggleAt i = modifyNth phases toggle i >> toggleAt (i + 1)
-                   -- toggleAt 1
-                   incrementStat s NumOfRestart 1
-                   loop False
-             _ -> do
-               -- New variable decision:
-               v <- select s -- many have heuristic for polarity here
-               -- << #phasesaving
-               oldVal <- getNth phases v
-               unsafeAssume s $ var2lit v (0 < oldVal) -- cannot return @False@
-               -- >> #phasesaving
-               loop False
+                            loop =<< checkRestartCondition s lbd'
+          else do when (d == 0) . void $ simplifyDB s -- Simplify the set of problem clauses
+                  k1 <- get' learnts
+                  k2 <- nAssigns s
+                  nl <- floor <$> get' maxLearnts
+                  when (nl < k1 - k2) $ reduceDB s    -- Reduce the set of learnt clauses.
+                  if | k2 == nVars -> do              -- | Model found:
+                         let toInt :: Var -> IO Lit
+                             toInt v = (\p -> if LiftedT == p then v else negate v) <$> valueVar s v
+                             setModel :: Int -> IO ()
+                             setModel ((<= nVars) -> False) = return ()
+                             setModel v = (setNth model v =<< toInt v) >> setModel (v + 1)
+                         setModel 1
+                         return True
+                     | restart -> do                  -- | Reached bound on number of conflicts
+                         (s `cancelUntil`) =<< get' rootLevel -- force a restart
+                         -- claRescaleActivityAfterRestart s
+                         let toggle :: Int -> Int
+                             toggle LiftedT = LiftedF
+                             toggle LiftedF = LiftedT
+                             toggle x = x
+                             nv = nVars
+                             toggleAt :: Int -> IO ()
+                             toggleAt ((<= nv) -> False) = return ()
+                             toggleAt i = modifyNth phases toggle i >> toggleAt (i + 1)
+                         -- toggleAt 1
+                         incrementStat s NumOfRestart 1
+                         loop False
+                     | otherwise -> do                -- | New variable decision
+                         v <- select s
+                         -- #phasesaving <<<<  many have heuristic for polarity here
+                         oldVal <- getNth phases v
+                         unsafeAssume s $ var2lit v (0 < oldVal) -- cannot return @False@
+                         -- #phasesaving >>>>
+                         loop False
   loop False
 
 -- | __Fig. 16. (p.20)__
