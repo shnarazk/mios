@@ -627,8 +627,7 @@ getHeapRoot s@(order -> VarHeap to at) = do
   when (1 < n) $ percolateDown s 1
   return r
 
----- #62
-
+-- | #62
 checkRestartCondition :: Solver -> Int -> IO Bool
 checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   count <- getStat s NumOfBackjump
@@ -640,10 +639,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   slow <- updateEMA (2 ** (-14)) emaSlow lbd
   rate <- updateEMA (2 ** (-12)) emaRate nas
   case () of
-    _ | 0 < mod count 500 -> return False
+    _ | 0 < mod count 500  -> return False
     _ | nas > 1.4 * rate   -> return False
-    _ | fast > 1.15 * slow -> do
-          n <- nLearnts s
-          putStrLn $ "restart " ++ show (count, n)
-          return True
+    _ | fast > 1.15 * slow -> return True
     _ -> return False

@@ -46,15 +46,12 @@ newLearntClause :: Solver -> Stack -> IO Int
 newLearntClause s@Solver{..} ps = do
   -- ps is a 'SizedVectorInt'; ps[0] is the number of active literals
   -- Since this solver must generate only healthy learnt clauses, we need not to run misc check in 'newClause'
-  good <- (LiftedT ==) <$> get' ok
-  unless good $ error "newLearntClause!"
   k <- get' ps
   case k of
    1 -> do l <- getNth ps 1
            unsafeEnqueue s l NullClause
            return 0
    _ -> do c <- makeClauseFromStack clsPool ps --  newClauseFromStack True ps
-           when (c == NullClause) $ error "strange 2017-12-01T11:56:01.00+9:00"
            let lstack = lits c
                findMax :: Int -> Int -> Int -> IO Int -- Pick a second literal to watch:
                findMax ((<= k) -> False) j _ = return j
@@ -137,7 +134,6 @@ analyze s@Solver{..} confl = do
   let
     loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
     loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
-      when (c == NullClause) $ error ("analyze " ++ show (dl, confl == NullClause))
       d <- get' (rank c)
       when (0 /= d) $ claBumpActivity s c
       -- update LBD like #Glucose4.0
@@ -447,7 +443,7 @@ reduceDB s@Solver{..} = do
         removeWatch s =<< getNth cvec i
         loop $ i + 1
   let k = div n 2
-  sortClauses s learnts k -- k is the number of clauses not to be purged
+  purge <- sortClauses s learnts k -- k is the number of clauses not to be purged
 {- #GLUCOSE3.0
   -- keep more
   t3 <- get' . rank =<< getNth vec (thr -1)
@@ -459,10 +455,11 @@ reduceDB s@Solver{..} = do
             (_, _)         -> min n (thr + 1000)
   -- let k = div thr 2
 -}
-  loop k                               -- CAVEAT: `vec` is a zero-based vector
-  -- putStrLn $ "reduceDB: purge " ++ show (n - k) ++ " out of " ++ show n
-  reset watches
-  shrinkBy learnts (n - k)
+  when purge $ do
+    loop k                               -- CAVEAT: `vec` is a zero-based vector
+    -- putStrLn $ "reduceDB: purge " ++ show (n - k) ++ " out of " ++ show n
+    reset watches
+    shrinkBy learnts (n - k)
 
 -- | (Good to Bad) Quick sort the key vector based on their activities and returns number of privileged clauses.
 -- this function uses the same metrix as reduceDB_lt in glucose 4.0:
@@ -491,7 +488,7 @@ indexMax :: Int
 indexMax = 2 ^ indexWidth - 1 -- 2^6 G = 64G
 
 -- | sort clauses (good to bad) by using a 'proxy' @Vec Int64@ that holds weighted index.
-sortClauses :: Solver -> ClauseExtManager -> Int -> IO ()
+sortClauses :: Solver -> ClauseExtManager -> Int -> IO Bool
 sortClauses s cm limit = do
   n <- get' cm
   -- assert (n < indexMax)
@@ -505,14 +502,14 @@ sortClauses s cm limit = do
       scaleAct x
         | x < 1e-20 = activityMax
         | otherwise = activityMax * floor (1 - logBase 10 (x * 1e20) / 40)
-      assignKey :: Int -> IO ()
-      assignKey ((< n) -> False) = return ()
-      assignKey i = do
+      assignKey :: Int -> Int -> IO Int
+      assignKey ((< n) -> False) t = return t
+      assignKey i t = do
         c <- getNth vec i
-        when (c == NullClause) $ error ("found " ++ show i)
         k <- get' c
         if k == 2                  -- Main criteria. Like in MiniSat we keep all binary clauses
           then do setNth keys i $ shiftL 1 indexWidth + i
+                  assignKey (i + 1) (t + 1)
           else do a <- get' (activity c)               -- Second one... based on LBD
                   r <- get' (rank c)
                   l <- locked s c
@@ -520,8 +517,8 @@ sortClauses s cm limit = do
                             | a < at -> rankMax
                             | otherwise ->  min rankMax r                -- rank can be one
                   setNth keys i $ shiftL d shiftLBD + shiftL (scaleAct a) indexWidth + i
-        assignKey (i + 1)
-  assignKey 0
+                  assignKey (i + 1) $ if l then (t + 1) else t
+  passed <- (< limit) <$> assignKey 0 0
   -- 2: sort keyVector
   let sortOnRange :: Int -> Int -> IO ()
       sortOnRange left right
@@ -549,7 +546,6 @@ sortClauses s cm limit = do
             swapBetween keys left m
             sortOnRange left (m - 1)
             sortOnRange (m + 1) right
-  sortOnRange 0 (n - 1)
   -- 3: place clauses in 'vec' based on the order stored in 'keys'.
   -- To recylce existing clauses, we must reserve all clauses for now.
   let seek :: Int -> IO ()
@@ -570,7 +566,8 @@ sortClauses s cm limit = do
                                      sweep k'
           sweep i -- (indexMax .&. bits)
         seek $ i + 1
-  seek 0
+  when passed $ sortOnRange 0 (n - 1) >> seek 0
+  return passed
 
 -- | #M22
 --
@@ -680,9 +677,7 @@ search s@Solver{..} = do
             when (d == 0) . void $ simplifyDB s -- our simplifier cannot return @False@ here
             k1 <- get' learnts
             k2 <- nAssigns s
-            when (k1 - k2 >= nOfLearnts) $ do   -- This is a cheap check.
-              thr <- floor <$> get' maxLearnts  -- maxLearnts is larger than nOfLearnts always.
-              when (k1 - k2 >= thr) $ reduceDB s -- Reduce the set of learnt clauses.
+            when (k1 - k2 >= nOfLearnts {- && d == 0 -}) $ reduceDB s -- Reduce the set of learnt clauses.
             case () of
              _ | k2 == nVars -> do
                    -- Model found:
