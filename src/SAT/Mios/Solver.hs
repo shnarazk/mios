@@ -642,7 +642,8 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   fast <- revise (2 ** ( -5)) emaFast lbd
   slow <- revise (2 ** (-14)) emaSlow lbd
   rate <- revise (2 ** (-12)) emaRate nas
+  d <- decisionLevel s
   if | count < next       -> return False
-     | fast > 1.15 * slow -> set' nextRestart (count + step) >> return True
-     | nas  > 1.40 * rate -> set' nextRestart (count + step) >> incrementStat s NumOfBlockRestart 1 >>  return False
+     | fast > 1.20 * slow -> set' nextRestart (count + step) >> return True
+     | nas  > 1.40 * rate -> set' nextRestart (count + step + d) >> incrementStat s NumOfBlockRestart 1 >>  return False
      | otherwise          -> return False
