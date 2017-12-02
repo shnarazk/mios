@@ -458,6 +458,7 @@ reduceDB s@Solver{..} = do
   -- putStrLn $ "reduceDB: purge " ++ show (n - k) ++ " out of " ++ show n
   reset watches
   shrinkBy learnts (n - k)
+  incrementStat s NumOfReduction 1
 
 -- | (Good to Bad) Quick sort the key vector based on their activities and returns number of privileged clauses.
 -- this function uses the same metrix as reduceDB_lt in glucose 4.0:
@@ -650,17 +651,19 @@ search s@Solver{..} = do
                               set' learntSCnt $ floor t'
                               modify' maxLearnts (* 1.1)
 {-
-                            -- verbose
-                            let w8 :: Int -> String -> String
-                                w8 (show -> i) p = take (8 - length i) "          " ++ i ++ p
-                            vb <- getStat s NumOfBackjump
-                            vm <- floor <$> get' maxLearnts
-                            vc <- get' learnts
-                            gc <- get' clauses
-                            va <- get' trailLim
-                            vn <- (nVars -) <$> if va == 0 then get' trail else getNth trailLim 1
-                            vp <- getStat s NumOfPropagation
-                            putStrLn $ w8 vb " | " ++ w8 vn " " ++ w8 gc " | " ++ w8 vm " " ++ w8 vc " | " ++ w8 vp ""
+                              -- verbose
+                              let p :: String -> Int -> IO ()
+                                  p j (show -> i) = putStr $ take (9 - length i) (repeat ' ') ++ i ++ j
+                              va <- get' trailLim
+                              putStr "bj/res/red"
+                              p " " =<< getStat s NumOfBackjump
+                              p " " =<< getStat s NumOfRestart
+                              p " | var " =<< getStat s NumOfReduction
+                              p " " . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
+                              p " | learnt" =<< get' clauses
+                              p " " . floor =<< get' maxLearnts
+                              p " | prop" =<< get' learnts
+                              p "\n" =<< getStat s NumOfPropagation
 -}
                             loop =<< checkRestartCondition s lbd'
           else do when (d == 0) . void $ simplifyDB s -- Simplify the set of problem clauses
