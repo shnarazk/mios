@@ -273,6 +273,7 @@ data StatIndex =
   | NumOfRestart                -- ^ the number of restart
   | NumOfPropagation            -- ^ the number of propagation
   | NumOfReduction              -- ^ the number of simplify
+  | NumOfBlockRestart           -- ^ the number of blacking start
   | EndOfStatIndex              -- ^ Don't use this dummy.
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 

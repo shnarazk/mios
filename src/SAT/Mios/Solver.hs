@@ -1,6 +1,7 @@
 -- | This is a part of MIOS.
 {-# LANGUAGE
     BangPatterns
+  , MultiWayIf
   , RecordWildCards
   , ScopedTypeVariables
   , TupleSections
@@ -139,7 +140,7 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     -- Learnt DB Size Adjustment
     <*> new' 100                           -- learntSAdj
     <*> new' 100                           -- learntSCnt
-    <*> new' 100                           -- maxLearnts
+    <*> new' 2000                          -- maxLearnts
     -- Working Memory
     <*> new' LiftedT                       -- ok
     <*> newVec nv 0                        -- an'seen
@@ -260,13 +261,12 @@ clauseNew s@Solver{..} ps isLearnt = do
         | j > n = return False
         | otherwise = do
             y <- getNth ps j
-            case () of
-             _ | y == l -> do             -- finds a duplicate
+            if | y == l    -> do                      -- finds a duplicate
                    swapBetween ps j n
                    modifyNth ps (subtract 1) 0
                    handle j l (n - 1)
-             _ | - y == l -> reset ps >> return True -- p and negateLit p occurs in ps
-             _ -> handle (j + 1) l n
+               | - y == l  -> reset ps >> return True -- p and negateLit p occurs in ps
+               | otherwise -> handle (j + 1) l n
       loopForLearnt :: Int -> IO Bool
       loopForLearnt i = do
         n <- get' ps
@@ -632,18 +632,17 @@ getHeapRoot s@(order -> VarHeap to at) = do
 -- | #62
 checkRestartCondition :: Solver -> Int -> IO Bool
 checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
-  let step = 100
+  let step = 50
   next <- get' nextRestart
   count <- getStat s NumOfBackjump
   nas <- fromIntegral <$> nAssigns s
-  let update a f x  = do f' <- ((a * x) +) . ((1 - a) *) <$> get' f
+  let revise a f x  = do f' <- ((a * x) +) . ((1 - a) *) <$> get' f
                          set' f f'
                          return f'
-  fast <- update (2 ** ( -5)) emaFast lbd
-  slow <- update (2 ** (-14)) emaSlow lbd
-  rate <- update (2 ** (-12)) emaRate nas
-  case () of
-    _ | count < next       -> return False
-    _ | nas > 1.40 * rate  -> set' nextRestart (count + step) >> return False
-    _ | fast > 1.15 * slow -> set' nextRestart (count + step) >> return True
-    _ -> return False
+  fast <- revise (2 ** ( -5)) emaFast lbd
+  slow <- revise (2 ** (-14)) emaSlow lbd
+  rate <- revise (2 ** (-12)) emaRate nas
+  if | count < next       -> return False
+     | fast > 1.15 * slow -> set' nextRestart (count + step) >> return True
+     | nas  > 1.40 * rate -> set' nextRestart (count + step) >> incrementStat s NumOfBlockRestart 1 >>  return False
+     | otherwise          -> return False

@@ -649,21 +649,25 @@ search s@Solver{..} = do
                               t' <- (* 1.5) <$> get' learntSAdj
                               set' learntSAdj t'
                               set' learntSCnt $ floor t'
-                              modify' maxLearnts (* 1.1)
+                              -- modify' maxLearnts (* 1.1)
+                              modify' maxLearnts (+ 300)
 {-
                               -- verbose
-                              let p :: String -> Int -> IO ()
-                                  p j (show -> i) = putStr $ take (9 - length i) (repeat ' ') ++ i ++ j
+                              let q k m = take (k - length m) (repeat ' ') ++ m
+                                  p :: String -> Int -> IO ()
+                                  p "" (show -> i) = putStrLn $ " | prop" ++ q 14 i
+                                  p j (show -> i) = putStr $ j ++ q 8 i
                               va <- get' trailLim
-                              putStr "bj/res/red"
-                              p " " =<< getStat s NumOfBackjump
+                              p "bj/rst/blk/rdc" =<< getStat s NumOfBackjump
                               p " " =<< getStat s NumOfRestart
-                              p " | var " =<< getStat s NumOfReduction
-                              p " " . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
-                              p " | learnt" =<< get' clauses
-                              p " " . floor =<< get' maxLearnts
-                              p " | prop" =<< get' learnts
-                              p "\n" =<< getStat s NumOfPropagation
+                              p " " =<< getStat s NumOfBlockRestart
+                              p " " =<< getStat s NumOfReduction
+                              p " | var " . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
+                              p " " =<< nAssigns s
+                              p " | clause" =<< get' clauses
+                              p " | learnt" . floor =<< get' maxLearnts
+                              p " " =<< get' learnts
+                              p "" =<< getStat s NumOfPropagation
 -}
                             loop =<< checkRestartCondition s lbd'
           else do when (d == 0) . void $ simplifyDB s -- Simplify the set of problem clauses
@@ -690,7 +694,9 @@ search s@Solver{..} = do
                              toggleAt :: Int -> IO ()
                              toggleAt ((<= nv) -> False) = return ()
                              toggleAt i = modifyNth phases toggle i >> toggleAt (i + 1)
-                         -- toggleAt 1
+                         -- ss <- getStat s NumOfRestart
+                         -- sb <- getStat s NumOfBlockRestart
+                         -- when (sb < ss) $ toggleAt 1
                          incrementStat s NumOfRestart 1
                          loop False
                      | otherwise -> do                -- | New variable decision
