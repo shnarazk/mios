@@ -102,9 +102,10 @@ data Solver = Solver
               , lbd'seen   :: !(Vec Int)         -- ^ used in lbd computation
               , lbd'key    :: !Int'              -- ^ used in lbd computation
               -- #62
-              , emaFast    :: !Double'
-              , emaSlow    :: !Double'
-              , emaRate    :: !Double'
+              , emaDFast    :: !Double'
+              , emaDSlow    :: !Double'
+              , emaAFast    :: !Double'
+              , emaASlow    :: !Double'
               , emaDLvl    :: !Double'
               , nextRestart:: !Int'
               }
@@ -155,9 +156,10 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> newVec nv 0                        -- lbd'seen
     <*> new' 0                             -- lbd'key
     -- #62
-    <*> new' 0.0                           -- emaFast
-    <*> new' 0.0                           -- emaSlow
-    <*> new' 0.0                           -- emaRate
+    <*> new' 0.0                           -- emaDFast
+    <*> new' 0.0                           -- emaDSlow
+    <*> new' 0.0                           -- emaAFast
+    <*> new' 0.0                           -- emaASlow
     <*> new' 0.0                           -- emaDLvl
     <*> new' 100                           -- nextRestart
 
@@ -634,7 +636,8 @@ getHeapRoot s@(order -> VarHeap to at) = do
 -- | #62
 checkRestartCondition :: Solver -> Int -> IO Bool
 checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
-  let step = 50
+  k <- getStat s NumOfRestart
+  let step = 100
   next <- get' nextRestart
   count <- getStat s NumOfBackjump
   nas <- fromIntegral <$> nAssigns s
@@ -642,43 +645,16 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   let revise a f x  = do f' <- ((a * x) +) . ((1 - a) *) <$> get' f
                          set' f f'
                          return f'
-  fast <- revise (2 ** ( -5)) emaFast lbd
-  slow <- revise (2 ** (-14)) emaSlow lbd
-  rate <- revise (2 ** (-12)) emaRate nas
-  dlvl <- revise (2 ** ( -7)) emaDLvl dlv
-  if | count < next       -> return False
-     | fast > 1.15 * slow -> set' nextRestart (count + step) >> return True
-     | nas  > 1.40 * rate -> do
+  df <- revise (2 ** ( -5)) emaDFast lbd
+  ds <- revise (2 ** (-14)) emaDSlow lbd
+  af <- revise (2 ** ( -3)) emaAFast nas
+  as <- revise (2 ** (-12)) emaASlow nas
+  dl <- revise (2 ** ( -7)) emaDLvl dlv
+  if | count < next   -> return False
+     | af > 15.00 * as -> do
          incrementStat s NumOfBlockRestart 1
-         set' nextRestart $ count + step + floor (dlv - dlvl)
+         set' nextRestart $ count + step
          return False
+     | df > 15.00 * ds -> set' nextRestart (count + step) >> return True
+     | next < count   -> set' nextRestart (count + step + floor (1.5 ** fromIntegral k)) >> return True
      | otherwise          -> return False
-
-{-
-         set' nextRestart $ count + step + floor (dlv - dlvl)
-where
--   dlvl <- revise (2 ** ( -6)) emaDLvl dlv
-"mios-ema", 1, "itox",   20.28
-"mios-ema", 2, "m283",   TO
-"mios-ema", 3, "38b",    27.39
-"mios-ema", 4, "44b",    TO
-
--   dlvl <- revise (2 ** ( -7)) emaDLvl dlv
-"mios-ema", 1, "itox",   20.56
-"mios-ema", 2, "m283",   186.41
-"mios-ema", 3, "38b",    35.97
-"mios-ema", 4, "44b",    52.15
-
--   dlvl <- revise (2 ** ( -8)) emaDLvl dlv
-"mios-ema", 1, "itox",   20.40
-"mios-ema", 2, "m283",   192.42
-"mios-ema", 3, "38b",    15.19
-"mios-ema", 4, "44b",    172.64
-
--   dlvl <- revise (2 ** ( -9)) emaDLvl dlv
-"mios-ema", 1, "itox",   20.41
-"mios-ema", 2, "m283",   TO
-"mios-ema", 3, "38b",    33.74
-"mios-ema", 4, "44b",    TO
-
--}
