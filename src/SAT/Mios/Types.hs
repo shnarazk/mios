@@ -274,6 +274,7 @@ data StatIndex =
   | NumOfPropagation            -- ^ the number of propagation
   | NumOfReduction              -- ^ the number of simplify
   | NumOfBlockRestart           -- ^ the number of blacking start
+  | NumOfGeometricRestart       -- ^ the number of classic restart
   | EndOfStatIndex              -- ^ Don't use this dummy.
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 

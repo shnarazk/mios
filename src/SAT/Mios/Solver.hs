@@ -45,10 +45,14 @@ module SAT.Mios.Solver
        , getStats
        -- #62
        , checkRestartCondition
+       , dumpHeader
+       , dump
        )
         where
 
 import Control.Monad (unless, when)
+import Data.List (intercalate)
+import Numeric (showFFloat)
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -647,14 +651,47 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
                          return f'
   df <- revise (2 ** ( -5)) emaDFast lbd
   ds <- revise (2 ** (-14)) emaDSlow lbd
-  af <- revise (2 ** ( -3)) emaAFast nas
+  af <- revise (2 ** ( -5)) emaAFast nas
   as <- revise (2 ** (-12)) emaASlow nas
   dl <- revise (2 ** ( -7)) emaDLvl dlv
+  let threshold = 10000
   if | count < next   -> return False
-     | af > 15.00 * as -> do
+     | threshold < count && af > 1.25 * as -> do
          incrementStat s NumOfBlockRestart 1
-         set' nextRestart $ count + step
+         -- dump s
+         set' nextRestart (count + floor (fromIntegral step + 1.1 ** fromIntegral k))
          return False
-     | df > 15.00 * ds -> set' nextRestart (count + step) >> return True
-     | next < count   -> set' nextRestart (count + step + floor (1.5 ** fromIntegral k)) >> return True
-     | otherwise          -> return False
+     | threshold < count && df > 1.25 * ds -> do
+         incrementStat s NumOfRestart 1
+         dump s
+         set' nextRestart (count + step)
+         return True
+     | threshold > count && next < count   -> do
+         incrementStat s NumOfRestart 1
+         incrementStat s NumOfGeometricRestart 1
+         dump s
+         k' <- getStat s NumOfGeometricRestart
+         set' nextRestart (count + floor (fromIntegral step * 1.1 ** fromIntegral k'))
+         return True
+     | otherwise      -> do
+         return False
+
+dump :: Solver -> IO ()
+-- dump _ = return ()
+dump s@Solver{..} = do
+  k <- getStat s NumOfRestart
+  df <- get' emaDFast
+  ds <- get' emaDSlow
+  af <- get' emaAFast
+  as <- get' emaASlow
+  sts <- init <$> getStats s
+  let emas = [("emaDFast", df), ("emaDSlow", ds), ("emaAFast", af), ("emaASlow", as)]
+      fs x = showFFloat (Just 3) x ""
+      vals = map (show . snd) sts ++ map (fs . snd) emas
+  putStrLn $ intercalate "," vals
+
+dumpHeader :: Solver -> IO ()
+dumpHeader s@Solver{..} = do
+  sts <- init <$> getStats s
+  let labels = map (show . fst) sts  ++ ["emaDFast", "emaDSlow", "emaAFast", "emaASlow"]
+  putStrLn $ intercalate "," labels

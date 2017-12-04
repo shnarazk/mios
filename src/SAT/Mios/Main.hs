@@ -697,7 +697,6 @@ search s@Solver{..} = do
                          -- ss <- getStat s NumOfRestart
                          -- sb <- getStat s NumOfBlockRestart
                          -- when (sb < ss) $ toggleAt 1
-                         incrementStat s NumOfRestart 1
                          loop False
                      | otherwise -> do                -- | New variable decision
                          v <- select s
