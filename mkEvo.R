@@ -79,7 +79,7 @@ graph = function (df, kind, mes, logGraph=FALSE) {
     if (grep("\\.csv$", args[1])) {
         name <- gsub("\\.[^.]+$", "", filename)
         df <- getData(args[1], FALSE)
-        targetPDF <- paste("sim-", name, ".pdf", sep="")
+        targetPDF <- paste("ema-", name, ".pdf", sep="")
     } else {
         exps <- args[1]
         runs <- read.csv(exps, comment="#", sep=",", header=F)
