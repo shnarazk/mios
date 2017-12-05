@@ -110,7 +110,7 @@ data Solver = Solver
               , emaDSlow    :: !Double'
               , emaAFast    :: !Double'
               , emaASlow    :: !Double'
-              , emaDLvl    :: !Double'
+--              , emaDLvl    :: !Double'
               , nextRestart:: !Int'
               }
 
@@ -164,7 +164,7 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> new' 0.0                           -- emaDSlow
     <*> new' 0.0                           -- emaAFast
     <*> new' 0.0                           -- emaASlow
-    <*> new' 0.0                           -- emaDLvl
+--    <*> new' 0.0                           -- emaDLvl
     <*> new' 100                           -- nextRestart
 
 --------------------------------------------------------------------------------
@@ -645,7 +645,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   next <- get' nextRestart
   count <- getStat s NumOfBackjump
   nas <- fromIntegral <$> nAssigns s
-  dlv <- fromIntegral <$> decisionLevel s
+--  dlv <- fromIntegral <$> decisionLevel s
   let revise a f x  = do f' <- ((a * x) +) . ((1 - a) *) <$> get' f
                          set' f f'
                          return f'
@@ -653,7 +653,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   ds <- revise (2 ** (-14)) emaDSlow lbd
   af <- revise (2 ** ( -5)) emaAFast nas
   as <- revise (2 ** (-12)) emaASlow nas
-  dl <- revise (2 ** ( -7)) emaDLvl dlv
+--  dl <- revise (2 ** ( -7)) emaDLvl dlv
   let threshold = 10000
   if | count < next   -> return False
      | threshold < count && af > 1.25 * as -> do
@@ -663,13 +663,13 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
          return False
      | threshold < count && df > 1.25 * ds -> do
          incrementStat s NumOfRestart 1
-         dump s
+--         dump s
          set' nextRestart (count + step)
          return True
      | threshold > count && next < count   -> do
          incrementStat s NumOfRestart 1
          incrementStat s NumOfGeometricRestart 1
-         dump s
+--         dump s
          k' <- getStat s NumOfGeometricRestart
          set' nextRestart (count + floor (fromIntegral step * 1.1 ** fromIntegral k'))
          return True
