@@ -100,9 +100,9 @@ graph = function (df, kind, mes, logGraph=FALSE) {
                         color="gray50", size=2.6)
 
     df[["id"]] = gsub("=.+", "", df[["id"]])
-    g2 <- graph(df, "distances", "FORCING RESTART - based on LBD", TRUE)
+    g2 <- graph(df, "distances", "EMA of Literal Block Distance -> forcing restart", TRUE)
     g3 <- graph(df, "distance ratio",  " - LBD evolution ratio", TRUE)
-    g4 <- graph(df, "assigns",   "BLOCKING RESTART - based on assignment", TRUE)
+    g4 <- graph(df, "assigns",   "EMA of Assignment ->  blocking restart", TRUE)
     g5 <- graph(df, "assign ratio",    " - Assignment evolution ratio", TRUE)
 
     grid.newpage()
