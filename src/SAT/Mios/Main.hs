@@ -651,24 +651,6 @@ search s@Solver{..} = do
                               set' learntSCnt $ floor t'
                               -- modify' maxLearnts (* 1.1)
                               modify' maxLearnts (+ 300)
-{-
-                              -- verbose
-                              let q k m = take (k - length m) (repeat ' ') ++ m
-                                  p :: String -> Int -> IO ()
-                                  p "" (show -> i) = putStrLn $ " | prop" ++ q 14 i
-                                  p j (show -> i) = putStr $ j ++ q 8 i
-                              va <- get' trailLim
-                              p "bj/rst/blk/rdc" =<< getStat s NumOfBackjump
-                              p " " =<< getStat s NumOfRestart
-                              p " " =<< getStat s NumOfBlockRestart
-                              p " " =<< getStat s NumOfReduction
-                              p " | var " . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
-                              p " " =<< nAssigns s
-                              p " | clause" =<< get' clauses
-                              p " | learnt" . floor =<< get' maxLearnts
-                              p " " =<< get' learnts
-                              p "" =<< getStat s NumOfPropagation
--}
                             loop =<< checkRestartCondition s lbd'
           else do when (d == 0) . void $ simplifyDB s -- Simplify the set of problem clauses
                   k1 <- get' learnts

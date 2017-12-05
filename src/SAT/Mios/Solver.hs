@@ -45,8 +45,7 @@ module SAT.Mios.Solver
        , getStats
        -- #62
        , checkRestartCondition
-       , dumpHeader
-       , dump
+       , dumpSolver
        )
         where
 
@@ -645,7 +644,6 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   next <- get' nextRestart
   count <- getStat s NumOfBackjump
   nas <- fromIntegral <$> nAssigns s
---  dlv <- fromIntegral <$> decisionLevel s
   let revise a f x  = do f' <- ((a * x) +) . ((1 - a) *) <$> get' f
                          set' f f'
                          return f'
@@ -653,45 +651,58 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   ds <- revise (2 ** (-14)) emaDSlow lbd
   af <- revise (2 ** ( -5)) emaAFast nas
   as <- revise (2 ** (-12)) emaASlow nas
---  dl <- revise (2 ** ( -7)) emaDLvl dlv
   let threshold = 10000
   if | count < next   -> return False
      | threshold < count && af > 1.25 * as -> do
          incrementStat s NumOfBlockRestart 1
-         -- dump s
          set' nextRestart (count + floor (fromIntegral step + 1.1 ** fromIntegral k))
+         when (mod (dumpStat config) 2 ==1) $ dumpSolver DumpCSV s
          return False
      | threshold < count && df > 1.25 * ds -> do
          incrementStat s NumOfRestart 1
---         dump s
          set' nextRestart (count + step)
+         when (mod (dumpStat config) 2 ==1) $ dumpSolver DumpCSV s
          return True
      | threshold > count && next < count   -> do
          incrementStat s NumOfRestart 1
          incrementStat s NumOfGeometricRestart 1
---         dump s
          k' <- getStat s NumOfGeometricRestart
          set' nextRestart (count + floor (fromIntegral step * 1.1 ** fromIntegral k'))
+         when (mod (dumpStat config) 2 ==1) $ dumpSolver DumpCSV s
          return True
      | otherwise      -> do
          return False
 
-dump :: Solver -> IO ()
--- dump _ = return ()
-dump s@Solver{..} = do
-  k <- getStat s NumOfRestart
+-------------------------------------------------------------------------------- dump
+
+{-# INLINABLE dumpSolver #-}
+-- | print statatistic data to stdio. This should be called after each restart.
+dumpSolver :: DumpMode -> Solver -> IO ()
+
+dumpSolver NoDump _ = return ()
+
+dumpSolver DumpCSVHeader s@Solver{..} = do
+  sts <- init <$> getStats s
+  let labels = map (show . fst) sts  ++ ["emaDFast", "emaDSlow", "emaAFast", "emaASlow"]
+  putStrLn $ intercalate "," labels
+
+dumpSolver DumpCSV s@Solver{..} = do
+  -- First update the stat data
   df <- get' emaDFast
   ds <- get' emaDSlow
   af <- get' emaAFast
   as <- get' emaASlow
   sts <- init <$> getStats s
+  va <- get' trailLim
+  setStat s NumOfVariable . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
+  setStat s NumOfAssigned =<< nAssigns s
+  setStat s NumOfClause =<< get' clauses
+  setStat s NumOfLearnt =<< get' learnts
+  -- Additional data which type is Double
   let emas = [("emaDFast", df), ("emaDSlow", ds), ("emaAFast", af), ("emaASlow", as)]
       fs x = showFFloat (Just 3) x ""
       vals = map (show . snd) sts ++ map (fs . snd) emas
   putStrLn $ intercalate "," vals
 
-dumpHeader :: Solver -> IO ()
-dumpHeader s@Solver{..} = do
-  sts <- init <$> getStats s
-  let labels = map (show . fst) sts  ++ ["emaDFast", "emaDSlow", "emaAFast", "emaASlow"]
-  putStrLn $ intercalate "," labels
+-- | FIXME: use Util/Stat
+dumpSolver DumpJSON _ = return ()                -- mode 2: JSON
