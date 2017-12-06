@@ -51,7 +51,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "mios-1.5.3WIP #58 -- https://github.com/shnarazk/mios"
+versionId = "mios-1.5.3WIP #58 #59ERA -- https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ 0 = return 0
@@ -140,6 +140,18 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKille
     putStr $ "\"" ++ cnfFile ++ "\","
     putStr $ if valid then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "" else show (_confBenchmark opts)
     putStrLn $ "," ++ (if valid then "1" else "0")
+  when (0 < _expDumpAS opts && result) $ do
+    putStrLn "# id           , conflict index, decision level , restart, reduction, target"
+    putStrLn "# \"RESTART\"  , conflict Index, restart Index  , restart, 0        , sum"
+    putStrLn "# \"REDUCTION\", conflict Index, reduction Index, 0      , simplify , sum"
+    putStrLn "config,ci,level,d0,d1,d2"
+    let conf = toMiosConf opts
+    s' <- newSolver (conf { expDumpAS = _expDumpAS opts }) desc
+    injectClausesFromCNF s' desc cls
+    let loop _ [] = return ()
+        loop i (x:l) = setNth (assignsTrg s') i (signum x) >> loop (i + 1) l
+    loop 1 =<< getModel s
+    void $ solve s' []
 
 executeSolver _ = return ()
 

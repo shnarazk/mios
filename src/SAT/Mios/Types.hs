@@ -252,6 +252,8 @@ data MiosConfiguration = MiosConfiguration
                          {
                            variableDecayRate  :: !Double  -- ^ decay rate for variable activity
                          , clauseDecayRate    :: !Double  -- ^ decay rate for clause activity
+                         , expConfig          :: !Int     -- #59
+                         , expDumpAS          :: !Int     -- #59
                          }
   deriving (Eq, Ord, Read, Show)
 
@@ -263,7 +265,7 @@ data MiosConfiguration = MiosConfiguration
 -- * Mios-1.2     uses @(0.95, 0.999, 0)@.
 --
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 0.999
+defaultConfiguration = MiosConfiguration 0.95 0.999 0 0
 
 -------------------------------------------------------------------------------- Statistics
 
@@ -272,6 +274,8 @@ data StatIndex =
     NumOfBackjump               -- ^ the number of backjump
   | NumOfRestart                -- ^ the number of restart
   | NumOfPropagation            -- ^ the number of propagation
+  | NumOfPureLitElimination     -- ^ the number of pure literal elimination
+  | NumOfBinaryClause           -- ^ the number of binary learnt clause
   | EndOfStatIndex              -- ^ Don't use this dummy.
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 

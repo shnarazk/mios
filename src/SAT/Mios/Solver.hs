@@ -32,10 +32,11 @@ module SAT.Mios.Solver
          -- * Activities
        , claBumpActivity
        , claDecayActivity
---       , claRescaleActivityAfterRestart
+       , claResetActivityAfterRestart
 --       , claActivityThreshold
        , varBumpActivity
        , varDecayActivity
+       , varResetActivityAfterRestart
          -- * Stats
        , StatIndex (..)
        , getStat
@@ -98,6 +99,14 @@ data Solver = Solver
               , stats      :: !(Vec [Int])       -- ^ statistics information holder
               , lbd'seen   :: !(Vec Int)         -- ^ used in lbd computation
               , lbd'key    :: !Int'              -- ^ used in lbd computation
+              , lastNBC    :: !Int'              -- ^ used in restart#59
+              , accAssigns :: !(Vec Int)         -- ^ used in #59
+              , tmpAssigns :: !(Vec Int)         -- ^ used in #59
+              , assignsRdc :: !(Vec Int)         -- ^ used in #59
+              , assignsRst :: !(Vec Int)         -- ^ used in #59
+              , assignsTrg :: !(Vec Int)         -- ^ used in #59
+              , accRDS     :: !Double'           -- ^ used in #59
+              , accSDS     :: !Double'           -- ^ used in #59
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
@@ -145,6 +154,14 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> newVec (fromEnum EndOfStatIndex) 0 -- stats
     <*> newVec nv 0                        -- lbd'seen
     <*> new' 0                             -- lbd'key
+    <*> new' 0                             -- lastNBC
+    <*> newVec nv LBottom                  -- accAssigns
+    <*> newVec nv LBottom                  -- tmpAssigns
+    <*> newVec nv LBottom                  -- assignsRst
+    <*> newVec nv LBottom                  -- assignsSmp
+    <*> newVec nv LBottom                  -- assignsTrg
+    <*> new' 0                             -- accRDS
+    <*> new' 0                             -- accSDS
 
 --------------------------------------------------------------------------------
 -- Accessors
@@ -462,6 +479,15 @@ varRescaleActivity Solver{..} = do
   loop 1
   modify' varInc (/ varActivityThreshold)
 
+-- | #59
+{-# INLINABLE varResetActivityAfterRestart #-}
+varResetActivityAfterRestart :: Solver -> IO ()
+varResetActivityAfterRestart Solver{..} = do
+  let
+    loop ((<= nVars) -> False) = return ()
+    loop i = setNth activities i 0 >> loop (i + 1)
+  loop 1
+
 -- | value for rescaling clause activity.
 claActivityThreshold :: Double
 claActivityThreshold = 1e20
@@ -495,10 +521,10 @@ claRescaleActivity Solver{..} = do
   loopOnVector 0
   modify' claInc (/ claActivityThreshold)
 
--- | __Fig. 14 (p.19)__
-{-# INLINABLE claRescaleActivityAfterRestart #-}
-claRescaleActivityAfterRestart :: Solver -> IO ()
-claRescaleActivityAfterRestart Solver{..} = do
+-- | #59
+{-# INLINABLE claResetActivityAfterRestart #-}
+claResetActivityAfterRestart :: Solver -> IO ()
+claResetActivityAfterRestart Solver{..} = do
   vec <- getClauseVector learnts
   n <- get' learnts
   let
@@ -506,11 +532,7 @@ claRescaleActivityAfterRestart Solver{..} = do
     loopOnVector ((< n) -> False) = return ()
     loopOnVector i = do
       c <- getNth vec i
-      d <- get' c
-      if d < 9
-        then modify' (activity c) sqrt
-        else set' (activity c) 0
-      -- set' (protected c) False
+      set' (activity c) 0
       loopOnVector $ i + 1
   loopOnVector 0
 
