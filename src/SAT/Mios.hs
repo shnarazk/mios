@@ -94,7 +94,7 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKille
   when (_confVerbose opts) $ do
     nc <- nClauses s
     hPutStrLn stderr $ cnfFile ++ " was loaded: #v = " ++ show (nVars s, _numberOfVariables desc) ++ " #c = " ++ show (nc, _numberOfClauses desc)
-  when (_confVerbose opts) $ dumpHeader s
+  when (mod (_confDumpStat opts) 2 == 1) $ dumpSolver DumpCSVHeader s
   result <- solve s []
   when (0 < _confBenchmark opts) $ do
     turn <- swapMVar token LiftedT
@@ -141,7 +141,8 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKille
     putStr $ "\"" ++ cnfFile ++ "\","
     putStr $ if valid then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "" else show (_confBenchmark opts)
     putStrLn $ "," ++ (if valid then "1" else "0")
-  when (_confVerbose opts) $ dump s
+  when (mod (_confDumpStat opts) 2 == 1) $ dumpSolver DumpCSV s
+  when (mod (_confDumpStat opts) 4 == 1) $ dumpSolver DumpJSON s
 
 executeSolver _ = return ()
 
