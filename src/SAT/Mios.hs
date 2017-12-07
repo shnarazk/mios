@@ -94,53 +94,48 @@ executeSolver _ = return ()
 
 reportResult :: MiosProgramOption -> CNFDescription -> B.ByteString -> Integer -> Maybe Solver -> IO ()
 reportResult opts@(_targetFile -> Just cnfFile) _ _ _ Nothing = do
- putStr $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
- putStr $ (show (_confBenchSeq opts)) ++ ","
- putStr $ "\"" ++ cnfFile ++ "\","
- putStr $ show (_confBenchmark opts)
- putStrLn $ ",0"
+ putStrLn $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
+   ++ (show (_confBenchSeq opts)) ++ ","
+   ++ "\"" ++ cnfFile ++ "\","
+   ++ show (_confBenchmark opts) ++ ",0"
 
 reportResult opts@(_targetFile -> Just cnfFile) desc cls t0 (Just s) = do
   t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
-  result <- (LiftedT ==) <$> get' (ok s)
-  case result of
+  satisfiable <- get' (ok s)
+  case satisfiable of
     _ | 0 <= _confBenchmark opts -> return ()
-    True  | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "SATISFIABLE"
-    False | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "UNSATISFIABLE"
-    True  -> print =<< getModel s
-    False -> do          -- contradiction
+    LiftedT | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "SATISFIABLE"
+    LiftedF | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "UNSATISFIABLE"
+    LiftedT -> print =<< getModel s
+    LiftedF -> do          -- contradiction
       -- FIXME in future
       when (_confVerbose opts) $ hPutStrLn stderr "UNSAT"
       -- print =<< map lit2int <$> asList (conflict s)
       putStrLn "[]"
   case _outputFile opts of
-    Just fname -> dumpAssigmentAsCNF fname result =<< getModel s
+    Just fname -> dumpAssigmentAsCNF fname (LiftedT == satisfiable) =<< getModel s
     Nothing -> return ()
-  when (result && _confCheckAnswer opts) $ do
-    asg <- getModel s
-    s' <- newSolver (toMiosConf opts) desc
-    injectClausesFromCNF s' desc cls
-    good <- validate s' asg
+  valid <- if (_confCheckAnswer opts) || (0 <= _confBenchmark opts)
+           then do case satisfiable of
+                     LiftedT -> do asg <- getModel s
+                                   s' <- newSolver (toMiosConf opts) desc
+                                   injectClausesFromCNF s' desc cls
+                                   validate s' asg
+                     LiftedF -> return True
+                     _ -> return False
+           else return True
+  when (_confCheckAnswer opts) $ do
     if _confVerbose opts
-      then hPutStrLn stderr $ if good then "A vaild answer" else "Internal error: mios returns a wrong answer"
-      else unless good $ hPutStrLn stderr "Internal error: mios returns a wrong answer"
+      then hPutStrLn stderr $ if valid then "A vaild answer" else "Internal error: mios returns a wrong answer"
+      else unless valid $ hPutStrLn stderr "Internal error: mios returns a wrong answer"
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Validate: ") t2
-  -- void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
   when (0 <= _confBenchmark opts) $ do
     let fromPico = 1000000000000 :: Double
-    ret <- get' (ok s)
-    valid <- case ret of
-               LiftedT | result -> do asg <- getModel s
-                                      s' <- newSolver (toMiosConf opts) desc
-                                      injectClausesFromCNF s' desc cls
-                                      validate s' asg
-               LiftedF | not result -> return True
-               _ -> return False
-    putStr $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
-    putStr $ (show (_confBenchSeq opts)) ++ ","
-    putStr $ "\"" ++ cnfFile ++ "\","
-    putStr $ if valid then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "" else show (_confBenchmark opts)
-    putStrLn $ "," ++ (if valid then "1" else "0")
+    putStrLn $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
+      ++ (show (_confBenchSeq opts)) ++ ","
+      ++ "\"" ++ cnfFile ++ "\","
+      ++ if valid then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "" else show (_confBenchmark opts)
+      ++ "," ++ (if valid then "1" else "0")
   when (0 < _confDumpStat opts) $ dumpSolver DumpCSV s
 
 reportResult _  _ _  _ _ = return ()
