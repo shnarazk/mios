@@ -676,9 +676,8 @@ search s@Solver{..} = do
                              toggleAt :: Int -> IO ()
                              toggleAt ((<= nv) -> False) = return ()
                              toggleAt i = modifyNth phases toggle i >> toggleAt (i + 1)
-                         -- ss <- getStat s NumOfRestart
-                         -- sb <- getStat s NumOfBlockRestart
-                         -- when (sb < ss) $ toggleAt 1
+                         rm <- get' restartMode
+                         when (rm == 1) $ toggleAt 1
                          loop False
                      | otherwise -> do                -- | New variable decision
                          v <- select s
