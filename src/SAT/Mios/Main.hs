@@ -656,7 +656,9 @@ search s@Solver{..} = do
                   k1 <- get' learnts
                   k2 <- nAssigns s
                   nl <- floor <$> get' maxLearnts
-                  when (nl < k1 - k2) $ reduceDB s    -- Reduce the set of learnt clauses.
+                  when (nl < k1 - k2) $ do
+                    reduceDB s    -- Reduce the set of learnt clauses.
+                    when (2 == dumpStat config) $ dumpSolver DumpCSV s
                   if | k2 == nVars -> do              -- | Model found:
                          let toInt :: Var -> IO Lit
                              toInt v = (\p -> if LiftedT == p then v else negate v) <$> valueVar s v

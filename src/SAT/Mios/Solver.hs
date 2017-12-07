@@ -661,17 +661,17 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
          incrementStat s NumOfGeometricRestart 1
          k' <- getStat s NumOfGeometricRestart
          set' nextRestart (count + floor (fromIntegral step * 1.1 ** fromIntegral k'))
-         when (2 == dumpStat config) $ dumpSolver DumpCSV s
+         when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
      | 1.25 * as < af -> do
          incrementStat s NumOfBlockRestart 1
          set' nextRestart (count + floor (fromIntegral step + 1.1 ** fromIntegral k))
-         when (2 == dumpStat config) $ dumpSolver DumpCSV s
+         when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
      | 1.25 * ds < df -> do
          incrementStat s NumOfRestart 1
          set' nextRestart (count + step)
-         when (2 == dumpStat config) $ dumpSolver DumpCSV s
+         when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
      | otherwise      -> do
          return False
