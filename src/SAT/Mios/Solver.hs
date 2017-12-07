@@ -123,7 +123,7 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> newStack nv                        -- coflict
     -- Clause Database
     <*> newManager dummy_nc                -- clauses
-    <*> newManager dummy_nc                -- learnts
+    <*> newManager 2000                    -- learnts
     <*> newWatcherList nv 2                -- watches
     -- Assignment Management
     <*> newVec nv LBottom                  -- assigns

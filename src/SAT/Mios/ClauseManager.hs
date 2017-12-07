@@ -276,8 +276,9 @@ type WatcherList = V.Vector ClauseExtManager
 
 -- | /n/ is the number of 'Var', /m/ is default size of each watcher list.
 -- | For /n/ vars, we need [0 .. 2 + 2 * n - 1] slots, namely /2 * (n + 1)/-length vector
+-- FIXME: sometimes n > 1M
 newWatcherList :: Int -> Int -> IO WatcherList
-newWatcherList n m = V.fromList <$> mapM (\_ -> newManager m) [0 .. int2lit (negate n) + 1]
+newWatcherList n m = V.replicateM (int2lit (negate n) + 2) (newManager m)
 
 -- | returns the watcher List for "Literal" /l/.
 {-# INLINE getNthWatcher #-}
