@@ -73,38 +73,34 @@ executeSolver :: MiosProgramOption -> IO ()
 executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKilled -> exitWith (ExitFailure 1)) $ do
   t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
   (desc, cls) <- parseCNF target <$> B.readFile cnfFile
-  when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
-  s <- newSolver (toMiosConf opts) desc
-  injectClausesFromCNF s desc cls
-  void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
-  when (_confVerbose opts) $ do
-    nc <- nClauses s
-    hPutStrLn stderr $ cnfFile ++ " was loaded: #v = " ++ show (nVars s, _numberOfVariables desc) ++ " #c = " ++ show (nc, _numberOfClauses desc)
-  when (0 < _confDumpStat opts) $ dumpSolver DumpCSVHeader s
-
-  token <- newEmptyMVar --  :: IO (MVar LiftedBool)
+  -- when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
+  token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
   solverId <- myThreadId
-  handle (\ThreadKilled -> reportResult opts desc cls s t0 =<< readMVar token) $ do
+  handle (\ThreadKilled -> reportResult opts desc cls 0 =<< readMVar token) $ do
     when (0 < _confBenchmark opts) $
       void $ forkIO $ do let fromMicro = 1000000 :: Int
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
-                         putMVar token LiftedF
+                         putMVar token Nothing
                          killThread solverId
+    s <- newSolver (toMiosConf opts) desc
+    injectClausesFromCNF s desc cls
+    void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
+    when (0 < _confDumpStat opts) $ dumpSolver DumpCSVHeader s
     void $ solve s []
-    putMVar token LiftedT
+    putMVar token (Just s)
     killThread solverId
 
 executeSolver _ = return ()
 
-reportResult :: MiosProgramOption -> CNFDescription -> B.ByteString -> Solver -> Integer -> LiftedBool -> IO ()
-reportResult opts@(_targetFile -> Just cnfFile) _ _  _ _ LiftedF = do
+reportResult :: MiosProgramOption -> CNFDescription -> B.ByteString -> Integer -> Maybe Solver -> IO ()
+reportResult opts@(_targetFile -> Just cnfFile) _ _ _ Nothing = do
  putStr $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
  putStr $ (show (_confBenchSeq opts)) ++ ","
  putStr $ "\"" ++ cnfFile ++ "\","
  putStr $ show (_confBenchmark opts)
  putStrLn $ ",0"
 
-reportResult opts@(_targetFile -> Just cnfFile) desc cls s t0 LiftedT = do
+reportResult opts@(_targetFile -> Just cnfFile) desc cls t0 (Just s) = do
   t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
   result <- (LiftedT ==) <$> get' (ok s)
   case result of
@@ -147,7 +143,7 @@ reportResult opts@(_targetFile -> Just cnfFile) desc cls s t0 LiftedT = do
     putStrLn $ "," ++ (if valid then "1" else "0")
   when (0 < _confDumpStat opts) $ dumpSolver DumpCSV s
 
-reportResult _  _ _  _ _ _ = return ()
+reportResult _  _ _  _ _ = return ()
 
 -- | new top-level interface that returns:
 --
