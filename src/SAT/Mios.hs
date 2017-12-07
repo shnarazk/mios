@@ -76,7 +76,7 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKille
   -- when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
   token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
   solverId <- myThreadId
-  handle (\ThreadKilled -> reportResult opts desc cls 0 =<< readMVar token) $ do
+  handle (\ThreadKilled -> reportResult opts desc cls t0 =<< readMVar token) $ do
     when (0 < _confBenchmark opts) $
       void $ forkIO $ do let fromMicro = 1000000 :: Int
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
