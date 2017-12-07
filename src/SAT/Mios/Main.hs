@@ -668,6 +668,7 @@ search s@Solver{..} = do
                      | restart -> do                  -- | Reached bound on number of conflicts
                          (s `cancelUntil`) =<< get' rootLevel -- force a restart
                          -- claRescaleActivityAfterRestart s
+{-
                          let toggle :: Int -> Int
                              toggle LiftedT = LiftedF
                              toggle LiftedF = LiftedT
@@ -678,6 +679,7 @@ search s@Solver{..} = do
                              toggleAt i = modifyNth phases toggle i >> toggleAt (i + 1)
                          rm <- get' restartMode
                          when (rm == 1) $ toggleAt 1
+-}
                          loop False
                      | otherwise -> do                -- | New variable decision
                          v <- select s
