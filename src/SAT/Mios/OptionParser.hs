@@ -31,8 +31,6 @@ data MiosProgramOption = MiosProgramOption
 --                     , _confRandomDecisionRate :: Int
                      , _confCheckAnswer :: !Bool
                      , _confVerbose :: !Bool
-                     , _confTimeProbe :: !Bool
-                     , _confStatProbe :: !Bool
                      , _confBenchmark :: Integer
                      , _confBenchSeq :: !Int
                      , _confNoAnswer :: !Bool
@@ -54,8 +52,6 @@ miosDefaultOption = MiosProgramOption
 --  , _confRandomDecisionRate = randomDecisionRate defaultConfiguration
   , _confCheckAnswer = False
   , _confVerbose = False
-  , _confTimeProbe = False
-  , _confStatProbe = False
   , _confBenchmark = -1
   , _confBenchSeq = 0
   , _confNoAnswer = False
@@ -98,12 +94,6 @@ miosOptions =
   , Option ['X'] ["hide-solution"]
     (NoArg (\c -> c { _confNoAnswer = True }))
     "[option] hide solution"
-  , Option [] ["time"]
-    (NoArg (\c -> c { _confTimeProbe = True }))
-    "[option] display execution time"
-  , Option [] ["stat"]
-    (NoArg (\c -> c { _confStatProbe = True }))
-    "[option] display statistics information"
   , Option [] ["benchmark"]
     (ReqArg (\v c -> c { _confBenchmark = read v }) "-1/0/N")
     "[devel] No/Exhaustive/N-second timeout benchmark"

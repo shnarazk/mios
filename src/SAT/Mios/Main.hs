@@ -719,6 +719,7 @@ solve s@Solver{..} assumps = do
     then do set' rootLevel =<< decisionLevel s
             status <- search s
             cancelUntil s 0
+            set' ok $ if status then LiftedT else LBottom
             return status
     else return False
 
