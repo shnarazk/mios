@@ -1,5 +1,6 @@
 {-# LANGUAGE
     BangPatterns
+  , LambdaCase
   , ViewPatterns
 #-}
 {-# LANGUAGE Safe #-}
@@ -48,6 +49,10 @@ import SAT.Mios.Main
 import SAT.Mios.OptionParser
 import SAT.Mios.Validator
 
+-- import qualified Data.Vector.Storable as VS
+-- import SAT.Mios.ClauseManager
+-- import Foreign.StablePtr
+
 -- | version name
 versionId :: String
 versionId = "mios-1.5.3 -- https://github.com/shnarazk/mios"
@@ -70,20 +75,33 @@ executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just pat
 -- | executes a solver on the given 'arg :: MiosConfiguration'.
 -- This is another entry point for standalone programs.
 executeSolver :: MiosProgramOption -> IO ()
-executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKilled -> exitWith (ExitFailure 1)) $ do
+executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
   t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
   (desc, cls) <- parseCNF target <$> B.readFile cnfFile
   -- when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
   token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
   solverId <- myThreadId
-  handle (\ThreadKilled -> reportResult opts desc cls t0 =<< readMVar token) $ do
+  handle (\case
+             UserInterrupt -> putStrLn "User interrupt recieved."
+             ThreadKilled  -> reportResult opts desc cls t0 =<< readMVar token
+             e -> print e) $ do
     when (0 < _confBenchmark opts) $
       void $ forkIO $ do let fromMicro = 1000000 :: Int
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
                          putMVar token Nothing
                          killThread solverId
+    when (1000000 < _numberOfVariables desc || 10000000 < _numberOfClauses desc) $ do
+      if -1 == _confBenchmark opts
+        then errorWithoutStackTrace $ "ABORT: too big CNF = " ++ show desc
+        else putMVar token Nothing >> killThread solverId
+    -- t <- VS.replicateM (int2lit (_numberOfVariables desc) + 2) (newStablePtr =<< (newManager 2 :: IO ClauseExtManager))
+    -- t1 <- get' =<< deRefStablePtr (VS.unsafeIndex t 43)
+    -- e1 <- reportElapsedTime True ("Storable" ++ show (int2lit (_numberOfVariables desc) + 2) ++ ": ") t0
     s <- newSolver (toMiosConf opts) desc
+    -- e2 <- reportElapsedTime True "Build new solver: " e1
+    killThread solverId
     injectClausesFromCNF s desc cls
+    -- reportElapsedTime True "Inject clauses: " e2
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
     when (0 < _confDumpStat opts) $ dumpSolver DumpCSVHeader s
     void $ solve s []
