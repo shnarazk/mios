@@ -1,6 +1,7 @@
 -- | This is a part of MIOS.
 {-# LANGUAGE
     BangPatterns
+  , MultiWayIf
   , RecordWildCards
   , ScopedTypeVariables
   , TupleSections
@@ -42,10 +43,15 @@ module SAT.Mios.Solver
        , setStat
        , incrementStat
        , getStats
+       -- #62
+       , checkRestartCondition
+       , dumpSolver
        )
         where
 
 import Control.Monad (unless, when)
+import Data.List (intercalate)
+import Numeric (showFFloat)
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -98,6 +104,14 @@ data Solver = Solver
               , stats      :: !(Vec [Int])       -- ^ statistics information holder
               , lbd'seen   :: !(Vec Int)         -- ^ used in lbd computation
               , lbd'key    :: !Int'              -- ^ used in lbd computation
+              -- #62
+              , emaDFast    :: !Double'
+              , emaDSlow    :: !Double'
+              , emaAFast    :: !Double'
+              , emaASlow    :: !Double'
+--              , emaDLvl    :: !Double'
+              , nextRestart:: !Int'
+              , restartMode:: Int'
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
@@ -109,7 +123,7 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> newStack nv                        -- coflict
     -- Clause Database
     <*> newManager dummy_nc                -- clauses
-    <*> newManager dummy_nc                -- learnts
+    <*> newManager 2000                    -- learnts
     <*> newWatcherList nv 2                -- watches
     -- Assignment Management
     <*> newVec nv LBottom                  -- assigns
@@ -132,7 +146,7 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     -- Learnt DB Size Adjustment
     <*> new' 100                           -- learntSAdj
     <*> new' 100                           -- learntSCnt
-    <*> new' 100                           -- maxLearnts
+    <*> new' 2000                          -- maxLearnts
     -- Working Memory
     <*> new' LiftedT                       -- ok
     <*> newVec nv 0                        -- an'seen
@@ -145,6 +159,14 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> newVec (fromEnum EndOfStatIndex) 0 -- stats
     <*> newVec nv 0                        -- lbd'seen
     <*> new' 0                             -- lbd'key
+    -- #62
+    <*> new' 0.0                           -- emaDFast
+    <*> new' 0.0                           -- emaDSlow
+    <*> new' 0.0                           -- emaAFast
+    <*> new' 0.0                           -- emaASlow
+--    <*> new' 0.0                           -- emaDLvl
+    <*> new' 100                           -- nextRestart
+    <*> new' 1                             -- restartMode
 
 --------------------------------------------------------------------------------
 -- Accessors
@@ -248,13 +270,12 @@ clauseNew s@Solver{..} ps isLearnt = do
         | j > n = return False
         | otherwise = do
             y <- getNth ps j
-            case () of
-             _ | y == l -> do             -- finds a duplicate
+            if | y == l    -> do                      -- finds a duplicate
                    swapBetween ps j n
                    modifyNth ps (subtract 1) 0
                    handle j l (n - 1)
-             _ | - y == l -> reset ps >> return True -- p and negateLit p occurs in ps
-             _ -> handle (j + 1) l n
+               | - y == l  -> reset ps >> return True -- p and negateLit p occurs in ps
+               | otherwise -> handle (j + 1) l n
       loopForLearnt :: Int -> IO Bool
       loopForLearnt i = do
         n <- get' ps
@@ -616,3 +637,75 @@ getHeapRoot s@(order -> VarHeap to at) = do
   n <- getNth to 0
   when (1 < n) $ percolateDown s 1
   return r
+
+-- | #62
+checkRestartCondition :: Solver -> Int -> IO Bool
+checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
+  k <- getStat s NumOfRestart
+  let step = 100
+  next <- get' nextRestart
+  count <- getStat s NumOfBackjump
+  nas <- fromIntegral <$> nAssigns s
+  let revise a f x  = do f' <- ((a * x) +) . ((1 - a) *) <$> get' f
+                         set' f f'
+                         return f'
+  df <- revise (2 ** ( -5)) emaDFast lbd
+  ds <- revise (2 ** (-14)) emaDSlow lbd
+  af <- revise (2 ** ( -5)) emaAFast nas
+  as <- revise (2 ** (-12)) emaASlow nas
+  mode <- get' restartMode
+  if | count < next   -> return False
+     | mode == 1      -> do
+         when (2 ^ 14 < count && df < 2.0 * ds) $ set' restartMode 2 -- enter the second mode
+         incrementStat s NumOfRestart 1
+         incrementStat s NumOfGeometricRestart 1
+         k' <- getStat s NumOfGeometricRestart
+         set' nextRestart (count + floor (fromIntegral step * 1.1 ** fromIntegral k'))
+         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+         return True
+     | 1.25 * as < af -> do
+         incrementStat s NumOfBlockRestart 1
+         set' nextRestart (count + floor (fromIntegral step + 1.1 ** fromIntegral k))
+         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+         return False
+     | 1.25 * ds < df -> do
+         incrementStat s NumOfRestart 1
+         set' nextRestart (count + step)
+         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+         return True
+     | otherwise      -> do
+         return False
+
+-------------------------------------------------------------------------------- dump
+
+{-# INLINABLE dumpSolver #-}
+-- | print statatistic data to stdio. This should be called after each restart.
+dumpSolver :: DumpMode -> Solver -> IO ()
+
+dumpSolver NoDump _ = return ()
+
+dumpSolver DumpCSVHeader s@Solver{..} = do
+  sts <- init <$> getStats s
+  let labels = map (show . fst) sts  ++ ["emaDFast", "emaDSlow", "emaAFast", "emaASlow"]
+  putStrLn $ intercalate "," labels
+
+dumpSolver DumpCSV s@Solver{..} = do
+  -- First update the stat data
+  df <- get' emaDFast
+  ds <- get' emaDSlow
+  af <- get' emaAFast
+  as <- get' emaASlow
+  sts <- init <$> getStats s
+  va <- get' trailLim
+  setStat s NumOfVariable . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
+  setStat s NumOfAssigned =<< nAssigns s
+  setStat s NumOfClause =<< get' clauses
+  setStat s NumOfLearnt =<< get' learnts
+  -- Additional data which type is Double
+  let emas = [("emaDFast", df), ("emaDSlow", ds), ("emaAFast", af), ("emaASlow", as)]
+      fs x = showFFloat (Just 3) x ""
+      vals = map (show . snd) sts ++ map (fs . snd) emas
+  putStrLn $ intercalate "," vals
+
+-- | FIXME: use Util/Stat
+dumpSolver DumpJSON _ = return ()                -- mode 2: JSON

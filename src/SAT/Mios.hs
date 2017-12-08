@@ -31,13 +31,12 @@ module SAT.Mios
        )
        where
 
-import Control.Concurrent
-import Control.Concurrent.MVar
+import Control.Concurrent (forkIO, killThread, myThreadId, threadDelay
+                          , newEmptyMVar, putMVar, readMVar)
 import Control.Exception
 import Control.Monad ((<=<), unless, void, when)
 import Data.Char
 import qualified Data.ByteString.Char8 as B
-import Data.List
 import Numeric (showFFloat)
 import System.CPUTime
 import System.Exit
@@ -51,7 +50,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "mios-1.5.3WIP #58 -- https://github.com/shnarazk/mios"
+versionId = "mios-1.5.3WIP#58#62EMA -- https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ 0 = return 0
@@ -72,76 +71,74 @@ executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just pat
 -- This is another entry point for standalone programs.
 executeSolver :: MiosProgramOption -> IO ()
 executeSolver opts@(_targetFile -> target@(Just cnfFile)) = handle (\ThreadKilled -> exitWith (ExitFailure 1)) $ do
-  token <- newMVar LBottom
-  when (0 < _confBenchmark opts) $ do
-    solverID <- myThreadId
-    void $ forkIO $ do let fromMicro = 1000000 :: Int
-                       threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
-                       turn <- swapMVar token LiftedF
-                       when (turn == LBottom) $ do
-                         killThread solverID
-                         putStr $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
-                         putStr $ (show (_confBenchSeq opts)) ++ ","
-                         putStr $ "\"" ++ cnfFile ++ "\","
-                         putStr $ show (_confBenchmark opts)
-                         putStrLn $ ",0"
-  t0 <- reportElapsedTime False "" $ if _confTimeProbe opts || 0 <= _confBenchmark opts then -1 else 0
+  t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
   (desc, cls) <- parseCNF target <$> B.readFile cnfFile
-  when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
-  s <- newSolver (toMiosConf opts) desc
-  injectClausesFromCNF s desc cls
-  t1 <- reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
-  when (_confVerbose opts) $ do
-    nc <- nClauses s
-    hPutStrLn stderr $ cnfFile ++ " was loaded: #v = " ++ show (nVars s, _numberOfVariables desc) ++ " #c = " ++ show (nc, _numberOfClauses desc)
-  result <- solve s []
-  when (0 < _confBenchmark opts) $ do
-    turn <- swapMVar token LiftedT
-    unless (turn == LBottom) $ threadDelay 10000000 >> exitWith (ExitFailure 1) -- let it kill me before suicide
-  t2 <- reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Solve: ") t1
-  case result of
+  -- when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
+  token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
+  solverId <- myThreadId
+  handle (\ThreadKilled -> reportResult opts desc cls t0 =<< readMVar token) $ do
+    when (0 < _confBenchmark opts) $
+      void $ forkIO $ do let fromMicro = 1000000 :: Int
+                         threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
+                         putMVar token Nothing
+                         killThread solverId
+    s <- newSolver (toMiosConf opts) desc
+    injectClausesFromCNF s desc cls
+    void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
+    when (0 < _confDumpStat opts) $ dumpSolver DumpCSVHeader s
+    void $ solve s []
+    putMVar token (Just s)
+    killThread solverId
+
+executeSolver _ = return ()
+
+reportResult :: MiosProgramOption -> CNFDescription -> B.ByteString -> Integer -> Maybe Solver -> IO ()
+reportResult opts@(_targetFile -> Just cnfFile) _ _ _ Nothing = do
+ putStrLn $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
+   ++ (show (_confBenchSeq opts)) ++ ","
+   ++ "\"" ++ cnfFile ++ "\","
+   ++ show (_confBenchmark opts) ++ ",0"
+
+reportResult opts@(_targetFile -> Just cnfFile) desc cls t0 (Just s) = do
+  t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
+  satisfiable <- get' (ok s)
+  case satisfiable of
     _ | 0 <= _confBenchmark opts -> return ()
-    True  | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "SATISFIABLE"
-    False | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "UNSATISFIABLE"
-    True  -> print =<< getModel s
-    False -> do          -- contradiction
+    LiftedT | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "SATISFIABLE"
+    LiftedF | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "UNSATISFIABLE"
+    LiftedT -> print =<< getModel s
+    LiftedF -> do          -- contradiction
       -- FIXME in future
       when (_confVerbose opts) $ hPutStrLn stderr "UNSAT"
       -- print =<< map lit2int <$> asList (conflict s)
       putStrLn "[]"
   case _outputFile opts of
-    Just fname -> dumpAssigmentAsCNF fname result =<< getModel s
+    Just fname -> dumpAssigmentAsCNF fname (LiftedT == satisfiable) =<< getModel s
     Nothing -> return ()
-  when (result && _confCheckAnswer opts) $ do
-    asg <- getModel s
-    s' <- newSolver (toMiosConf opts) desc
-    injectClausesFromCNF s' desc cls
-    good <- validate s' asg
+  valid <- if (_confCheckAnswer opts) || (0 <= _confBenchmark opts)
+           then do case satisfiable of
+                     LiftedT -> do asg <- getModel s
+                                   s' <- newSolver (toMiosConf opts) desc
+                                   injectClausesFromCNF s' desc cls
+                                   validate s' asg
+                     LiftedF -> return True
+                     _ -> return False
+           else return True
+  when (_confCheckAnswer opts) $ do
     if _confVerbose opts
-      then hPutStrLn stderr $ if good then "A vaild answer" else "Internal error: mios returns a wrong answer"
-      else unless good $ hPutStrLn stderr "Internal error: mios returns a wrong answer"
-    void $ reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Validate: ") t2
-  void $ reportElapsedTime (_confTimeProbe opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
-  when (_confStatProbe opts) $ do
-    hPutStrLn stderr $ "## [" ++ showPath cnfFile ++ "]"
-    hPutStrLn stderr . intercalate "\n" . map (\(k, v) -> show k ++ ": " ++ show v) . init =<< getStats s
+      then hPutStrLn stderr $ if valid then "A vaild answer" else "Internal error: mios returns a wrong answer"
+      else unless valid $ hPutStrLn stderr "Internal error: mios returns a wrong answer"
+    void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Validate: ") t2
   when (0 <= _confBenchmark opts) $ do
     let fromPico = 1000000000000 :: Double
-    ret <- get' (ok s)
-    valid <- case ret of
-               LiftedT | result -> do asg <- getModel s
-                                      s' <- newSolver (toMiosConf opts) desc
-                                      injectClausesFromCNF s' desc cls
-                                      validate s' asg
-               LiftedF | not result -> return True
-               _ -> return False
-    putStr $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
-    putStr $ (show (_confBenchSeq opts)) ++ ","
-    putStr $ "\"" ++ cnfFile ++ "\","
-    putStr $ if valid then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "" else show (_confBenchmark opts)
-    putStrLn $ "," ++ (if valid then "1" else "0")
+    putStrLn $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
+      ++ (show (_confBenchSeq opts)) ++ ","
+      ++ "\"" ++ cnfFile ++ "\","
+      ++ if valid then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "" else show (_confBenchmark opts)
+      ++ "," ++ (if valid then "1" else "0")
+  when (0 < _confDumpStat opts) $ dumpSolver DumpCSV s
 
-executeSolver _ = return ()
+reportResult _  _ _  _ _ = return ()
 
 -- | new top-level interface that returns:
 --

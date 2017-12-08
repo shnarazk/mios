@@ -37,6 +37,7 @@ module SAT.Mios.Types
        , defaultConfiguration
          -- * statistics
        , StatIndex (..)
+       , DumpMode (..)
 {-
          -- * dump statistics
        , DumpTag (..)
@@ -252,6 +253,7 @@ data MiosConfiguration = MiosConfiguration
                          {
                            variableDecayRate  :: !Double  -- ^ decay rate for variable activity
                          , clauseDecayRate    :: !Double  -- ^ decay rate for clause activity
+                         , dumpStat           :: !Int     -- ^ dump stats data during solving
                          }
   deriving (Eq, Ord, Read, Show)
 
@@ -263,7 +265,7 @@ data MiosConfiguration = MiosConfiguration
 -- * Mios-1.2     uses @(0.95, 0.999, 0)@.
 --
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 0.999
+defaultConfiguration = MiosConfiguration 0.95 0.999 0
 
 -------------------------------------------------------------------------------- Statistics
 
@@ -271,8 +273,18 @@ defaultConfiguration = MiosConfiguration 0.95 0.999
 data StatIndex =
     NumOfBackjump               -- ^ the number of backjump
   | NumOfRestart                -- ^ the number of restart
+  | NumOfBlockRestart           -- ^ the number of blacking start
+  | NumOfGeometricRestart       -- ^ the number of classic restart
   | NumOfPropagation            -- ^ the number of propagation
+  | NumOfReduction              -- ^ the number of reduction
+  | NumOfClause                 -- ^ the number of 'alive' given clauses
+  | NumOfLearnt                 -- ^ the number of 'alive' learnt clauses
+  | NumOfVariable               -- ^ the number of 'alive' variables
+  | NumOfAssigned               -- ^ the number of assigned variables
   | EndOfStatIndex              -- ^ Don't use this dummy.
+  deriving (Bounded, Enum, Eq, Ord, Read, Show)
+
+data DumpMode = NoDump | DumpCSVHeader | DumpCSV | DumpJSON
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 
 data DumpTag = TerminateS
