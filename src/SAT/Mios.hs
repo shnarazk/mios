@@ -49,13 +49,12 @@ import SAT.Mios.Main
 import SAT.Mios.OptionParser
 import SAT.Mios.Validator
 
--- import qualified Data.Vector.Storable as VS
--- import SAT.Mios.ClauseManager
--- import Foreign.StablePtr
-
 -- | version name
 versionId :: String
 versionId = "mios-1.5.3 -- https://github.com/shnarazk/mios"
+
+abortSize :: Int
+abortSize = 1000000
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ 0 = return 0
@@ -90,7 +89,7 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
                          putMVar token Nothing
                          killThread solverId
-    when (1000000 < _numberOfVariables desc || 10000000 < _numberOfClauses desc) $ do
+    when (abortSize < _numberOfVariables desc || abortSize < _numberOfClauses desc) $ do
       if -1 == _confBenchmark opts
         then errorWithoutStackTrace $ "ABORT: too big CNF = " ++ show desc
         else putMVar token Nothing >> killThread solverId
@@ -99,7 +98,6 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
     -- e1 <- reportElapsedTime True ("Storable" ++ show (int2lit (_numberOfVariables desc) + 2) ++ ": ") t0
     s <- newSolver (toMiosConf opts) desc
     -- e2 <- reportElapsedTime True "Build new solver: " e1
-    killThread solverId
     injectClausesFromCNF s desc cls
     -- reportElapsedTime True "Inject clauses: " e2
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0

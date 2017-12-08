@@ -341,8 +341,10 @@ clauseNew s@Solver{..} ps isLearnt = do
      -- Add clause to watcher lists:
      l1 <- getNth lstack 1
      l2 <- getNth lstack 2
-     pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
-     pushClauseWithKey (getNthWatcher watches (negateLit l2)) c 0
+     w1 <- getNthWatcher watches (negateLit l1)
+     w2 <- getNthWatcher watches (negateLit l2)
+     pushClauseWithKey w1 c 0
+     pushClauseWithKey w2 c 0
      return (Right c)
 
 -- | __Fig. 9 (p.14)__

@@ -31,9 +31,11 @@ removeWatch :: Solver -> Clause -> IO ()
 removeWatch Solver{..} c = do
   let lstack = lits c
   l1 <- negateLit <$> getNth lstack 1
-  markClause (getNthWatcher watches l1) c
+  w1 <- getNthWatcher watches l1
+  markClause w1 c
   l2 <- negateLit <$> getNth lstack 2
-  markClause (getNthWatcher watches l2) c
+  w2 <- getNthWatcher watches l2
+  markClause w2 c
   putBackToPool clsPool c
 
 --------------------------------------------------------------------------------
@@ -69,8 +71,10 @@ newLearntClause s@Solver{..} ps = do
            pushTo learnts c
            l1 <- getNth lstack 1
            l2 <- getNth lstack 2
-           pushClauseWithKey (getNthWatcher watches (negateLit l1)) c l2
-           pushClauseWithKey (getNthWatcher watches (negateLit l2)) c l1
+           w1 <-getNthWatcher watches (negateLit l1)
+           w2 <- getNthWatcher watches (negateLit l2)
+           pushClauseWithKey w1 c l2
+           pushClauseWithKey w2 c l1
            -- update the solver state by @l@
            unsafeEnqueue s l1 c
            -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
@@ -363,8 +367,8 @@ propagate s@Solver{..} = do
       (p :: Lit) <- getNth trail . (1 +) =<< get' qHead
       modify' qHead (+ 1)
       incrementStat s NumOfPropagation 1
-      let (ws :: ClauseExtManager) = getNthWatcher watches p
-          !falseLit = negateLit p
+      ws <- getNthWatcher watches p
+      let !falseLit = negateLit p
       end <- get' ws
       cvec <- getClauseVector ws
       bvec <- getKeyVector ws
@@ -415,7 +419,8 @@ propagate s@Solver{..} = do
                                                  if lv /= LiftedF
                                                    then do setNth lstack 2 l'
                                                            setNth lstack k falseLit
-                                                           pushClauseWithKey (getNthWatcher watches (negateLit l')) c first
+                                                           w <- getNthWatcher watches (negateLit l')
+                                                           pushClauseWithKey w c first
                                                            return LiftedT  -- found another watch
                                                    else newWatch $! k + 1
                             ret <- newWatch 3

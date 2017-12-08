@@ -28,10 +28,13 @@ module SAT.Mios.ClauseManager
        )
        where
 
-import Control.Monad (unless, when)
+import Control.Monad (unless, when, (<=<))
 import qualified Data.IORef as IORef
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
+import qualified Data.Vector.Storable as VS
+import Foreign.StablePtr
+
 import SAT.Mios.Types
 import qualified SAT.Mios.Clause as C
 
@@ -272,23 +275,25 @@ instance VecFamily ClauseExtManager C.Clause where
 -------------------------------------------------------------------------------- WatcherList
 
 -- | Immutable Vector of 'ClauseExtManager'
-type WatcherList = V.Vector ClauseExtManager
+type WatcherList = VS.Vector (StablePtr ClauseExtManager)
 
 -- | /n/ is the number of 'Var', /m/ is default size of each watcher list.
 -- | For /n/ vars, we need [0 .. 2 + 2 * n - 1] slots, namely /2 * (n + 1)/-length vector
 -- FIXME: sometimes n > 1M
 newWatcherList :: Int -> Int -> IO WatcherList
-newWatcherList n m = V.replicateM (int2lit (negate n) + 2) (newManager m)
+-- newWatcherList n m = V.replicateM (int2lit (negate n) + 2) (newManager m)
+newWatcherList n m = VS.replicateM (int2lit n + 2) (newStablePtr =<< (newManager m))
 
 -- | returns the watcher List for "Literal" /l/.
 {-# INLINE getNthWatcher #-}
-getNthWatcher :: WatcherList -> Lit -> ClauseExtManager
-getNthWatcher = V.unsafeIndex
+getNthWatcher :: WatcherList -> Lit -> IO ClauseExtManager
+getNthWatcher v l = deRefStablePtr $ VS.unsafeIndex v l
+-- getNthWatcher = V.unsafeIndex
 
 -- | 'WatcherList' is an 'Lit'-indexed collection of 'C.Clause'.
 instance VecFamily WatcherList C.Clause where
   getNth = error "no getNth method for WatcherList" -- getNthWatcher is a pure function
   setNth = error "no setNth method for WatcherList"
   {-# SPECIALIZE INLINE reset :: WatcherList -> IO () #-}
-  reset = V.mapM_ purifyManager
+  reset = VS.mapM_ (purifyManager <=< deRefStablePtr)
 --  dump _ _ = (mes ++) . concat <$> mapM (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i)) [1 .. V.length wl - 1]
