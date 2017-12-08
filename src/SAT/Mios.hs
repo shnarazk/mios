@@ -248,11 +248,9 @@ dumpAssigmentAsCNF fname True l = withFile fname WriteMode $ \h -> do hPutStrLn 
 parseCNF :: Maybe FilePath -> IO (CNFDescription, B.ByteString)
 parseCNF target@(Just cnfFile) = do
   let -- format: p cnf n m, length "p cnf" == 5
-      parseP line = case B.readInt $ B.dropWhile (`elem` " \t") (B.drop 5 line) of
-        Just (x, second) -> case B.readInt (B.dropWhile (`elem` " \t") second) of
-          Just (y, _) -> CNFDescription x y target
-          _           -> CNFDescription 0 0 target
-        _             -> CNFDescription 0 0 target
+      parseP line = case parseInt (skipWhitespace (B.drop 5 line)) of
+                      (x, second) -> case B.readInt (skipWhitespace second) of
+                                       Just (y, _) -> CNFDescription x y target
       seek :: B.ByteString -> IO (CNFDescription, B.ByteString)
       seek bs
         | B.head bs == 'p' = return (parseP l, B.tail bs')
@@ -307,8 +305,8 @@ parseInt !st = do
         _ -> (val, B.tail s)
   case B.head st of
     '-' -> let (k, x) = loop (B.tail st) 0 in (negate k, x)
+    '0' -> (0, B.tail st)
 --    '+' -> loop st (0 :: Int)
---    '0' -> (0, B.tail st)
     _   -> loop st 0
 --    c | '0' <= c && c <= '9'  -> loop st 0
 --    _ -> error "PARSE ERROR! Unexpected char"
