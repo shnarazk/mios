@@ -71,15 +71,15 @@ executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just pat
 -- | executes a solver on the given 'arg :: MiosConfiguration'.
 -- This is another entry point for standalone programs.
 executeSolver :: MiosProgramOption -> IO ()
-executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
+executeSolver opts@(_targetFile -> (Just cnfFile)) = do
   t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
-  (desc, cls) <- parseCNF target <$> B.readFile cnfFile
+  (desc, cls) <- parseCNF (_targetFile opts)
   -- when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
   token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
   solverId <- myThreadId
   handle (\case
              UserInterrupt -> putStrLn "User interrupt recieved."
-             ThreadKilled  -> reportResult opts desc cls t0 =<< readMVar token
+             ThreadKilled  -> reportResult opts t0 =<< readMVar token
              e -> print e) $ do
     when (0 < _confBenchmark opts) $
       void $ forkIO $ do let fromMicro = 1000000 :: Int
@@ -100,14 +100,14 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
 
 executeSolver _ = return ()
 
-reportResult :: MiosProgramOption -> CNFDescription -> B.ByteString -> Integer -> Maybe Solver -> IO ()
-reportResult opts@(_targetFile -> Just cnfFile) _ _ _ Nothing = do
+reportResult :: MiosProgramOption -> Integer -> Maybe Solver -> IO ()
+reportResult opts@(_targetFile -> Just cnfFile) _ Nothing = do
  putStrLn $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
    ++ (show (_confBenchSeq opts)) ++ ","
    ++ "\"" ++ cnfFile ++ "\","
    ++ show (_confBenchmark opts) ++ ",0"
 
-reportResult opts@(_targetFile -> Just cnfFile) desc cls t0 (Just s) = do
+reportResult opts@(_targetFile -> Just cnfFile) t0 (Just s) = do
   t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
   satisfiable <- get' (ok s)
   case satisfiable of
@@ -125,7 +125,8 @@ reportResult opts@(_targetFile -> Just cnfFile) desc cls t0 (Just s) = do
     Nothing -> return ()
   valid <- if (_confCheckAnswer opts) || (0 <= _confBenchmark opts)
            then do case satisfiable of
-                     LiftedT -> do asg <- getModel s
+                     LiftedT -> do (desc, cls) <- parseCNF (_targetFile opts)
+                                   asg <- getModel s
                                    s' <- newSolver (toMiosConf opts) desc
                                    injectClausesFromCNF s' desc cls
                                    validate s' asg
@@ -146,7 +147,7 @@ reportResult opts@(_targetFile -> Just cnfFile) desc cls t0 (Just s) = do
       ++ "," ++ (if valid then "1" else "0")
   when (0 < _confDumpStat opts) $ dumpSolver DumpCSV s
 
-reportResult _  _ _  _ _ = return ()
+reportResult _ _ _ = return ()
 
 -- | new top-level interface that returns:
 --
@@ -198,7 +199,7 @@ executeValidatorOn path = executeValidator (miosDefaultOption { _targetFile = Ju
 -- This is another entry point for standalone programs; see app/mios.hs.
 executeValidator :: MiosProgramOption -> IO ()
 executeValidator opts@(_targetFile -> target@(Just cnfFile)) = do
-  (desc, cls) <- parseCNF target <$> B.readFile cnfFile
+  (desc, cls) <- parseCNF target
   when (_numberOfVariables desc == 0) . error $ "couldn't load " ++ show cnfFile
   s <- newSolver (toMiosConf opts) desc
   injectClausesFromCNF s desc cls
@@ -244,18 +245,20 @@ dumpAssigmentAsCNF fname True l = withFile fname WriteMode $ \h -> do hPutStrLn 
 -- DIMACS CNF Reader
 --------------------------------------------------------------------------------
 
-parseCNF :: Maybe FilePath -> B.ByteString -> (CNFDescription, B.ByteString)
-parseCNF target bs = if B.head bs == 'p'
-                           then (parseP l, B.tail bs')
-                           else parseCNF target (B.tail bs')
-  where
-    (l, bs') = B.span ('\n' /=) bs
-    -- format: p cnf n m, length "p cnf" == 5
-    parseP line = case B.readInt $ B.dropWhile (`elem` " \t") (B.drop 5 line) of
-      Just (x, second) -> case B.readInt (B.dropWhile (`elem` " \t") second) of
-        Just (y, _) -> CNFDescription x y target
-        _ -> CNFDescription 0 0 target
-      _ -> CNFDescription 0 0 target
+parseCNF :: Maybe FilePath -> IO (CNFDescription, B.ByteString)
+parseCNF target@(Just cnfFile) = do
+  let -- format: p cnf n m, length "p cnf" == 5
+      parseP line = case B.readInt $ B.dropWhile (`elem` " \t") (B.drop 5 line) of
+        Just (x, second) -> case B.readInt (B.dropWhile (`elem` " \t") second) of
+          Just (y, _) -> CNFDescription x y target
+          _           -> CNFDescription 0 0 target
+        _             -> CNFDescription 0 0 target
+      seek :: B.ByteString -> IO (CNFDescription, B.ByteString)
+      seek bs
+        | B.head bs == 'p' = return (parseP l, B.tail bs')
+        | otherwise = seek (B.tail bs')
+        where (l, bs') = B.span ('\n' /=) bs
+  seek =<< B.readFile cnfFile
 
 -- | parses ByteString then injects the clauses in it into a solver
 injectClausesFromCNF :: Solver -> CNFDescription -> B.ByteString -> IO ()
