@@ -285,11 +285,7 @@ injectClausesFromCNF s (CNFDescription nv nc _) bs = do
 
 {-# INLINE skipWhitespace #-}
 skipWhitespace :: B.ByteString -> B.ByteString
-skipWhitespace !s
-  | elem c " \t\n" = skipWhitespace $ B.tail s
-  | otherwise = s
-    where
-      c = B.head s
+skipWhitespace !s = B.dropWhile (`elem` " \t\n") s
 
 -- | skip comment lines
 -- __Pre-condition:__ we are on the benngining of a line
@@ -304,17 +300,18 @@ skipComments !s
 {-# INLINABLE parseInt #-}
 parseInt :: B.ByteString -> (Int, B.ByteString)
 parseInt !st = do
-  let
-    !zero = ord '0'
-    loop :: B.ByteString -> Int -> (Int, B.ByteString)
-    loop !s !val = case B.head s of
-      c | '0' <= c && c <= '9'  -> loop (B.tail s) (val * 10 + ord c - zero)
-      _ -> (val, B.tail s)
+  let !zero = ord '0'
+      loop :: B.ByteString -> Int -> (Int, B.ByteString)
+      loop !s !val = case B.head s of
+        c | '0' <= c && c <= '9'  -> loop (B.tail s) (val * 10 + ord c - zero)
+        _ -> (val, B.tail s)
   case B.head st of
     '-' -> let (k, x) = loop (B.tail st) 0 in (negate k, x)
-    '+' -> loop st (0 :: Int)
-    c | '0' <= c && c <= '9'  -> loop st 0
-    _ -> error "PARSE ERROR! Unexpected char"
+--    '+' -> loop st (0 :: Int)
+--    '0' -> (0, B.tail st)
+    _   -> loop st 0
+--    c | '0' <= c && c <= '9'  -> loop st 0
+--    _ -> error "PARSE ERROR! Unexpected char"
 
 {-# INLINABLE readClause #-}
 readClause :: Solver -> Stack -> Vec Int -> B.ByteString -> IO B.ByteString
