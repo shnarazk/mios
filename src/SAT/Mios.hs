@@ -49,10 +49,6 @@ import SAT.Mios.Main
 import SAT.Mios.OptionParser
 import SAT.Mios.Validator
 
--- import qualified Data.Vector.Storable as VS
--- import SAT.Mios.ClauseManager
--- import Foreign.StablePtr
-
 -- | version name
 versionId :: String
 versionId = "mios-1.5.3 -- https://github.com/shnarazk/mios"
@@ -94,14 +90,8 @@ executeSolver opts@(_targetFile -> target@(Just cnfFile)) = do
       if -1 == _confBenchmark opts
         then errorWithoutStackTrace $ "ABORT: too big CNF = " ++ show desc
         else putMVar token Nothing >> killThread solverId
-    -- t <- VS.replicateM (int2lit (_numberOfVariables desc) + 2) (newStablePtr =<< (newManager 2 :: IO ClauseExtManager))
-    -- t1 <- get' =<< deRefStablePtr (VS.unsafeIndex t 43)
-    -- e1 <- reportElapsedTime True ("Storable" ++ show (int2lit (_numberOfVariables desc) + 2) ++ ": ") t0
     s <- newSolver (toMiosConf opts) desc
-    -- e2 <- reportElapsedTime True "Build new solver: " e1
-    killThread solverId
     injectClausesFromCNF s desc cls
-    -- reportElapsedTime True "Inject clauses: " e2
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
     when (0 < _confDumpStat opts) $ dumpSolver DumpCSVHeader s
     void $ solve s []
