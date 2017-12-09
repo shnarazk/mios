@@ -469,22 +469,22 @@ reduceDB s@Solver{..} = do
 --
 -- they are coded into an "Int64" as the following 62 bit layout:
 --
--- *  6 bits for rank (LBD)
--- * 28 bits for converted activity
--- * 28 bits for clauseVector index
+-- *  7 bits for rank (LBD)
+-- * 33 bits for converted activity
+-- * 22 bits for clauseVector index
 --
 rankWidth :: Int
-rankWidth = 6
+rankWidth = 7
 activityWidth :: Int
-activityWidth = 28              -- note: the maximum clause activity is 1e20.
+activityWidth = 33              -- note: the maximum clause activity is 1e20.
 indexWidth :: Int
-indexWidth = 28
+indexWidth = 22
 rankMax :: Int
 rankMax = 2 ^ rankWidth - 1
 activityMax :: Int
 activityMax = 2 ^ activityWidth - 1
 indexMax :: Int
-indexMax = 2 ^ indexWidth - 1 -- 2^6 G = 64G
+indexMax = 2 ^ indexWidth - 1 -- 2^2 G = 4G
 
 -- | sort clauses (good to bad) by using a 'proxy' @Vec Int64@ that holds weighted index.
 sortClauses :: Solver -> ClauseExtManager -> Int -> IO Int
