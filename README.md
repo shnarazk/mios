@@ -35,6 +35,16 @@ in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSa
 
 ### > Release Note
 
+##### 1.5.3
+
+- implement EMA based Glucose heuristics (Biere 2015) #62
+- implement two-phase restart
+- fix a bug on learnt clause reduction in a marginal situation
+- thread-based timeout handling #58
+- update command line options
+- update the benchmark report format #64
+- add a new type to represent search result #64
+
 ##### 1.5.2
 
 - add options for benchmark, using a timeout thread
