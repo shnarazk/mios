@@ -100,18 +100,20 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
 
 executeSolver _ = return ()
 
--- | abnormal cases, catching 'too large CNF', 'timeout' for now.
+-- | print messages on solver's result
+-- Note: the last field of benchmark CSV is:
+--   * 0 if UNSAT
+--   * 1 if satisfiable (by finding an assignment)
+--   * other bigger values are used for aborted cases.
 reportResult :: MiosProgramOption -> Integer -> SolverResult -> IO ()
+-- abnormal cases, catching 'too large CNF', 'timeout' for now.
 reportResult opts@(_targetFile -> Just cnfFile) _ (Left flag) = do
  putStrLn $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
    ++ (show (_confBenchSeq opts)) ++ ","
    ++ "\"" ++ cnfFile ++ "\","
    ++ show (_confBenchmark opts) ++ "," ++ show (fromEnum flag)
 
--- | Note: the last field of benchmark CSV is:
---   * 0 if UNSAT
---   * 1 if satisfiable (by finding an assignment)
---   * other bigger values are used for aborted cases.
+-- solver terminated normally
 reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
   t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
   case result of
