@@ -16,7 +16,8 @@ module SAT.Mios
        , solveSAT
        , solveSATWithConfiguration
        , solve
-       , getModel
+       , SolverResult
+       , Certificate (..)
          -- * Assignment Validator
        , validateAssignment
        , validate
