@@ -16,7 +16,6 @@ module SAT.Mios.Solver
          Solver (..)
        , VarHeap
        , newSolver
-       , getModel
          -- * Misc Accessors
        , nAssigns
        , nClauses
@@ -60,11 +59,8 @@ import SAT.Mios.ClausePool
 -- | __Fig. 2.(p.9)__ Internal State of the solver
 data Solver = Solver
               {
-{-            Public Interface -}
-                model      :: !(Vec Int)         -- ^ If found, this vector has the model
-              , conflicts  :: !Stack             -- ^ Set of literals in the case of conflicts
 {-            Clause Database -}
-              , clauses    :: !ClauseExtManager  -- ^ List of problem constraints.
+                clauses    :: !ClauseExtManager  -- ^ List of problem constraints.
               , learnts    :: !ClauseExtManager  -- ^ List of learnt clauses.
               , watches    :: !WatcherList       -- ^ list of constraint wathing 'p', literal-indexed
 {-            Assignment Management -}
@@ -75,6 +71,7 @@ data Solver = Solver
               , qHead      :: !Int'              -- ^ 'trail' is divided at qHead; assignment part and queue part
               , reason     :: !ClauseVector      -- ^ For each variable, the constraint that implied its value
               , level      :: !(Vec Int)         -- ^ For each variable, the decision level it was assigned
+              , conflicts  :: !Stack             -- ^ Set of literals in the case of conflicts
 {-            Variable Order -}
               , activities :: !(Vec Double)      -- ^ Heuristic measurement of the activity of a variable
               , order      :: !VarHeap           -- ^ Keeps track of the dynamic variable order.
@@ -93,7 +90,7 @@ data Solver = Solver
               , learntSCnt :: Int'               -- ^ used in 'SAT.Mios.Main.search'
               , maxLearnts :: Double'            -- ^ used in 'SAT.Mios.Main.search'
 {-            Working Memory -}
-              , ok         :: !Int'              -- ^ /return value/ holder
+              , ok         :: !Int'              -- ^ internal flag
               , an'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.analyze'
               , an'toClear :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
               , an'stack   :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
@@ -118,11 +115,8 @@ data Solver = Solver
 newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
 newSolver conf (CNFDescription nv dummy_nc _) = do
   Solver
-    -- Public Interface
-    <$> newVec nv 0                        -- model
-    <*> newStack nv                        -- coflict
     -- Clause Database
-    <*> newManager dummy_nc                -- clauses
+    <$> newManager dummy_nc                -- clauses
     <*> newManager 2000                    -- learnts
     <*> newWatcherList nv 2                -- watches
     -- Assignment Management
@@ -133,6 +127,7 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> new' 0                             -- qHead
     <*> newClauseVector (nv + 1)           -- reason
     <*> newVec nv (-1)                     -- level
+    <*> newStack nv                        -- conflicts
     -- Variable Order
     <*> newVec nv 0                        -- activities
     <*> newVarHeap nv                      -- order
@@ -185,10 +180,6 @@ nClauses = get' . clauses
 {-# INLINE nLearnts #-}
 nLearnts :: Solver -> IO Int
 nLearnts = get' . learnts
-
--- | returns the model as a list of literal.
-getModel :: Solver -> IO [Int]
-getModel = (tail <$>) . asList . model
 
 -- | returns the current decision level.
 {-# INLINE decisionLevel #-}

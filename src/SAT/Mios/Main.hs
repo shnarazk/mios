@@ -618,9 +618,9 @@ simplifyDB s@Solver{..} = do
 --   NOTE: Use negative value for 'nof_conflicts' indicate infinity.
 --
 -- __Output:__
---   * 'True' if  a partial assigment that is consistent with respect to the clause set is found.
+--   * 'True' if a partial assigment that is consistent with respect to the clause set is found.
 --      If all variables are decision variables, that means that the clause set is satisfiable.
---   * 'False' if the clause set is unsatisfiable.
+--   * 'False' if the clause set is unsatisfiable or some error occured.
 search :: Solver -> IO Bool
 search s@Solver{..} = do
   -- clear model
@@ -659,14 +659,7 @@ search s@Solver{..} = do
                   when (nl < k1 - k2) $ do
                     reduceDB s    -- Reduce the set of learnt clauses.
                     when (2 == dumpStat config) $ dumpSolver DumpCSV s
-                  if | k2 == nVars -> do              -- | Model found:
-                         let toInt :: Var -> IO Lit
-                             toInt v = (\p -> if LiftedT == p then v else negate v) <$> valueVar s v
-                             setModel :: Int -> IO ()
-                             setModel ((<= nVars) -> False) = return ()
-                             setModel v = (setNth model v =<< toInt v) >> setModel (v + 1)
-                         setModel 1
-                         return True
+                  if | k2 == nVars -> return True     -- | Model found
                      | restart -> do                  -- | Reached bound on number of conflicts
                          (s `cancelUntil`) =<< get' rootLevel -- force a restart
                          -- claRescaleActivityAfterRestart s
@@ -698,7 +691,7 @@ search s@Solver{..} = do
 -- __Pre-condition:__ If assumptions are used, 'simplifyDB' must be
 -- called right before using this method. If not, a top-level conflict (resulting in a
 -- non-usable internal state) cannot be distinguished from a conflict under assumptions.
-solve :: (Foldable t) => Solver -> t Lit -> IO Bool
+solve :: (Foldable t) => Solver -> t Lit -> IO SolverResult
 solve s@Solver{..} assumps = do
   -- PUSH INCREMENTAL ASSUMPTIONS:
   let inject :: Lit -> Bool -> IO Bool
@@ -722,10 +715,18 @@ solve s@Solver{..} assumps = do
   if x
     then do set' rootLevel =<< decisionLevel s
             status <- search s
-            cancelUntil s 0
-            set' ok $ if status then LiftedT else LBottom
-            return status
-    else return False
+            -- post-proccesing should be done here
+            let toInt :: Var -> IO Lit
+                toInt v = (\p -> if LiftedT == p then v else negate v) <$> valueVar s v
+            asg1 <- mapM toInt [1 .. nVars]
+            asg2 <- map lit2int <$> asList conflicts
+            when (0 < dumpStat config) $ dumpSolver DumpCSV s
+            cancelUntil s 0     -- reset solver
+            flag <- get' ok
+            if | status && flag == LiftedT     -> return $ Right (SAT asg1)
+               | not status && flag == LiftedF -> return $ Right (UNSAT asg2)
+               | otherwise                     -> return $ Left InternalInconsistent
+    else return $ Right (UNSAT [])
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
 {-# INLINABLE unsafeEnqueue #-}

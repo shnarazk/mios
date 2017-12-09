@@ -1,7 +1,7 @@
 -- | This is a part of MIOS.
 {-# LANGUAGE
     BangPatterns
-  , MultiParamTypeClasses
+--  , MultiParamTypeClasses
   , PatternSynonyms
   #-}
 {-# LANGUAGE Safe #-}
@@ -9,7 +9,12 @@
 -- | Basic data types used throughout mios.
 module SAT.Mios.Types
        (
-         module SAT.Mios.Vec
+         -- * interface to caller
+         SolverResult
+       , Certificate (..)
+       , SolverException (..)
+         -- * internal structure
+       ,  module SAT.Mios.Vec
          -- *  Variable
        , Var
        , bottomVar
@@ -51,6 +56,26 @@ module SAT.Mios.Types
 
 import Data.Bits
 import SAT.Mios.Vec
+
+-- | terminate and find an SAT/UNSAT answer
+data Certificate
+  = SAT [Int]
+  | UNSAT [Int]                 -- FIXME: replace with DRAT
+  deriving (Eq, Ord, Read, Show)
+
+-- | abnormal termination flags
+data SolverException
+  = StateUNSAT                  -- 0
+  | StateSAT                    -- 1
+  | OutOfMemory                 -- 2
+  | TimeOut                     -- 3
+  | StateInProgress             -- 4
+  | InConflict                  -- 5
+  | InternalInconsistent
+  | UndescribedError
+  deriving (Bounded, Enum, Eq, Ord, Show)
+
+type SolverResult = Either SolverException Certificate
 
 -- | represents "Var".
 type Var = Int
