@@ -18,6 +18,7 @@ module SAT.Mios.Main
 import Control.Monad (unless, void, when)
 import Data.Bits
 import Data.Foldable (foldrM)
+import Data.Int
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -131,57 +132,53 @@ analyze s@Solver{..} confl = do
   reset litsLearnt
   pushTo litsLearnt 0 -- reserve the first place for the unassigned literal
   dl <- decisionLevel s
-  let
-    loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
-    loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
-      d <- get' (rank c)
-      when (0 /= d) $ claBumpActivity s c
-      -- update LBD like #Glucose4.0
-      when (2 < d) $ do
-        nblevels <- lbdOf s (lits c)
-        when (nblevels + 1 < d) $ do -- improve the LBD
-          -- when (d <= 30) $ set' (protected c) True -- 30 is `lbLBDFrozenClause`
-          -- seems to be interesting: keep it fro the next round
-          set' (rank c) nblevels    -- Update it
-      sc <- get' c
-      let
-        lstack = lits c
-        loopOnLiterals :: Int -> Int -> Int -> IO (Int, Int)
-        loopOnLiterals ((<= sc) -> False) b pc = return (b, pc) -- b = btLevel, pc = pathC
-        loopOnLiterals j b pc = do
-          (q :: Lit) <- getNth lstack j
-          let v = lit2var q
-          sn <- getNth an'seen v
-          l <- getNth level v
-          if sn == 0 && 0 < l
-            then do
-                varBumpActivity s v
-                setNth an'seen v 1
-                if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
-                  then do
-                      -- UPDATEVARACTIVITY: glucose heuristics
-                      r <- getNth reason v
-                      when (r /= NullClause) $ do
-                        ra <- get' (rank r)
-                        when (0 /= ra) $ pushTo an'lastDL q
-                      -- end of glucose heuristics
-                      loopOnLiterals (j + 1) b (pc + 1)
-                  else pushTo litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
-            else loopOnLiterals (j + 1) b pc
-      (b', pathC') <- loopOnLiterals (if p == bottomLit then 1 else 2) bl pathC
-      let
-        -- select next clause to look at
-        nextPickedUpLit :: Int -> IO Int
-        nextPickedUpLit i = do x <- getNth an'seen . lit2var =<< getNth trail i
-                               if x == 0 then nextPickedUpLit (i - 1) else return (i - 1)
-      ti' <- nextPickedUpLit (ti + 1)
-      nextP <- getNth trail (ti' + 1)
-      let nextV = lit2var nextP
-      confl' <- getNth reason nextV
-      setNth an'seen nextV 0
-      if 1 < pathC'
-        then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
-        else setNth litsLearnt 1 (negateLit nextP) >> return b'
+  let loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
+      loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
+        d <- get' (rank c)
+        when (0 /= d) $ claBumpActivity s c
+        -- update LBD like #Glucose4.0
+        when (2 < d) $ do
+          nblevels <- lbdOf s (lits c)
+          when (nblevels + 1 < d) $ do -- improve the LBD
+            -- when (d <= 30) $ set' (protected c) True -- 30 is `lbLBDFrozenClause`
+            -- seems to be interesting: keep it fro the next round
+            set' (rank c) nblevels    -- Update it
+        sc <- get' c
+        let lstack = lits c
+            loopOnLiterals :: Int -> Int -> Int -> IO (Int, Int)
+            loopOnLiterals ((<= sc) -> False) b pc = return (b, pc) -- b = btLevel, pc = pathC
+            loopOnLiterals j b pc = do
+              (q :: Lit) <- getNth lstack j
+              let v = lit2var q
+              sn <- getNth an'seen v
+              l <- getNth level v
+              if sn == 0 && 0 < l
+                then do
+                    varBumpActivity s v
+                    setNth an'seen v 1
+                    if dl <= l      -- cancelUntil doesn't clear level of cancelled literals
+                      then do
+                          -- UPDATEVARACTIVITY: glucose heuristics
+                          r <- getNth reason v
+                          when (r /= NullClause) $ do
+                            ra <- get' (rank r)
+                            when (0 /= ra) $ pushTo an'lastDL q
+                          -- end of glucose heuristics
+                          loopOnLiterals (j + 1) b (pc + 1)
+                      else pushTo litsLearnt q >> loopOnLiterals (j + 1) (max b l) pc
+                else loopOnLiterals (j + 1) b pc
+        (b', pathC') <- loopOnLiterals (if p == bottomLit then 1 else 2) bl pathC
+        let nextPickedUpLit :: Int -> IO Int        -- select next clause to look at
+            nextPickedUpLit i = do x <- getNth an'seen . lit2var =<< getNth trail i
+                                   if x == 0 then nextPickedUpLit (i - 1) else return (i - 1)
+        ti' <- nextPickedUpLit (ti + 1)
+        nextP <- getNth trail (ti' + 1)
+        let nextV = lit2var nextP
+        confl' <- getNth reason nextV
+        setNth an'seen nextV 0
+        if 1 < pathC'
+          then loopOnClauseChain confl' nextP (ti' - 1) b' (pathC' - 1)
+          else setNth litsLearnt 1 (negateLit nextP) >> return b'
   ti <- subtract 1 <$> get' trail
   levelToReturn <- loopOnClauseChain confl bottomLit ti 0 0
   -- Simplify phase (implemented only @expensive_ccmin@ path)
@@ -189,28 +186,25 @@ analyze s@Solver{..} confl = do
   reset an'stack           -- analyze_stack.clear();
   reset an'toClear         -- out_learnt.copyTo(analyze_toclear);
   pushTo an'toClear =<< getNth litsLearnt 1
-  let
-    merger :: Int -> Int -> IO Int
-    merger ((<= n) -> False) b = return b
-    merger i b = do
-      l <- getNth litsLearnt i
-      pushTo an'toClear l
-      -- restrict the search depth (range) to 32
-      merger (i + 1) . setBit b . (31 .&.) =<< getNth level (lit2var l)
+  let merger :: Int -> Int64 -> IO Int64
+      merger ((<= n) -> False) b = return b
+      merger i b = do l <- getNth litsLearnt i
+                      pushTo an'toClear l
+                      -- restrict the search depth (range) to 63
+                      merger (i + 1) . setBit b . (63 .&.) =<< getNth level (lit2var l)
   levels <- merger 2 0
-  let
-    loopOnLits :: Int -> Int -> IO ()
-    loopOnLits ((<= n) -> False) n' = shrinkBy litsLearnt $ n - n' + 1
-    loopOnLits i j = do
-      l <- getNth litsLearnt i
-      c1 <- (NullClause ==) <$> getNth reason (lit2var l)
-      if c1
-        then setNth litsLearnt j l >> loopOnLits (i + 1) (j + 1)
-        else do
-           c2 <- not <$> analyzeRemovable s l levels
-           if c2
-             then setNth litsLearnt j l >> loopOnLits (i + 1) (j + 1)
-             else loopOnLits (i + 1) j
+  let loopOnLits :: Int -> Int -> IO ()
+      loopOnLits ((<= n) -> False) n' = shrinkBy litsLearnt $ n - n' + 1
+      loopOnLits i j = do
+        l <- getNth litsLearnt i
+        c1 <- (NullClause ==) <$> getNth reason (lit2var l)
+        if c1
+          then setNth litsLearnt j l >> loopOnLits (i + 1) (j + 1)
+          else do
+             c2 <- not <$> analyzeRemovable s l levels
+             if c2
+               then setNth litsLearnt j l >> loopOnLits (i + 1) (j + 1)
+               else loopOnLits (i + 1) j
   loopOnLits 2 2                -- the first literal is specail
   -- UPDATEVARACTIVITY: glucose heuristics
   nld <- get' an'lastDL
@@ -242,7 +236,7 @@ analyze s@Solver{..} confl = do
 -- *  @an'toClear@ is initialized by @ps@ in @analyze@ (a copy of 'learnt').
 --   This is used only in this function and @analyze@.
 --
-analyzeRemovable :: Solver -> Lit -> Int -> IO Bool
+analyzeRemovable :: Solver -> Lit -> Int64 -> IO Bool
 analyzeRemovable Solver{..} p minLevel = do
   -- assert (reason[var(p)] != NullClause);
   reset an'stack      -- analyze_stack.clear()
@@ -271,7 +265,7 @@ analyzeRemovable Solver{..} p minLevel = do
                 if c1 && (0 /= l')   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
                   then do
                       c3 <- (NullClause /=) <$> getNth reason v'
-                      if c3 && testBit minLevel (l' .&. 31) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
+                      if c3 && testBit minLevel (l' .&. 63) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
                         then do
                             setNth an'seen v' 1   -- analyze_seen[var(p)] = 1;
                             pushTo an'stack p'    -- analyze_stack.push(p);
