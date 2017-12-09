@@ -618,9 +618,9 @@ simplifyDB s@Solver{..} = do
 --   NOTE: Use negative value for 'nof_conflicts' indicate infinity.
 --
 -- __Output:__
---   * 'True' if  a partial assigment that is consistent with respect to the clause set is found.
+--   * 'True' if a partial assigment that is consistent with respect to the clause set is found.
 --      If all variables are decision variables, that means that the clause set is satisfiable.
---   * 'False' if the clause set is unsatisfiable.
+--   * 'False' if the clause set is unsatisfiable or some error occured.
 search :: Solver -> IO Bool
 search s@Solver{..} = do
   -- clear model
@@ -698,7 +698,7 @@ search s@Solver{..} = do
 -- __Pre-condition:__ If assumptions are used, 'simplifyDB' must be
 -- called right before using this method. If not, a top-level conflict (resulting in a
 -- non-usable internal state) cannot be distinguished from a conflict under assumptions.
-solve :: (Foldable t) => Solver -> t Lit -> IO Bool
+solve :: (Foldable t) => Solver -> t Lit -> IO SolverResult
 solve s@Solver{..} assumps = do
   -- PUSH INCREMENTAL ASSUMPTIONS:
   let inject :: Lit -> Bool -> IO Bool
@@ -723,9 +723,17 @@ solve s@Solver{..} assumps = do
     then do set' rootLevel =<< decisionLevel s
             status <- search s
             cancelUntil s 0
-            set' ok $ if status then LiftedT else LBottom
-            return status
-    else return False
+            when (0 < dumpStat config) $ dumpSolver DumpCSV s
+            -- set' ok $ if status then LiftedT else LBottom
+            flag <- get' ok
+            if | status && flag == LiftedT -> do
+                   m <- tail <$> asList model
+                   return $ Right (SAT m)
+               | not status && flag == LiftedF -> do
+                   ls <- map lit2int <$> asList conflicts
+                   return $ Right (UNSAT ls)
+               | otherwise -> return $ Left InternalInconsistent
+    else return $ Right (UNSAT [])
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
 {-# INLINABLE unsafeEnqueue #-}

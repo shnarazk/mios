@@ -58,17 +58,20 @@ import Data.Bits
 import SAT.Mios.Vec
 
 -- | terminate and find an SAT/UNSAT answer
-data Certificate = SAT [Int] | UNSAT [Int]
+data Certificate
+  = SAT [Int]
+  | UNSAT [Int]                 -- FIXME: replace with DRAT
   deriving (Eq, Ord, Read, Show)
 
 -- | abnormal termination flags
 data SolverException
-  = StateInProgress
-  | StateUNSAT
-  | StateSAT
-  | InConflict
+  = StateUNSAT                  -- 0
+  | StateSAT                    -- 1
+  | OutOfMemory                 -- 2
+  | TimeOut                     -- 3
+  | StateInProgress             -- 4
+  | InConflict                  -- 5
   | InternalInconsistent
-  | OutOfMemory
   | UndescribedError
   deriving (Bounded, Enum, Eq, Ord, Show)
 

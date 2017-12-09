@@ -51,7 +51,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "mios-1.5.3 -- https://github.com/shnarazk/mios"
+versionId = "mios-1.5.3#64 -- https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ 0 = return 0
@@ -84,54 +84,51 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
     when (0 < _confBenchmark opts) $
       void $ forkIO $ do let fromMicro = 1000000 :: Int
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
-                         putMVar token Nothing
+                         putMVar token (Left TimeOut)
                          killThread solverId
     when (_confMaxSize opts < min (_numberOfVariables desc) (_numberOfClauses desc)) $ do
       if -1 == _confBenchmark opts
         then errorWithoutStackTrace $ "ABORT: too big CNF = " ++ show desc
-        else putMVar token Nothing >> killThread solverId
+        else putMVar token (Left OutOfMemory) >> killThread solverId
     s <- newSolver (toMiosConf opts) desc
     injectClausesFromCNF s desc cls
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
     when (0 < _confDumpStat opts) $ dumpSolver DumpCSVHeader s
-    void $ solve s []
-    putMVar token (Just s)
+    result <- solve s []
+    putMVar token result
     killThread solverId
 
 executeSolver _ = return ()
 
-reportResult :: MiosProgramOption -> Integer -> Maybe Solver -> IO ()
-reportResult opts@(_targetFile -> Just cnfFile) _ Nothing = do
+-- | abnormal cases, catching 'too large CNF', 'timeout' for now.
+reportResult :: MiosProgramOption -> Integer -> SolverResult -> IO ()
+reportResult opts@(_targetFile -> Just cnfFile) _ (Left flag) = do
  putStrLn $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
    ++ (show (_confBenchSeq opts)) ++ ","
    ++ "\"" ++ cnfFile ++ "\","
-   ++ show (_confBenchmark opts) ++ ",0"
+   ++ show (_confBenchmark opts) ++ "," ++ show (fromEnum flag)
 
-reportResult opts@(_targetFile -> Just cnfFile) t0 (Just s) = do
+-- | Note: the last field of benchmark CSV is:
+--   * 0 if UNSAT
+--   * 1 if satisfiable (by finding an assignment)
+--   * other bigger values are used for aborted cases.
+reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
   t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
-  satisfiable <- get' (ok s)
-  case satisfiable of
+  case result of
     _ | 0 <= _confBenchmark opts -> return ()
-    LiftedT | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "SATISFIABLE"
-    LiftedF | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "UNSATISFIABLE"
-    LiftedT -> print =<< getModel s
-    LiftedF -> do          -- contradiction
-      -- FIXME in future
-      when (_confVerbose opts) $ hPutStrLn stderr "UNSAT"
-      -- print =<< map lit2int <$> asList (conflict s)
-      putStrLn "[]"
-  case _outputFile opts of
-    Just fname -> dumpAssigmentAsCNF fname (LiftedT == satisfiable) =<< getModel s
-    Nothing -> return ()
-  valid <- if (_confCheckAnswer opts) || (0 <= _confBenchmark opts)
-           then do case satisfiable of
-                     LiftedT -> do (desc, cls) <- parseCNF (_targetFile opts)
-                                   asg <- getModel s
-                                   s' <- newSolver (toMiosConf opts) desc
-                                   injectClausesFromCNF s' desc cls
-                                   validate s' asg
-                     LiftedF -> return True
-                     _ -> return False
+    SAT _   | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "SATISFIABLE"
+    UNSAT _ | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "UNSATISFIABLE"
+    SAT asg -> print asg
+    UNSAT t -> do when (_confVerbose opts) $ hPutStrLn stderr "UNSAT" -- contradiction
+                  print t
+  dumpAssigmentAsCNF (_outputFile opts) result
+  valid <- if _confCheckAnswer opts || 0 <= _confBenchmark opts
+           then case result of
+                  SAT asg -> do (desc, cls) <- parseCNF (_targetFile opts)
+                                s' <- newSolver (toMiosConf opts) desc
+                                injectClausesFromCNF s' desc cls
+                                validate s' asg
+                  UNSAT _ -> return True
            else return True
   when (_confCheckAnswer opts) $ do
     if _confVerbose opts
@@ -140,12 +137,12 @@ reportResult opts@(_targetFile -> Just cnfFile) t0 (Just s) = do
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Validate: ") t2
   when (0 <= _confBenchmark opts) $ do
     let fromPico = 1000000000000 :: Double
+        phase = case result of { SAT _   -> 1; UNSAT _ -> 0::Int }
     putStrLn $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
       ++ (show (_confBenchSeq opts)) ++ ","
       ++ "\"" ++ cnfFile ++ "\","
-      ++ if valid then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "" else show (_confBenchmark opts)
-      ++ "," ++ (if valid then "1" else "0")
-  when (0 < _confDumpStat opts) $ dumpSolver DumpCSV s
+      ++ (if valid then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "" else show (_confBenchmark opts))
+      ++ "," ++ show phase
 
 reportResult _ _ _ = return ()
 
@@ -162,9 +159,10 @@ runSolver m d c = do
   if noConf
     then do
         x <- solve s []
-        if x
-            then Right <$> getModel s
-            else Left .  map lit2int <$> asList (conflicts s)
+        case x of
+          Right (SAT a)   -> return $ Right a
+          Right (UNSAT a) -> return $ Left a
+          _ -> return $ Left []
     else return $ Left []
 
 -- | The easiest interface for Haskell programs.
@@ -183,11 +181,10 @@ solveSATWithConfiguration conf desc cls = do
   mapM_ ((s `addClause`) <=< (newStackFromList . map int2lit)) cls
   noConf <- simplifyDB s
   if noConf
-    then do
-        result <- solve s []
-        if result
-            then getModel s
-            else return []
+    then do result <- solve s []
+            case result of
+              Right (SAT a) -> return a
+              _             -> return []
     else return []
 
 -- | validates a given assignment from STDIN for the CNF file (2nd arg).
@@ -234,12 +231,14 @@ validateAssignment desc cls asg = do
 --
 -- * @False@ if not
 --
--- >>> do y <- solve s ... ; dumpAssigmentAsCNF "result.cnf" y <$> model s
+-- >>> do y <- solve s ... ; dumpAssigmentAsCNF (Just "result.cnf") y <$> model s
 --
-dumpAssigmentAsCNF :: FilePath -> Bool -> [Int] -> IO ()
-dumpAssigmentAsCNF fname False _ = writeFile fname "UNSAT"
-
-dumpAssigmentAsCNF fname True l = withFile fname WriteMode $ \h -> do hPutStrLn h "SAT"; hPutStrLn h . unwords $ map show l
+dumpAssigmentAsCNF :: Maybe FilePath -> Certificate -> IO ()
+dumpAssigmentAsCNF Nothing _ = return ()
+dumpAssigmentAsCNF (Just fname) (UNSAT _) =
+  writeFile fname "UNSAT"
+dumpAssigmentAsCNF (Just fname) (SAT l) =
+  withFile fname WriteMode $ \h -> do hPutStrLn h "SAT"; hPutStrLn h . unwords $ map show l
 
 --------------------------------------------------------------------------------
 -- DIMACS CNF Reader
