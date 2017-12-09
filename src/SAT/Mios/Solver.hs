@@ -93,7 +93,7 @@ data Solver = Solver
               , learntSCnt :: Int'               -- ^ used in 'SAT.Mios.Main.search'
               , maxLearnts :: Double'            -- ^ used in 'SAT.Mios.Main.search'
 {-            Working Memory -}
-              , ok         :: !Int'              -- ^ /return value/ holder
+              , ok         :: !Int'              -- ^ internal flag
               , an'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.analyze'
               , an'toClear :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
               , an'stack   :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
