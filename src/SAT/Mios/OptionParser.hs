@@ -51,7 +51,7 @@ miosDefaultOption = MiosProgramOption
   , _confVariableDecayRate = variableDecayRate defaultConfiguration
   , _confClauseDecayRate = clauseDecayRate defaultConfiguration
 --  , _confRandomDecisionRate = randomDecisionRate defaultConfiguration
-  , _confMaxSize = 2000000    -- 2,000,000 = 2M
+  , _confMaxSize = 4000000    -- 4,000,000 = 4M
   , _confCheckAnswer = False
   , _confVerbose = False
   , _confBenchmark = -1
