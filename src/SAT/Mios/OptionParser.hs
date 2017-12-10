@@ -51,7 +51,7 @@ miosDefaultOption = MiosProgramOption
   , _confVariableDecayRate = variableDecayRate defaultConfiguration
   , _confClauseDecayRate = clauseDecayRate defaultConfiguration
 --  , _confRandomDecisionRate = randomDecisionRate defaultConfiguration
-  , _confMaxSize = 4000000    -- 4,000,000 = 4M
+  , _confMaxSize = 5000000    -- 5,000,000 = 5M
   , _confCheckAnswer = False
   , _confVerbose = False
   , _confBenchmark = -1
@@ -78,7 +78,7 @@ miosOptions =
 --    "[solver] random selection rate (0 - 1000)"
   , Option [] ["maxsize"]
     (ReqArg (\v c -> c { _confMaxSize = read v }) (show (_confMaxSize miosDefaultOption)))
-    "[solver] limit of the number of clauses/variables"
+    "[solver] limit of the number of variables"
   , Option [':'] ["validate-assignment"]
     (NoArg (\c -> c { _validateAssignment = True }))
     "[solver] read an assignment from STDIN and validate it"

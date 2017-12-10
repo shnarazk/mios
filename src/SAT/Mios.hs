@@ -87,9 +87,9 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
                          putMVar token (Left TimeOut)
                          killThread solverId
-    when (_confMaxSize opts < min (_numberOfVariables desc) (_numberOfClauses desc)) $ do
+    when (_confMaxSize opts < _numberOfVariables desc) $ do
       if -1 == _confBenchmark opts
-        then errorWithoutStackTrace $ "ABORT: too big CNF = " ++ show desc
+        then errorWithoutStackTrace $ "ABORT: too many variables to solve, " ++ show desc
         else putMVar token (Left OutOfMemory) >> killThread solverId
     s <- newSolver (toMiosConf opts) desc
     injectClausesFromCNF s desc cls
