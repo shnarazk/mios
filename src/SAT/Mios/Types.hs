@@ -69,10 +69,8 @@ data SolverException
   | StateSAT                    -- 1
   | OutOfMemory                 -- 2
   | TimeOut                     -- 3
-  | StateInProgress             -- 4
-  | InConflict                  -- 5
-  | InternalInconsistent
-  | UndescribedError
+  | InternalInconsistent        -- 4
+  | UndescribedError            -- 5
   deriving (Bounded, Enum, Eq, Ord, Show)
 
 type SolverResult = Either SolverException Certificate
