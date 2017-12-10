@@ -144,8 +144,9 @@ reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
     putStrLn $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
       ++ (show (_confBenchSeq opts)) ++ ","
       ++ "\"" ++ cnfFile ++ "\","
-      ++ (if valid then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "" else show (_confBenchmark opts))
-      ++ "," ++ show phase
+      ++ if valid
+         then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "," ++ show phase
+         else show (_confBenchmark opts) ++ "," ++ show (fromEnum InternalInconsistent)
 
 reportResult _ _ _ = return ()
 
