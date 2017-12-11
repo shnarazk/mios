@@ -1,19 +1,19 @@
--- | This is a part of MIOS.
+-- | (This is a part of MIOS.)
+-- Validate an assignment
 {-# LANGUAGE
     RecordWildCards
   , ViewPatterns
   #-}
 {-# LANGUAGE Safe #-}
 
--- | validate an assignment
 module SAT.Mios.Validator
        (
          validate
-       , checkUniqueness
+--       , checkUniqueness
        )
        where
 
-import Control.Monad (forM_, when, unless)
+import Control.Monad (when)
 import Data.Foldable (toList)
 import Data.List (sort)
 import SAT.Mios.Types
@@ -23,11 +23,12 @@ import SAT.Mios.Solver
 
 -- | validates the assignment even if the implementation of 'Solver' is wrong; we re-implement some functions here.
 validate :: Traversable t => Solver -> t Int -> IO Bool
-validate s (toList -> map int2lit -> lst) = do
+validate s t = do
   assignment <- newVec (1 + nVars s) (0 :: Int) :: IO (Vec Int)
   vec <- getClauseVector (clauses s)
   nc <- get' (clauses s)
   let
+    lst = map int2lit $ toList t
     inject :: Lit -> IO ()
     inject l = setNth assignment (lit2var l) $ lit2lbool l
     -- returns True if the literal is satisfied under the assignment
@@ -51,6 +52,7 @@ validate s (toList -> map int2lit -> lst) = do
     then error "validator got an empty assignment."
     else mapM_ inject lst >> loopOnVector 0
 
+-- | checks uniqueness of learnts
 checkUniqueness :: Solver -> Clause -> IO ()
 checkUniqueness Solver{..} c = do
   n <- get' learnts

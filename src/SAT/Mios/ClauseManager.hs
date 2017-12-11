@@ -1,4 +1,5 @@
--- | This is a part of MIOS.
+-- | (This is a part of MIOS.)
+-- A shrinkable vector of 'C.Clause'
 {-# LANGUAGE
     BangPatterns
   , FlexibleInstances
@@ -8,7 +9,6 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | A shrinkable vector of 'C.Clause'
 module SAT.Mios.ClauseManager
        (
          -- * higher level interface for ClauseVector
@@ -20,7 +20,6 @@ module SAT.Mios.ClauseManager
        , pushClauseWithKey
        , getKeyVector
        , markClause
---       , purifyManager
          -- * WatcherList
        , WatcherList
        , newWatcherList
@@ -235,7 +234,7 @@ getKeyVector ClauseExtManager{..} = IORef.readIORef _keyVector
 -- | O(1) inserter
 {-# INLINABLE pushClauseWithKey #-}
 pushClauseWithKey :: ClauseExtManager -> C.Clause -> Lit -> IO ()
-pushClauseWithKey !ClauseExtManager{..} !c k = do
+pushClauseWithKey ClauseExtManager{..} !c k = do
   -- checkConsistency m c
   !n <- get' _nActives
   !v <- IORef.readIORef _clauseVector

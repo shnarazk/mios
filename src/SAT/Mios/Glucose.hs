@@ -1,12 +1,10 @@
--- | This file is a part of MIOS.
+-- | (This is a part of MIOS.)
+-- Literal Block Distance
 {-# LANGUAGE
-    BangPatterns
-  , FlexibleContexts
+    FlexibleContexts
   , FlexibleInstances
-  , MagicHash
   , RecordWildCards
   , ScopedTypeVariables
-  , TupleSections
   , ViewPatterns
   #-}
 {-# LANGUAGE Safe #-}

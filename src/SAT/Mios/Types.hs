@@ -1,4 +1,5 @@
--- | This is a part of MIOS.
+-- | (This is a part of MIOS.)
+-- Basic data types used throughout mios.
 {-# LANGUAGE
     BangPatterns
 --  , MultiParamTypeClasses
@@ -6,13 +7,16 @@
   #-}
 {-# LANGUAGE Safe #-}
 
--- | Basic data types used throughout mios.
 module SAT.Mios.Types
        (
-         -- * interface to caller
+         -- * Interface to caller
          SolverResult
        , Certificate (..)
        , SolverException (..)
+       , CNFDescription (..)
+         -- * Solver Configuration
+       , MiosConfiguration (..)
+       , defaultConfiguration
          -- * internal structure
        ,  module SAT.Mios.Vec
          -- *  Variable
@@ -35,11 +39,6 @@ module SAT.Mios.Types
        , Int (LiftedF, LiftedT, LBottom, Conflict)
        -- a heap
        , VarOrder (..)
-         -- * CNF
-       , CNFDescription (..)
-         -- * Solver Configuration
-       , MiosConfiguration (..)
-       , defaultConfiguration
          -- * statistics
        , StatIndex (..)
        , DumpMode (..)
@@ -73,6 +72,11 @@ data SolverException
   | UndescribedError            -- 5
   deriving (Bounded, Enum, Eq, Ord, Show)
 
+-- | the type that Mios returns
+-- This captures the following three cases:
+--  * solved with a satisfiable assigment,
+--  * proved that it's an unsatisfiable problem, and
+--  * aborted due to Mios specification or an internal error
 type SolverResult = Either SolverException Certificate
 
 -- | represents "Var".
@@ -220,6 +224,7 @@ pattern LBottom = 0
 pattern Conflict :: Int
 pattern Conflict = 2
 
+-- | returns the value of a literal as a 'LiftedBool'
 {-# INLINE lit2lbool #-}
 lit2lbool :: Lit -> LiftedBool
 lit2lbool l = if positiveLit l then LiftedT else LiftedF
@@ -307,6 +312,7 @@ data StatIndex =
   | EndOfStatIndex              -- ^ Don't use this dummy.
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 
+-- | formats of state dump
 data DumpMode = NoDump | DumpCSVHeader | DumpCSV | DumpJSON
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 

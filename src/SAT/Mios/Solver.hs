@@ -1,4 +1,5 @@
--- | This is a part of MIOS.
+-- | (This is a part of MIOS.)
+-- Main data structure
 {-# LANGUAGE
     BangPatterns
   , MultiWayIf
@@ -9,7 +10,6 @@
   #-}
 {-# LANGUAGE Safe #-}
 
--- | This is a part of MIOS; main data
 module SAT.Mios.Solver
        (
          -- * Solver
@@ -32,8 +32,6 @@ module SAT.Mios.Solver
          -- * Activities
        , claBumpActivity
        , claDecayActivity
---       , claRescaleActivityAfterRestart
---       , claActivityThreshold
        , varBumpActivity
        , varDecayActivity
          -- * Stats
@@ -42,7 +40,7 @@ module SAT.Mios.Solver
        , setStat
        , incrementStat
        , getStats
-       -- #62
+       -- restart heuristics
        , checkRestartCondition
        , dumpSolver
        )
@@ -59,11 +57,11 @@ import SAT.Mios.ClausePool
 -- | __Fig. 2.(p.9)__ Internal State of the solver
 data Solver = Solver
               {
-{-            Clause Database -}
+                -------- Database
                 clauses    :: !ClauseExtManager  -- ^ List of problem constraints.
               , learnts    :: !ClauseExtManager  -- ^ List of learnt clauses.
               , watches    :: !WatcherList       -- ^ list of constraint wathing 'p', literal-indexed
-{-            Assignment Management -}
+                -------- Assignment Management
               , assigns    :: !(Vec Int)         -- ^ The current assignments indexed on variables
               , phases     :: !(Vec Int)         -- ^ The last assignments indexed on variables
               , trail      :: !Stack             -- ^ List of assignments in chronological order
@@ -72,24 +70,20 @@ data Solver = Solver
               , reason     :: !ClauseVector      -- ^ For each variable, the constraint that implied its value
               , level      :: !(Vec Int)         -- ^ For each variable, the decision level it was assigned
               , conflicts  :: !Stack             -- ^ Set of literals in the case of conflicts
-{-            Variable Order -}
+                -------- Variable Order
               , activities :: !(Vec Double)      -- ^ Heuristic measurement of the activity of a variable
               , order      :: !VarHeap           -- ^ Keeps track of the dynamic variable order.
-{-            Configuration -}
+                -------- Configuration
               , config     :: !MiosConfiguration -- ^ search paramerters
               , nVars      :: !Int               -- ^ number of variables
               , claInc     :: !Double'           -- ^ Clause activity increment amount to bump with.
-{-
-
-              -- , varDecay   :: !Double'           -- ^ used to set 'varInc'
--}
               , varInc     :: !Double'           -- ^ Variable activity increment amount to bump with.
               , rootLevel  :: !Int'              -- ^ Separates incremental and search assumptions.
-{-            Learnt DB Size Adjustment -}
+                -------- DB Size Adjustment
               , learntSAdj :: Double'            -- ^ used in 'SAT.Mios.Main.search'
               , learntSCnt :: Int'               -- ^ used in 'SAT.Mios.Main.search'
               , maxLearnts :: Double'            -- ^ used in 'SAT.Mios.Main.search'
-{-            Working Memory -}
+                -------- Working Memory
               , ok         :: !Int'              -- ^ internal flag
               , an'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.analyze'
               , an'toClear :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
@@ -97,23 +91,21 @@ data Solver = Solver
               , an'lastDL  :: !Stack             -- ^ last decision level used in 'SAT.Mios.Main.analyze'
               , clsPool    :: ClausePool         -- ^ clause recycler
               , litsLearnt :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze' and 'SAT.Mios.Main.search' to create a learnt clause
-              -- , pr'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.propagate'
               , stats      :: !(Vec [Int])       -- ^ statistics information holder
               , lbd'seen   :: !(Vec Int)         -- ^ used in lbd computation
               , lbd'key    :: !Int'              -- ^ used in lbd computation
-              -- #62
-              , emaDFast    :: !Double'
-              , emaDSlow    :: !Double'
-              , emaAFast    :: !Double'
-              , emaASlow    :: !Double'
---              , emaDLvl    :: !Double'
-              , nextRestart:: !Int'
-              , restartMode:: Int'
+                -------- restart heuristics #62
+              , emaDFast    :: !Double'          -- ^ fast ema value of LBD
+              , emaDSlow    :: !Double'          -- ^ slow ema value of LBD
+              , emaAFast    :: !Double'          -- ^ fast ema value of assignment
+              , emaASlow    :: !Double'          -- ^ slow ema value of assignment
+              , nextRestart :: !Int'             -- ^ next restart in number of conflict
+              , restartMode :: Int'              -- ^ mode of restart
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
 newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
-newSolver conf (CNFDescription nv dummy_nc _) = do
+newSolver conf (CNFDescription nv dummy_nc _) =
   Solver
     -- Clause Database
     <$> newManager dummy_nc                -- clauses
@@ -135,7 +127,6 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> return conf                        -- config
     <*> return nv                          -- nVars
     <*> new' 1.0                           -- claInc
---  <*> new' (variableDecayRate conf)      -- varDecay
     <*> new' 1.0                           -- varInc
     <*> new' 0                             -- rootLevel
     -- Learnt DB Size Adjustment
@@ -149,17 +140,15 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> newStack nv                        -- an'stack
     <*> newStack nv                        -- an'lastDL
     <*> newClausePool 10                   -- clsPool
---    <*> newVec nv (-1)                     -- pr'seen
     <*> newStack nv                        -- litsLearnt
     <*> newVec (fromEnum EndOfStatIndex) 0 -- stats
     <*> newVec nv 0                        -- lbd'seen
     <*> new' 0                             -- lbd'key
-    -- #62
+    -- restart heuristics #62
     <*> new' 0.0                           -- emaDFast
     <*> new' 0.0                           -- emaDSlow
     <*> new' 0.0                           -- emaAFast
     <*> new' 0.0                           -- emaASlow
---    <*> new' 0.0                           -- emaDLvl
     <*> new' 100                           -- nextRestart
     <*> new' 1                             -- restartMode
 
@@ -355,15 +344,12 @@ enqueue s@Solver{..} p from = do
   let v = lit2var p
   val <- valueVar s v
   if val /= LBottom
-    then do -- Existing consistent assignment -- don't enqueue
-        return $ val == signumP
-    else do
-        -- New fact, store it
-        setNth assigns v signumP
-        setNth level v =<< decisionLevel s
-        setNth reason v from     -- NOTE: @from@ might be NULL!
-        pushTo trail p
-        return True
+    then return $ val == signumP     -- Existing consistent assignment -- don't enqueue
+    else do setNth assigns v signumP -- New fact, store it
+            setNth level v =<< decisionLevel s
+            setNth reason v from     -- NOTE: @from@ might be NULL!
+            pushTo trail p
+            return True
 
 -- | __Fig. 12 (p.17)__
 -- returns @False@ if immediate conflict.
@@ -462,7 +448,6 @@ varBumpActivity s@Solver{..} x = do
 {-# INLINABLE varDecayActivity #-}
 varDecayActivity :: Solver -> IO ()
 varDecayActivity Solver{..} = modify' varInc (/ variableDecayRate config)
--- varDecayActivity Solver{..} = modifyDouble varInc . (flip (/)) =<< getDouble varDecay
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE varRescaleActivity #-}
@@ -555,11 +540,12 @@ numElementsInHeap = get' . heap . order
 
 {-# INLINE inHeap #-}
 inHeap :: Solver -> Var -> IO Bool
-inHeap (order -> idxs -> at) n = (/= 0) <$> getNth at n
+inHeap Solver{..} n = case idxs order of at -> (/= 0) <$> getNth at n
 
 {-# INLINE increaseHeap #-}
 increaseHeap :: Solver -> Int -> IO ()
-increaseHeap s@(order -> idxs -> at) n = inHeap s n >>= (`when` (percolateUp s =<< getNth at n))
+increaseHeap s@Solver{..} n = case idxs order of
+                                at -> inHeap s n >>= (`when` (percolateUp s =<< getNth at n))
 
 {-# INLINABLE percolateUp #-}
 percolateUp :: Solver -> Int -> IO ()
@@ -674,8 +660,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
          set' nextRestart (count + step)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
-     | otherwise      -> do
-         return False
+     | otherwise      -> return False
 
 -------------------------------------------------------------------------------- dump
 

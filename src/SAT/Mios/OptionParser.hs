@@ -1,7 +1,7 @@
--- | This is a part of MIOS.
+-- | (This is a part of MIOS.)
+-- Command line option parser
 {-# LANGUAGE Safe #-}
 
--- | command line option parser for mios
 module SAT.Mios.OptionParser
        (
          MiosConfiguration (..)

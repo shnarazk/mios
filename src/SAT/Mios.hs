@@ -1,3 +1,5 @@
+-- | (This file is a part of MIOS.)
+-- Minisat-based Implementation and Optimization Study on SAT solver
 {-# LANGUAGE
     BangPatterns
   , LambdaCase
@@ -5,7 +7,6 @@
 #-}
 {-# LANGUAGE Safe #-}
 
--- | Minisat-based Implementation and Optimization Study on SAT solver
 module SAT.Mios
        (
          -- * Interface to the core of solver
@@ -87,7 +88,7 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
                          putMVar token (Left TimeOut)
                          killThread solverId
-    when (_confMaxSize opts < _numberOfVariables desc) $ do
+    when (_confMaxSize opts < _numberOfVariables desc) $
       if -1 == _confBenchmark opts
         then errorWithoutStackTrace $ "ABORT: too many variables to solve, " ++ show desc
         else putMVar token (Left OutOfMemory) >> killThread solverId
@@ -108,11 +109,11 @@ executeSolver _ = return ()
 --   * other bigger values are used for aborted cases.
 reportResult :: MiosProgramOption -> Integer -> SolverResult -> IO ()
 -- abnormal cases, catching 'too large CNF', 'timeout' for now.
-reportResult opts@(_targetFile -> Just cnfFile) _ (Left flag) = do
- putStrLn $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
-   ++ (show (_confBenchSeq opts)) ++ ","
-   ++ "\"" ++ cnfFile ++ "\","
-   ++ show (_confBenchmark opts) ++ "," ++ show (fromEnum flag)
+reportResult opts@(_targetFile -> Just cnfFile) _ (Left flag) =
+  putStrLn ("\"" ++ takeWhile (' ' /=) versionId ++ "\","
+             ++ show (_confBenchSeq opts) ++ ","
+             ++ "\"" ++ cnfFile ++ "\","
+             ++ show (_confBenchmark opts) ++ "," ++ show (fromEnum flag))
 
 -- solver terminated normally
 reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
@@ -142,7 +143,7 @@ reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
     let fromPico = 1000000000000 :: Double
         phase = case result of { SAT _   -> 1; UNSAT _ -> 0::Int }
     putStrLn $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
-      ++ (show (_confBenchSeq opts)) ++ ","
+      ++ show (_confBenchSeq opts) ++ ","
       ++ "\"" ++ cnfFile ++ "\","
       ++ if valid
          then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "," ++ show phase
@@ -248,6 +249,7 @@ dumpAssigmentAsCNF (Just fname) (SAT l) =
 -- DIMACS CNF Reader
 --------------------------------------------------------------------------------
 
+-- | parses the header of a CNF file
 parseCNF :: Maybe FilePath -> IO (CNFDescription, B.ByteString)
 parseCNF target@(Just cnfFile) = do
   let -- format: p cnf n m, length "p cnf" == 5

@@ -1,4 +1,5 @@
--- | This file is a part of MIOS.
+-- | (This is a part of MIOS.)
+-- Main part of solving satisfiability problem.
 {-# LANGUAGE
     BangPatterns
   , MultiWayIf
@@ -139,7 +140,7 @@ analyze s@Solver{..} confl = do
         -- update LBD like #Glucose4.0
         when (2 < d) $ do
           nblevels <- lbdOf s (lits c)
-          when (nblevels + 1 < d) $ do -- improve the LBD
+          when (nblevels + 1 < d) $ -- improve the LBD
             -- when (d <= 30) $ set' (protected c) True -- 30 is `lbLBDFrozenClause`
             -- seems to be interesting: keep it fro the next round
             set' (rank c) nblevels    -- Update it
@@ -437,8 +438,8 @@ reduceDB s@Solver{..} = do
         removeWatch s =<< getNth cvec i
         loop $ i + 1
   k <- sortClauses s learnts $ div n 2 -- k is the number of clauses not to be purged
-{- #GLUCOSE3.0
-  -- keep more
+{-
+  -- #GLUCOSE3.0 keep more
   t3 <- get' . rank =<< getNth vec (thr -1)
   t5 <- get' . rank =<< getNth vec (lim -1)
 
@@ -487,7 +488,7 @@ sortClauses s cm limit' = do
   -- assert (n < indexMax)
   vec <- getClauseVector cm
   bvec <- getKeyVector cm
-  keys <- (newVec n 0 :: IO (Vec Int))
+  keys <- newVec n 0 :: IO (Vec Int)
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
   let shiftLBD = activityWidth + indexWidth
@@ -653,8 +654,8 @@ search s@Solver{..} = do
                   when (nl < k1 - k2) $ do
                     reduceDB s    -- Reduce the set of learnt clauses.
                     when (2 == dumpStat config) $ dumpSolver DumpCSV s
-                  if | k2 == nVars -> return True     -- | Model found
-                     | restart -> do                  -- | Reached bound on number of conflicts
+                  if | k2 == nVars -> return True     -- Model found
+                     | restart -> do                  -- Reached bound on number of conflicts
                          (s `cancelUntil`) =<< get' rootLevel -- force a restart
                          -- claRescaleActivityAfterRestart s
 {-
@@ -670,7 +671,7 @@ search s@Solver{..} = do
                          when (rm == 1) $ toggleAt 1
 -}
                          loop False
-                     | otherwise -> do                -- | New variable decision
+                     | otherwise -> do                -- New variable decision
                          v <- select s
                          -- #phasesaving <<<<  many have heuristic for polarity here
                          oldVal <- getNth phases v
