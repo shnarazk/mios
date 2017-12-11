@@ -43,7 +43,7 @@ in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSa
 - update command line options
 - update the benchmark report format #64
 - add a new type to represent search result #64
-- more adaptation to 64-bit CPU
+- further adaptation to 64-bit CPU
 
 ##### 1.5.2
 
