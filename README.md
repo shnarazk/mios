@@ -86,7 +86,7 @@ Usage: mios [OPTIONS] target.cnf
 If you have GNU parallel, Mios works well with it:
 
 ```
-parallel "mios --benchmark=0 --sequence={#} {}" ::: *.cnf
+parallel "mios --benchmark=0 --sequence={#} -o {.cnf}.result {}" ::: *.cnf
 ```
 
 ##### * In Haskell
