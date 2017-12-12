@@ -242,9 +242,9 @@ dumpAssigmentAsCNF :: Maybe FilePath -> Certificate -> IO ()
 dumpAssigmentAsCNF Nothing _ = return ()
 -- | FIXME: swtich to DRAT
 dumpAssigmentAsCNF (Just fname) (UNSAT _) =
-  writeFile fname "s UNSAT"
+  writeFile fname "s UNSAT\n0\n"
 dumpAssigmentAsCNF (Just fname) (SAT l) =
-  withFile fname WriteMode $ \h -> do hPutStrLn h "s SAT"; hPutStrLn h . unwords $ map show l
+  withFile fname WriteMode $ \h -> do hPutStrLn h "s SAT"; hPutStrLn h . (++ " 0") . unwords $ map show l
 
 --------------------------------------------------------------------------------
 -- DIMACS CNF Reader
