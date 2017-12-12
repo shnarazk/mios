@@ -240,10 +240,11 @@ validateAssignment desc cls asg = do
 --
 dumpAssigmentAsCNF :: Maybe FilePath -> Certificate -> IO ()
 dumpAssigmentAsCNF Nothing _ = return ()
+-- | FIXME: swtich to DRAT
 dumpAssigmentAsCNF (Just fname) (UNSAT _) =
-  writeFile fname "UNSAT"
+  writeFile fname "s UNSAT"
 dumpAssigmentAsCNF (Just fname) (SAT l) =
-  withFile fname WriteMode $ \h -> do hPutStrLn h "SAT"; hPutStrLn h . unwords $ map show l
+  withFile fname WriteMode $ \h -> do hPutStrLn h "s SAT"; hPutStrLn h . unwords $ map show l
 
 --------------------------------------------------------------------------------
 -- DIMACS CNF Reader
