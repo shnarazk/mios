@@ -740,6 +740,55 @@ unsafeAssume s@Solver{..} p = do
   pushTo trailLim =<< get' trail
   unsafeEnqueue s p NullClause
 
+-------------------------------------------------------------------------------- restart
+
+ema1, ema2, ema3, ema4 :: Double
+ema1 = 2 ** (-5)                -- coefficient for fast average of LBD
+ema2 = 2 ** (-14)               -- coefficient for slow average of LBD
+ema3 = 2 ** (-5)                -- coefficient for fast average of | assignment |
+ema4 = 2 ** (-12)               -- coefficient for slow average of | assignment |
+
+ema0 :: Int
+ema0 = 2 ^ (14 :: Int)          -- = floor $ 1 / ema2
+
+-- | #62
+checkRestartCondition :: Solver -> Int -> IO Bool
+checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
+  k <- getStat s NumOfRestart
+  let step = 100
+  next <- get' nextRestart
+  count <- getStat s NumOfBackjump
+  nas <- fromIntegral <$> nAssigns s
+  let revise a f x  = do f' <- ((a * x) +) . ((1 - a) *) <$> get' f
+                         set' f f'
+                         return f'
+      gef = 1.1 :: Double       -- geometric expansion factor
+  df <- revise ema1 emaDFast lbd
+  ds <- revise ema2 emaDSlow lbd
+  af <- revise ema3 emaAFast nas
+  as <- revise ema4 emaASlow nas
+  mode <- get' restartMode
+  if | count < next   -> return False
+     | mode == 1      -> do
+         when (ema0 < count && df < 2.0 * ds) $ set' restartMode 2 -- enter the second mode
+         incrementStat s NumOfRestart 1
+         incrementStat s NumOfGeometricRestart 1
+         k' <- getStat s NumOfGeometricRestart
+         set' nextRestart (count + floor (fromIntegral step * gef ** fromIntegral k'))
+         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+         return True
+     | 1.25 * as < af -> do
+         incrementStat s NumOfBlockRestart 1
+         set' nextRestart (count + floor (fromIntegral step + gef ** fromIntegral k))
+         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+         return False
+     | 1.25 * ds < df -> do
+         incrementStat s NumOfRestart 1
+         set' nextRestart (count + step)
+         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+         return True
+     | otherwise      -> return False
+
 {-# INLINABLE luby #-}
 luby :: Double -> Int -> Double
 luby y x_ = loop 1 0
