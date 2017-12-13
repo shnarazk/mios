@@ -1,15 +1,23 @@
--- | This is a part of MIOS.
+-- | (This is a part of MIOS.)
+-- Basic data types used throughout mios.
 {-# LANGUAGE
     BangPatterns
-  , MultiParamTypeClasses
   , PatternSynonyms
   #-}
 {-# LANGUAGE Safe #-}
 
--- | Basic data types used throughout mios.
 module SAT.Mios.Types
        (
-         module SAT.Mios.Vec
+         -- * Interface to caller
+         SolverResult
+       , Certificate (..)
+       , SolverException (..)
+       , CNFDescription (..)
+         -- * Solver Configuration
+       , MiosConfiguration (..)
+       , defaultConfiguration
+         -- * internal structure
+       ,  module SAT.Mios.Vec
          -- *  Variable
        , Var
        , bottomVar
@@ -19,7 +27,6 @@ module SAT.Mios.Types
        , lit2int
        , int2lit
        , bottomLit
---       , newLit
        , positiveLit
        , lit2var
        , var2lit
@@ -30,13 +37,9 @@ module SAT.Mios.Types
        , Int (LiftedF, LiftedT, LBottom, Conflict)
        -- a heap
        , VarOrder (..)
-         -- * CNF
-       , CNFDescription (..)
-         -- * Solver Configuration
-       , MiosConfiguration (..)
-       , defaultConfiguration
          -- * statistics
        , StatIndex (..)
+       , DumpMode (..)
 {-
          -- * dump statistics
        , DumpTag (..)
@@ -50,6 +53,29 @@ module SAT.Mios.Types
 
 import Data.Bits
 import SAT.Mios.Vec
+
+-- | terminate and find an SAT/UNSAT answer
+data Certificate
+  = SAT [Int]
+  | UNSAT [Int]                 -- FIXME: replace with DRAT
+  deriving (Eq, Ord, Read, Show)
+
+-- | abnormal termination flags
+data SolverException
+  = StateUNSAT                  -- 0
+  | StateSAT                    -- 1
+  | OutOfMemory                 -- 2
+  | TimeOut                     -- 3
+  | InternalInconsistent        -- 4
+  | UndescribedError            -- 5
+  deriving (Bounded, Enum, Eq, Ord, Show)
+
+-- | the type that Mios returns
+-- This captures the following three cases:
+--  * solved with a satisfiable assigment,
+--  * proved that it's an unsatisfiable problem, and
+--  * aborted due to Mios specification or an internal error
+type SolverResult = Either SolverException Certificate
 
 -- | represents "Var".
 type Var = Int
@@ -196,6 +222,7 @@ pattern LBottom = 0
 pattern Conflict :: Int
 pattern Conflict = 2
 
+-- | returns the value of a literal as a 'LiftedBool'
 {-# INLINE lit2lbool #-}
 lit2lbool :: Lit -> LiftedBool
 lit2lbool l = if positiveLit l then LiftedT else LiftedF
@@ -252,6 +279,7 @@ data MiosConfiguration = MiosConfiguration
                          {
                            variableDecayRate  :: !Double  -- ^ decay rate for variable activity
                          , clauseDecayRate    :: !Double  -- ^ decay rate for clause activity
+                         , dumpStat           :: !Int     -- ^ dump stats data during solving
                          }
   deriving (Eq, Ord, Read, Show)
 
@@ -263,7 +291,7 @@ data MiosConfiguration = MiosConfiguration
 -- * Mios-1.2     uses @(0.95, 0.999, 0)@.
 --
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 0.999
+defaultConfiguration = MiosConfiguration 0.95 0.999 0
 
 -------------------------------------------------------------------------------- Statistics
 
@@ -271,8 +299,19 @@ defaultConfiguration = MiosConfiguration 0.95 0.999
 data StatIndex =
     NumOfBackjump               -- ^ the number of backjump
   | NumOfRestart                -- ^ the number of restart
+  | NumOfBlockRestart           -- ^ the number of blacking start
+  | NumOfGeometricRestart       -- ^ the number of classic restart
   | NumOfPropagation            -- ^ the number of propagation
+  | NumOfReduction              -- ^ the number of reduction
+  | NumOfClause                 -- ^ the number of 'alive' given clauses
+  | NumOfLearnt                 -- ^ the number of 'alive' learnt clauses
+  | NumOfVariable               -- ^ the number of 'alive' variables
+  | NumOfAssigned               -- ^ the number of assigned variables
   | EndOfStatIndex              -- ^ Don't use this dummy.
+  deriving (Bounded, Enum, Eq, Ord, Read, Show)
+
+-- | formats of state dump
+data DumpMode = NoDump | DumpCSVHeader | DumpCSV | DumpJSON
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
 
 data DumpTag = TerminateS

@@ -1,4 +1,5 @@
--- | This is a part of MIOS.
+-- | (This is a part of MIOS.)
+-- Abstraction Layer for Mutable Vectors
 {-# LANGUAGE
     BangPatterns
   , FlexibleContexts
@@ -9,7 +10,6 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | Abstraction Layer for Mutable Vectors
 module SAT.Mios.Vec
        (
          -- * Vector class and type
@@ -25,7 +25,6 @@ module SAT.Mios.Vec
        , Stack
        , newStackFromList
        , realLengthOfStack
-         -- * support functions
        , sortStack
        )
        where
@@ -290,6 +289,7 @@ class SingleStorage s Int => StackFamily s t | s -> t where
   lastOf = undefined
   shrinkBy = undefined
 
+-- | Stack of Int, an alias of @Vec Int@
 type Stack = Vec Int
 
 instance StackFamily ByteArrayInt Int where
@@ -318,10 +318,13 @@ newStackFromList l = do
       loop (x:l') i = BA.writeByteArray v i x >> loop l' (i + 1)
   loop (length l : l) 0
 
+-- | returns the number of allocated slots
 {-# INLINE realLengthOfStack #-}
 realLengthOfStack :: Stack -> Int
 realLengthOfStack (ByteArrayInt v) = div (BA.sizeofMutableByteArray v) 8
 
+-- | sort the content of a stack, in small-to-large order.
+{-# INLINABLE sortStack #-}
 sortStack :: Stack -> IO ()
 sortStack vec = do
   n <- get' vec

@@ -1,7 +1,7 @@
--- | This file is a part of MIOS.
+-- | (This is a part of MIOS.)
+-- Recycling clauses
 {-# LANGUAGE
-    BangPatterns
-  , ViewPatterns
+    ViewPatterns
   #-}
 {-# LANGUAGE Trustworthy #-}
 
@@ -27,6 +27,7 @@ type ClausePool = V.Vector CM.ClauseSimpleManager
 storeLimit :: Int
 storeLimit = 62
 
+-- | returns a new 'ClausePool'
 newClausePool ::Int -> IO ClausePool
 newClausePool n = V.fromList <$> mapM (\_ -> CM.newManager n) [0 .. storeLimit]
 
@@ -35,6 +36,8 @@ newClausePool n = V.fromList <$> mapM (\_ -> CM.newManager n) [0 .. storeLimit]
 getManager :: ClausePool -> Int -> CM.ClauseSimpleManager
 getManager p n = V.unsafeIndex p n
 
+-- | If a nice candidate as a learnt is stored, return it.
+-- Otherwise allocate a new clause in heap then return it.
 {-# INLINABLE makeClauseFromStack #-}
 makeClauseFromStack :: ClausePool -> Stack -> IO Clause
 makeClauseFromStack pool v = do
@@ -58,8 +61,8 @@ makeClauseFromStack pool v = do
                 loop i = (setNth lstack i =<< getNth v i) >> loop (i + 1)
             loop 0
             -- the caller (newLearntClause) should set these slots
-            -- * rank
-            -- * protected
+            --  - rank
+            --  - protected
             set' (activity c) 0.0
             return c
 

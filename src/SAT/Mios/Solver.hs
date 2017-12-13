@@ -1,6 +1,7 @@
--- | This is a part of MIOS.
+-- | (This is a part of MIOS.)
+-- Solver, the main data structure
 {-# LANGUAGE
-    BangPatterns
+    MultiWayIf
   , RecordWildCards
   , ScopedTypeVariables
   , TupleSections
@@ -8,14 +9,11 @@
   #-}
 {-# LANGUAGE Safe #-}
 
--- | This is a part of MIOS; main data
 module SAT.Mios.Solver
        (
          -- * Solver
          Solver (..)
-       , VarHeap
        , newSolver
-       , getModel
          -- * Misc Accessors
        , nAssigns
        , nClauses
@@ -25,27 +23,23 @@ module SAT.Mios.Solver
        , valueLit
        , locked
          -- * State Modifiers
-       , addClause
+       , setAssign
        , enqueue
        , assume
        , cancelUntil
-         -- * Activities
-       , claBumpActivity
-       , claDecayActivity
---       , claRescaleActivityAfterRestart
---       , claActivityThreshold
-       , varBumpActivity
-       , varDecayActivity
          -- * Stats
        , StatIndex (..)
        , getStat
        , setStat
        , incrementStat
        , getStats
+       , dumpSolver
        )
         where
 
 import Control.Monad (unless, when)
+import Data.List (intercalate)
+import Numeric (showFFloat)
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -54,14 +48,11 @@ import SAT.Mios.ClausePool
 -- | __Fig. 2.(p.9)__ Internal State of the solver
 data Solver = Solver
               {
-{-            Public Interface -}
-                model      :: !(Vec Int)         -- ^ If found, this vector has the model
-              , conflicts  :: !Stack             -- ^ Set of literals in the case of conflicts
-{-            Clause Database -}
-              , clauses    :: !ClauseExtManager  -- ^ List of problem constraints.
+                -------- Database
+                clauses    :: !ClauseExtManager  -- ^ List of problem constraints.
               , learnts    :: !ClauseExtManager  -- ^ List of learnt clauses.
               , watches    :: !WatcherList       -- ^ list of constraint wathing 'p', literal-indexed
-{-            Assignment Management -}
+                -------- Assignment Management
               , assigns    :: !(Vec Int)         -- ^ The current assignments indexed on variables
               , phases     :: !(Vec Int)         -- ^ The last assignments indexed on variables
               , trail      :: !Stack             -- ^ List of assignments in chronological order
@@ -69,47 +60,47 @@ data Solver = Solver
               , qHead      :: !Int'              -- ^ 'trail' is divided at qHead; assignment part and queue part
               , reason     :: !ClauseVector      -- ^ For each variable, the constraint that implied its value
               , level      :: !(Vec Int)         -- ^ For each variable, the decision level it was assigned
-{-            Variable Order -}
+              , conflicts  :: !Stack             -- ^ Set of literals in the case of conflicts
+                -------- Variable Order
               , activities :: !(Vec Double)      -- ^ Heuristic measurement of the activity of a variable
               , order      :: !VarHeap           -- ^ Keeps track of the dynamic variable order.
-{-            Configuration -}
+                -------- Configuration
               , config     :: !MiosConfiguration -- ^ search paramerters
               , nVars      :: !Int               -- ^ number of variables
               , claInc     :: !Double'           -- ^ Clause activity increment amount to bump with.
-{-
-
-              -- , varDecay   :: !Double'           -- ^ used to set 'varInc'
--}
               , varInc     :: !Double'           -- ^ Variable activity increment amount to bump with.
               , rootLevel  :: !Int'              -- ^ Separates incremental and search assumptions.
-{-            Learnt DB Size Adjustment -}
+                -------- DB Size Adjustment
               , learntSAdj :: Double'            -- ^ used in 'SAT.Mios.Main.search'
               , learntSCnt :: Int'               -- ^ used in 'SAT.Mios.Main.search'
               , maxLearnts :: Double'            -- ^ used in 'SAT.Mios.Main.search'
-{-            Working Memory -}
-              , ok         :: !Int'              -- ^ /return value/ holder
+                -------- Working Memory
+              , ok         :: !Int'              -- ^ internal flag
               , an'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.analyze'
               , an'toClear :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
               , an'stack   :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
               , an'lastDL  :: !Stack             -- ^ last decision level used in 'SAT.Mios.Main.analyze'
               , clsPool    :: ClausePool         -- ^ clause recycler
               , litsLearnt :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze' and 'SAT.Mios.Main.search' to create a learnt clause
-              -- , pr'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.propagate'
               , stats      :: !(Vec [Int])       -- ^ statistics information holder
               , lbd'seen   :: !(Vec Int)         -- ^ used in lbd computation
               , lbd'key    :: !Int'              -- ^ used in lbd computation
+                -------- restart heuristics #62
+              , emaDFast    :: !Double'          -- ^ fast ema value of LBD
+              , emaDSlow    :: !Double'          -- ^ slow ema value of LBD
+              , emaAFast    :: !Double'          -- ^ fast ema value of assignment
+              , emaASlow    :: !Double'          -- ^ slow ema value of assignment
+              , nextRestart :: !Int'             -- ^ next restart in number of conflict
+              , restartMode :: Int'              -- ^ mode of restart
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
 newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
-newSolver conf (CNFDescription nv dummy_nc _) = do
+newSolver conf (CNFDescription nv dummy_nc _) =
   Solver
-    -- Public Interface
-    <$> newVec nv 0                        -- model
-    <*> newStack nv                        -- coflict
     -- Clause Database
-    <*> newManager dummy_nc                -- clauses
-    <*> newManager dummy_nc                -- learnts
+    <$> newManager dummy_nc                -- clauses
+    <*> newManager 2000                    -- learnts
     <*> newWatcherList nv 2                -- watches
     -- Assignment Management
     <*> newVec nv LBottom                  -- assigns
@@ -119,6 +110,7 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> new' 0                             -- qHead
     <*> newClauseVector (nv + 1)           -- reason
     <*> newVec nv (-1)                     -- level
+    <*> newStack nv                        -- conflicts
     -- Variable Order
     <*> newVec nv 0                        -- activities
     <*> newVarHeap nv                      -- order
@@ -126,13 +118,12 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> return conf                        -- config
     <*> return nv                          -- nVars
     <*> new' 1.0                           -- claInc
---  <*> new' (variableDecayRate conf)      -- varDecay
     <*> new' 1.0                           -- varInc
     <*> new' 0                             -- rootLevel
     -- Learnt DB Size Adjustment
     <*> new' 100                           -- learntSAdj
     <*> new' 100                           -- learntSCnt
-    <*> new' 100                           -- maxLearnts
+    <*> new' 2000                          -- maxLearnts
     -- Working Memory
     <*> new' LiftedT                       -- ok
     <*> newVec nv 0                        -- an'seen
@@ -140,11 +131,17 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> newStack nv                        -- an'stack
     <*> newStack nv                        -- an'lastDL
     <*> newClausePool 10                   -- clsPool
---    <*> newVec nv (-1)                     -- pr'seen
     <*> newStack nv                        -- litsLearnt
     <*> newVec (fromEnum EndOfStatIndex) 0 -- stats
     <*> newVec nv 0                        -- lbd'seen
     <*> new' 0                             -- lbd'key
+    -- restart heuristics #62
+    <*> new' 0.0                           -- emaDFast
+    <*> new' 0.0                           -- emaDSlow
+    <*> new' 0.0                           -- emaAFast
+    <*> new' 0.0                           -- emaASlow
+    <*> new' 100                           -- nextRestart
+    <*> new' 1                             -- restartMode
 
 --------------------------------------------------------------------------------
 -- Accessors
@@ -163,10 +160,6 @@ nClauses = get' . clauses
 {-# INLINE nLearnts #-}
 nLearnts :: Solver -> IO Int
 nLearnts = get' . learnts
-
--- | returns the model as a list of literal.
-getModel :: Solver -> IO [Int]
-getModel = (tail <$>) . asList . model
 
 -- | returns the current decision level.
 {-# INLINE decisionLevel #-}
@@ -213,116 +206,9 @@ getStats (stats -> v) = mapM (\i -> (i, ) <$> getNth v (fromEnum i)) [minBound .
 
 -------------------------------------------------------------------------------- State Modifiers
 
--- | returns @False@ if a conflict has occured.
--- This function is called only before the solving phase to register the given clauses.
-{-# INLINABLE addClause #-}
-addClause :: Solver -> Stack -> IO Bool
-addClause s@Solver{..} vecLits = do
-  result <- clauseNew s vecLits False
-  case result of
-   Left b  -> return b   -- No new clause was returned becaues a confilct occured or the clause is a literal
-   Right c -> pushTo clauses c >> return True
-
--- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists.
--- Constructor function for clauses. Returns @False@ if top-level conflict is determined.
--- @outClause@ may be set to Null if the new clause is already satisfied under the current
--- top-level assignment.
---
--- __Post-condition:__ @ps@ is cleared. For learnt clauses, all
--- literals will be false except @lits[0]@ (this by design of the 'analyze' method).
--- For the propagation to work, the second watch must be put on the literal which will
--- first be unbound by backtracking. (Note that none of the learnt-clause specific things
--- needs to done for a user defined contraint type.)
---
--- * @Left False@ if the clause is in a confilct
--- * @Left True@ if the clause is satisfied
--- * @Right clause@ if the clause is enqueued successfully
-{-# INLINABLE clauseNew #-}
-clauseNew :: Solver -> Stack -> Bool -> IO (Either Bool Clause)
-clauseNew s@Solver{..} ps isLearnt = do
-  -- now ps[0] is the number of living literals
-  exit <- do
-    let
-      handle :: Int -> Int -> Int -> IO Bool
-      handle j l n      -- removes duplicates, but returns @True@ if this clause is satisfied
-        | j > n = return False
-        | otherwise = do
-            y <- getNth ps j
-            case () of
-             _ | y == l -> do             -- finds a duplicate
-                   swapBetween ps j n
-                   modifyNth ps (subtract 1) 0
-                   handle j l (n - 1)
-             _ | - y == l -> reset ps >> return True -- p and negateLit p occurs in ps
-             _ -> handle (j + 1) l n
-      loopForLearnt :: Int -> IO Bool
-      loopForLearnt i = do
-        n <- get' ps
-        if n < i
-          then return False
-          else do
-              l <- getNth ps i
-              sat <- handle (i + 1) l n
-              if sat
-                then return True
-                else loopForLearnt $ i + 1
-      loop :: Int -> IO Bool
-      loop i = do
-        n <- get' ps
-        if n < i
-          then return False
-          else do
-              l <- getNth ps i     -- check the i-th literal's satisfiability
-              sat <- valueLit s l  -- any literal in ps is true
-              case sat of
-               1  -> reset ps >> return True
-               -1 -> do
-                 swapBetween ps i n
-                 modifyNth ps (subtract 1) 0
-                 loop i
-               _ -> do
-                 sat' <- handle (i + 1) l n
-                 if sat'
-                   then return True
-                   else loop $ i + 1
-    if isLearnt then loopForLearnt 1 else loop 1
-  k <- get' ps
-  case k of
-   0 -> return (Left exit)
-   1 -> do
-     l <- getNth ps 1
-     Left <$> enqueue s l NullClause
-   _ -> do
-    -- allocate clause:
-     c <- newClauseFromStack isLearnt ps
-     let lstack = lits c
-     when isLearnt $ do
-       -- Pick a second literal to watch:
-       let
-         findMax :: Int -> Int -> Int -> IO Int
-         findMax ((<= k) -> False) j _ = return j
-         findMax i j val = do
-           v' <- lit2var <$> getNth lstack i
-           varBumpActivity s v' -- this is a just good chance to bump activities of literals in this clause
-           a <- getNth assigns v'
-           b <- getNth level v'
-           if (a /= LBottom) && (val < b)
-             then findMax (i + 1) i b
-             else findMax (i + 1) j val
-       -- Let @max_i@ be the index of the literal with highest decision level
-       max_i <- findMax 1 1 0
-       swapBetween lstack 2 max_i
-       -- check literals occurences
-       -- x <- asList c
-       -- unless (length x == length (nub x)) $ error "new clause contains a element doubly"
-       -- Bumping:
-       claBumpActivity s c -- newly learnt clauses should be considered active
-     -- Add clause to watcher lists:
-     l1 <- getNth lstack 1
-     l2 <- getNth lstack 2
-     pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
-     pushClauseWithKey (getNthWatcher watches (negateLit l2)) c 0
-     return (Right c)
+-- | assigns a value to the /n/-th variable
+setAssign :: Solver -> Int -> LiftedBool -> IO ()
+setAssign Solver{..} v x = setNth assigns v x
 
 -- | __Fig. 9 (p.14)__
 -- Puts a new fact on the propagation queue, as well as immediately updating the variable's value
@@ -343,15 +229,12 @@ enqueue s@Solver{..} p from = do
   let v = lit2var p
   val <- valueVar s v
   if val /= LBottom
-    then do -- Existing consistent assignment -- don't enqueue
-        return $ val == signumP
-    else do
-        -- New fact, store it
-        setNth assigns v signumP
-        setNth level v =<< decisionLevel s
-        setNth reason v from     -- NOTE: @from@ might be NULL!
-        pushTo trail p
-        return True
+    then return $ val == signumP     -- Existing consistent assignment -- don't enqueue
+    else do setNth assigns v signumP -- New fact, store it
+            setNth level v =<< decisionLevel s
+            setNth reason v from     -- NOTE: @from@ might be NULL!
+            pushTo trail p
+            return True
 
 -- | __Fig. 12 (p.17)__
 -- returns @False@ if immediate conflict.
@@ -432,88 +315,6 @@ instance VarOrder Solver where
               if x == LBottom then return v else loop
     loop
 
--------------------------------------------------------------------------------- Activities
-
-varActivityThreshold :: Double
-varActivityThreshold = 1e100
-
--- | __Fig. 14 (p.19)__ Bumping of clause activity
-{-# INLINE varBumpActivity #-}
-varBumpActivity :: Solver -> Var -> IO ()
-varBumpActivity s@Solver{..} x = do
-  !a <- (+) <$> getNth activities x <*> get' varInc
-  setNth activities x a
-  when (varActivityThreshold < a) $ varRescaleActivity s
-  update s x                    -- update the position in heap
-
--- | __Fig. 14 (p.19)__
-{-# INLINABLE varDecayActivity #-}
-varDecayActivity :: Solver -> IO ()
-varDecayActivity Solver{..} = modify' varInc (/ variableDecayRate config)
--- varDecayActivity Solver{..} = modifyDouble varInc . (flip (/)) =<< getDouble varDecay
-
--- | __Fig. 14 (p.19)__
-{-# INLINABLE varRescaleActivity #-}
-varRescaleActivity :: Solver -> IO ()
-varRescaleActivity Solver{..} = do
-  let
-    loop ((<= nVars) -> False) = return ()
-    loop i = modifyNth activities (/ varActivityThreshold) i >> loop (i + 1)
-  loop 1
-  modify' varInc (/ varActivityThreshold)
-
--- | value for rescaling clause activity.
-claActivityThreshold :: Double
-claActivityThreshold = 1e20
-
--- | __Fig. 14 (p.19)__
-{-# INLINE claBumpActivity #-}
-claBumpActivity :: Solver -> Clause -> IO ()
-claBumpActivity s@Solver{..} Clause{..} = do
-  a <- (+) <$> get' activity <*> get' claInc
-  set' activity a
-  when (claActivityThreshold <= a) $ claRescaleActivity s
-
--- | __Fig. 14 (p.19)__
-{-# INLINE claDecayActivity #-}
-claDecayActivity :: Solver -> IO ()
-claDecayActivity Solver{..} = modify' claInc (/ clauseDecayRate config)
-
--- | __Fig. 14 (p.19)__
-{-# INLINABLE claRescaleActivity #-}
-claRescaleActivity :: Solver -> IO ()
-claRescaleActivity Solver{..} = do
-  vec <- getClauseVector learnts
-  n <- get' learnts
-  let
-    loopOnVector :: Int -> IO ()
-    loopOnVector ((< n) -> False) = return ()
-    loopOnVector i = do
-      c <- getNth vec i
-      modify' (activity c) (/ claActivityThreshold)
-      loopOnVector $ i + 1
-  loopOnVector 0
-  modify' claInc (/ claActivityThreshold)
-
--- | __Fig. 14 (p.19)__
-{-# INLINABLE claRescaleActivityAfterRestart #-}
-claRescaleActivityAfterRestart :: Solver -> IO ()
-claRescaleActivityAfterRestart Solver{..} = do
-  vec <- getClauseVector learnts
-  n <- get' learnts
-  let
-    loopOnVector :: Int -> IO ()
-    loopOnVector ((< n) -> False) = return ()
-    loopOnVector i = do
-      c <- getNth vec i
-      d <- get' c
-      if d < 9
-        then modify' (activity c) sqrt
-        else set' (activity c) 0
-      -- set' (protected c) False
-      loopOnVector $ i + 1
-  loopOnVector 0
-
 -------------------------------------------------------------------------------- VarHeap
 
 -- | A heap tree built from two 'Vec'.
@@ -543,11 +344,12 @@ numElementsInHeap = get' . heap . order
 
 {-# INLINE inHeap #-}
 inHeap :: Solver -> Var -> IO Bool
-inHeap (order -> idxs -> at) n = (/= 0) <$> getNth at n
+inHeap Solver{..} n = case idxs order of at -> (/= 0) <$> getNth at n
 
 {-# INLINE increaseHeap #-}
 increaseHeap :: Solver -> Int -> IO ()
-increaseHeap s@(order -> idxs -> at) n = inHeap s n >>= (`when` (percolateUp s =<< getNth at n))
+increaseHeap s@Solver{..} n = case idxs order of
+                                at -> inHeap s n >>= (`when` (percolateUp s =<< getNth at n))
 
 {-# INLINABLE percolateUp #-}
 percolateUp :: Solver -> Int -> IO ()
@@ -616,3 +418,37 @@ getHeapRoot s@(order -> VarHeap to at) = do
   n <- getNth to 0
   when (1 < n) $ percolateDown s 1
   return r
+
+-------------------------------------------------------------------------------- dump
+
+{-# INLINABLE dumpSolver #-}
+-- | print statatistic data to stdio. This should be called after each restart.
+dumpSolver :: DumpMode -> Solver -> IO ()
+
+dumpSolver NoDump _ = return ()
+
+dumpSolver DumpCSVHeader s@Solver{..} = do
+  sts <- init <$> getStats s
+  let labels = map (show . fst) sts  ++ ["emaDFast", "emaDSlow", "emaAFast", "emaASlow"]
+  putStrLn $ intercalate "," labels
+
+dumpSolver DumpCSV s@Solver{..} = do
+  -- First update the stat data
+  df <- get' emaDFast
+  ds <- get' emaDSlow
+  af <- get' emaAFast
+  as <- get' emaASlow
+  sts <- init <$> getStats s
+  va <- get' trailLim
+  setStat s NumOfVariable . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
+  setStat s NumOfAssigned =<< nAssigns s
+  setStat s NumOfClause =<< get' clauses
+  setStat s NumOfLearnt =<< get' learnts
+  -- Additional data which type is Double
+  let emas = [("emaDFast", df), ("emaDSlow", ds), ("emaAFast", af), ("emaASlow", as)]
+      fs x = showFFloat (Just 3) x ""
+      vals = map (show . snd) sts ++ map (fs . snd) emas
+  putStrLn $ intercalate "," vals
+
+-- | FIXME: use Util/Stat
+dumpSolver DumpJSON _ = return ()                -- mode 2: JSON

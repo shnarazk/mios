@@ -2,12 +2,12 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                   mios
-version:                1.5.2
+version:                1.5.3
 synopsis:               A Minisat-based CDCL SAT solver in Haskell
 description:
 
   A modern and very fast SAT solver written in Haskell, using CDCL, watch literals, VSIDS,
-  restart, blocking-literals, LBD, phase saving and so on.
+  blocking-literals, phase saving, LBD, Glucose-like restart and so on.
   'Mios' is an abbreviation of 'Minisat-based Implementation and Optimization Study on SAT solver'.
   .
 
@@ -63,7 +63,7 @@ library
                         SAT.Mios.Clause
                         SAT.Mios.ClauseManager
                         SAT.Mios.ClausePool
-                        SAT.Mios.Glucose
+                        SAT.Mios.Criteria
                         SAT.Mios.Main
                         SAT.Mios.OptionParser
                         SAT.Mios.Solver
@@ -82,7 +82,7 @@ library
   else
     ghc-options:	-O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
 
-executable mios-1.5.2
+executable mios-1.5.3
   hs-source-dirs:	app
   main-is:              mios.hs
   if flag(prof)
@@ -97,7 +97,7 @@ executable mios-1.5.2
   else
     ghc-options:	-O2 -funbox-strict-fields -msse2 -rtsopts -fwarn-missing-signatures
 
-executable mios-1.5.2-prof
+executable mios-1.5.3-prof
   hs-source-dirs:	app
   main-is:              mios.hs
   if flag(prof)

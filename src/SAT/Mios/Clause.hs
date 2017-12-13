@@ -1,7 +1,7 @@
--- | This file is a part of MIOS.
+-- | (This is a part of MIOS.)
+-- Clause, supporting pointer-based equality
 {-# LANGUAGE
-    BangPatterns
-  , FlexibleInstances
+    FlexibleInstances
   , MagicHash
   , MultiParamTypeClasses
   , RecordWildCards
@@ -9,12 +9,9 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | Clause, supporting pointer-based equality
 module SAT.Mios.Clause
        (
          Clause (..)
---       , isLit
---       , getLit
        , newClauseFromStack
          -- * Vector of Clause
        , ClauseVector
@@ -85,17 +82,6 @@ instance StackFamily Clause Lit where
   -- | drop the last /N/ literals in a 'Clause' to eliminate unsatisfied literals
   {-# SPECIALIZE INLINE shrinkBy :: Clause -> Int -> IO () #-}
   shrinkBy c n = modifyNth (lits c) (subtract n) 0
-
--- returns True if it is a 'BinaryClause'.
--- FIXME: this might be discarded in minisat 2.2
--- isLit :: Clause -> Bool
--- isLit (BinaryClause _) = True
--- isLit _ = False
-
--- returns the literal in a BinaryClause.
--- FIXME: this might be discarded in minisat 2.2
--- getLit :: Clause -> Lit
--- getLit (BinaryClause x) = x
 
 -- coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes.
 -- liftToClause :: Clause -> Clause

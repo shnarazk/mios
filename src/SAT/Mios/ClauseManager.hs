@@ -1,4 +1,5 @@
--- | This is a part of MIOS.
+-- | (This is a part of MIOS.)
+-- A shrinkable vector of 'C.Clause'
 {-# LANGUAGE
     BangPatterns
   , FlexibleInstances
@@ -8,7 +9,6 @@
   #-}
 {-# LANGUAGE Trustworthy #-}
 
--- | A shrinkable vector of 'C.Clause'
 module SAT.Mios.ClauseManager
        (
          -- * higher level interface for ClauseVector
@@ -20,7 +20,6 @@ module SAT.Mios.ClauseManager
        , pushClauseWithKey
        , getKeyVector
        , markClause
---       , purifyManager
          -- * WatcherList
        , WatcherList
        , newWatcherList
@@ -235,7 +234,7 @@ getKeyVector ClauseExtManager{..} = IORef.readIORef _keyVector
 -- | O(1) inserter
 {-# INLINABLE pushClauseWithKey #-}
 pushClauseWithKey :: ClauseExtManager -> C.Clause -> Lit -> IO ()
-pushClauseWithKey !ClauseExtManager{..} !c k = do
+pushClauseWithKey ClauseExtManager{..} !c k = do
   -- checkConsistency m c
   !n <- get' _nActives
   !v <- IORef.readIORef _clauseVector
@@ -276,8 +275,9 @@ type WatcherList = V.Vector ClauseExtManager
 
 -- | /n/ is the number of 'Var', /m/ is default size of each watcher list.
 -- | For /n/ vars, we need [0 .. 2 + 2 * n - 1] slots, namely /2 * (n + 1)/-length vector
+-- FIXME: sometimes n > 1M
 newWatcherList :: Int -> Int -> IO WatcherList
-newWatcherList n m = V.fromList <$> mapM (\_ -> newManager m) [0 .. int2lit (negate n) + 1]
+newWatcherList n m = V.replicateM (int2lit (negate n) + 2) (newManager m)
 
 -- | returns the watcher List for "Literal" /l/.
 {-# INLINE getNthWatcher #-}
