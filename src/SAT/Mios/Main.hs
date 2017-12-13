@@ -11,7 +11,14 @@
 
 module SAT.Mios.Main
        (
-         simplifyDB
+         -- * Interface to 'Solver', imported from 'SAT.Mios.Criteria'
+         Solver
+       , newSolver
+       , setAssign
+       , addClause
+       , dumpSolver
+         -- * Main function
+       , simplifyDB
        , solve
        )
         where

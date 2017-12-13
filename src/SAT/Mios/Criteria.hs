@@ -9,8 +9,15 @@
 
 module SAT.Mios.Criteria
        (
+         -- * Activities
+         claBumpActivity
+       , claDecayActivity
+       , varBumpActivity
+       , varDecayActivity
+         -- * Clause
+       , addClause
          -- * Literal Block Distance
-         lbdOf
+       , lbdOf
          -- * Restart
        , checkRestartCondition
        )
@@ -18,7 +25,204 @@ module SAT.Mios.Criteria
 
 import Control.Monad (when)
 import SAT.Mios.Types
+import SAT.Mios.Clause
+import SAT.Mios.ClauseManager
 import SAT.Mios.Solver
+
+-------------------------------------------------------------------------------- Activities
+
+varActivityThreshold :: Double
+varActivityThreshold = 1e100
+
+-- | __Fig. 14 (p.19)__ Bumping of clause activity
+{-# INLINE varBumpActivity #-}
+varBumpActivity :: Solver -> Var -> IO ()
+varBumpActivity s@Solver{..} x = do
+  a <- (+) <$> getNth activities x <*> get' varInc
+  setNth activities x a
+  when (varActivityThreshold < a) $ varRescaleActivity s
+  update s x                    -- update the position in heap
+
+-- | __Fig. 14 (p.19)__
+{-# INLINABLE varDecayActivity #-}
+varDecayActivity :: Solver -> IO ()
+varDecayActivity Solver{..} = modify' varInc (/ variableDecayRate config)
+
+-- | __Fig. 14 (p.19)__
+{-# INLINABLE varRescaleActivity #-}
+varRescaleActivity :: Solver -> IO ()
+varRescaleActivity Solver{..} = do
+  let
+    loop ((<= nVars) -> False) = return ()
+    loop i = modifyNth activities (/ varActivityThreshold) i >> loop (i + 1)
+  loop 1
+  modify' varInc (/ varActivityThreshold)
+
+-- | value for rescaling clause activity.
+claActivityThreshold :: Double
+claActivityThreshold = 1e20
+
+-- | __Fig. 14 (p.19)__
+{-# INLINE claBumpActivity #-}
+claBumpActivity :: Solver -> Clause -> IO ()
+claBumpActivity s@Solver{..} Clause{..} = do
+  a <- (+) <$> get' activity <*> get' claInc
+  set' activity a
+  when (claActivityThreshold <= a) $ claRescaleActivity s
+
+-- | __Fig. 14 (p.19)__
+{-# INLINE claDecayActivity #-}
+claDecayActivity :: Solver -> IO ()
+claDecayActivity Solver{..} = modify' claInc (/ clauseDecayRate config)
+
+-- | __Fig. 14 (p.19)__
+{-# INLINABLE claRescaleActivity #-}
+claRescaleActivity :: Solver -> IO ()
+claRescaleActivity Solver{..} = do
+  vec <- getClauseVector learnts
+  n <- get' learnts
+  let
+    loopOnVector :: Int -> IO ()
+    loopOnVector ((< n) -> False) = return ()
+    loopOnVector i = do
+      c <- getNth vec i
+      modify' (activity c) (/ claActivityThreshold)
+      loopOnVector $ i + 1
+  loopOnVector 0
+  modify' claInc (/ claActivityThreshold)
+
+{-
+-- | __Fig. 14 (p.19)__
+{-# INLINABLE claRescaleActivityAfterRestart #-}
+claRescaleActivityAfterRestart :: Solver -> IO ()
+claRescaleActivityAfterRestart Solver{..} = do
+  vec <- getClauseVector learnts
+  n <- get' learnts
+  let
+    loopOnVector :: Int -> IO ()
+    loopOnVector ((< n) -> False) = return ()
+    loopOnVector i = do
+      c <- getNth vec i
+      d <- get' c
+      if d < 9
+        then modify' (activity c) sqrt
+        else set' (activity c) 0
+      -- set' (protected c) False
+      loopOnVector $ i + 1
+  loopOnVector 0
+-}
+
+-------------------------------------------------------------------------------- ClauseNew
+
+-- | __Fig. 8. (p.12)__ create a new clause and adds it to watcher lists.
+-- Constructor function for clauses. Returns @False@ if top-level conflict is determined.
+-- @outClause@ may be set to Null if the new clause is already satisfied under the current
+-- top-level assignment.
+--
+-- __Post-condition:__ @ps@ is cleared. For learnt clauses, all
+-- literals will be false except @lits[0]@ (this by design of the 'analyze' method).
+-- For the propagation to work, the second watch must be put on the literal which will
+-- first be unbound by backtracking. (Note that none of the learnt-clause specific things
+-- needs to done for a user defined contraint type.)
+--
+-- * @Left False@ if the clause is in a confilct
+-- * @Left True@ if the clause is satisfied
+-- * @Right clause@ if the clause is enqueued successfully
+{-# INLINABLE clauseNew #-}
+clauseNew :: Solver -> Stack -> Bool -> IO (Either Bool Clause)
+clauseNew s@Solver{..} ps isLearnt = do
+  -- now ps[0] is the number of living literals
+  exit <- do
+    let
+      handle :: Int -> Int -> Int -> IO Bool
+      handle j l n      -- removes duplicates, but returns @True@ if this clause is satisfied
+        | j > n = return False
+        | otherwise = do
+            y <- getNth ps j
+            if | y == l    -> do                      -- finds a duplicate
+                   swapBetween ps j n
+                   modifyNth ps (subtract 1) 0
+                   handle j l (n - 1)
+               | - y == l  -> reset ps >> return True -- p and negateLit p occurs in ps
+               | otherwise -> handle (j + 1) l n
+      loopForLearnt :: Int -> IO Bool
+      loopForLearnt i = do
+        n <- get' ps
+        if n < i
+          then return False
+          else do
+              l <- getNth ps i
+              sat <- handle (i + 1) l n
+              if sat
+                then return True
+                else loopForLearnt $ i + 1
+      loop :: Int -> IO Bool
+      loop i = do
+        n <- get' ps
+        if n < i
+          then return False
+          else do
+              l <- getNth ps i     -- check the i-th literal's satisfiability
+              sat <- valueLit s l  -- any literal in ps is true
+              case sat of
+               1  -> reset ps >> return True
+               -1 -> do
+                 swapBetween ps i n
+                 modifyNth ps (subtract 1) 0
+                 loop i
+               _ -> do
+                 sat' <- handle (i + 1) l n
+                 if sat'
+                   then return True
+                   else loop $ i + 1
+    if isLearnt then loopForLearnt 1 else loop 1
+  k <- get' ps
+  case k of
+   0 -> return (Left exit)
+   1 -> do
+     l <- getNth ps 1
+     Left <$> enqueue s l NullClause
+   _ -> do
+    -- allocate clause:
+     c <- newClauseFromStack isLearnt ps
+     let lstack = lits c
+     when isLearnt $ do
+       -- Pick a second literal to watch:
+       let
+         findMax :: Int -> Int -> Int -> IO Int
+         findMax ((<= k) -> False) j _ = return j
+         findMax i j val = do
+           v' <- lit2var <$> getNth lstack i
+           varBumpActivity s v' -- this is a just good chance to bump activities of literals in this clause
+           a <- getNth assigns v'
+           b <- getNth level v'
+           if (a /= LBottom) && (val < b)
+             then findMax (i + 1) i b
+             else findMax (i + 1) j val
+       -- Let @max_i@ be the index of the literal with highest decision level
+       max_i <- findMax 1 1 0
+       swapBetween lstack 2 max_i
+       -- check literals occurences
+       -- x <- asList c
+       -- unless (length x == length (nub x)) $ error "new clause contains a element doubly"
+       -- Bumping:
+       claBumpActivity s c -- newly learnt clauses should be considered active
+     -- Add clause to watcher lists:
+     l1 <- getNth lstack 1
+     l2 <- getNth lstack 2
+     pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
+     pushClauseWithKey (getNthWatcher watches (negateLit l2)) c 0
+     return (Right c)
+
+-- | returns @False@ if a conflict has occured.
+-- This function is called only before the solving phase to register the given clauses.
+{-# INLINABLE addClause #-}
+addClause :: Solver -> Stack -> IO Bool
+addClause s@Solver{..} vecLits = do
+  result <- clauseNew s vecLits False
+  case result of
+   Left b  -> return b   -- No new clause was returned becaues a confilct occured or the clause is a literal
+   Right c -> pushTo clauses c >> return True
 
 -------------------------------------------------------------------------------- LBD
 
@@ -107,6 +311,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
          return True
      | otherwise      -> return False
 
+{-
 {-# INLINABLE luby #-}
 luby :: Double -> Int -> Double
 luby y x_ = loop 1 0
@@ -119,3 +324,4 @@ luby y x_ = loop 1 0
     loop2 x sz sq
       | sz - 1 == x = y ** fromIntegral sq
       | otherwise   = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
+-}

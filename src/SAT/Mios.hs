@@ -46,7 +46,6 @@ import System.Exit
 import System.IO
 
 import SAT.Mios.Types
-import SAT.Mios.Solver
 import SAT.Mios.Main
 import SAT.Mios.OptionParser
 import SAT.Mios.Validator
@@ -207,10 +206,6 @@ executeValidator opts@(_targetFile -> target@(Just cnfFile)) = do
   injectClausesFromCNF s desc cls
   when (_confVerbose opts) $
     hPutStrLn stderr $ cnfFile ++ " was loaded: #v = " ++ show (_numberOfVariables desc) ++ " #c = " ++ show (_numberOfClauses desc)
-  when (_confVerbose opts) $ do
-    nc <- nClauses s
-    nl <- nLearnts s
-    hPutStrLn stderr $ "(nv, nc, nl) = " ++ show (nVars s, nc, nl)
   asg <- read <$> getContents
   unless (_confNoAnswer opts) $ print asg
   result <- s `validate` (asg :: [Int])
@@ -275,15 +270,14 @@ injectClausesFromCNF s (CNFDescription nv nc _) bs = do
       loop !i !b = loop (i + 1) =<< readClause s buffer polvec b
   loop 0 bs
   -- static polarity
-  let asg = assigns s
-      checkPolarity :: Int -> IO ()
+  let checkPolarity :: Int -> IO ()
       checkPolarity ((< nv) -> False) = return ()
       checkPolarity v = do
         p <- getNth polvec $ var2lit v True
         if p == LiftedF
-          then setNth asg v p
+          then setAssign s v p
           else do n <- getNth polvec $ var2lit v False
-                  when (n == LiftedF) $ setNth asg v p
+                  when (n == LiftedF) $ setAssign s v p
         checkPolarity $ v + 1
   checkPolarity 1
 

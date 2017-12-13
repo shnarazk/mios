@@ -37,7 +37,7 @@ main = do opts <- miosParseOptionsFromArgs vid
 
 countLiterals :: MiosProgramOption -> FilePath -> IO ()
 countLiterals opts cnfFile = do
-  (desc, cls) <- parseCNF (Just cnfFile) <$> B.readFile cnfFile
+  (desc, cls) <- parseCNF (Just cnfFile)
   let n = _numberOfVariables desc
   let m = _numberOfClauses desc
   when (n /= 0) $ do
