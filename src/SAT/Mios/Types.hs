@@ -2,7 +2,6 @@
 -- Basic data types used throughout mios.
 {-# LANGUAGE
     BangPatterns
---  , MultiParamTypeClasses
   , PatternSynonyms
   #-}
 {-# LANGUAGE Safe #-}
@@ -28,7 +27,6 @@ module SAT.Mios.Types
        , lit2int
        , int2lit
        , bottomLit
---       , newLit
        , positiveLit
        , lit2var
        , var2lit
