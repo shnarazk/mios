@@ -179,10 +179,10 @@ fundamentalProblems =
 structuredProblems :: [(String, String)] -- pair of label and filname
 structuredProblems =
   [ -- something like this
-    ("itox", "SR2015/itox_vc1130.cnf")
-  , ("m283", "SR2015/manthey_DimacsSorter_28_3.cnf")
-  , ("38b", "SR2015/38bits_10.dimacs.cnf")
-  , ("44b", "SR2015/44bits_11.dimacs.cnf")
+    ("itox", "test/data/itox_vc1130.cnf")
+  , ("m283", "test/data/manthey_DimacsSorter_28_3.cnf")
+  , ("38b", "test/data/38bits_10.dimacs.cnf")
+  , ("44b", "test/data/44bits_11.dimacs.cnf")
   ]
 
 main :: IO ()
