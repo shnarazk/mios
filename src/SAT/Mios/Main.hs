@@ -198,8 +198,8 @@ analyze s@Solver{..} confl = do
       merger ((<= n) -> False) b = return b
       merger i b = do l <- getNth litsLearnt i
                       pushTo an'toClear l
-                      -- restrict the search depth (range) to 63
-                      merger (i + 1) . setBit b . (63 .&.) =<< getNth level (lit2var l)
+                      -- restrict the search depth (range) to 31
+                      merger (i + 1) . setBit b . (31 .&.) =<< getNth level (lit2var l)
   levels <- merger 2 0
   let loopOnLits :: Int -> Int -> IO ()
       loopOnLits ((<= n) -> False) n' = shrinkBy litsLearnt $ n - n' + 1
@@ -250,47 +250,43 @@ analyzeRemovable Solver{..} p minLevel = do
   reset an'stack      -- analyze_stack.clear()
   pushTo an'stack p   -- analyze_stack.push(p);
   top <- get' an'toClear
-  let
-    loopOnStack :: IO Bool
-    loopOnStack = do
-      k <- get' an'stack  -- int top = analyze_toclear.size();
-      if 0 == k
-        then return True
-        else do -- assert(reason[var(analyze_stack.last())] != GClause_NULL);
-            sl <- lastOf an'stack
-            popFrom an'stack             -- analyze_stack.pop();
-            c <- getNth reason (lit2var sl) -- getRoot sl
-            nl <- get' c
-            let
-              lstack = lits c
-              loopOnLit :: Int -> IO Bool -- loopOnLit (int i = 1; i < c.size(); i++){
-              loopOnLit ((<= nl) -> False) = loopOnStack
-              loopOnLit i = do
-                p' <- getNth lstack i              -- valid range is [1 .. nl]
-                let v' = lit2var p'
-                l' <- getNth level v'
-                c1 <- (1 /=) <$> getNth an'seen v'
-                if c1 && (0 /= l')   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
-                  then do
-                      c3 <- (NullClause /=) <$> getNth reason v'
-                      if c3 && testBit minLevel (l' .&. 63) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
-                        then do
-                            setNth an'seen v' 1   -- analyze_seen[var(p)] = 1;
-                            pushTo an'stack p'    -- analyze_stack.push(p);
-                            pushTo an'toClear p'  -- analyze_toclear.push(p);
-                            loopOnLit $ i + 1
-                        else do
-                            -- for (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
-                            top' <- get' an'toClear
-                            let clearAll :: Int -> IO ()
-                                clearAll ((<= top') -> False) = return ()
-                                clearAll j = do x <- getNth an'toClear j; setNth an'seen (lit2var x) 0; clearAll (j + 1)
-                            clearAll $ top + 1
-                            -- analyze_toclear.shrink(analyze_toclear.size() - top); note: shrink n == repeat n pop
-                            shrinkBy an'toClear $ top' - top
-                            return False
-                  else loopOnLit $ i + 1
-            loopOnLit 2
+  let loopOnStack :: IO Bool
+      loopOnStack = do
+        k <- get' an'stack  -- int top = analyze_toclear.size();
+        if 0 == k
+          then return True
+          else do sl <- lastOf an'stack
+                  -- assert(reason[var(analyze_stack.last())] != GClause_NULL);
+                  popFrom an'stack             -- analyze_stack.pop();
+                  c <- getNth reason (lit2var sl) -- getRoot sl
+                  nl <- get' c
+                  let lstack = lits c
+                      loopOnLit :: Int -> IO Bool -- loopOnLit (int i = 1; i < c.size(); i++){
+                      loopOnLit ((<= nl) -> False) = loopOnStack
+                      loopOnLit i = do
+                        p' <- getNth lstack i              -- valid range is [1 .. nl]
+                        let v' = lit2var p'
+                        l' <- getNth level v'
+                        c1 <- (1 /=) <$> getNth an'seen v'
+                        if c1 && (0 /= l')   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
+                          then do c3 <- (NullClause /=) <$> getNth reason v'
+                                  if c3 && testBit minLevel (l' .&. 31) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
+                                    then do setNth an'seen v' 1   -- analyze_seen[var(p)] = 1;
+                                            pushTo an'stack p'    -- analyze_stack.push(p);
+                                            pushTo an'toClear p'  -- analyze_toclear.push(p);
+                                            loopOnLit $ i + 1
+                                    else do top' <- get' an'toClear
+                                            -- for (int j = top; j < analyze_toclear.size(); j++) analyze_seen[var(analyze_toclear[j])] = 0;
+                                            let clearAll :: Int -> IO ()
+                                                clearAll ((<= top') -> False) = return ()
+                                                clearAll j = do x <- getNth an'toClear j; setNth an'seen (lit2var x) 0; clearAll (j + 1)
+                                            clearAll $ top + 1
+                                            -- analyze_toclear.shrink(analyze_toclear.size() - top);
+                                            -- note: shrink n == repeat n pop
+                                            shrinkBy an'toClear $ top' - top
+                                            return False
+                          else loopOnLit $ i + 1
+              loopOnLit 2
   loopOnStack
 
 -- | #114
