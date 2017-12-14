@@ -476,9 +476,9 @@ reduceDB s@Solver{..} = do
 -- * 40 bits for clauseVector index
 --
 rankWidth :: Int
-rankWidth = 8
+rankWidth = 10
 activityWidth :: Int
-activityWidth = 52              -- note: the maximum clause activity is 1e20.
+activityWidth = 50              -- note: the maximum clause activity is 1e20.
 indexWidth :: Int
 indexWidth = 40
 rankMax :: Int
@@ -500,14 +500,16 @@ sortClauses s cm limit' = do
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
   let shiftLBD = activityWidth
+      shiftIndex = shiftL 1 indexWidth
+      am = fromIntegral activityMax :: Double
       scaleAct :: Double -> Int
       scaleAct x
         | x < 1e-20 = activityMax
-        | otherwise = floor $ fromIntegral activityMax * (1 - logBase 10 (x * 1e20)) / 40
+        | otherwise = floor $ am * (1 - logBase 10 (x * 1e20) / 40)
       assignKey :: Int -> Int -> IO Int
       assignKey ((< n) -> False) t = return t
       assignKey i t = do
-        setNth keys (2 * i + 1) $ shiftL 1 indexWidth + i
+        setNth keys (2 * i + 1) $ shiftIndex + i
         c <- getNth vec i
         k <- get' c
         if k == 2                  -- Main criteria. Like in MiniSat we keep all binary clauses
