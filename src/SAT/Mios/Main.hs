@@ -286,7 +286,7 @@ analyzeRemovable Solver{..} p minLevel = do
                                             shrinkBy an'toClear $ top' - top
                                             return False
                           else loopOnLit $ i + 1
-              loopOnLit 2
+                  loopOnLit 2
   loopOnStack
 
 -- | #114
