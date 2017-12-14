@@ -194,13 +194,16 @@ analyze s@Solver{..} confl = do
   reset an'stack           -- analyze_stack.clear();
   reset an'toClear         -- out_learnt.copyTo(analyze_toclear);
   pushTo an'toClear =<< getNth litsLearnt 1
-  let merger :: Int -> Int64 -> IO Int64
-      merger ((<= n) -> False) b = return b
-      merger i b = do l <- getNth litsLearnt i
-                      pushTo an'toClear l
-                      -- restrict the search depth (range) to 31
-                      merger (i + 1) . setBit b . (31 .&.) =<< getNth level (lit2var l)
-  levels <- merger 2 0
+  setAll dlBits 0
+  let merger :: Int -> IO ()
+      merger ((<= n) -> False) = return ()
+      merger i = do l <- getNth litsLearnt i
+                    pushTo an'toClear l
+                    -- restrict the search depth (range) to 255
+                    j <- (255 .&.) <$> getNth level (lit2var l)
+                    setNth dlBits j 1
+                    merger (i + 1)
+  merger 2
   let loopOnLits :: Int -> Int -> IO ()
       loopOnLits ((<= n) -> False) n' = shrinkBy litsLearnt $ n - n' + 1
       loopOnLits i j = do
@@ -209,7 +212,7 @@ analyze s@Solver{..} confl = do
         if c1
           then setNth litsLearnt j l >> loopOnLits (i + 1) (j + 1)
           else do
-             c2 <- not <$> analyzeRemovable s l levels
+             c2 <- not <$> analyzeRemovable s l
              if c2
                then setNth litsLearnt j l >> loopOnLits (i + 1) (j + 1)
                else loopOnLits (i + 1) j
@@ -244,8 +247,8 @@ analyze s@Solver{..} confl = do
 -- *  @an'toClear@ is initialized by @ps@ in @analyze@ (a copy of 'learnt').
 --   This is used only in this function and @analyze@.
 --
-analyzeRemovable :: Solver -> Lit -> Int64 -> IO Bool
-analyzeRemovable Solver{..} p minLevel = do
+analyzeRemovable :: Solver -> Lit -> IO Bool
+analyzeRemovable Solver{..} p = do
   -- assert (reason[var(p)] != NullClause);
   reset an'stack      -- analyze_stack.clear()
   pushTo an'stack p   -- analyze_stack.push(p);
@@ -270,7 +273,8 @@ analyzeRemovable Solver{..} p minLevel = do
                         c1 <- (1 /=) <$> getNth an'seen v'
                         if c1 && (0 /= l')   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
                           then do c3 <- (NullClause /=) <$> getNth reason v'
-                                  if c3 && testBit minLevel (l' .&. 31) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
+                                  seen <- (1 ==) <$> getNth dlBits (l' .&. 255)
+                                  if c3 && seen -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
                                     then do setNth an'seen v' 1   -- analyze_seen[var(p)] = 1;
                                             pushTo an'stack p'    -- analyze_stack.push(p);
                                             pushTo an'toClear p'  -- analyze_toclear.push(p);
