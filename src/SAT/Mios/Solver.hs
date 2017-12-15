@@ -85,6 +85,7 @@ data Solver = Solver
               , stats      :: !(Vec [Int])       -- ^ statistics information holder
               , lbd'seen   :: !(Vec Int)         -- ^ used in lbd computation
               , lbd'key    :: !Int'              -- ^ used in lbd computation
+              , dlBits     :: !(Vec Int)         -- ^ used in analyzeRemovable
                 -------- restart heuristics #62
               , emaDFast    :: !Double'          -- ^ fast ema value of LBD
               , emaDSlow    :: !Double'          -- ^ slow ema value of LBD
@@ -135,6 +136,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> newVec (fromEnum EndOfStatIndex) 0 -- stats
     <*> newVec nv 0                        -- lbd'seen
     <*> new' 0                             -- lbd'key
+    <*> newVec 256 0                       -- dlBits
     -- restart heuristics #62
     <*> new' 0.0                           -- emaDFast
     <*> new' 0.0                           -- emaDSlow

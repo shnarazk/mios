@@ -185,6 +185,8 @@ instance VecFamily ByteArrayInt Int where
                   BA.writeByteArray v 0 (0 :: Int)
                   BA.setByteArray v 1 n k
                   return $ ByteArrayInt v
+  {-# SPECIALIZE INLINE setAll :: Vec Int -> Int -> IO () #-}
+  setAll (ByteArrayInt v) x = BA.setByteArray v 0 (div (BA.sizeofMutableByteArray v) 8) x
   asList (ByteArrayInt v) = mapM (BA.readByteArray v) [0 .. div (BA.sizeofMutableByteArray v) 8 - 1]
 
 instance VecFamily ByteArrayDouble Double where
