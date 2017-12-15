@@ -471,16 +471,16 @@ reduceDB s@Solver{..} = do
 --
 -- they are coded into an "Int64" as the following 62 bit layout:
 --
--- *  8 bits for rank (LBD)
+-- * 10 bits for rank (LBD)
 -- * 52 bits for converted activity
--- * 40 bits for clauseVector index
+-- * 32 bits for clauseVector index
 --
 rankWidth :: Int
 rankWidth = 10
 activityWidth :: Int
-activityWidth = 50              -- note: the maximum clause activity is 1e20.
+activityWidth = 52              -- note: the maximum clause activity is 1e20.
 indexWidth :: Int
-indexWidth = 40
+indexWidth = 32                 -- 4G
 rankMax :: Int
 rankMax = 2 ^ rankWidth - 1
 activityMax :: Int
