@@ -462,19 +462,6 @@ reduceDB s@Solver{..} = do
   shrinkBy learnts (n - k)
   incrementStat s NumOfReduction 1
 
--- | (Good to Bad) Quick sort the key vector based on their activities and returns number of privileged clauses.
--- this function uses the same metrix as reduceDB_lt in glucose 4.0:
--- 1. binary clause
--- 2. smaller LBD
--- 3. larger activity defined in MiniSat
--- , where smaller value is better.
---
--- they are coded into an "Int64" as the following 62 bit layout:
---
--- * 10 bits for rank (LBD)
--- * 52 bits for converted activity
--- * 32 bits for clauseVector index
---
 rankWidth :: Int
 rankWidth = 10
 activityWidth :: Int
@@ -485,11 +472,21 @@ rankMax :: Int
 rankMax = 2 ^ rankWidth - 1
 activityMax :: Int
 activityMax = 2 ^ activityWidth - 1
-
 indexMax :: Int
 indexMax = 2 ^ indexWidth - 1
 
--- | sort clauses (good to bad) by using a 'proxy' @Vec Int64@ that holds weighted index.
+-- | applys a (good to bad) quick semi-sort on the vector in a 'ClauseExtManager' and returns the number of privileged clauses.
+-- this function uses the same criteria as reduceDB_lt in glucose 4.0:
+-- 1. binary clause
+-- 2. smaller LBD
+-- 3. larger activity defined as MiniSat
+--
+-- they are encoded into two "Int64"s as the following (10+52+32 layout):
+--
+-- * 10 bits for rank (LBD): 'rankWidth'
+-- * 52 bits for converted activity: 'activityWidth'
+-- * 32 bits for clauseVector index: 'indexWidth'
+--
 sortClauses :: Solver -> ClauseExtManager -> Int -> IO Int
 sortClauses s cm limit' = do
   n <- get' cm
