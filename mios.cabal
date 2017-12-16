@@ -82,7 +82,7 @@ library
   else
     ghc-options:	-O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
 
-executable mios-1.5.4WIP
+executable mios-66
   hs-source-dirs:	app
   main-is:              mios.hs
   if flag(prof)
@@ -97,7 +97,7 @@ executable mios-1.5.4WIP
   else
     ghc-options:	-O2 -funbox-strict-fields -msse2 -rtsopts -fwarn-missing-signatures
 
-executable mios-1.5.4WIP-prof
+executable mios-66-prof
   hs-source-dirs:	app
   main-is:              mios.hs
   if flag(prof)
