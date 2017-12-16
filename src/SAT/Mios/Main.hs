@@ -462,10 +462,11 @@ reduceDB s@Solver{..} = do
   shrinkBy learnts (n - k)
   incrementStat s NumOfReduction 1
 
+-- constants for sort key layout
 rankWidth :: Int
 rankWidth = 10
 activityWidth :: Int
-activityWidth = 52              -- note: the maximum clause activity is 1e20.
+activityWidth = 50              -- note: the maximum clause activity is 1e20.
 indexWidth :: Int
 indexWidth = 32                 -- 4G
 rankMax :: Int
@@ -484,7 +485,7 @@ indexMax = 2 ^ indexWidth - 1
 -- they are encoded into two "Int64"s as the following (10+52+32 layout):
 --
 -- * 10 bits for rank (LBD): 'rankWidth'
--- * 52 bits for converted activity: 'activityWidth'
+-- * 50 bits for converted activity: 'activityWidth'
 -- * 32 bits for clauseVector index: 'indexWidth'
 --
 sortClauses :: Solver -> ClauseExtManager -> Int -> IO Int
