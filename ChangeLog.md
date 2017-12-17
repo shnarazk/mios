@@ -1,5 +1,9 @@
 ## Release Note
 
+##### 1.5.4
+
+- 'sortClauses' didn't use clause activity correctly and now uses 2 * Int64 layout.
+
 ##### 1.5.3
 
 - implement EMA based Glucose heuristics (Biere 2015) #62
