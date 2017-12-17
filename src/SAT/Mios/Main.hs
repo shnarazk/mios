@@ -476,8 +476,9 @@ activityMax = 2 ^ activityWidth - 1
 indexMax :: Int
 indexMax = 2 ^ indexWidth - 1
 
--- | applys a (good to bad) quick semi-sort on the vector in a 'ClauseExtManager' and returns the number of privileged clauses.
--- this function uses the same criteria as reduceDB_lt in glucose 4.0:
+-- | applies a (good to bad) quick semi-sort to the vector in a 'ClauseExtManager'
+-- and returns the number of privileged clauses.
+-- This function uses the same criteria as reduceDB_lt in glucose 4.0:
 -- 1. binary clause
 -- 2. smaller LBD
 -- 3. larger activity defined as MiniSat
