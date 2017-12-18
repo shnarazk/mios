@@ -1,0 +1,137 @@
+name:                mios
+version:             1.6.0
+synopsis:            A Minisat-based CDCL SAT solver in Haskell
+description:
+  A modern and very fast SAT solver written in Haskell, using CDCL, watch literals, VSIDS,
+  blocking-literals, phase saving, LBD, Glucose-like restart and so on.
+  'Mios' is an abbreviation of 'Minisat-based Implementation and Optimization Study on SAT solver'.
+homepage:            https://github.com/shnarazk/mios
+github:	             shnarazk/mios
+license:             GPL-3
+author:              Shuji Narazaki
+maintainer:          narazaki@nagasaki-u.ac.jp
+copyright:           2017 Shuji Narazaki
+category:            Artificial Intelligence, Constraints
+extra-source-files:
+- app/sample.hs
+
+flags:
+  llvm:
+    description:     Compile with llvm
+    manual:          false
+    default:         false
+  utils:
+    description:     Build misc utilities for developer
+    manual:          false
+    default:         false
+  prof:
+    description:     Build a profiler
+    manual:          false
+    default:         false
+  MultiConflict:
+    description:     A research branch in 2016
+    manual:          false
+    default:         false
+
+when:
+  - condition:       flag(llvm)
+    then:
+      ghc-options:   -O2 -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -fwarn-missing-signatures
+    else:
+      ghc-options:   -O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
+
+default-extensions:   Strict
+dependencies:
+  - base >= 4.7 && < 5
+  - ghc-prim >=0.5
+  - primitive >=0.6
+  - bytestring >=0.10
+  - vector >=0.12
+
+library:
+  source-dirs:       MultiConflict
+
+executables:
+  mios-mc:
+    source-dirs:
+      - MultiConflict
+      - app
+    main:            mios.hs
+    dependencies:    mios
+    when:
+      - condition:   flag(MultiConflict)
+        then:
+          buildable: true
+        else:
+          buildable: false
+  mios-prof-mc:
+    source-dirs:     MultiConflict
+      - app
+    main:            mios.hs
+    dependencies:    mios
+    when:
+      - condition:   flag(MultiConflict) && flag(prof)
+        then:
+          buildable: true
+        else:
+          buildable: false
+  mc-dump2csv:
+    source-dirs:     MultiConflict
+    main:            utils/dump2csv.hs
+    dependencies:    mios
+    when:
+      - condition:   flag(MultiConflict) && flag(utils)
+        then:
+          buildable: true
+        else:
+          buildable: false
+  mc-averagecsv:
+    source-dirs:     MultiConflict
+    main:            utils/averagecsv.hs
+    dependencies:    mios
+    when:
+      - condition:   flag(MultiConflict) && flag(utils)
+        then:
+          buildable: true
+        else:
+          buildable: false
+  mc-summary:
+    source-dirs:     MultiConflict
+    main:            utils/summary.hs
+    dependencies:    mios
+    when:
+      - condition:   flag(MultiConflict) && flag(utils)
+        then:
+          buildable: true
+        else:
+          buildable: false
+  mc-stat2csv:
+    source-dirs:     MultiConflict
+    main:            utils/stat2csv.hs
+    dependencies:    mios
+    when:
+      - condition:   flag(MultiConflict) && flag(utils)
+        then:
+          buildable: true
+        else:
+          buildable: false
+  mc-pickup:
+    source-dirs:     MultiConflict
+    main:            utils/pickup.hs
+    dependencies:    mios
+    when:
+      - condition:   flag(MultiConflict) && flag(utils)
+        then:
+          buildable: true
+        else:
+          buildable: false
+  mc-numbers:
+    source-dirs:     MultiConflict
+    main:            utils/numbers.hs
+    dependencies:    mios
+    when:
+      - condition:   flag(MultiConflict) && flag(utils)
+        then:
+          buildable: true
+        else:
+          buildable: false
