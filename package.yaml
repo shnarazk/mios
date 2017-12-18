@@ -1,0 +1,76 @@
+name:                mios
+version:             1.6.0
+synopsis:            A Minisat-based CDCL SAT solver in Haskell
+description:
+  A modern and very fast SAT solver written in Haskell, using CDCL, watch literals, VSIDS,
+  blocking-literals, phase saving, LBD, Glucose-like restart and so on.
+  'Mios' is an abbreviation of 'Minisat-based Implementation and Optimization Study on SAT solver'.
+homepage:            https://github.com/shnarazk/mios
+github:	             shnarazk/mios
+license:             GPL-3
+author:              Shuji Narazaki
+maintainer:          narazaki@nagasaki-u.ac.jp
+copyright:           2017 Shuji Narazaki
+category:            Artificial Intelligence, Constraints
+extra-source-files:
+- app/sample.hs
+
+flags:
+  llvm:
+    description: Compile with llvm
+    manual: false
+    default: false
+  utils:
+    description: Build misc utilities for developer
+    manual: false
+    default: false
+  prof:
+    description:  Build a profiler
+    manual: false
+    default: false
+  MultiConflict:
+    description: research branch in 2016
+    manual: false
+    default: false
+
+when:
+  - condition: flag(llvm)
+    then:
+      ghc-options:   -O2 -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -fwarn-missing-signatures
+    else:
+      ghc-options:   -O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
+
+dependencies:
+  - base >= 4.7 && < 5
+  - ghc-prim >=0.5
+  - primitive >=0.6
+  - bytestring >=0.10
+  - vector >=0.12
+
+library:
+  source-dirs: src
+
+executables:
+  mios-1.6.0:
+    source-dirs:      app
+    main:             mios.hs
+    dependencies:     mios
+  mios-prof-1.6.0:
+    source-dirs:      app
+    main:             mios.hs
+    dependencies:     mios
+    when:
+      - condition: flag(prof)
+        then:
+          buildable:  true
+        else:
+          buildable:  false
+  cnf-stat:
+    source-dirs:      utils
+    main:             cnf-stat.hs
+    when:
+      - condition: flag(utils)
+        then:
+          buildable: true
+        else:
+          buildable: false
