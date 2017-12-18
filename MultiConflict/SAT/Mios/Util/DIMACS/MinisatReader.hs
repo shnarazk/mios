@@ -15,11 +15,13 @@ import Text.ParserCombinators.ReadP
 -- parser
 -- |parse a non-signed integer
 {-# INLINE pint #-}
+pint :: ReadP Int
 pint = do
   n <- munch isDigit
   return (read n :: Int)
 
 {-# INLINE mint #-}
+mint :: ReadP Int
 mint = do
   char '-'
   n <- munch isDigit
@@ -27,15 +29,17 @@ mint = do
 
 -- |parse a (signed) integer
 {-# INLINE int #-}
+int :: ReadP Int
 int = mint <++ pint
 
 -- |return integer list that terminates at zero
 {-# INLINE seqNums #-}
+seqNums :: ReadP [Int]
 seqNums = do
   skipSpaces
   x <- int
   skipSpaces
-  if (x == 0) then return []  else (x :) <$> seqNums
+  if x == 0 then return []  else (x :) <$> seqNums
 
 -- |top level interface for parsing CNF
 {-# INLINE parseMinisatOutput #-}
