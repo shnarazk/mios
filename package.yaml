@@ -17,29 +17,26 @@ extra-source-files:
 
 flags:
   llvm:
-    description: Compile with llvm
-    manual: false
-    default: false
+    description:     Compile with llvm
+    manual:          false
+    default:         false
   utils:
-    description: Build misc utilities for developer
-    manual: false
-    default: false
+    description:     Build misc utilities for developer
+    manual:          false
+    default:         false
   prof:
-    description:  Build a profiler
-    manual: false
-    default: false
-  MultiConflict:
-    description: research branch in 2016
-    manual: false
-    default: false
+    description:     Build a profiler
+    manual:          false
+    default:         false
 
 when:
-  - condition: flag(llvm)
+  - condition:       flag(llvm)
     then:
       ghc-options:   -O2 -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -fwarn-missing-signatures
     else:
       ghc-options:   -O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
 
+default-extensions:   Strict
 dependencies:
   - base >= 4.7 && < 5
   - ghc-prim >=0.5
@@ -48,28 +45,35 @@ dependencies:
   - vector >=0.12
 
 library:
-  source-dirs: src
+  source-dirs:       src
 
 executables:
   mios-1.6.0:
-    source-dirs:      app
-    main:             mios.hs
-    dependencies:     mios
+    source-dirs:     app
+    main:            mios.hs
+    dependencies:    mios
   mios-prof-1.6.0:
-    source-dirs:      app
-    main:             mios.hs
-    dependencies:     mios
+    source-dirs:     app
+    main:            mios.hs
+    dependencies:    mios
     when:
-      - condition: flag(prof)
+      - condition:   flag(llvm)
         then:
-          buildable:  true
+          ghc-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -prof -fprof-auto -rtsopts -ddump-simpl
         else:
-          buildable:  false
-  cnf-stat:
-    source-dirs:      utils
-    main:             cnf-stat.hs
+          ghc-options:	-O2 -funbox-strict-fields -prof -fprof-auto -rtsopts -ddump-simpl
     when:
-      - condition: flag(utils)
+      - condition:   flag(prof)
+        then:
+          buildable: true
+        else:
+          buildable: false
+  cnf-stat:
+    source-dirs:     utils
+    main:            cnf-stat.hs
+    dependencies:    mios
+    when:
+      - condition:   flag(utils)
         then:
           buildable: true
         else:
