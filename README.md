@@ -39,7 +39,8 @@ in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSa
 ##### Requirements
 
 - ghc-8.0.1 or upper (By deleting `default-extensions` from mios.cabal, you can use ghc-7.10.x.)
-- [Stack](http://www.haskellstack.org/) or `cabal-install`
+- [Stack](http://www.haskellstack.org/)
+- If you want to build with cabal, please use the cabal file under utils directory.
 
 ##### Stack
 
@@ -49,7 +50,7 @@ stack init --resolver nightly-2017-XX-XX  # for ghc-8.2.X
 stack install
 ```
 
-##### Cabal
+##### Hackage/Cabal
 
 Mios is registered in [hackage](http://hackage.haskell.org/package/mios) now.
 
