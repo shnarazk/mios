@@ -67,7 +67,7 @@ $ mios a.cnf
 an assignment :: [Int]
 
 $ mios --help
-mios-1.5.3 -- https://github.com/shnarazk/mios
+mios-1.6.0 -- https://github.com/shnarazk/mios
 Usage: mios [OPTIONS] target.cnf
   -d 0.95   --variable-decay-rate=0.95  [solver] variable activity decay rate (0.0 - 1.0)
   -c 0.999  --clause-decay-rate=0.999   [solver] clause activity decay rate (0.0 - 1.0)
