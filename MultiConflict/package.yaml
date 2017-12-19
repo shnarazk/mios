@@ -18,16 +18,16 @@ extra-source-files:
 flags:
   llvm:
     description:     Compile with llvm
-    manual:          false
+    manual:          true
     default:         false
   utils:
     description:     Build misc utilities for developer
-    manual:          false
+    manual:          true
     default:         false
   MultiConflict:
     description:     A research branch in 2016
-    manual:          false
-    default:         false
+    manual:          true
+    default:         true
 
 when:
   - condition:       flag(llvm)

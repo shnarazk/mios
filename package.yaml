@@ -18,11 +18,11 @@ extra-source-files:
 flags:
   llvm:
     description:     Compile with llvm
-    manual:          false
+    manual:          true
     default:         false
   utils:
     description:     Build misc utilities for developer
-    manual:          false
+    manual:          true
     default:         false
 
 when:
