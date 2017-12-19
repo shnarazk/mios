@@ -35,7 +35,7 @@ a part of my research theme.
 
 ```
 git clone https://github.com/shnarazk/mios
-stack init --resolver nightly-2017-XX-XX  # for ghc-8.2.X
+stack init --resolver lts-10.X  # for ghc-8.2.X
 stack install
 ```
 
