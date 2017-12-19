@@ -24,10 +24,6 @@ flags:
     description:     Build misc utilities for developer
     manual:          false
     default:         false
-  prof:
-    description:     Build a profiler
-    manual:          false
-    default:         false
   MultiConflict:
     description:     A research branch in 2016
     manual:          false
@@ -36,9 +32,11 @@ flags:
 when:
   - condition:       flag(llvm)
     then:
-      ghc-options:   -O2 -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -fwarn-missing-signatures
+      ghc-options:      -O2 -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -fwarn-missing-signatures
+      ghc-prof-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto
     else:
-      ghc-options:   -O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
+      ghc-options:      -O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
+      ghc-prof-options:	-O2 -funbox-strict-fields -fprof-auto
 
 default-extensions:   Strict
 dependencies:
@@ -49,7 +47,7 @@ dependencies:
   - vector >=0.12
 
 library:
-  source-dirs:       MultiConflict
+  source-dirs:       src
 
 executables:
   mios-mc:
@@ -64,17 +62,12 @@ executables:
           buildable: true
         else:
           buildable: false
-  mios-prof-mc:
-    source-dirs:     MultiConflict
-      - app
-    main:            mios.hs
-    dependencies:    mios
     when:
-      - condition:   flag(MultiConflict) && flag(prof)
+      - condition: flag(llvm)
         then:
-          buildable: true
+          ghc-prof-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto -rtsopts
         else:
-          buildable: false
+          ghc-prof-options:	-O2 -funbox-strict-fields -fprof-auto -rtsopts
   mc-dump2csv:
     source-dirs:     MultiConflict
     main:            utils/dump2csv.hs
