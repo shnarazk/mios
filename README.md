@@ -23,17 +23,6 @@ a part of my research theme.
 
 ![Cactus plot with Mios-1.5.4: SAT Competition 2017 main](https://narazaki-lab.github.io/SAT/cactus-1.5.4.png)
 
-- A subset of SAT-Race 2015 Application Problems (timeout: 1200 sec)
-
-This is a result on a subset the problems of which MiniSat-2.2.0 can solve
-in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSat-2.2.0*.
-
-![Cactus plot 2:SAT-RACE2015](https://cloud.githubusercontent.com/assets/997855/18457723/e9c6b91c-7995-11e6-8cc5-ecad36259fa7.png)
-
-- Performances on [various 3SAT problems (uf-* series)](http://www.cs.ubc.ca/~hoos/SATLIB/benchm.html)
-
-![](https://docs.google.com/spreadsheets/d/1cNltZ4FIu_exSUQMcXe53w4fADr3sOUxpo3L7oM0H_Q/pubchart?oid=297581252&format=image)
-
 ### > Install
 
 ##### Requirements
