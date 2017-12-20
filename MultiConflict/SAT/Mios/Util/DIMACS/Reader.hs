@@ -14,24 +14,30 @@ import Text.ParserCombinators.ReadP
 
 -- parser
 {-# INLINE newline #-}
+newline :: ReadP Char
 newline = char '\n'
 
 {-# INLINE digit #-}
+digit :: ReadP Char
 digit = satisfy isDigit
 
 {-# INLINE spaces #-}
+spaces :: ReadP String
 spaces = munch (`elem` " \t")
 
 {-# INLINE noneOf #-}
+noneOf :: Foldable t => t Char -> ReadP Char
 noneOf s = satisfy (`notElem` s)
 
 -- |parse a non-signed integer
 {-# INLINE pint #-}
+pint :: ReadP Int
 pint = do
   n <- munch isDigit
   return (read n :: Int)
 
 {-# INLINE mint #-}
+mint :: ReadP Int
 mint = do
   char '-'
   n <- munch isDigit
@@ -39,10 +45,12 @@ mint = do
 
 -- |parse a (signed) integer
 {-# INLINE int #-}
+int :: ReadP Int
 int = mint <++ pint
 
 -- |Parse something like: p FORMAT VARIABLES CLAUSES
 {-# INLINE problemLine #-}
+problemLine :: ReadP (Int, Int)
 problemLine = do
   char 'p'
   skipSpaces
@@ -57,6 +65,7 @@ problemLine = do
 
 -- |Parse something like: c This in an example of a comment line.
 {-# INLINE commentLines #-}
+commentLines :: ReadP ()
 commentLines = do
   l <- look
   if (head l)  == 'c'
@@ -66,6 +75,7 @@ commentLines = do
       commentLines
     else return ()
 
+_commentLines :: ReadP ()
 _commentLines = do
   char 'c'
   munch ('\n' /=)
@@ -75,12 +85,14 @@ _commentLines = do
 
 -- |Parse the preamble part
 {-# INLINE preambleCNF #-}
+preambleCNF :: ReadP (Int, Int)
 preambleCNF = do
   commentLines
   problemLine
 
 -- |return integer list that terminates at zero
 {-# INLINE seqNums #-}
+seqNums :: ReadP [Int]
 seqNums = do
   skipSpaces
   x <- int
@@ -101,6 +113,7 @@ parseCNF = do
   return (a, b)
 
 -- |driver:: String -> Either ParseError Int
+driver :: String -> [([[Int]], String)]
 driver input = readP_to_S (parseClauses 1) input
 
 -- |read a CNF file and return:

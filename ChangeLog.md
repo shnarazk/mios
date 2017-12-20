@@ -1,5 +1,9 @@
 ## Release Note
 
+##### 1.6.0
+
+- switch to hpack
+
 ##### 1.5.4
 
 - 'sortClauses' didn't use clause activity correctly and now uses 2 * Int64 layout.

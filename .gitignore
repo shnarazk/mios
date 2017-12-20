@@ -1,6 +1,7 @@
 stack.yaml
 .stack-work
 .cabal-sandbox
+mios.cabal
 cabal.sandbox.config
 dist
 *.hi

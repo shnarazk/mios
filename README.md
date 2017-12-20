@@ -21,35 +21,25 @@ a part of my research theme.
 - SAT-Competition 2017 Main track, running 3 jobs *in parallel* with a 510 second timeout on Intel Core i7-3930K @ 12x 3.8GHz
   (Therefore results near the threshold should be affected by other threads more or less.)
 
-![Cactus plot with Mios-1.5.4: SAT Competition 2017 main](https://narazaki-lab.github.io/SAT/cactus-1.5.4.png)
-
-- A subset of SAT-Race 2015 Application Problems (timeout: 1200 sec)
-
-This is a result on a subset the problems of which MiniSat-2.2.0 can solve
-in 1000 secs. It shows that *mios-1.2.0 is only about 2 times slower than MiniSat-2.2.0*.
-
-![Cactus plot 2:SAT-RACE2015](https://cloud.githubusercontent.com/assets/997855/18457723/e9c6b91c-7995-11e6-8cc5-ecad36259fa7.png)
-
-- Performances on [various 3SAT problems (uf-* series)](http://www.cs.ubc.ca/~hoos/SATLIB/benchm.html)
-
-![](https://docs.google.com/spreadsheets/d/1cNltZ4FIu_exSUQMcXe53w4fADr3sOUxpo3L7oM0H_Q/pubchart?oid=297581252&format=image)
+![Cactus plot with Mios-1.5.4: SAT Competition 2017 main](https://narazaki-lab.github.io/SAT/cactus-1.6.0.png)
 
 ### > Install
 
 ##### Requirements
 
 - ghc-8.0.1 or upper (By deleting `default-extensions` from mios.cabal, you can use ghc-7.10.x.)
-- [Stack](http://www.haskellstack.org/) or `cabal-install`
+- [Stack](http://www.haskellstack.org/)
+- If you want to build with cabal, please use the cabal file under utils directory.
 
 ##### Stack
 
 ```
 git clone https://github.com/shnarazk/mios
-stack init --resolver nightly-2017-XX-XX  # for ghc-8.2.X
+stack init --resolver lts-10.X  # for ghc-8.2.X
 stack install
 ```
 
-##### Cabal
+##### Hackage/Cabal
 
 Mios is registered in [hackage](http://hackage.haskell.org/package/mios) now.
 
@@ -66,7 +56,7 @@ $ mios a.cnf
 an assignment :: [Int]
 
 $ mios --help
-mios-1.5.3 -- https://github.com/shnarazk/mios
+mios-1.6.0 -- https://github.com/shnarazk/mios
 Usage: mios [OPTIONS] target.cnf
   -d 0.95   --variable-decay-rate=0.95  [solver] variable activity decay rate (0.0 - 1.0)
   -c 0.999  --clause-decay-rate=0.999   [solver] clause activity decay rate (0.0 - 1.0)
