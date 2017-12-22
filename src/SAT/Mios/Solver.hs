@@ -34,9 +34,11 @@ module SAT.Mios.Solver
        , incrementStat
        , getStats
        , dumpSolver
+       , abort
        )
         where
 
+import Control.Concurrent (MVar, ThreadId, killThread, putMVar)
 import Control.Monad (unless, when)
 import Data.List (intercalate)
 import Numeric (showFFloat)
@@ -92,11 +94,13 @@ data Solver = Solver
               , emaASlow    :: !Double'          -- ^ slow ema value of assignment
               , nextRestart :: !Int'             -- ^ next restart in number of conflict
               , restartMode :: Int'              -- ^ mode of restart
+                -- abort handling
+              , thread    :: Maybe (ThreadId, MVar SolverResult)
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
-newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
-newSolver conf (CNFDescription nv dummy_nc _) =
+newSolver :: MiosConfiguration -> CNFDescription -> Maybe (ThreadId, MVar SolverResult) -> IO Solver
+newSolver conf (CNFDescription nv dummy_nc _) thread =
   Solver
     -- Clause Database
     <$> newManager dummy_nc                -- clauses
@@ -142,6 +146,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> new' 0.0                           -- emaASlow
     <*> new' 100                           -- nextRestart
     <*> new' 1                             -- restartMode
+    <*> return thread
 
 --------------------------------------------------------------------------------
 -- Accessors
@@ -274,6 +279,11 @@ cancelUntil s@Solver{..} lvl = do
     shrinkBy trail (ts - lim)
     shrinkBy trailLim (ls - lvl)
     set' qHead =<< get' trail
+
+-- | abort immediately
+abort :: Solver -> IO ()
+abort (thread -> Nothing) = errorWithoutStackTrace "abort without a valid configuration"
+abort (thread -> Just (tid, mvar)) = putMVar mvar (Left Abort) >> killThread tid
 
 -------------------------------------------------------------------------------- VarOrder
 

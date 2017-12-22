@@ -67,7 +67,8 @@ data SolverException
   | OutOfMemory                 -- 2
   | TimeOut                     -- 3
   | InternalInconsistent        -- 4
-  | UndescribedError            -- 5
+  | Abort                       -- 5
+  | UndescribedError            -- 6
   deriving (Bounded, Enum, Eq, Ord, Show)
 
 -- | the type that Mios returns
