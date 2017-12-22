@@ -273,6 +273,12 @@ ema4 = 2 ** (-12)               -- coefficient for slow average of | assignment 
 ema0 :: Int
 ema0 = 2 ^ (14 :: Int)          -- = floor $ 1 / ema2
 
+r1, r2, r3, r4 :: Int
+r1 = 2 ^ 5
+r2 = 2 ^ 14
+r3 = 2 ^ 5
+r4 = 2 ^ 12
+
 -- | #62
 checkRestartCondition :: Solver -> Int -> IO Bool
 checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
@@ -284,21 +290,26 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   let revise a f x  = do f' <- ((a * x) +) . ((1 - a) *) <$> get' f
                          set' f f'
                          return f'
+      rescale :: Int -> Double -> Double
+      rescale x y
+        | count == 0 = 0 
+        | count < x  = fromIntegral x * y / fromIntegral count
+        | otherwise  = y
       gef = 1.1 :: Double       -- geometric expansion factor
-  df <- revise ema1 emaDFast lbd
-  ds <- revise ema2 emaDSlow lbd
-  af <- revise ema3 emaAFast nas
-  as <- revise ema4 emaASlow nas
-  mode <- get' restartMode
+  df <- rescale r1 <$> revise ema1 emaDFast lbd
+  ds <- rescale r2 <$> revise ema2 emaDSlow lbd
+  af <- rescale r3 <$> revise ema3 emaAFast nas
+  as <- rescale r4 <$> revise ema4 emaASlow nas
+--  mode <- get' restartMode
   if | count < next   -> return False
-     | mode == 1      -> do
-         when (ema0 < count) $ set' restartMode 2 -- enter the second mode
-         incrementStat s NumOfRestart 1
-         incrementStat s NumOfGeometricRestart 1
-         k' <- getStat s NumOfGeometricRestart
-         set' nextRestart (count + floor (fromIntegral step * gef ** fromIntegral k'))
-         when (3 == dumpStat config) $ dumpSolver DumpCSV s
-         return True
+--     | mode == 1      -> do
+--         when (ema0 < count && df < 2.0 * ds) $ set' restartMode 2 -- enter the second mode
+--         incrementStat s NumOfRestart 1
+--         incrementStat s NumOfGeometricRestart 1
+--         k' <- getStat s NumOfGeometricRestart
+--         set' nextRestart (count + floor (fromIntegral step * gef ** fromIntegral k'))
+--         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+--         return True
      | 1.25 * as < af -> do
          incrementStat s NumOfBlockRestart 1
          set' nextRestart (count + floor (fromIntegral step + gef ** fromIntegral k))
