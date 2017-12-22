@@ -141,7 +141,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> new' 0.0                           -- emaAFast
     <*> new' 0.0                           -- emaASlow
     <*> new' 100                           -- nextRestart
-    <*> new' 2                             -- restartMode
+    <*> new' 1                             -- restartMode
 
 --------------------------------------------------------------------------------
 -- Accessors

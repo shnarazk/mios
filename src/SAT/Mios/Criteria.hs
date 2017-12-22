@@ -292,7 +292,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   mode <- get' restartMode
   if | count < next   -> return False
      | mode == 1      -> do
-         when (ema0 < count && df < 2.0 * ds) $ set' restartMode 2 -- enter the second mode
+         when (ema0 < count) $ set' restartMode 2 -- enter the second mode
          incrementStat s NumOfRestart 1
          incrementStat s NumOfGeometricRestart 1
          k' <- getStat s NumOfGeometricRestart

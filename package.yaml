@@ -46,7 +46,7 @@ library:
   source-dirs:       src
 
 executables:
-  mios-ipsj80-2:
+  mios-ipsj80-3:
     source-dirs:     app
     main:            mios.hs
     dependencies:    mios
