@@ -52,7 +52,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "mios-1.6.0 -- https://github.com/shnarazk/mios"
+versionId = "mios-1.6.0#statdumper -- https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ 0 = return 0
@@ -76,7 +76,7 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
   t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
   (desc, cls) <- parseCNF (_targetFile opts)
   -- when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
-  token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
+  token <- newEmptyMVar --  :: IO (MVar SolverResult)
   solverId <- myThreadId
   handle (\case
              UserInterrupt -> putStrLn "User interrupt recieved."
@@ -91,7 +91,7 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
       if -1 == _confBenchmark opts
         then errorWithoutStackTrace $ "ABORT: too many variables to solve, " ++ show desc
         else putMVar token (Left OutOfMemory) >> killThread solverId
-    s <- newSolver (toMiosConf opts) desc
+    s <- newSolver (toMiosConf opts) desc (Just (solverId, token))
     injectClausesFromCNF s desc cls
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
     when (0 < _confDumpStat opts) $ dumpSolver DumpCSVHeader s
@@ -107,6 +107,13 @@ executeSolver _ = return ()
 --   * 1 if satisfiable (by finding an assignment)
 --   * other bigger values are used for aborted cases.
 reportResult :: MiosProgramOption -> Integer -> SolverResult -> IO ()
+reportResult opts@(_targetFile -> Just cnfFile) _ (Left Abort) =
+  putStrLn ("\"" ++ takeWhile (' ' /=) versionId ++ "\","
+             ++ show (_confBenchSeq opts) ++ ","
+             ++ "\"" ++ cnfFile ++ "\","
+             ++ show (_confBenchmark opts) ++ "," ++ show (fromEnum Abort) ++ ","
+             ++ "XXX")
+
 -- abnormal cases, catching 'too large CNF', 'timeout' for now.
 reportResult opts@(_targetFile -> Just cnfFile) _ (Left flag) =
   putStrLn ("\"" ++ takeWhile (' ' /=) versionId ++ "\","
@@ -128,7 +135,7 @@ reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
   valid <- if _confCheckAnswer opts || 0 <= _confBenchmark opts
            then case result of
                   SAT asg -> do (desc, cls) <- parseCNF (_targetFile opts)
-                                s' <- newSolver (toMiosConf opts) desc
+                                s' <- newSolver (toMiosConf opts) desc Nothing
                                 injectClausesFromCNF s' desc cls
                                 validate s' asg
                   UNSAT _ -> return True
@@ -157,7 +164,7 @@ reportResult _ _ _ = return ()
 --
 runSolver :: Traversable t => MiosConfiguration -> CNFDescription -> t [Int] -> IO (Either [Int] [Int])
 runSolver m d c = do
-  s <- newSolver m d
+  s <- newSolver m d Nothing
   mapM_ ((s `addClause`) <=< (newStackFromList . map int2lit)) c
   noConf <- simplifyDB s
   if noConf
@@ -180,7 +187,7 @@ solveSAT = solveSATWithConfiguration defaultConfiguration
 -- and returns an assignment as list of literals :: Int.
 solveSATWithConfiguration :: Traversable m => MiosConfiguration -> CNFDescription -> m [Int] -> IO [Int]
 solveSATWithConfiguration conf desc cls = do
-  s <- newSolver conf desc
+  s <- newSolver conf desc Nothing
   -- mapM_ (const (newVar s)) [0 .. _numberOfVariables desc - 1]
   mapM_ ((s `addClause`) <=< (newStackFromList . map int2lit)) cls
   noConf <- simplifyDB s
@@ -202,7 +209,7 @@ executeValidator :: MiosProgramOption -> IO ()
 executeValidator opts@(_targetFile -> target@(Just cnfFile)) = do
   (desc, cls) <- parseCNF target
   when (_numberOfVariables desc == 0) . error $ "couldn't load " ++ show cnfFile
-  s <- newSolver (toMiosConf opts) desc
+  s <- newSolver (toMiosConf opts) desc Nothing
   injectClausesFromCNF s desc cls
   when (_confVerbose opts) $
     hPutStrLn stderr $ cnfFile ++ " was loaded: #v = " ++ show (_numberOfVariables desc) ++ " #c = " ++ show (_numberOfClauses desc)
@@ -220,7 +227,7 @@ executeValidator _  = return ()
 -- where 'validate' @ :: Traversable t => Solver -> t Lit -> IO Bool@.
 validateAssignment :: (Traversable m, Traversable n) => CNFDescription -> m [Int] -> n Int -> IO Bool
 validateAssignment desc cls asg = do
-  s <- newSolver defaultConfiguration desc
+  s <- newSolver defaultConfiguration desc Nothing
   mapM_ ((s `addClause`) <=< (newStackFromList . map int2lit)) cls
   s `validate` asg
 
