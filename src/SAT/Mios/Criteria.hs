@@ -24,6 +24,8 @@ module SAT.Mios.Criteria
         where
 
 import Control.Monad (when)
+import Data.List (intercalate)
+import Numeric (showFFloat)
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -292,7 +294,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
                          return f'
       rescale :: Int -> Double -> Double
       rescale x y
-        | count == 0 = 0 
+        | count == 0 = 0
         | count < x  = fromIntegral x * y / fromIntegral count
         | otherwise  = y
       gef = 1.1 :: Double       -- geometric expansion factor
@@ -313,12 +315,12 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
      | 1.25 * as < af -> do
          incrementStat s NumOfBlockRestart 1
          set' nextRestart (count + floor (fromIntegral step + gef ** fromIntegral k))
-         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+         when (3 == dumpStat config) $ dumpSolver' DumpCSV s df ds af as
          return False
      | 1.25 * ds < df -> do
          incrementStat s NumOfRestart 1
          set' nextRestart (count + step)
-         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+         when (3 == dumpStat config) $ dumpSolver' DumpCSV s df ds af as
          return True
      | otherwise      -> return False
 
@@ -336,3 +338,17 @@ luby y x_ = loop 1 0
       | sz - 1 == x = y ** fromIntegral sq
       | otherwise   = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
 -}
+
+dumpSolver' :: DumpMode -> Solver -> Double -> Double -> Double -> Double -> IO ()
+dumpSolver' DumpCSV s@Solver{..} df ds af as = do
+  sts <- init <$> getStats s
+  va <- get' trailLim
+  setStat s NumOfVariable . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
+  setStat s NumOfAssigned =<< nAssigns s
+  setStat s NumOfClause =<< get' clauses
+  setStat s NumOfLearnt =<< get' learnts
+  -- Additional data which type is Double
+  let emas = [("emaDFast", df), ("emaDSlow", ds), ("emaAFast", af), ("emaASlow", as)]
+      fs x = showFFloat (Just 3) x ""
+      vals = map (show . snd) sts ++ map (fs . snd) emas
+  putStrLn $ intercalate "," vals
