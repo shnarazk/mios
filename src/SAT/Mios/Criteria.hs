@@ -285,7 +285,6 @@ r4 = 2 ^ 12
 checkRestartCondition :: Solver -> Int -> IO Bool
 checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   k <- getStat s NumOfRestart
-  let step = 100
   next <- get' nextRestart
   count <- getStat s NumOfBackjump
   nas <- fromIntegral <$> nAssigns s
@@ -298,6 +297,9 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
         | count < x  = fromIntegral x * y / fromIntegral count
         | otherwise  = y
       gef = 1.1 :: Double       -- geometric expansion factor
+      step = if | count < r1 -> 50
+                | count < r2 -> 95
+                | otherwise  -> 100
   df <- rescale r1 <$> revise ema1 emaDFast lbd
   ds <- rescale r2 <$> revise ema2 emaDSlow lbd
   af <- rescale r3 <$> revise ema3 emaAFast nas
