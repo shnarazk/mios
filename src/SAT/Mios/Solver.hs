@@ -434,17 +434,25 @@ dumpSolver DumpCSVHeader s@Solver{..} = do
 
 dumpSolver DumpCSV s@Solver{..} = do
   -- First update the stat data
-  df <- get' emaDFast
-  ds <- get' emaDSlow
-  af <- get' emaAFast
-  as <- get' emaASlow
   sts <- init <$> getStats s
   va <- get' trailLim
   setStat s NumOfVariable . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
   setStat s NumOfAssigned =<< nAssigns s
   setStat s NumOfClause =<< get' clauses
   setStat s NumOfLearnt =<< get' learnts
+  count <- getStat s NumOfBackjump
   -- Additional data which type is Double
+  -- EMA rescaling
+  let (c1, c2, c3, c4) = emaCoeffs config
+      rescale :: Int -> Double -> Double
+      rescale x y
+        | count == 0 = 0
+        | count < x  = fromIntegral x * y / fromIntegral count
+        | otherwise  = y
+  df <- rescale c1 <$> get' emaDFast
+  ds <- rescale c2 <$> get' emaDSlow
+  af <- rescale c3 <$> get' emaAFast
+  as <- rescale c4 <$> get' emaASlow
   let emas = [("emaDFast", df), ("emaDSlow", ds), ("emaAFast", af), ("emaASlow", as)]
       fs x = showFFloat (Just 3) x ""
       vals = map (show . snd) sts ++ map (fs . snd) emas

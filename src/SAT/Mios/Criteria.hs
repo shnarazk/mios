@@ -264,18 +264,14 @@ updateLBD s c@Clause{..} = do
 
 -------------------------------------------------------------------------------- restart
 
-ema1, ema2, ema3, ema4 :: Double
-ema1 = 2 ** (-5)                -- coefficient for fast average of LBD
-ema2 = 2 ** (-14)               -- coefficient for slow average of LBD
-ema3 = 2 ** (-5)                -- coefficient for fast average of | assignment |
-ema4 = 2 ** (-12)               -- coefficient for slow average of | assignment |
-
-ema0 :: Int
-ema0 = 2 ^ (14 :: Int)          -- = floor $ 1 / ema2
-
 -- | #62
 checkRestartCondition :: Solver -> Int -> IO Bool
 checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
+  let (c1, c2, c3, c4) = emaCoeffs config
+      ema1 = 1 / fromIntegral c1 :: Double
+      ema2 = 1 / fromIntegral c2 :: Double
+      ema3 = 1 / fromIntegral c3 :: Double
+      ema4 = 1 / fromIntegral c4 :: Double
   k <- getStat s NumOfRestart
   let step = 100
   next <- get' nextRestart
@@ -292,7 +288,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   mode <- get' restartMode
   if | count < next   -> return False
      | mode == 1      -> do
-         when (ema0 < count && df < 2.0 * ds) $ set' restartMode 2 -- enter the second mode
+         when (c2 < count && df < 2.0 * ds) $ set' restartMode 2 -- enter the second mode
          incrementStat s NumOfRestart 1
          incrementStat s NumOfGeometricRestart 1
          k' <- getStat s NumOfGeometricRestart
