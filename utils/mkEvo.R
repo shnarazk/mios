@@ -5,7 +5,7 @@
 
 library("ggplot2")
 library("grid")
-version = "0.1.2"
+version = "0.2.0"
 
 getData = function (t, p) {
     df <- read.csv(as.character(t[[1]]), header=T, sep=",", comment="#")
@@ -50,7 +50,19 @@ getData = function (t, p) {
                       num=df[["NumOfBackjump"]],
                       value=df[["emaAFast"]]/df[["emaASlow"]],
                       type="assign ratio")
-    rbind(df1, df2, df3, df4, df5, df6, df7, df8, df9)
+    dfa <- data.frame(id=paste("FAST", tag),
+                      num=df[["NumOfBackjump"]],
+                      value=df[["emaLFast"]],
+                      type="decision level")
+    dfb <- data.frame(id=paste("SLOW", tag),
+                      num=df[["NumOfBackjump"]],
+                      value=df[["emaLSlow"]],
+                      type="decision level")
+    dfc <- data.frame(id=tag, # paste("assign ratio", tag),
+                      num=df[["NumOfBackjump"]],
+                      value=df[["emaLFast"]]/df[["emaLSlow"]],
+                      type="dlevel ratio")
+    rbind(df1, df2, df3, df4, df5, df6, df7, df8, df9, dfa, dfb, dfc)
 }
 
 graph = function (df, kind, mes, logGraph=FALSE) {
@@ -100,19 +112,23 @@ graph = function (df, kind, mes, logGraph=FALSE) {
                         color="gray50", size=2.6)
 
     df[["id"]] = gsub("=.+", "", df[["id"]])
-    g1 <- graph(df, "target",   " - Log scaled restart", TRUE)
-    g2 <- graph(df, "distances", "EMA of Literal Block Distance -> forcing restart", TRUE)
-    g3 <- graph(df, "distance ratio",  " - LBD evolution ratio", TRUE)
-    g4 <- graph(df, "assigns",   "EMA of Assignment ->  blocking restart", TRUE)
-    g5 <- graph(df, "assign ratio",    " - Assignment evolution ratio", TRUE)
+    g1 <- graph(df, "target",         " - Log scaled restart", TRUE)
+    g2 <- graph(df, "distances",      "EMA of Literal Block Distance -> forcing restart", TRUE)
+    g3 <- graph(df, "distance ratio", " - forcing ratio", TRUE)
+    g4 <- graph(df, "assigns",        "EMA of Assignment ->  blocking restart", TRUE)
+    g5 <- graph(df, "assign ratio",   " - blocking ratio", TRUE)
+    g6 <- graph(df, "decision level", "EMA of Decision Level", TRUE)
+    g7 <- graph(df, "dlevel ratio",   " - its ratio", TRUE)
 
     grid.newpage()
-    pushViewport(viewport(layout=grid.layout(4,2)))
+    pushViewport(viewport(layout=grid.layout(5,2),width=0.94,height=0.94))
     print(g0, vp=viewport(layout.pos.row=1, layout.pos.col=c(1,2)))
     print(g1, vp=viewport(layout.pos.row=2, layout.pos.col=c(1,2)))
     print(g2, vp=viewport(layout.pos.row=3, layout.pos.col=1))
-    print(g3, vp=viewport(layout.pos.row=4, layout.pos.col=1))
-    print(g4, vp=viewport(layout.pos.row=3, layout.pos.col=2))
+    print(g3, vp=viewport(layout.pos.row=3, layout.pos.col=2))
+    print(g4, vp=viewport(layout.pos.row=4, layout.pos.col=1))
     print(g5, vp=viewport(layout.pos.row=4, layout.pos.col=2))
+    print(g6, vp=viewport(layout.pos.row=5, layout.pos.col=1))
+    print(g7, vp=viewport(layout.pos.row=5, layout.pos.col=2))
     ggsave(filename=targetPDF, width=9, height=12, scale=1.0, dpi=400)
 })()
