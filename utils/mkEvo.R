@@ -5,7 +5,7 @@
 
 library("ggplot2")
 library("grid")
-version = "0.1.1"
+version = "0.1.2"
 
 getData = function (t, p) {
     df <- read.csv(as.character(t[[1]]), header=T, sep=",", comment="#")
@@ -88,11 +88,11 @@ graph = function (df, kind, mes, logGraph=FALSE) {
         for (i in seq(nrow(runs))) { df = rbind(df, getData(runs[i,], 1 < ncol(runs))); }
     }
     cairo_pdf(filename=targetPDF, width=9, height=12, antialias="subpixel", onefile=TRUE)
-    g1 <- graph(df, "target",   "Restart", FALSE)
+    g0 <- graph(df, "target",   "Restart", FALSE)
     desc = if (1 < length(args)) args[2] else filename
-    g1 <- g1 + labs(title=paste("State Evolution against Conflict Index", "(", desc, ")"))
+    g0 <- g0 + labs(title=paste("State Evolution against Conflict Index", "(", desc, ")"))
     dt <- subset(df, grepl("target", df$type))
-    g1 <- g1 + annotate("text",
+    g0 <- g0 + annotate("text",
                         x=0.2*min(df$num) + 0.8*max(df$num),
                         y=0.9*min(dt$value) + 0.1*max(dt$value),
                         label=paste(format(as.POSIXlt(Sys.time()), "%Y-%m-%dT%H:%M:%S"), " ",
@@ -100,17 +100,19 @@ graph = function (df, kind, mes, logGraph=FALSE) {
                         color="gray50", size=2.6)
 
     df[["id"]] = gsub("=.+", "", df[["id"]])
+    g1 <- graph(df, "target",   " - Log scaled restart", TRUE)
     g2 <- graph(df, "distances", "EMA of Literal Block Distance -> forcing restart", TRUE)
     g3 <- graph(df, "distance ratio",  " - LBD evolution ratio", TRUE)
     g4 <- graph(df, "assigns",   "EMA of Assignment ->  blocking restart", TRUE)
     g5 <- graph(df, "assign ratio",    " - Assignment evolution ratio", TRUE)
 
     grid.newpage()
-    pushViewport(viewport(layout=grid.layout(3,2)))
-    print(g1, vp=viewport(layout.pos.row=1, layout.pos.col=c(1,2)))
-    print(g2, vp=viewport(layout.pos.row=2, layout.pos.col=1))
-    print(g3, vp=viewport(layout.pos.row=3, layout.pos.col=1))
-    print(g4, vp=viewport(layout.pos.row=2, layout.pos.col=2))
-    print(g5, vp=viewport(layout.pos.row=3, layout.pos.col=2))
+    pushViewport(viewport(layout=grid.layout(4,2)))
+    print(g0, vp=viewport(layout.pos.row=1, layout.pos.col=c(1,2)))
+    print(g1, vp=viewport(layout.pos.row=2, layout.pos.col=c(1,2)))
+    print(g2, vp=viewport(layout.pos.row=3, layout.pos.col=1))
+    print(g3, vp=viewport(layout.pos.row=4, layout.pos.col=1))
+    print(g4, vp=viewport(layout.pos.row=3, layout.pos.col=2))
+    print(g5, vp=viewport(layout.pos.row=4, layout.pos.col=2))
     ggsave(filename=targetPDF, width=9, height=12, scale=1.0, dpi=400)
 })()
