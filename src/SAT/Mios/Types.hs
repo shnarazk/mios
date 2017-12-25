@@ -280,6 +280,7 @@ data MiosConfiguration = MiosConfiguration
                            variableDecayRate  :: !Double  -- ^ decay rate for variable activity
                          , clauseDecayRate    :: !Double  -- ^ decay rate for clause activity
                          , dumpStat           :: !Int     -- ^ dump stats data during solving
+                         , emaCoeffs          :: !(Int, Int, Int, Int) -- the coefficients
                          }
   deriving (Eq, Ord, Read, Show)
 
@@ -291,7 +292,7 @@ data MiosConfiguration = MiosConfiguration
 -- * Mios-1.2     uses @(0.95, 0.999, 0)@.
 --
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 0.999 0
+defaultConfiguration = MiosConfiguration 0.95 0.999 0 (5, 14, 5, 12)
 
 -------------------------------------------------------------------------------- Statistics
 

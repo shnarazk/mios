@@ -142,4 +142,5 @@ toMiosConf opts = MiosConfiguration
                  , clauseDecayRate = _confClauseDecayRate opts
 --                 , randomDecisionRate = _confRandomDecisionRate opts
                  , dumpStat = _confDumpStat opts
+                 , emaCoeffs = emaCoeffs defaultConfiguration
                  }

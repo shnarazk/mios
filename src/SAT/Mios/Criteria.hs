@@ -266,24 +266,18 @@ updateLBD s c@Clause{..} = do
 
 -------------------------------------------------------------------------------- restart
 
-ema1, ema2, ema3, ema4 :: Double
-ema1 = 2 ** (-5)                -- coefficient for fast average of LBD
-ema2 = 2 ** (-14)               -- coefficient for slow average of LBD
-ema3 = 2 ** (-5)                -- coefficient for fast average of | assignment |
-ema4 = 2 ** (-12)               -- coefficient for slow average of | assignment |
-
-ema0 :: Int
-ema0 = 2 ^ (14 :: Int)          -- = floor $ 1 / ema2
-
-r1, r2, r3, r4 :: Int
-r1 = 2 ^ 5
-r2 = 2 ^ 14
-r3 = 2 ^ 5
-r4 = 2 ^ 12
-
 -- | #62
 checkRestartCondition :: Solver -> Int -> IO Bool
 checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
+  let (co1, co2, co3, co4) = emaCoeffs config
+      c1 = 2 ^ co1 :: Int
+      c2 = 2 ^ co2 :: Int
+      c3 = 2 ^ co3 :: Int
+      c4 = 2 ^ co4 :: Int
+      ema1 = 1 / fromIntegral c1 :: Double
+      ema2 = 1 / fromIntegral c2 :: Double
+      ema3 = 1 / fromIntegral c3 :: Double
+      ema4 = 1 / fromIntegral c4 :: Double
   k <- getStat s NumOfRestart
   next <- get' nextRestart
   count <- getStat s NumOfBackjump
@@ -297,17 +291,17 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
         | count < x  = fromIntegral x * y / fromIntegral count
         | otherwise  = y
       gef = 1.1 :: Double       -- geometric expansion factor
-      step = if | count < r1 -> 50
-                | count < r2 -> 95
+      step = if | count < c1 -> 50
+                | count < c2 -> 95
                 | otherwise  -> 100
-  df <- rescale r1 <$> revise ema1 emaDFast lbd
-  ds <- rescale r2 <$> revise ema2 emaDSlow lbd
-  af <- rescale r3 <$> revise ema3 emaAFast nas
-  as <- rescale r4 <$> revise ema4 emaASlow nas
+  df <- rescale c1 <$> revise ema1 emaDFast lbd
+  ds <- rescale c2 <$> revise ema2 emaDSlow lbd
+  af <- rescale c3 <$> revise ema3 emaAFast nas
+  as <- rescale c4 <$> revise ema4 emaASlow nas
 --  mode <- get' restartMode
   if | count < next   -> return False
 --     | mode == 1      -> do
---         when (ema0 < count && df < 2.0 * ds) $ set' restartMode 2 -- enter the second mode
+--         when (r2 < count && df < 2.0 * ds) $ set' restartMode 2 -- enter the second mode
 --         incrementStat s NumOfRestart 1
 --         incrementStat s NumOfGeometricRestart 1
 --         k' <- getStat s NumOfGeometricRestart
@@ -317,12 +311,12 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
      | 1.25 * as < af -> do
          incrementStat s NumOfBlockRestart 1
          set' nextRestart (count + floor (fromIntegral step + gef ** fromIntegral k))
-         when (3 == dumpStat config) $ dumpSolver' DumpCSV s df ds af as
+         when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
      | 1.25 * ds < df -> do
          incrementStat s NumOfRestart 1
          set' nextRestart (count + step)
-         when (3 == dumpStat config) $ dumpSolver' DumpCSV s df ds af as
+         when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
      | otherwise      -> return False
 
@@ -340,17 +334,3 @@ luby y x_ = loop 1 0
       | sz - 1 == x = y ** fromIntegral sq
       | otherwise   = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
 -}
-
-dumpSolver' :: DumpMode -> Solver -> Double -> Double -> Double -> Double -> IO ()
-dumpSolver' DumpCSV s@Solver{..} df ds af as = do
-  sts <- init <$> getStats s
-  va <- get' trailLim
-  setStat s NumOfVariable . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
-  setStat s NumOfAssigned =<< nAssigns s
-  setStat s NumOfClause =<< get' clauses
-  setStat s NumOfLearnt =<< get' learnts
-  -- Additional data which type is Double
-  let emas = [("emaDFast", df), ("emaDSlow", ds), ("emaAFast", af), ("emaASlow", as)]
-      fs x = showFFloat (Just 3) x ""
-      vals = map (show . snd) sts ++ map (fs . snd) emas
-  putStrLn $ intercalate "," vals
