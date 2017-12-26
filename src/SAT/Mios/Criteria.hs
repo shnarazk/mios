@@ -298,19 +298,24 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   as <- rescale c4 <$> revise ema4 emaASlow nas
   lf <- rescale c1 <$> revise ema1 emaLFast lvl
   ls <- rescale c2 <$> revise ema2 emaLSlow lvl
-  ne <- get' restartExts
   let step = 50 :: Int
   if | count < next -> return False         -- -| SKIP |
      | 1.25 * as < af -> do                 -- -| BLOCKING RESTART |
          incrementStat s NumOfBlockRestart 1
-         modify' restartExts (1 +)
-         set' nextRestart $ count + step + if 1.25 * ls < lf then ne else 0
+         if 1.25 * ls < lf
+           then do modify' restartExts (1 +)
+                   ne <- get' restartExts
+                   set' nextRestart $ count + step + ne
+           else set' nextRestart $ count + step
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
      | 1.25 * ds < df -> do                 -- -| FORCING RESTART; Glucose doesn't have normal restart |
          incrementStat s NumOfRestart 1
-         modify' restartExts (1 +)
-         set' nextRestart $ count + step + if 1.25 * ls < lf then ne else 0
+         if 1.25 * ls < lf
+           then do modify' restartExts (1 +)
+                   ne <- get' restartExts
+                   set' nextRestart $ count + step + ne
+           else set' nextRestart $ count + step
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
      | otherwise      -> return False       -- -| PASS |
