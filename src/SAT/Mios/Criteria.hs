@@ -20,10 +20,12 @@ module SAT.Mios.Criteria
        , lbdOf
          -- * Restart
        , checkRestartCondition
+         -- * Reporting
+       , dumpSolver
        )
         where
 
-import Control.Monad (when)
+import Control.Monad (void, when)
 import Data.List (intercalate)
 import Numeric (showFFloat)
 import SAT.Mios.Types
@@ -274,6 +276,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   next <- get' nextRestart
   count <- getStat s NumOfBackjump
   nas <- fromIntegral <$> nAssigns s
+  dl' <- fromIntegral <$> decisionLevel s
   let (co1, co2, co3, co4) = emaCoeffs config
       c1 = 2 ^ co1 :: Int
       c2 = 2 ^ co2 :: Int
@@ -292,13 +295,16 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
       rescale x y = if | count == 0 -> 0
                        | count < x  -> fromIntegral x * y / fromIntegral count
                        | otherwise  -> y
-      step = if | count < c1 -> 50
-                | count < c2 -> 95
-                | otherwise  -> 100
-  df <- rescale c1 <$> revise ema1 emaDFast lbd
-  ds <- rescale c2 <$> revise ema2 emaDSlow lbd
-  af <- rescale c3 <$> revise ema3 emaAFast nas
-  as <- rescale c4 <$> revise ema4 emaASlow nas
+      step :: Int
+      step = if -- | count < c1 -> 50
+                -- | count < c2 -> 95
+                | otherwise  -> 50
+  df <- {- rescale c1 <$> -} revise ema1 emaDFast lbd
+  ds <- {- rescale c2 <$> -} revise ema2 emaDSlow lbd
+  af <- {- rescale c3 <$> -} revise ema3 emaAFast nas
+  as <- {- rescale c4 <$> -} revise ema4 emaASlow nas
+  void $ revise ema1 emaLFast dl'
+  void $ revise ema2 emaLSlow dl'
   if | count < next   -> return False
 --     | mode == 1      -> do
 --         when (r2 < count && df < 2.0 * ds) $ set' restartMode 2 -- enter the second mode
@@ -335,3 +341,55 @@ luby y x_ = loop 1 0
       | sz - 1 == x = y ** fromIntegral sq
       | otherwise   = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
 -}
+
+-------------------------------------------------------------------------------- dump
+
+{-# INLINABLE dumpSolver #-}
+-- | print statatistic data to stdio. This should be called after each restart.
+dumpSolver :: DumpMode -> Solver -> IO ()
+
+dumpSolver NoDump _ = return ()
+
+dumpSolver DumpCSVHeader s@Solver{..} = do
+  sts <- init <$> getStats s
+  let labels = map (show . fst) sts
+        ++ ["emaDFast", "emaDSlow", "emaAFast", "emaASlow", "emaLFast", "emaLSlow"]
+  putStrLn $ intercalate "," labels
+
+dumpSolver DumpCSV s@Solver{..} = do
+  -- First update the stat data
+  sts <- init <$> getStats s
+  va <- get' trailLim
+  setStat s NumOfVariable . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
+  setStat s NumOfAssigned =<< nAssigns s
+  setStat s NumOfClause =<< get' clauses
+  setStat s NumOfLearnt =<< get' learnts
+  count <- getStat s NumOfBackjump
+  -- Additional data which type is Double
+  -- EMA rescaling
+  let (co1, co2, co3, co4) = emaCoeffs config
+      c1 = 2 ^ co1 :: Int
+      c2 = 2 ^ co2 :: Int
+      c3 = 2 ^ co3 :: Int
+      c4 = 2 ^ co4 :: Int
+      rescale :: Int -> Double -> Double
+      rescale x y
+        | count == 0 = 0
+        | count < x  = fromIntegral x * y / fromIntegral count
+        | otherwise  = y
+  df <- rescale c1 <$> get' emaDFast
+  ds <- rescale c2 <$> get' emaDSlow
+  af <- rescale c3 <$> get' emaAFast
+  as <- rescale c4 <$> get' emaASlow
+  lf <- rescale c1 <$> get' emaLFast
+  ls <- rescale c2 <$> get' emaLSlow
+  let emas = [ ("emaDFast", df), ("emaDSlow", ds)
+             , ("emaAFast", af), ("emaASlow", as)
+             , ("emaLFast", lf), ("emaLSlow", ls)
+             ]
+      fs x = showFFloat (Just 3) x ""
+      vals = map (show . snd) sts ++ map (fs . snd) emas
+  putStrLn $ intercalate "," vals
+
+-- | FIXME: use Util/Stat
+dumpSolver DumpJSON _ = return ()                -- mode 2: JSON
