@@ -92,6 +92,7 @@ data Solver = Solver
               , emaLFast    :: !Double'          -- ^ fast ema value of assignment
               , emaLSlow    :: !Double'          -- ^ slow ema value of assignment
               , nextRestart :: !Int'             -- ^ next restart in number of conflict
+              , restartExts :: !Int'             -- ^ number of extentions of restart period
               , restartMode :: Int'              -- ^ mode of restart
               }
 
@@ -144,6 +145,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> new' 0.0                           -- emaLFast
     <*> new' 0.0                           -- emaLSlow
     <*> new' 100                           -- nextRestart
+    <*> new' 0                             -- restartExts
     <*> new' 1                             -- restartMode
 
 --------------------------------------------------------------------------------
