@@ -33,7 +33,6 @@ module SAT.Mios.Solver
        , setStat
        , incrementStat
        , getStats
-       , dumpSolver
        )
         where
 
@@ -90,6 +89,8 @@ data Solver = Solver
               , emaDSlow    :: !Double'          -- ^ slow ema value of LBD
               , emaAFast    :: !Double'          -- ^ fast ema value of assignment
               , emaASlow    :: !Double'          -- ^ slow ema value of assignment
+              , emaLFast    :: !Double'          -- ^ fast ema value of assignment
+              , emaLSlow    :: !Double'          -- ^ slow ema value of assignment
               , nextRestart :: !Int'             -- ^ next restart in number of conflict
               , restartMode :: Int'              -- ^ mode of restart
               }
@@ -140,6 +141,8 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> new' 0.0                           -- emaDSlow
     <*> new' 0.0                           -- emaAFast
     <*> new' 0.0                           -- emaASlow
+    <*> new' 0.0                           -- emaLFast
+    <*> new' 0.0                           -- emaLSlow
     <*> new' 100                           -- nextRestart
     <*> new' 1                             -- restartMode
 
@@ -418,45 +421,3 @@ getHeapRoot s@(order -> VarHeap to at) = do
   n <- getNth to 0
   when (1 < n) $ percolateDown s 1
   return r
-
--------------------------------------------------------------------------------- dump
-
-{-# INLINABLE dumpSolver #-}
--- | print statatistic data to stdio. This should be called after each restart.
-dumpSolver :: DumpMode -> Solver -> IO ()
-
-dumpSolver NoDump _ = return ()
-
-dumpSolver DumpCSVHeader s@Solver{..} = do
-  sts <- init <$> getStats s
-  let labels = map (show . fst) sts  ++ ["emaDFast", "emaDSlow", "emaAFast", "emaASlow"]
-  putStrLn $ intercalate "," labels
-
-dumpSolver DumpCSV s@Solver{..} = do
-  -- First update the stat data
-  sts <- init <$> getStats s
-  va <- get' trailLim
-  setStat s NumOfVariable . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
-  setStat s NumOfAssigned =<< nAssigns s
-  setStat s NumOfClause =<< get' clauses
-  setStat s NumOfLearnt =<< get' learnts
-  count <- getStat s NumOfBackjump
-  -- Additional data which type is Double
-  -- EMA rescaling
-  let (c1, c2, c3, c4) = emaCoeffs config
-      rescale :: Int -> Double -> Double
-      rescale x y
-        | count == 0 = 0
-        | count < x  = fromIntegral x * y / fromIntegral count
-        | otherwise  = y
-  df <- rescale c1 <$> get' emaDFast
-  ds <- rescale c2 <$> get' emaDSlow
-  af <- rescale c3 <$> get' emaAFast
-  as <- rescale c4 <$> get' emaASlow
-  let emas = [("emaDFast", df), ("emaDSlow", ds), ("emaAFast", af), ("emaASlow", as)]
-      fs x = showFFloat (Just 3) x ""
-      vals = map (show . snd) sts ++ map (fs . snd) emas
-  putStrLn $ intercalate "," vals
-
--- | FIXME: use Util/Stat
-dumpSolver DumpJSON _ = return ()                -- mode 2: JSON
