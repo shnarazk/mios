@@ -286,7 +286,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
       ema2 = 1 / fromIntegral c2 :: Double
       ema3 = 1 / fromIntegral c3 :: Double
       ema4 = 1 / fromIntegral c4 :: Double
-      -- gef = 1.1 :: Double       -- geometric expansion factor
+      gef = 1.05 :: Double       -- geometric expansion factor
       revise :: Double -> Double' -> Double -> IO Double
       revise a f x  = do f' <- ((a * x) +) . ((1 - a) *) <$> get' f
                          set' f f'
@@ -299,10 +299,10 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
       step = if -- | count < c1 -> 50
                 -- | count < c2 -> 95
                 | otherwise  -> 50
-  df <- {- rescale c1 <$> -} revise ema1 emaDFast lbd
-  ds <- {- rescale c2 <$> -} revise ema2 emaDSlow lbd
-  af <- {- rescale c3 <$> -} revise ema3 emaAFast nas
-  as <- {- rescale c4 <$> -} revise ema4 emaASlow nas
+  df <- rescale c1 <$> revise ema1 emaDFast lbd
+  ds <- rescale c2 <$> revise ema2 emaDSlow lbd
+  af <- rescale c3 <$> revise ema3 emaAFast nas
+  as <- rescale c4 <$> revise ema4 emaASlow nas
   void $ revise ema1 emaLFast dl'
   void $ revise ema2 emaLSlow dl'
   if | count < next   -> return False
@@ -316,13 +316,16 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
 --         return True
      | 1.25 * as < af -> do
          incrementStat s NumOfBlockRestart 1
-         -- set' nextRestart (count + floor (fromIntegral step + gef ** fromIntegral k))
-         set' nextRestart (count + step)
+         k <- getStat s NumOfBlockRestart
+         set' nextRestart (count + floor (fromIntegral step + gef ** fromIntegral k))
+         -- set' nextRestart (count + step)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
      | 1.25 * ds < df -> do
          incrementStat s NumOfRestart 1
-         set' nextRestart (count + step)
+         k <- getStat s NumOfRestart
+         set' nextRestart (count + floor (fromIntegral step + gef ** fromIntegral k))
+         -- set' nextRestart (count + step)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
      | otherwise      -> return False
