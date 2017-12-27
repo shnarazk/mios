@@ -272,7 +272,7 @@ updateLBD s c@Clause{..} = do
 checkRestartCondition :: Solver -> Int -> IO Bool
 checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   next <- get' nextRestart
-  count <- getStat s NumOfBackjump
+  count <- getStat s NumOfBackjump -- it should be > 0
   nas <- fromIntegral <$> nAssigns s
   lvl <- fromIntegral <$> decisionLevel s
   let (co1, co2, co3, co4) = emaCoeffs config
@@ -289,37 +289,29 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
                          set' f f'
                          return f'
       rescale :: Int -> Double -> Double
-      rescale x y = if | count == 0 -> 0
-                       | count < x  -> fromIntegral x * y / fromIntegral count
-                       | otherwise  -> y
+      rescale x y = if count < x then fromIntegral x * y / fromIntegral count else y
   df <- rescale c1 <$> revise ema1 emaDFast lbd
   ds <- rescale c2 <$> revise ema2 emaDSlow lbd
   af <- rescale c3 <$> revise ema3 emaAFast nas
   as <- rescale c4 <$> revise ema4 emaASlow nas
   lf <- rescale c1 <$> revise ema1 emaLFast lvl
   ls <- rescale c2 <$> revise ema2 emaLSlow lvl
-  let step = 50 :: Int
-  if | count < next -> return False         -- -| SKIP |
-     | 1.25 * as < af -> do                 -- -| BLOCKING RESTART |
+  if | count < next -> do         -- -| SKIP |
+         return False
+     | 1.25 * lf < ls -> do       -- -| BLOCKING RESTART |
+--     | 1.25 * as < af -> do     -- -| BLOCKING RESTART |
          incrementStat s NumOfBlockRestart 1
-         if 1.25 * ls < lf
-           then do modify' restartExts (1 +)
-                   ne <- get' restartExts
-                   set' nextRestart $ count + step + ne
-           else set' nextRestart $ count + step
+         -- r <- (** 0.3) . fromIntegral <$> getStat s NumOfRestart
+         set' nextRestart $ count + 50
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
-     | 1.25 * ds < df -> do                 -- -| FORCING RESTART; Glucose doesn't have normal restart |
+     | 1.25 * ds < df -> do       -- -| FORCING RESTART; Glucose doesn't have normal restart |
          incrementStat s NumOfRestart 1
-         if 1.25 * ls < lf
-           then do modify' restartExts (1 +)
-                   ne <- get' restartExts
-                   set' nextRestart $ count + step + ne
-           else set' nextRestart $ count + step
+         set' nextRestart $ count + 50
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
-     | otherwise      -> return False       -- -| PASS |
-
+     | otherwise ->              -- -| PASS |
+         return False
 {-
 {-# INLINABLE luby #-}
 luby :: Double -> Int -> Double
