@@ -41,7 +41,7 @@ varBumpActivity s@Solver{..} x = do
   a <- (+) <$> getNth activities x <*> get' varInc
   setNth activities x a
   when (varActivityThreshold < a) $ varRescaleActivity s
-  update s x                    -- update the position in heap
+  updateVO s x                    -- update the position in heap
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE varDecayActivity #-}
