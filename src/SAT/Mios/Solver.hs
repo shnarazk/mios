@@ -272,7 +272,7 @@ cancelUntil s@Solver{..} lvl = do
         -- This means we can't reduce it from clause DB and affects the performance.
         setNth reason x NullClause -- 'analyze` uses reason without checking assigns
         -- FIXME: #polarity https://github.com/shnarazk/minisat/blosb/master/core/Solver.cc#L212
-        undo s x
+        undoVO s x
         -- insertHeap s x              -- insertVerOrder
         loopOnTrail $ c - 1
     loopOnTrail ts
@@ -300,12 +300,12 @@ instance VarOrder Solver where
     -- growQueueSized (i + 1) propQ
     -- return i
 -}
-  {-# SPECIALIZE INLINE update :: Solver -> Var -> IO () #-}
-  update = increaseHeap
-  {-# SPECIALIZE INLINE undo :: Solver -> Var -> IO () #-}
-  undo s v = inHeap s v >>= (`unless` insertHeap s v)
-  {-# SPECIALIZE INLINE select :: Solver -> IO Var #-}
-  select s = do
+  {-# SPECIALIZE INLINE updateVO :: Solver -> Var -> IO () #-}
+  updateVO = increaseHeap
+  {-# SPECIALIZE INLINE undoVO :: Solver -> Var -> IO () #-}
+  undoVO s v = inHeap s v >>= (`unless` insertHeap s v)
+  {-# SPECIALIZE INLINE selectVO :: Solver -> IO Var #-}
+  selectVO s = do
     let
       asg = assigns s
       -- | returns the most active var (heap-based implementation)
