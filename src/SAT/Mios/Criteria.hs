@@ -291,19 +291,18 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   ls <- rescale c2 <$> revise emaLSlow (1 / fromIntegral c2) lvl
   if | count < next ->            -- -| SKIP             |
          return False
-     | 1.25 * lf < ls -> do       -- -| BLOCKING RESTART |
---     | 1.25 * as < af -> do     -- -| BLOCKING RESTART |
+     | 1.25 * as < af -> do     -- -| BLOCKING RESTART |
          incrementStat s NumOfBlockRestart 1
-         -- r <- (** 0.3) . fromIntegral <$> getStat s NumOfRestart
-         set' nextRestart $ count + 50
+         -- k <- getStat s NumOfRestart
+         set' nextRestart $ count + 50 -- floor (50 + gef ** fromIntegral k)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
-     | 1.25 * ds < df -> do       -- -| FORCING RESTART; Glucose doesn't have normal restart |
+     | 1.25 * ds < df -> do       -- -| FORCING RESTART  |
          incrementStat s NumOfRestart 1
          set' nextRestart $ count + 50
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
-     | otherwise ->              -- -| PASS |
+     | otherwise ->              -- -| PASS              |
          return False
 {-
 {-# INLINABLE luby #-}
