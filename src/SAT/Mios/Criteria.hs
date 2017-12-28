@@ -280,22 +280,18 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
       c2 = 2 ^ co2 :: Int
       c3 = 2 ^ co3 :: Int
       c4 = 2 ^ co4 :: Int
-      ema1 = 1 / fromIntegral c1 :: Double
-      ema2 = 1 / fromIntegral c2 :: Double
-      ema3 = 1 / fromIntegral c3 :: Double
-      ema4 = 1 / fromIntegral c4 :: Double
       revise :: Double -> Double' -> Double -> IO Double
       revise a f x  = do f' <- ((a * x) +) . ((1 - a) *) <$> get' f
                          set' f f'
                          return f'
       rescale :: Int -> Double -> Double
       rescale x y = if count < x then fromIntegral x * y / fromIntegral count else y
-  df <- rescale c1 <$> revise ema1 emaDFast lbd
-  ds <- rescale c2 <$> revise ema2 emaDSlow lbd
-  af <- rescale c3 <$> revise ema3 emaAFast nas
-  as <- rescale c4 <$> revise ema4 emaASlow nas
-  lf <- rescale c1 <$> revise ema1 emaLFast lvl
-  ls <- rescale c2 <$> revise ema2 emaLSlow lvl
+  df <- rescale c1 <$> revise (1 / fromIntegral c1) emaDFast lbd
+  ds <- rescale c2 <$> revise (1 / fromIntegral c2) emaDSlow lbd
+  af <- rescale c3 <$> revise (1 / fromIntegral c3) emaAFast nas
+  as <- rescale c4 <$> revise (1 / fromIntegral c4) emaASlow nas
+  lf <- rescale c1 <$> revise (1 / fromIntegral c1) emaLFast lvl
+  ls <- rescale c2 <$> revise (1 / fromIntegral c2) emaLSlow lvl
   if | count < next -> do         -- -| SKIP |
          return False
      | 1.25 * lf < ls -> do       -- -| BLOCKING RESTART |
