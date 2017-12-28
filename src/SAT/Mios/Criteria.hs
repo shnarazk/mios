@@ -296,8 +296,11 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
          set' nextRestart $ count + 50 -- + floor (k ** 0.4)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
---   | 1.25 * lf < ls -> do     -- -| FORCING RESTART by level       |
-     | 1.25 * ds < df -> do     -- -| FORCING RESTART by lbd         |
+--   | 1.35 * ls < lf -> do     -- -| FORCING RESTART by level       |
+--   | 1.25 * ds < df -> do     -- -| FORCING RESTART by lbd         |
+--   | 1.25 * ls < lf && 1.00 * ds < df -> do GOOD
+--     | 1.25 * ds < df && 1.0 * df < ds -> do --not bad
+     | 1.25 * ds < df && 1.40 * df < ds -> do
          incrementStat s NumOfRestart 1
          set' nextRestart $ count + 50
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
