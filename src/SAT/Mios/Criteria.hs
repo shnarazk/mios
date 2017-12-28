@@ -282,7 +282,6 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
       revise e a x  = do e' <- ((a * x) +) . ((1 - a) *) <$> get' e
                          set' e e'
                          return e'
-      gef = 1.1 :: Double       -- geometric expansion factor
   df <- rescale c1 <$> revise emaDFast (1 / fromIntegral c1) lbd
   ds <- rescale c2 <$> revise emaDSlow (1 / fromIntegral c2) lbd
   af <- rescale c3 <$> revise emaAFast (1 / fromIntegral c3) nas
@@ -291,13 +290,14 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   ls <- rescale c2 <$> revise emaLSlow (1 / fromIntegral c2) lvl
   if | count < next ->            -- -| SKIP             |
          return False
-     | 1.25 * lf < ls -> do     -- -| BLOCKING RESTART |
+     | 1.25 * as < af -> do     -- -| BLOCKING RESTART by assignment |
          incrementStat s NumOfBlockRestart 1
-         -- k <- getStat s NumOfRestart
-         set' nextRestart $ count + 50 -- floor (50 + gef ** fromIntegral k)
+         -- k <- fromIntegral <$> getStat s NumOfRestart
+         set' nextRestart $ count + 50 -- + floor (k ** 0.4)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
-     | 1.25 * ds < df -> do       -- -| FORCING RESTART  |
+--   | 1.25 * lf < ls -> do       -- -| FORCING RESTART by level     |
+     | 1.25 * ds < df -> do       -- -| FORCING RESTART by lbd       |
          incrementStat s NumOfRestart 1
          set' nextRestart $ count + 50
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
