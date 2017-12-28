@@ -288,7 +288,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   as <- rescale c4 <$> revise emaASlow (1 / fromIntegral c4) nas
   lf <- rescale c1 <$> revise emaLFast (1 / fromIntegral c1) lvl
   ls <- rescale c2 <$> revise emaLSlow (1 / fromIntegral c2) lvl
-  if | count < next ->            -- -| SKIP                         |
+  if | count < next ->          -- -| SKIP                           |
          return False
      | 1.25 * as < af -> do     -- -| BLOCKING RESTART by assignment |
          incrementStat s NumOfBlockRestart 1
@@ -296,13 +296,13 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
          set' nextRestart $ count + 50 -- + floor (k ** 0.4)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
---   | 1.25 * lf < ls -> do       -- -| FORCING RESTART by level     |
-     | 1.25 * ds < df -> do       -- -| FORCING RESTART by lbd       |
+--   | 1.25 * lf < ls -> do     -- -| FORCING RESTART by level       |
+     | 1.25 * ds < df -> do     -- -| FORCING RESTART by lbd         |
          incrementStat s NumOfRestart 1
          set' nextRestart $ count + 50
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
-     | otherwise ->              -- -| PASS                          |
+     | otherwise ->             -- -| PASS                           |
          return False
 {-
 {-# INLINABLE luby #-}
