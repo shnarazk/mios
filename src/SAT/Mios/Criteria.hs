@@ -275,24 +275,21 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   count <- getStat s NumOfBackjump -- it should be > 0
   nas <- fromIntegral <$> nAssigns s
   lvl <- fromIntegral <$> decisionLevel s
-  let (co1, co2, co3, co4) = emaCoeffs config
-      c1 = 2 ^ co1 :: Int
-      c2 = 2 ^ co2 :: Int
-      c3 = 2 ^ co3 :: Int
-      c4 = 2 ^ co4 :: Int
-      revise :: Double -> Double' -> Double -> IO Double
-      revise a f x  = do f' <- ((a * x) +) . ((1 - a) *) <$> get' f
-                         set' f f'
-                         return f'
+  let (c1, c2, c3, c4) = emaCoeffs config
+      revise :: Double' -> Double -> Double -> IO Double
+      revise e a x  = do e' <- ((a * x) +) . ((1 - a) *) <$> get' e
+                         set' e e'
+                         return e'
       rescale :: Int -> Double -> Double
       rescale x y = if count < x then fromIntegral x * y / fromIntegral count else y
-  df <- rescale c1 <$> revise (1 / fromIntegral c1) emaDFast lbd
-  ds <- rescale c2 <$> revise (1 / fromIntegral c2) emaDSlow lbd
-  af <- rescale c3 <$> revise (1 / fromIntegral c3) emaAFast nas
-  as <- rescale c4 <$> revise (1 / fromIntegral c4) emaASlow nas
-  lf <- rescale c1 <$> revise (1 / fromIntegral c1) emaLFast lvl
-  ls <- rescale c2 <$> revise (1 / fromIntegral c2) emaLSlow lvl
-  if | count < next -> do         -- -| SKIP |
+      gef = 1.1 :: Double       -- geometric expansion factor
+  df <- rescale c1 <$> revise emaDFast (1 / fromIntegral c1) lbd
+  ds <- rescale c2 <$> revise emaDSlow (1 / fromIntegral c2) lbd
+  af <- rescale c3 <$> revise emaAFast (1 / fromIntegral c3) nas
+  as <- rescale c4 <$> revise emaASlow (1 / fromIntegral c4) nas
+  lf <- rescale c1 <$> revise emaLFast (1 / fromIntegral c1) lvl
+  ls <- rescale c2 <$> revise emaLSlow (1 / fromIntegral c2) lvl
+  if | count < next ->            -- -| SKIP             |
          return False
      | 1.25 * lf < ls -> do       -- -| BLOCKING RESTART |
 --     | 1.25 * as < af -> do     -- -| BLOCKING RESTART |

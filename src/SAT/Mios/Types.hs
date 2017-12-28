@@ -292,7 +292,7 @@ data MiosConfiguration = MiosConfiguration
 -- * Mios-1.2     uses @(0.95, 0.999, 0)@.
 --
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 0.999 0 (5, 14, 5, 12)
+defaultConfiguration = MiosConfiguration 0.95 0.999 0 (2 ^ (5 :: Int), 2 ^ (14 :: Int), 2 ^ (5 :: Int), 2 ^ (12 :: Int))
 
 -------------------------------------------------------------------------------- Statistics
 
