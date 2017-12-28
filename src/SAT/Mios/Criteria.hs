@@ -291,7 +291,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   ls <- rescale c2 <$> revise emaLSlow (1 / fromIntegral c2) lvl
   if | count < next ->            -- -| SKIP             |
          return False
-     | 1.25 * as < af -> do     -- -| BLOCKING RESTART |
+     | 1.25 * lf < ls -> do     -- -| BLOCKING RESTART |
          incrementStat s NumOfBlockRestart 1
          -- k <- getStat s NumOfRestart
          set' nextRestart $ count + 50 -- floor (50 + gef ** fromIntegral k)
