@@ -46,7 +46,7 @@ library:
   source-dirs:       src
 
 executables:
-  mios-WIP70-lvl-50:
+  mios-WIP70-exp1228:
     source-dirs:     app
     main:            mios.hs
     dependencies:    mios
