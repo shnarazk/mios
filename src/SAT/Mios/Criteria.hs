@@ -352,16 +352,9 @@ dumpSolver DumpCSV s@Solver{..} = do
   count <- getStat s NumOfBackjump
   -- Additional data which type is Double
   -- EMA rescaling
-  let (co1, co2, co3, co4) = emaCoeffs config
-      c1 = 2 ^ co1 :: Int
-      c2 = 2 ^ co2 :: Int
-      c3 = 2 ^ co3 :: Int
-      c4 = 2 ^ co4 :: Int
+  let (c1, c2, c3, c4) = emaCoeffs config
       rescale :: Int -> Double -> Double
-      rescale x y
-        | count == 0 = 0
-        | count < x  = fromIntegral x * y / fromIntegral count
-        | otherwise  = y
+      rescale x y = if count < x then fromIntegral x * y / fromIntegral count else y
   df <- rescale c1 <$> get' emaDFast
   ds <- rescale c2 <$> get' emaDSlow
   af <- rescale c3 <$> get' emaAFast
