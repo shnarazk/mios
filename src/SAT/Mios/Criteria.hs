@@ -272,9 +272,9 @@ updateLBD s c@Clause{..} = do
 checkRestartCondition :: Solver -> Int -> IO Bool
 checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   next <- get' nextRestart
-  count <- getStat s NumOfBackjump
+  count <- getStat s NumOfBackjump -- it should be > 0
   nas <- fromIntegral <$> nAssigns s
-  -- lvl <- fromIntegral <$> decisionLevel s
+  lvl <- fromIntegral <$> decisionLevel s
   -- mode <- get' restartMode
   k <- getStat s NumOfRestart
   let (c1, c2, c3, c4) = emaCoeffs config
@@ -282,10 +282,14 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
       gef = 1.1 :: Double       -- geometric expansion factor
       revise :: Double' -> Double -> Double -> IO Double
       revise e a x  = do v <- ((a * x) +) . ((1 - a) *) <$> get' e; set' e v; return v
+      rescale :: Int -> Double -> Double
+      rescale x y = if count < x then fromIntegral x * y / fromIntegral count else y
   df <- revise emaDFast (1 / fromIntegral c1) lbd
   ds <- revise emaDSlow (1 / fromIntegral c2) lbd
   af <- revise emaAFast (1 / fromIntegral c3) nas
   as <- revise emaASlow (1 / fromIntegral c4) nas
+  lf <- revise emaLFast (1 / fromIntegral c1) lvl
+  ls <- revise emaLSlow (1 / fromIntegral c2) lvl
   mode <- get' restartMode
   if | count < next   -> return False
      | mode == 1      -> do
