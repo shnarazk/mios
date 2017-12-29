@@ -5,11 +5,13 @@
 
 library("ggplot2")
 library("grid")
-version = "0.1.1"
+version = "0.4.0"
 
-getData = function (t, p) {
+getData = function (single, t, p) {
     df <- read.csv(as.character(t[[1]]), header=T, sep=",", comment="#")
-    if (p && t[[2]] != "") {
+    if (single) {
+        tag = ""
+    } else if (p && t[[2]] != "") {
         tag = sub("^ +", "", as.character(t[[2]]))
     }  else {
         tag = sub("^ +", "", as.character(t[[1]]))
@@ -22,35 +24,47 @@ getData = function (t, p) {
                       num=df[["NumOfBackjump"]],
                       value=df[["NumOfBlockRestart"]],
                       type="target")
-    df3 <- data.frame(id=paste("#geometric", tag),
-                      num=df[["NumOfBackjump"]],
-                      value=df[["NumOfGeometricRestart"]],
-                      type="target")
-    df4 <- data.frame(id=paste("FAST", tag),
+#    df3 <- data.frame(id=paste("#geometric", tag),
+#                      num=df[["NumOfBackjump"]],
+#                      value=df[["NumOfGeometricRestart"]],
+#                      type="target")
+    df3 <- data.frame(id=paste("FAST", tag),
                       num=df[["NumOfBackjump"]],
                       value=df[["emaDFast"]],
                       type="distances")
-    df5 <- data.frame(id=paste("SLOW", tag),
+    df4 <- data.frame(id=paste("SLOW", tag),
                       num=df[["NumOfBackjump"]],
                       value=df[["emaDSlow"]],
                       type="distances")
-    df6 <- data.frame(id=tag, # paste("distance ratio", tag),
+    df5 <- data.frame(id=paste("distance ratio ", tag),
                       num=df[["NumOfBackjump"]],
                       value=df[["emaDFast"]]/df[["emaDSlow"]],
                       type="distance ratio")
-    df7 <- data.frame(id=paste("FAST", tag),
+    df6 <- data.frame(id=paste("FAST", tag),
                       num=df[["NumOfBackjump"]],
                       value=df[["emaAFast"]],
                       type="assigns")
-    df8 <- data.frame(id=paste("SLOW", tag),
+    df7 <- data.frame(id=paste("SLOW", tag),
                       num=df[["NumOfBackjump"]],
                       value=df[["emaASlow"]],
                       type="assigns")
-    df9 <- data.frame(id=tag, # paste("assign ratio", tag),
+    df8 <- data.frame(id=paste("assign ratio", tag),
                       num=df[["NumOfBackjump"]],
                       value=df[["emaAFast"]]/df[["emaASlow"]],
                       type="assign ratio")
-    rbind(df1, df2, df3, df4, df5, df6, df7, df8, df9)
+    dfa <- data.frame(id=paste("FAST", tag),
+                      num=df[["NumOfBackjump"]],
+                      value=df[["emaLFast"]],
+                      type="decision level")
+    dfb <- data.frame(id=paste("SLOW", tag),
+                      num=df[["NumOfBackjump"]],
+                      value=df[["emaLSlow"]],
+                      type="decision level")
+    dfc <- data.frame(id=paste("level ratio", tag),
+                      num=df[["NumOfBackjump"]],
+                      value=df[["emaLFast"]]/df[["emaLSlow"]],
+                      type="dlevel ratio")
+    rbind(df1, df2, df3, df4, df5, df6, df7, df8, dfa, dfb, dfc)
 }
 
 graph = function (df, kind, mes, logGraph=FALSE) {
@@ -78,14 +92,14 @@ graph = function (df, kind, mes, logGraph=FALSE) {
     filename <- args[1]
     if (grep("\\.csv$", args[1])) {
         name <- gsub("\\.[^.]+$", "", filename)
-        df <- getData(args[1], FALSE)
+        df <- getData(TRUE, args[1], FALSE)
         targetPDF <- paste("ema-", name, ".pdf", sep="")
     } else {
         exps <- args[1]
         runs <- read.csv(exps, comment="#", sep=",", header=F)
         name <- gsub("\\.[^.]+$", "", exps)
         targetPDF <- paste("sim-", name, ".pdf", sep="")
-        for (i in seq(nrow(runs))) { df = rbind(df, getData(runs[i,], 1 < ncol(runs))); }
+        for (i in seq(nrow(runs))) { df = rbind(df, getData(FALSE, runs[i,], 1 < ncol(runs))); }
     }
     cairo_pdf(filename=targetPDF, width=9, height=12, antialias="subpixel", onefile=TRUE)
     g1 <- graph(df, "target",   "Restart", FALSE)
@@ -100,17 +114,22 @@ graph = function (df, kind, mes, logGraph=FALSE) {
                         color="gray50", size=2.6)
 
     df[["id"]] = gsub("=.+", "", df[["id"]])
-    g2 <- graph(df, "distances", "EMA of Literal Block Distance -> forcing restart", TRUE)
-    g3 <- graph(df, "distance ratio",  " - LBD evolution ratio", TRUE)
-    g4 <- graph(df, "assigns",   "EMA of Assignment ->  blocking restart", TRUE)
-    g5 <- graph(df, "assign ratio",    " - Assignment evolution ratio", TRUE)
-
+    g2 <- graph(df, "target",         " - Log scaled restart", TRUE)
+    g3 <- graph(df, "assigns",        "EMA of the number of assignment ->  blocking restart", TRUE)
+    g4 <- graph(df, "assign ratio",   "", TRUE)
+    g5 <- graph(df, "distances",      "EMA of Literal Block Distance -> forcing restart", TRUE)
+    g6 <- graph(df, "distance ratio", "", TRUE)
+    g7 <- graph(df, "decision level", "EMA of Decision Level", TRUE)
+    g8 <- graph(df, "dlevel ratio",   "", TRUE)
     grid.newpage()
-    pushViewport(viewport(layout=grid.layout(3,2)))
+    pushViewport(viewport(layout=grid.layout(5,2),width=0.94,height=0.94))
     print(g1, vp=viewport(layout.pos.row=1, layout.pos.col=c(1,2)))
-    print(g2, vp=viewport(layout.pos.row=2, layout.pos.col=1))
+    print(g2, vp=viewport(layout.pos.row=2, layout.pos.col=c(1,2)))
     print(g3, vp=viewport(layout.pos.row=3, layout.pos.col=1))
-    print(g4, vp=viewport(layout.pos.row=2, layout.pos.col=2))
-    print(g5, vp=viewport(layout.pos.row=3, layout.pos.col=2))
+    print(g4, vp=viewport(layout.pos.row=3, layout.pos.col=2))
+    print(g5, vp=viewport(layout.pos.row=4, layout.pos.col=1))
+    print(g6, vp=viewport(layout.pos.row=4, layout.pos.col=2))
+    print(g7, vp=viewport(layout.pos.row=5, layout.pos.col=1))
+    print(g8, vp=viewport(layout.pos.row=5, layout.pos.col=2))
     ggsave(filename=targetPDF, width=9, height=12, scale=1.0, dpi=400)
 })()
