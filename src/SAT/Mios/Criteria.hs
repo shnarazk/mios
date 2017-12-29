@@ -279,9 +279,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
       rescale :: Int -> Double -> Double
       rescale x y = if count < x then fromIntegral x * y / fromIntegral count else y
       revise :: Double' -> Double -> Double -> IO Double
-      revise e a x  = do e' <- ((a * x) +) . ((1 - a) *) <$> get' e
-                         set' e e'
-                         return e'
+      revise e a x  = do e' <- ((a * x) +) . ((1 - a) *) <$> get' e; set' e e'; return e'
   df <- rescale c1 <$> revise emaDFast (1 / fromIntegral c1) lbd
   ds <- rescale c2 <$> revise emaDSlow (1 / fromIntegral c2) lbd
   af <- rescale c3 <$> revise emaAFast (1 / fromIntegral c3) nas
