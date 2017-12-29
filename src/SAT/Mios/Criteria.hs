@@ -279,7 +279,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   k <- getStat s NumOfRestart
   let (c1, c2, c3, c4) = emaCoeffs config
       step = 100
-      gef = 1.1 :: Double       -- geometric expansion factor
+      gef = 1.5 :: Double       -- geometric expansion factor
       revise :: Double' -> Double -> Double -> IO Double
       revise e a x  = do v <- ((a * x) +) . ((1 - a) *) <$> get' e; set' e v; return v
       rescale :: Int -> Double -> Double
@@ -290,24 +290,25 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   as <- rescale c4 <$> revise emaASlow (1 / fromIntegral c4) nas
   lf <- rescale c3 <$> revise emaLFast (1 / fromIntegral c1) lvl
   ls <- rescale c4 <$> revise emaLSlow (1 / fromIntegral c2) lvl
-  mode <- get' restartMode
+  -- mode <- get' restartMode
   if | count < next   -> return False
-     | mode == 1      -> do
-         when (c2 < count) $ set' restartMode 2 -- enter the second mode
+     | False && count < c2 {- mode == 1 -}  -> do
+         -- when (c2 < count) $ set' restartMode 2 -- enter the second mode
          incrementStat s NumOfRestart 1
          incrementStat s NumOfGeometricRestart 1
-         k' <- getStat s NumOfGeometricRestart
-         set' nextRestart (count + floor (fromIntegral step * gef ** fromIntegral k'))
+         -- k' <- getStat s NumOfGeometricRestart
+         set' nextRestart $ count + 50 -- floor (fromIntegral step * gef ** fromIntegral k')
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
-     | 1.25 * as < af -> do
+     | 1.25 * as < af -> do     -- -| BLOCKING |
          incrementStat s NumOfBlockRestart 1
-         set' nextRestart (count + floor (fromIntegral step + gef ** fromIntegral k))
+         -- set' nextRestart $ count + 50 -- floor (fromIntegral step + gef ** fromIntegral k)
+         set' nextRestart $ count + floor (lf ** 2.0)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
-     | 1.25 * ds < df -> do
+     | 1.25 * ds < df -> do     -- | FORCING   |
          incrementStat s NumOfRestart 1
-         set' nextRestart (count + step)
+         set' nextRestart $ count + floor (lf ** 2.0) -- step
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
      | otherwise      -> return False
