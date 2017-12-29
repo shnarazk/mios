@@ -284,12 +284,12 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
       revise e a x  = do v <- ((a * x) +) . ((1 - a) *) <$> get' e; set' e v; return v
       rescale :: Int -> Double -> Double
       rescale x y = if count < x then fromIntegral x * y / fromIntegral count else y
-  df <- revise emaDFast (1 / fromIntegral c1) lbd
-  ds <- revise emaDSlow (1 / fromIntegral c2) lbd
-  af <- revise emaAFast (1 / fromIntegral c3) nas
-  as <- revise emaASlow (1 / fromIntegral c4) nas
-  lf <- revise emaLFast (1 / fromIntegral c1) lvl
-  ls <- revise emaLSlow (1 / fromIntegral c2) lvl
+  df <- rescale c1 <$> revise emaDFast (1 / fromIntegral c1) lbd
+  ds <- rescale c2 <$> revise emaDSlow (1 / fromIntegral c2) lbd
+  af <- rescale c3 <$> revise emaAFast (1 / fromIntegral c3) nas
+  as <- rescale c4 <$> revise emaASlow (1 / fromIntegral c4) nas
+  lf <- rescale c3 <$> revise emaLFast (1 / fromIntegral c1) lvl
+  ls <- rescale c4 <$> revise emaLSlow (1 / fromIntegral c2) lvl
   mode <- get' restartMode
   if | count < next   -> return False
      | mode == 1      -> do
