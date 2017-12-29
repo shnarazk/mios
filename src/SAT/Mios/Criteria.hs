@@ -303,12 +303,12 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
      | 1.25 * as < af -> do     -- -| BLOCKING |
          incrementStat s NumOfBlockRestart 1
          -- set' nextRestart $ count + 50 -- floor (fromIntegral step + gef ** fromIntegral k)
-         set' nextRestart $ count + floor (lf ** 2.0)
+         set' nextRestart $ count + 50 -- floor (lf ** 2.0)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
      | 1.25 * ds < df -> do     -- | FORCING   |
          incrementStat s NumOfRestart 1
-         set' nextRestart $ count + floor (lf ** 2.0) -- step
+         set' nextRestart $ count + 50 -- floor (lf ** 2.0) -- step
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
      | otherwise      -> return False
