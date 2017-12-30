@@ -278,7 +278,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   -- mode <- get' restartMode
   k <- getStat s NumOfRestart
   let (c1, c2, c3, c4) = emaCoeffs config
-      step = 100
+      step = 50
       gef = 1.5 :: Double       -- geometric expansion factor
       revise :: Double' -> Double -> Double -> IO Double
       revise e a x  = do v <- ((a * x) +) . ((1 - a) *) <$> get' e; set' e v; return v
@@ -302,13 +302,14 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
          return True
      | 1.25 * as < af -> do     -- -| BLOCKING |
          incrementStat s NumOfBlockRestart 1
-         -- set' nextRestart $ count + 50 -- floor (fromIntegral step + gef ** fromIntegral k)
-         set' nextRestart $ count + ceiling (lf ** 2.0) -- step
+         set' nextRestart $ count + 50 -- floor (fromIntegral step + gef ** fromIntegral k)
+         -- set' nextRestart $ count + ceiling (lf ** 2.0) -- step
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
      | 1.25 * ds < df -> do     -- | FORCING   |
          incrementStat s NumOfRestart 1
-         set' nextRestart $ count + ceiling (lf ** 2.0) -- step
+         set' nextRestart $ count + 50 -- floor (fromIntegral step + gef ** fromIntegral k)
+         -- set' nextRestart $ count + ceiling (lf ** 2.0) -- step
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
      | otherwise      -> return False
