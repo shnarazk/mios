@@ -292,7 +292,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   ls <- rescale c4 <$> revise emaLSlow (1 / fromIntegral c2) lvl
   -- mode <- get' restartMode
   if | count < next   -> return False
-     | False && count < c2 {- mode == 1 -}  -> do
+     | count < c2 {- mode == 1 -}  -> do
          -- when (c2 < count) $ set' restartMode 2 -- enter the second mode
          incrementStat s NumOfRestart 1
          incrementStat s NumOfGeometricRestart 1
@@ -303,12 +303,12 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
      | 1.25 * as < af -> do     -- -| BLOCKING |
          incrementStat s NumOfBlockRestart 1
          -- set' nextRestart $ count + 50 -- floor (fromIntegral step + gef ** fromIntegral k)
-         set' nextRestart $ count + 50 -- floor (lf ** 2.0)
+         set' nextRestart $ count + ceiling (lf ** 2.0) -- step
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
      | 1.25 * ds < df -> do     -- | FORCING   |
          incrementStat s NumOfRestart 1
-         set' nextRestart $ count + 50 -- floor (lf ** 2.0) -- step
+         set' nextRestart $ count + ceiling (lf ** 2.0) -- step
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
      | otherwise      -> return False
