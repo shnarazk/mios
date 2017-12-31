@@ -296,8 +296,8 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
          -- when (c2 < count) $ set' restartMode 2 -- enter the second mode
          -- incrementStat s NumOfRestart 1
          incrementStat s NumOfGeometricRestart 1
-         -- ki <- getStat s NumOfGeometricRestart
-         set' nextRestart $ count + 50 -- floor (fromIntegral step * gef ** fromIntegral ki)
+         ki <- getStat s NumOfGeometricRestart
+         set' nextRestart $ count + ceiling (35 * gef ** fromIntegral ki)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
      | 1.25 * as < af -> do     -- -| BLOCKING |
