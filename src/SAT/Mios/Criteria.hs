@@ -276,10 +276,10 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   nas <- fromIntegral <$> nAssigns s
   lvl <- fromIntegral <$> decisionLevel s
   -- mode <- get' restartMode
-  k <- getStat s NumOfRestart
+  -- k <- getStat s NumOfRestart
   let (c1, c2, c3, c4) = emaCoeffs config
       step = 50
-      gef = 1.5 :: Double       -- geometric expansion factor
+      gef = 1.4 :: Double       -- geometric expansion factor
       revise :: Double' -> Double -> Double -> IO Double
       revise e a x  = do v <- ((a * x) +) . ((1 - a) *) <$> get' e; set' e v; return v
       rescale :: Int -> Double -> Double
@@ -294,22 +294,26 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   if | count < next   -> return False
      | count < c2 {- mode == 1 -}  -> do
          -- when (c2 < count) $ set' restartMode 2 -- enter the second mode
-         incrementStat s NumOfRestart 1
+         -- incrementStat s NumOfRestart 1
          incrementStat s NumOfGeometricRestart 1
-         -- k' <- getStat s NumOfGeometricRestart
-         set' nextRestart $ count + 50 -- floor (fromIntegral step * gef ** fromIntegral k')
+         -- ki <- getStat s NumOfGeometricRestart
+         set' nextRestart $ count + 50 -- floor (fromIntegral step * gef ** fromIntegral ki)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
      | 1.25 * as < af -> do     -- -| BLOCKING |
          incrementStat s NumOfBlockRestart 1
-         set' nextRestart $ count + 50 -- floor (fromIntegral step + gef ** fromIntegral k)
-         -- set' nextRestart $ count + ceiling (lf ** 2.0) -- step
+         ki <- getStat s NumOfBlockRestart
+         set' nextRestart $ count + ceiling (35 * gef ** fromIntegral ki)
+         -- set' nextRestart $ count + 50
+         -- set' nextRestart $ count + ceiling (lf ** 2.0)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
      | 1.25 * ds < df -> do     -- | FORCING   |
          incrementStat s NumOfRestart 1
-         set' nextRestart $ count + 50 -- floor (fromIntegral step + gef ** fromIntegral k)
-         -- set' nextRestart $ count + ceiling (lf ** 2.0) -- step
+         ki <- getStat s NumOfRestart
+         set' nextRestart $ count + ceiling (35 * gef ** fromIntegral ki)
+         -- set' nextRestart $ count + 50
+         -- set' nextRestart $ count + ceiling (lf ** 2.0)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
      | otherwise      -> return False
