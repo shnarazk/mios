@@ -296,22 +296,25 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
          -- when (c2 < count) $ set' restartMode 2 -- enter the second mode
          -- incrementStat s NumOfRestart 1
          incrementStat s NumOfGeometricRestart 1
-         ki <- getStat s NumOfGeometricRestart
-         set' nextRestart $ count + ceiling (35 * gef ** fromIntegral ki)
+         -- ki <- fromIntegral <$> getStat s NumOfGeometricRestart
+         let ki = ls - lf
+         set' nextRestart $ count + ceiling (35 * gef ** ki)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
      | 1.25 * as < af -> do     -- -| BLOCKING |
          incrementStat s NumOfBlockRestart 1
-         ki <- getStat s NumOfBlockRestart
-         set' nextRestart $ count + ceiling (35 * gef ** fromIntegral ki)
+         -- ki <- fromIntegral <$> getStat s NumOfBlockRestart
+         let ki = ls - lf
+         set' nextRestart $ count + ceiling (35 * gef ** ki)
          -- set' nextRestart $ count + 50
          -- set' nextRestart $ count + ceiling (lf ** 2.0)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
      | 1.25 * ds < df -> do     -- | FORCING   |
          incrementStat s NumOfRestart 1
-         ki <- getStat s NumOfRestart
-         set' nextRestart $ count + ceiling (35 * gef ** fromIntegral ki)
+         -- ki <- fromIntegral <$> getStat s NumOfRestart
+         let ki = ls - lf
+         set' nextRestart $ count + ceiling (35 * gef ** ki)
          -- set' nextRestart $ count + 50
          -- set' nextRestart $ count + ceiling (lf ** 2.0)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
