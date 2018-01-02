@@ -279,7 +279,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   -- k <- getStat s NumOfRestart
   let (c1, c2, c3, c4) = emaCoeffs config
       step = 50
-      gef = 1.4 :: Double       -- geometric expansion factor
+      gef = 1.25 :: Double       -- geometric expansion factor
       revise :: Double' -> Double -> Double -> IO Double
       revise e a x  = do v <- ((a * x) +) . ((1 - a) *) <$> get' e; set' e v; return v
       rescale :: Int -> Double -> Double
@@ -296,25 +296,25 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
          -- when (c2 < count) $ set' restartMode 2 -- enter the second mode
          -- incrementStat s NumOfRestart 1
          incrementStat s NumOfGeometricRestart 1
-         -- ki <- fromIntegral <$> getStat s NumOfGeometricRestart
-         let ki = lf - ls
-         set' nextRestart $ count + ceiling (35 * gef ** ki)
+         ki <- fromIntegral <$> getStat s NumOfGeometricRestart
+         -- let ki = lf - ls
+         set' nextRestart $ count + ceiling (step * gef ** (ki - 1))
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
      | 1.25 * as < af -> do     -- -| BLOCKING |
          incrementStat s NumOfBlockRestart 1
-         -- ki <- fromIntegral <$> getStat s NumOfBlockRestart
-         let ki = lf - ls
-         set' nextRestart $ count + ceiling (35 * gef ** ki)
+         ki <- fromIntegral <$> getStat s NumOfBlockRestart
+         -- let ki = lf - ls
+         set' nextRestart $ count + ceiling (step * gef ** (ki - 1))
          -- set' nextRestart $ count + 50
          -- set' nextRestart $ count + ceiling (lf ** 2.0)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
      | 1.25 * ds < df -> do     -- | FORCING   |
          incrementStat s NumOfRestart 1
-         -- ki <- fromIntegral <$> getStat s NumOfRestart
-         let ki = lf - ls
-         set' nextRestart $ count + ceiling (35 * gef ** ki)
+         ki <- fromIntegral <$> getStat s NumOfRestart
+         -- let ki = lf - ls
+         set' nextRestart $ count + ceiling (step * gef ** (ki - 1))
          -- set' nextRestart $ count + 50
          -- set' nextRestart $ count + ceiling (lf ** 2.0)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
