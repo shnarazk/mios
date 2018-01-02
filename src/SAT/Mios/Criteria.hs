@@ -279,7 +279,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   -- k <- getStat s NumOfRestart
   let (c1, c2, c3, c4) = emaCoeffs config
       step = 50
-      gef = 1.25 :: Double       -- geometric expansion factor
+      gef = 1.15 :: Double       -- geometric expansion factor
       revise :: Double' -> Double -> Double -> IO Double
       revise e a x  = do v <- ((a * x) +) . ((1 - a) *) <$> get' e; set' e v; return v
       rescale :: Int -> Double -> Double
