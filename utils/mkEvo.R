@@ -5,7 +5,7 @@
 
 library("ggplot2")
 library("grid")
-version = "0.5.0"
+version = "0.5.1"
 
 getData = function (single, t, p) {
     df <- read.csv(as.character(t[[1]]), header=T, sep=",", comment="#")
@@ -76,7 +76,11 @@ getData = function (single, t, p) {
                       num=df[["NumOfBackjump"]],
                       value=df[["emaRFast"]]/df[["emaRSlow"]],
                       type="clevel ratio")
-    rbind(df1, df2, df3, df4, df5, df6, df7, df8, df9, dfa, dfb, dfc, dfd, dfe, dff)
+    dfg <- data.frame(id=paste("b/c ratio", tag),
+                      num=df[["NumOfBackjump"]],
+                      value=df[["emaRSlow"]]/df[["emaLSlow"]],
+                      type="b/c ratio")
+    rbind(df1, df2, df3, df4, df5, df6, df7, df8, df9, dfa, dfb, dfc, dfd, dfe, dff, dfg)
 }
 
 graph = function (df, kind, mes, logGraph=FALSE) {
@@ -95,7 +99,8 @@ graph = function (df, kind, mes, logGraph=FALSE) {
                        legend.justification=c(0,0),
                        legend.direction="horizontal")
         g <- g + scale_x_continuous(limits=c(min(df$num),max(df$num)))
-        g <- g + labs(subtitle=mes, x="conflict index", y=NULL)
+        # g <- g + labs(subtitle=mes, x="conflict index", y=NULL)
+        g <- g + labs(subtitle=mes, x=NULL, y=NULL)
     }
     g
 }
@@ -144,7 +149,8 @@ graph = function (df, kind, mes, logGraph=FALSE) {
     g7 <- graph(df, "conflict level", "EMA of Decision Level at conflict", TRUE)
     g8 <- graph(df, "clevel ratio",   "", TRUE)
     g9 <- graph(df, "backjump level", "EMA of Decision Level by BackJump", TRUE)
-    ga <- graph(df, "blevel ratio",   "", TRUE)
+    # ga <- graph(df, "blevel ratio",   "", TRUE)
+    ga <- graph(df, "b/c ratio",   "", TRUE)
     grid.newpage()
     pushViewport(viewport(layout=grid.layout(6,2),width=0.94,height=0.94))
     print(g1, vp=viewport(layout.pos.row=1, layout.pos.col=c(1,2)))
