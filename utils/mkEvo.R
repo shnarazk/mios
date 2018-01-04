@@ -5,7 +5,7 @@
 
 library("ggplot2")
 library("grid")
-version = "0.4.1"
+version = "0.5.0"
 
 getData = function (single, t, p) {
     df <- read.csv(as.character(t[[1]]), header=T, sep=",", comment="#")
@@ -55,34 +55,48 @@ getData = function (single, t, p) {
     dfa <- data.frame(id=paste("FAST", tag),
                       num=df[["NumOfBackjump"]],
                       value=df[["emaLFast"]],
-                      type="decision level")
+                      type="backjump level")
     dfb <- data.frame(id=paste("SLOW", tag),
                       num=df[["NumOfBackjump"]],
                       value=df[["emaLSlow"]],
-                      type="decision level")
+                      type="backjump level")
     dfc <- data.frame(id=paste("level ratio", tag),
                       num=df[["NumOfBackjump"]],
                       value=df[["emaLFast"]]/df[["emaLSlow"]],
-                      type="dlevel ratio")
-    rbind(df1, df2, df3, df4, df5, df6, df7, df8, df9, dfa, dfb, dfc)
+                      type="blevel ratio")
+    dfd <- data.frame(id=paste("FAST", tag),
+                      num=df[["NumOfBackjump"]],
+                      value=df[["emaRFast"]],
+                      type="conflict level")
+    dfe <- data.frame(id=paste("SLOW", tag),
+                      num=df[["NumOfBackjump"]],
+                      value=df[["emaRSlow"]],
+                      type="conflict level")
+    dff <- data.frame(id=paste("level ratio", tag),
+                      num=df[["NumOfBackjump"]],
+                      value=df[["emaRFast"]]/df[["emaRSlow"]],
+                      type="clevel ratio")
+    rbind(df1, df2, df3, df4, df5, df6, df7, df8, df9, dfa, dfb, dfc, dfd, dfe, dff)
 }
 
 graph = function (df, kind, mes, logGraph=FALSE) {
     d <- subset(df, grepl(kind, df$type))
     g <- ggplot(NULL)
     g <- g + geom_line(data=d, aes(x=num, y=value, color=id), size=0.4)
-    g <- g + theme(legend.title=element_blank(),
-                   legend.position="top",
-                   legend.justification=c(0,0),
-                   legend.direction="horizontal",
-                   plot.margin=grid::unit(c(8,8,8,8), "pt"))
-    if (logGraph == TRUE) {
-        g <- g + scale_x_log10(limits=c(min(df$num),max(df$num)))
-    } else {
-        g <- g + scale_x_continuous(limits=c(min(df$num),max(df$num)))
-    }
+    g <- g + theme(plot.margin=grid::unit(c(8,8,8,8), "pt"))
     g <- g + scale_y_continuous(limits=c(min(d$value),max(d$value)))
-    g <- g + labs(subtitle=mes, x="conflict index", y=NULL)
+    if (logGraph == TRUE) {
+        g <- g + theme(legend.position="none")
+        g <- g + scale_x_log10(limits=c(min(df$num),max(df$num)))
+        g <- g + labs(subtitle=mes, x=NULL, y=NULL)
+    } else {
+        g <- g + theme(legend.title=element_blank(),
+                       legend.position="top",
+                       legend.justification=c(0,0),
+                       legend.direction="horizontal")
+        g <- g + scale_x_continuous(limits=c(min(df$num),max(df$num)))
+        g <- g + labs(subtitle=mes, x="conflict index", y=NULL)
+    }
     g
 }
 
@@ -127,10 +141,12 @@ graph = function (df, kind, mes, logGraph=FALSE) {
     g4 <- graph(df, "assign ratio",   "", TRUE)
     g5 <- graph(df, "distances",      "EMA of Literal Block Distance -> forcing restart", TRUE)
     g6 <- graph(df, "distance ratio", "", TRUE)
-    g7 <- graph(df, "decision level", "EMA of Decision Level", TRUE)
-    g8 <- graph(df, "dlevel ratio",   "", TRUE)
+    g7 <- graph(df, "conflict level", "EMA of Decision Level at conflict", TRUE)
+    g8 <- graph(df, "clevel ratio",   "", TRUE)
+    g9 <- graph(df, "backjump level", "EMA of Decision Level by BackJump", TRUE)
+    ga <- graph(df, "blevel ratio",   "", TRUE)
     grid.newpage()
-    pushViewport(viewport(layout=grid.layout(5,2),width=0.94,height=0.94))
+    pushViewport(viewport(layout=grid.layout(6,2),width=0.94,height=0.94))
     print(g1, vp=viewport(layout.pos.row=1, layout.pos.col=c(1,2)))
     print(g2, vp=viewport(layout.pos.row=2, layout.pos.col=c(1,2)))
     print(g3, vp=viewport(layout.pos.row=3, layout.pos.col=1))
@@ -139,5 +155,7 @@ graph = function (df, kind, mes, logGraph=FALSE) {
     print(g6, vp=viewport(layout.pos.row=4, layout.pos.col=2))
     print(g7, vp=viewport(layout.pos.row=5, layout.pos.col=1))
     print(g8, vp=viewport(layout.pos.row=5, layout.pos.col=2))
+    print(g9, vp=viewport(layout.pos.row=6, layout.pos.col=1))
+    print(ga, vp=viewport(layout.pos.row=6, layout.pos.col=2))
     ggsave(filename=targetPDF, width=9, height=12, scale=1.0, dpi=400)
 })()
