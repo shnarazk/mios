@@ -269,8 +269,8 @@ updateLBD s c@Clause{..} = do
 -------------------------------------------------------------------------------- restart
 
 -- | #62
-checkRestartCondition :: Solver -> Int -> IO Bool
-checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
+checkRestartCondition :: Solver -> Int -> Int -> IO Bool
+checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) = do
   next <- get' nextRestart
   count <- getStat s NumOfBackjump -- it should be > 0
   nas <- fromIntegral <$> nAssigns s
@@ -290,6 +290,8 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   as <- rescale c4 <$> revise emaASlow (1 / fromIntegral c4) nas
   lf <- rescale c3 <$> revise emaLFast (1 / fromIntegral c1) lvl
   ls <- rescale c4 <$> revise emaLSlow (1 / fromIntegral c2) lvl
+  rf <- rescale c3 <$> revise emaRFast (1 / fromIntegral c1) lrs
+  rs <- rescale c4 <$> revise emaRSlow (1 / fromIntegral c2) lrs
   -- mode <- get' restartMode
   if | count < next   -> return False
      | count < c2 {- mode == 1 -}  -> do
@@ -350,7 +352,11 @@ dumpSolver NoDump _ = return ()
 dumpSolver DumpCSVHeader s@Solver{..} = do
   sts <- init <$> getStats s
   let labels = map (show . fst) sts
-        ++ ["emaDFast", "emaDSlow", "emaAFast", "emaASlow", "emaLFast", "emaLSlow"]
+        ++ [ "emaDFast", "emaDSlow"
+           , "emaAFast", "emaASlow"
+           , "emaRFast", "emaRSlow"
+           , "emaLFast", "emaLSlow"
+           ]
   putStrLn $ intercalate "," labels
 
 dumpSolver DumpCSV s@Solver{..} = do
@@ -373,8 +379,11 @@ dumpSolver DumpCSV s@Solver{..} = do
   as <- rescale c4 <$> get' emaASlow
   lf <- rescale c1 <$> get' emaLFast
   ls <- rescale c2 <$> get' emaLSlow
+  rf <- rescale c3 <$> get' emaRFast
+  rs <- rescale c4 <$> get' emaRSlow
   let emas = [ ("emaDFast", df), ("emaDSlow", ds)
              , ("emaAFast", af), ("emaASlow", as)
+             , ("emaRFast", rf), ("emaRSlow", rs)
              , ("emaLFast", lf), ("emaLSlow", ls)
              ]
       fs x = showFFloat (Just 3) x ""

@@ -664,7 +664,7 @@ search s@Solver{..} = do
                               set' learntSCnt $ floor t'
                               -- modify' maxLearnts (* 1.1)
                               modify' maxLearnts (+ 300)
-                            loop =<< checkRestartCondition s lbd'
+                            loop =<< checkRestartCondition s lbd' d
           else do when (d == 0) . void $ simplifyDB s -- Simplify the set of problem clauses
                   k1 <- get' learnts
                   k2 <- nAssigns s
