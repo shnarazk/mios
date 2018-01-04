@@ -288,10 +288,10 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
   ds <- rescale c2 <$> revise emaDSlow (1 / fromIntegral c2) lbd
   af <- rescale c3 <$> revise emaAFast (1 / fromIntegral c3) nas
   as <- rescale c4 <$> revise emaASlow (1 / fromIntegral c4) nas
-  lf <- rescale c3 <$> revise emaLFast (1 / fromIntegral c1) lvl
-  ls <- rescale c4 <$> revise emaLSlow (1 / fromIntegral c2) lvl
-  rf <- rescale c3 <$> revise emaRFast (1 / fromIntegral c1) lrs
-  rs <- rescale c4 <$> revise emaRSlow (1 / fromIntegral c2) lrs
+  rf <- rescale c1 <$> revise emaRFast (1 / fromIntegral c1) lrs
+  rs <- rescale c2 <$> revise emaRSlow (1 / fromIntegral c2) lrs
+  lf <- rescale c1 <$> revise emaLFast (1 / fromIntegral c1) lvl
+  ls <- rescale c2 <$> revise emaLSlow (1 / fromIntegral c2) lvl
   -- mode <- get' restartMode
   if | count < next   -> return False
      | count < c2 {- mode == 1 -}  -> do
@@ -377,10 +377,10 @@ dumpSolver DumpCSV s@Solver{..} = do
   ds <- rescale c2 <$> get' emaDSlow
   af <- rescale c3 <$> get' emaAFast
   as <- rescale c4 <$> get' emaASlow
+  rf <- rescale c1 <$> get' emaRFast
+  rs <- rescale c2 <$> get' emaRSlow
   lf <- rescale c1 <$> get' emaLFast
   ls <- rescale c2 <$> get' emaLSlow
-  rf <- rescale c3 <$> get' emaRFast
-  rs <- rescale c4 <$> get' emaRSlow
   let emas = [ ("emaDFast", df), ("emaDSlow", ds)
              , ("emaAFast", af), ("emaASlow", as)
              , ("emaRFast", rf), ("emaRSlow", rs)
