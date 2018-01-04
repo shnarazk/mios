@@ -5,7 +5,7 @@
 
 library("ggplot2")
 library("grid")
-version = "0.4.0"
+version = "0.4.1"
 
 getData = function (single, t, p) {
     df <- read.csv(as.character(t[[1]]), header=T, sep=",", comment="#")
@@ -92,13 +92,21 @@ graph = function (df, kind, mes, logGraph=FALSE) {
     filename <- args[1]
     if (grep("\\.csv$", args[1])) {
         name <- gsub("\\.[^.]+$", "", filename)
-        df <- getData(TRUE, args[1], FALSE)
-        targetPDF <- paste("ema-", name, ".pdf", sep="")
+        df <- getData(TRUE, filename, FALSE)
+        if (dirname(name) != "") {
+            targetPDF <- paste(dirname(name), "/ema-", basename(name), ".pdf", sep="")
+        } else {
+            targetPDF <- paste("ema-", name, ".pdf", sep="")
+        }
     } else {
         exps <- args[1]
         runs <- read.csv(exps, comment="#", sep=",", header=F)
         name <- gsub("\\.[^.]+$", "", exps)
-        targetPDF <- paste("sim-", name, ".pdf", sep="")
+        if (dirname(name) != "") {
+            targetPDF <- paste(dirname(name), "/sim-", basename(name), ".pdf", sep="")
+        } else {
+            targetPDF <- paste("sim-", name, ".pdf", sep="")
+        }
         for (i in seq(nrow(runs))) { df = rbind(df, getData(FALSE, runs[i,], 1 < ncol(runs))); }
     }
     cairo_pdf(filename=targetPDF, width=9, height=12, antialias="subpixel", onefile=TRUE)
