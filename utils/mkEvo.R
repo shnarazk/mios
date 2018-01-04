@@ -16,7 +16,7 @@ getData = function (single, t, p) {
     }  else {
         tag = sub("^ +", "", as.character(t[[1]]))
     }
-    df1 <- data.frame(id=paste("#total", tag),
+    df1 <- data.frame(id=paste("#restart", tag),
                       num=df[["NumOfBackjump"]],
                       value=df[["NumOfRestart"]],
                       type="target")
@@ -24,31 +24,31 @@ getData = function (single, t, p) {
                       num=df[["NumOfBackjump"]],
                       value=df[["NumOfBlockRestart"]],
                       type="target")
-#    df3 <- data.frame(id=paste("#geometric", tag),
-#                      num=df[["NumOfBackjump"]],
-#                      value=df[["NumOfGeometricRestart"]],
-#                      type="target")
-    df3 <- data.frame(id=paste("FAST", tag),
+    df3 <- data.frame(id=paste("#geometric", tag),
+                      num=df[["NumOfBackjump"]],
+                      value=df[["NumOfGeometricRestart"]],
+                      type="target")
+    df4 <- data.frame(id=paste("FAST", tag),
                       num=df[["NumOfBackjump"]],
                       value=df[["emaDFast"]],
                       type="distances")
-    df4 <- data.frame(id=paste("SLOW", tag),
+    df5 <- data.frame(id=paste("SLOW", tag),
                       num=df[["NumOfBackjump"]],
                       value=df[["emaDSlow"]],
                       type="distances")
-    df5 <- data.frame(id=paste("distance ratio ", tag),
+    df6 <- data.frame(id=paste("distance ratio ", tag),
                       num=df[["NumOfBackjump"]],
                       value=df[["emaDFast"]]/df[["emaDSlow"]],
                       type="distance ratio")
-    df6 <- data.frame(id=paste("FAST", tag),
+    df7 <- data.frame(id=paste("FAST", tag),
                       num=df[["NumOfBackjump"]],
                       value=df[["emaAFast"]],
                       type="assigns")
-    df7 <- data.frame(id=paste("SLOW", tag),
+    df8 <- data.frame(id=paste("SLOW", tag),
                       num=df[["NumOfBackjump"]],
                       value=df[["emaASlow"]],
                       type="assigns")
-    df8 <- data.frame(id=paste("assign ratio", tag),
+    df9 <- data.frame(id=paste("assign ratio", tag),
                       num=df[["NumOfBackjump"]],
                       value=df[["emaAFast"]]/df[["emaASlow"]],
                       type="assign ratio")
@@ -64,7 +64,7 @@ getData = function (single, t, p) {
                       num=df[["NumOfBackjump"]],
                       value=df[["emaLFast"]]/df[["emaLSlow"]],
                       type="dlevel ratio")
-    rbind(df1, df2, df3, df4, df5, df6, df7, df8, dfa, dfb, dfc)
+    rbind(df1, df2, df3, df4, df5, df6, df7, df8, df9, dfa, dfb, dfc)
 }
 
 graph = function (df, kind, mes, logGraph=FALSE) {
