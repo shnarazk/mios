@@ -296,7 +296,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
   mode <- get' restartMode
   if | count < next   -> return False
      | mode == 1      -> do                                             -- -| GH
-         when (0.5 < as / nv) $ set' restartMode 2
+         when (0.25 < as / nv) $ set' restartMode 2
          -- when (c2 < count) $ set' restartMode 2
          incrementStat s NumOfGeometricRestart 1
          ki <- fromIntegral <$> getStat s NumOfGeometricRestart
