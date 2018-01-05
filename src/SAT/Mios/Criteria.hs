@@ -21,7 +21,7 @@ module SAT.Mios.Criteria
          -- * Restart
        , checkRestartCondition
          -- * Reporting
-       , dumpSolver
+       , dumpStats
        )
         where
 
@@ -302,7 +302,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
          set' nextRestart $ count + ceiling (step * logBase 1.4 ki)
          -- let ki = lf - ls
          -- set' nextRestart $ count + ceiling (step * gef ** (ki - 1))
-         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return True
      | 1.25 * as < af -> do     -- -| BLOCKING |
          incrementStat s NumOfBlockRestart 1
@@ -312,7 +312,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
          -- set' nextRestart $ count + ceiling (step * gef ** (ki - 1))
          -- set' nextRestart $ count + 50
          -- set' nextRestart $ count + ceiling (lf ** 2.0)
-         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return False
      | 1.25 * ds < df -> do     -- | FORCING   |
          incrementStat s NumOfRestart 1
@@ -322,7 +322,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
          -- set' nextRestart $ count + ceiling (step * gef ** (ki - 1))
          -- set' nextRestart $ count + 50
          -- set' nextRestart $ count + ceiling (lf ** 2.0)
-         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return True
      | otherwise      -> return False
 
@@ -343,36 +343,38 @@ luby y x_ = loop 1 0
 
 -------------------------------------------------------------------------------- dump
 
-{-# INLINABLE dumpSolver #-}
+emaLabels :: [String]
+emaLabels = [ "emaDFast", "emaDSlow"
+            , "emaAFast", "emaASlow"
+            , "emaRFast", "emaRSlow"
+            , "emaLFast", "emaLSlow"
+            ]
+
+{-# INLINABLE dumpStats #-}
 -- | print statatistic data to stdio. This should be called after each restart.
-dumpSolver :: DumpMode -> Solver -> IO ()
+dumpStats :: DumpMode -> Solver -> IO ()
 
-dumpSolver NoDump _ = return ()
+dumpStats NoDump _ = return ()
 
-dumpSolver DumpCSVHeader s@Solver{..} = do
+dumpStats DumpCSVHeader s@Solver{..} = do
   sts <- init <$> getStats s
-  let labels = map (show . fst) sts
-        ++ [ "emaDFast", "emaDSlow"
-           , "emaAFast", "emaASlow"
-           , "emaRFast", "emaRSlow"
-           , "emaLFast", "emaLSlow"
-           ]
-  putStrLn $ intercalate "," labels
+  putStrLn . intercalate "," $ map (show . fst) sts ++ emaLabels
 
-dumpSolver DumpCSV s@Solver{..} = do
+dumpStats DumpCSV s@Solver{..} = do
   -- First update the stat data
-  sts <- init <$> getStats s
   va <- get' trailLim
   setStat s NumOfVariable . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
   setStat s NumOfAssigned =<< nAssigns s
   setStat s NumOfClause =<< get' clauses
   setStat s NumOfLearnt =<< get' learnts
   count <- getStat s NumOfBackjump
-  -- Additional data which type is Double
-  -- EMA rescaling
+  sts <- init <$> getStats s
+  -- update EMAs, which type is Double
   let (c1, c2, c3, c4) = emaCoeffs config
       rescale :: Int -> Double -> Double
       rescale x y = if count < x then fromIntegral x * y / fromIntegral count else y
+      fs :: Double -> String
+      fs x = showFFloat (Just 3) x ""
   df <- rescale c1 <$> get' emaDFast
   ds <- rescale c2 <$> get' emaDSlow
   af <- rescale c3 <$> get' emaAFast
@@ -381,14 +383,7 @@ dumpSolver DumpCSV s@Solver{..} = do
   rs <- rescale c2 <$> get' emaRSlow
   lf <- rescale c1 <$> get' emaLFast
   ls <- rescale c2 <$> get' emaLSlow
-  let emas = [ ("emaDFast", df), ("emaDSlow", ds)
-             , ("emaAFast", af), ("emaASlow", as)
-             , ("emaRFast", rf), ("emaRSlow", rs)
-             , ("emaLFast", lf), ("emaLSlow", ls)
-             ]
-      fs x = showFFloat (Just 3) x ""
-      vals = map (show . snd) sts ++ map (fs . snd) emas
-  putStrLn $ intercalate "," vals
+  putStrLn . intercalate "," $ map (show . snd) sts ++ map fs [df, ds, af, as, rf, rs, lf, rs]
 
 -- | FIXME: use Util/Stat
-dumpSolver DumpJSON _ = return ()                -- mode 2: JSON
+dumpStats DumpJSON _ = return ()                -- mode 2: JSON

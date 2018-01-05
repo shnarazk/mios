@@ -94,7 +94,7 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
     s <- newSolver (toMiosConf opts) desc
     injectClausesFromCNF s desc cls
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
-    when (0 < _confDumpStat opts) $ dumpSolver DumpCSVHeader s
+    when (0 < _confDumpStat opts) $ dumpStats DumpCSVHeader s
     result <- solve s []
     putMVar token result
     killThread solverId

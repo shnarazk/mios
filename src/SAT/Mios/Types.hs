@@ -279,7 +279,7 @@ data MiosConfiguration = MiosConfiguration
                          {
                            variableDecayRate  :: !Double  -- ^ decay rate for variable activity
                          , clauseDecayRate    :: !Double  -- ^ decay rate for clause activity
-                         , dumpStat           :: !Int     -- ^ dump stats data during solving
+                         , dumpSolverStatMode :: !Int     -- ^ dump stats data during solving
                          , emaCoeffs          :: !(Int, Int, Int, Int) -- the coefficients
                          }
   deriving (Eq, Ord, Read, Show)
