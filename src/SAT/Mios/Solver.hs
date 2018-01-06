@@ -93,6 +93,7 @@ data Solver = Solver
               , emaRSlow    :: !Double'          -- ^ slow ema value of decision level at conflict
               , emaLFast    :: !Double'          -- ^ fast ema value of assignment
               , emaLSlow    :: !Double'          -- ^ slow ema value of assignment
+              , emaScale    :: !Double'          -- ^ scaling factor
               , nextRestart :: !Int'             -- ^ next restart in number of conflict
               , restartMode :: Int'              -- ^ mode of restart
               }
@@ -147,6 +148,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> new' 0.0                           -- emaRSlow
     <*> new' 0.0                           -- emaLFast
     <*> new' 0.0                           -- emaLSlow
+    <*> new' 0.0                           -- emaScale
     <*> new' 100                           -- nextRestart
     <*> new' 1                             -- restartMode
 

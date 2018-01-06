@@ -277,22 +277,23 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
   lvl <- fromIntegral <$> decisionLevel s
   -- mode <- get' restartMode
   -- k <- getStat s NumOfRestart
-  let (c1, c2, c3, c4) = emaCoeffs config
+  let (cf, cs) = emaCoeffs config
       nv = fromIntegral nVars
       step = 50 :: Double
       gef = 1.15 :: Double       -- geometric expansion factor
       revise :: Double' -> Double -> Double -> IO Double
       revise e a x  = do v <- ((a * x) +) . ((1 - a) *) <$> get' e; set' e v; return v
-      rescale :: Int -> Double -> Double
-      rescale x y = if count < x then fromIntegral x * y / fromIntegral count else y
-  df <- rescale c1 <$> revise emaDFast (1 / fromIntegral c1) lbd
-  ds <- rescale c2 <$> revise emaDSlow (1 / fromIntegral c2) lbd
-  af <- rescale c3 <$> revise emaAFast (1 / fromIntegral c3) nas
-  as <- rescale c4 <$> revise emaASlow (1 / fromIntegral c4) nas
-  void $ {- rf <- rescale c1 <$> -} revise emaRFast (1 / fromIntegral c1) lrs
-  void $ {- rs <- rescale c2 <$> -} revise emaRSlow (1 / fromIntegral c2) lrs
-  void $ {- lf <- rescale c1 <$> -} revise emaLFast (1 / fromIntegral c1) lvl
-  void $ {- ls <- rescale c2 <$> -} revise emaLSlow (1 / fromIntegral c2) lvl
+  ns <- revise emaScale (1 / fromIntegral cs) 1
+  let rescaleSlow :: Double -> Double
+      rescaleSlow x = x / ns
+  df <- revise emaDFast (1 / fromIntegral cf) lbd
+  ds <- rescaleSlow <$> revise emaDSlow (1 / fromIntegral cs) lbd
+  af <- revise emaAFast (1 / fromIntegral cf) nas
+  as <- rescaleSlow <$> revise emaASlow (1 / fromIntegral cs) nas
+  void $ {- rf <-                 -} revise emaRFast (1 / fromIntegral cf) lrs
+  void $ {- rs <- rescaleSlow <$> -} revise emaRSlow (1 / fromIntegral cs) lrs
+  void $ {- lf <-                 -} revise emaLFast (1 / fromIntegral cf) lvl
+  void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) lvl
   mode <- get' restartMode
   if | count < next   -> return False
      | mode == 1      -> do                                             -- -| GH
@@ -372,19 +373,19 @@ dumpStats DumpCSV s@Solver{..} = do
   count <- getStat s NumOfBackjump
   sts <- init <$> getStats s
   -- update EMAs, which type is Double
-  let (c1, c2, c3, c4) = emaCoeffs config
-      rescale :: Int -> Double -> Double
-      rescale x y = if count < x then fromIntegral x * y / fromIntegral count else y
-      fs :: Double -> String
+  ns <- get' emaScale
+  let fs :: Double -> String
       fs x = showFFloat (Just 3) x ""
-  df <- rescale c1 <$> get' emaDFast
-  ds <- rescale c2 <$> get' emaDSlow
-  af <- rescale c3 <$> get' emaAFast
-  as <- rescale c4 <$> get' emaASlow
-  rf <- rescale c1 <$> get' emaRFast
-  rs <- rescale c2 <$> get' emaRSlow
-  lf <- rescale c1 <$> get' emaLFast
-  ls <- rescale c2 <$> get' emaLSlow
+      rescaleSlow :: Double -> Double
+      rescaleSlow x = x / ns
+  df <- get' emaDFast
+  ds <- rescaleSlow <$> get' emaDSlow
+  af <- get' emaAFast
+  as <- rescaleSlow <$> get' emaASlow
+  rf <- get' emaRFast
+  rs <- rescaleSlow <$> get' emaRSlow
+  lf <- get' emaLFast
+  ls <- rescaleSlow <$> get' emaLSlow
   putStrLn . intercalate "," $ map (show . snd) sts ++ map fs [df, ds, af, as, rf, rs, lf, rs]
 
 -- | FIXME: use Util/Stat
