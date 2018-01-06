@@ -7,6 +7,11 @@ library("ggplot2")
 library("grid")
 version = "0.5.1"
 
+c1=2^5
+c2=2^14
+c3=2^5
+c4=2^12
+
 getData = function (single, t, p) {
     df <- read.csv(as.character(t[[1]]), header=T, sep=",", comment="#")
     if (single) {
@@ -83,12 +88,15 @@ getData = function (single, t, p) {
     rbind(df1, df2, df3, df4, df5, df6, df7, df8, df9, dfa, dfb, dfc, dfd, dfe, dff, dfg)
 }
 
-graph = function (df, kind, mes, logGraph=FALSE) {
+graph = function (df, kind, mes, logGraph=FALSE, hls=NULL) {
     d <- subset(df, grepl(kind, df$type))
     g <- ggplot(NULL)
     g <- g + geom_line(data=d, aes(x=num, y=value, color=id), size=0.4)
     g <- g + theme(plot.margin=grid::unit(c(8,8,8,8), "pt"))
     g <- g + scale_y_continuous(limits=c(min(d$value),max(d$value)))
+    if (! is.null(hls)) {
+        g <- g + geom_vline(xintercept = hls)
+    }
     if (logGraph == TRUE) {
         g <- g + theme(legend.position="none")
         g <- g + scale_x_log10(limits=c(min(df$num),max(df$num)))
@@ -141,14 +149,14 @@ graph = function (df, kind, mes, logGraph=FALSE) {
                         color="gray50", size=2.6)
 
     df[["id"]] = gsub("=.+", "", df[["id"]])
-    g2 <- graph(df, "target",         " - Log scaled restart", TRUE)
-    g3 <- graph(df, "assigns",        "EMA of the number of assignment ->  blocking restart", TRUE)
+    g2 <- graph(df, "target",         " - Restart (log-scaled)", TRUE, c2)
+    g3 <- graph(df, "assigns",        "EMA of the assigned vars for blocking restart", TRUE, c4)
     g4 <- graph(df, "assign ratio",   "", TRUE)
-    g5 <- graph(df, "distances",      "EMA of Literal Block Distance -> forcing restart", TRUE)
+    g5 <- graph(df, "distances",      "EMA of Literal Block Distance for forcing restart", TRUE, c2)
     g6 <- graph(df, "distance ratio", "", TRUE)
-    g7 <- graph(df, "conflict level", "EMA of Decision Level at conflict", TRUE)
+    g7 <- graph(df, "conflict level", "EMA of Decision Level of conflict", TRUE, c2)
     g8 <- graph(df, "clevel ratio",   "", TRUE)
-    g9 <- graph(df, "backjump level", "EMA of Decision Level by BackJump", TRUE)
+    g9 <- graph(df, "backjump level", "EMA of Decision Level by BackJump", TRUE, c2)
     # ga <- graph(df, "blevel ratio",   "", TRUE)
     ga <- graph(df, "b/c ratio",   "", TRUE)
     grid.newpage()
