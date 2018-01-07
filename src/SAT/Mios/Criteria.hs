@@ -280,7 +280,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
   let (cf, cs) = emaCoeffs config
       nv = fromIntegral nVars
       step = 50 :: Double
-      gef = 1.15 :: Double       -- geometric expansion factor
+      gef = 1.25 :: Double       -- geometric expansion factor
       revise :: Double' -> Double -> Double -> IO Double
       revise e a x  = do v <- ((a * x) +) . ((1 - a) *) <$> get' e; set' e v; return v
   ns <- revise emaScale (1 / fromIntegral cs) 1
@@ -296,9 +296,9 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
   void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) lvl
   mode <- get' restartMode
   if | count < next   -> return False
-     | False && mode == 1      -> do                                             -- -| GH
-         when (0.25 < as / nv) $ set' restartMode 2
-         -- when (c2 < count) $ set' restartMode 2
+     | mode == 1      -> do                                             -- -| GH
+         --when (0.25 < as / nv) $ set' restartMode 2
+         when (cs < count) $ set' restartMode 2
          incrementStat s NumOfGeometricRestart 1
          ki <- fromIntegral <$> getStat s NumOfGeometricRestart
          -- let ki = lf - ls
