@@ -7,10 +7,7 @@ library("ggplot2")
 library("grid")
 version = "0.5.1"
 
-c1=2^5
-c2=2^14
-c3=2^5
-c4=2^12
+ew=2^14
 
 getData = function (single, t, p) {
     df <- read.csv(as.character(t[[1]]), header=T, sep=",", comment="#")
@@ -149,14 +146,14 @@ graph = function (df, kind, mes, logGraph=FALSE, hls=NULL) {
                         color="gray50", size=2.6)
 
     df[["id"]] = gsub("=.+", "", df[["id"]])
-    g2 <- graph(df, "target",         " - Restart (log-scaled)", TRUE, c2)
-    g3 <- graph(df, "assigns",        "EMA of the assigned vars for blocking restart", TRUE, c4)
+    g2 <- graph(df, "target",         " - Restart (log-scaled)", TRUE, ew)
+    g3 <- graph(df, "assigns",        "EMA of the assigned vars for blocking restart", TRUE, ew)
     g4 <- graph(df, "assign ratio",   "", TRUE)
-    g5 <- graph(df, "distances",      "EMA of Literal Block Distance for forcing restart", TRUE, c2)
+    g5 <- graph(df, "distances",      "EMA of Literal Block Distance for forcing restart", TRUE, ew)
     g6 <- graph(df, "distance ratio", "", TRUE)
-    g7 <- graph(df, "conflict level", "EMA of Decision Level of conflict", TRUE, c2)
+    g7 <- graph(df, "conflict level", "EMA of Decision Level of conflict", TRUE, ew)
     g8 <- graph(df, "clevel ratio",   "", TRUE)
-    g9 <- graph(df, "backjump level", "EMA of Decision Level by BackJump", TRUE, c2)
+    g9 <- graph(df, "backjump level", "EMA of Decision Level by BackJump", TRUE, ew)
     # ga <- graph(df, "blevel ratio",   "", TRUE)
     ga <- graph(df, "b/c ratio",   "", TRUE)
     grid.newpage()
