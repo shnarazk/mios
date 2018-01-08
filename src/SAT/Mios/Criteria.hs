@@ -386,7 +386,7 @@ dumpStats DumpCSV s@Solver{..} = do
   rs <- rescaleSlow <$> get' emaRSlow
   lf <- get' emaLFast
   ls <- rescaleSlow <$> get' emaLSlow
-  putStrLn . intercalate "," $ map (show . snd) sts ++ map fs [df, ds, af, as, rf, rs, lf, rs]
+  putStrLn . intercalate "," $ map (show . snd) sts ++ map fs [df, ds, af, as, rf, rs, lf, ls]
 
 -- | FIXME: use Util/Stat
 dumpStats DumpJSON _ = return ()                -- mode 2: JSON
