@@ -296,7 +296,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
   void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) lvl
   mode <- get' restartMode
   if | count < next   -> return False
-     | mode == 1      -> do                                             -- -| GH
+     | False && mode == 1      -> do                                             -- -| GH
          --when (0.25 < as / nv) $ set' restartMode 2
          when (cs < count) $ set' restartMode 2
          incrementStat s NumOfGeometricRestart 1
@@ -311,7 +311,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
          incrementStat s NumOfBlockRestart 1
          ki <- fromIntegral <$> getStat s NumOfBlockRestart
          -- let ki = lf - ls
-         -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
+         set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
          -- set' nextRestart $ count + ceiling (step * gef ** (ki - 1))
          set' nextRestart $ count + 50                               -- -| Fix50, GH
          -- set' nextRestart $ count + ceiling (lf ** 2.0)
@@ -321,7 +321,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
          incrementStat s NumOfRestart 1
          ki <- fromIntegral <$> getStat s NumOfRestart
          -- let ki = lf - ls
-         -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
+         set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
          -- set' nextRestart $ count + ceiling (step * gef ** (ki - 1))
          set' nextRestart $ count + 50                               -- -| Fix50, GH
          -- set' nextRestart $ count + ceiling (lf ** 2.0)
