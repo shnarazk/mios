@@ -313,7 +313,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
          -- let ki = lf - ls
          set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
          -- set' nextRestart $ count + ceiling (step * gef ** (ki - 1))
-         set' nextRestart $ count + 50                               -- -| Fix50, GH
+         -- set' nextRestart $ count + 50                               -- -| Fix50, GH
          -- set' nextRestart $ count + ceiling (lf ** 2.0)
          when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return False
@@ -323,7 +323,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
          -- let ki = lf - ls
          set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
          -- set' nextRestart $ count + ceiling (step * gef ** (ki - 1))
-         set' nextRestart $ count + 50                               -- -| Fix50, GH
+         -- set' nextRestart $ count + 50                               -- -| Fix50, GH
          -- set' nextRestart $ count + ceiling (lf ** 2.0)
          when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return True
