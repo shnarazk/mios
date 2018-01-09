@@ -293,8 +293,8 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
   void $ {- lf <-                 -} revise emaLFast (1 / fromIntegral cf) lvl
   void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) lvl
   mode <- get' restartMode
-  let gef = 1.25 :: Double       -- geometric expansion factor
-      step = 50/gef :: Double
+  let gef  = 1.20     :: Double       -- geometric expansion factor
+      step = 50 / gef :: Double
   if | count < next   -> return False
      | False && mode == 1      -> do                                          -- -| GH
          --when (0.25 < as / nv) $ set' restartMode 2
