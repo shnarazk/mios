@@ -278,9 +278,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
   -- mode <- get' restartMode
   -- k <- getStat s NumOfRestart
   let (cf, cs) = emaCoeffs config
-      nv = fromIntegral nVars
-      step = 50 :: Double
-      gef = 1.25 :: Double       -- geometric expansion factor
+      -- nv = fromIntegral nVars
       revise :: Double' -> Double -> Double -> IO Double
       revise e a x  = do v <- ((a * x) +) . ((1 - a) *) <$> get' e; set' e v; return v
   ns <- revise emaScale (1 / fromIntegral cs) 1
@@ -295,25 +293,28 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
   void $ {- lf <-                 -} revise emaLFast (1 / fromIntegral cf) lvl
   void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) lvl
   mode <- get' restartMode
+  let gef = 1.25 :: Double       -- geometric expansion factor
+      step = 50/gef :: Double
   if | count < next   -> return False
-     | False && mode == 1      -> do                                             -- -| GH
+     | False && mode == 1      -> do                                          -- -| GH
          --when (0.25 < as / nv) $ set' restartMode 2
          when (cs < count) $ set' restartMode 2
          incrementStat s NumOfGeometricRestart 1
          ki <- fromIntegral <$> getStat s NumOfGeometricRestart
          -- let ki = lf - ls
-         set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
-         -- set' nextRestart $ count + ceiling (step * gef ** (ki - 1))
-         -- set' nextRestart $ count + 50                               -- -| Fix50
+         -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
+         set' nextRestart $ count + ceiling (step * gef ** ki)                -- -| best?
+         -- set' nextRestart $ count + 50                                     -- -| Fix50
+         -- set' nextRestart $ count + ceiling (lf ** 2.0)
          when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return True
      | 1.25 * as < af -> do     -- -| BLOCKING |
          incrementStat s NumOfBlockRestart 1
          ki <- fromIntegral <$> getStat s NumOfBlockRestart
          -- let ki = lf - ls
-         set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
-         -- set' nextRestart $ count + ceiling (step * gef ** (ki - 1))
-         -- set' nextRestart $ count + 50                               -- -| Fix50, GH
+         -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
+         set' nextRestart $ count + ceiling (step * gef ** ki)                -- -| best?
+         -- set' nextRestart $ count + 50                                     -- -| Fix50, GH
          -- set' nextRestart $ count + ceiling (lf ** 2.0)
          when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return False
@@ -321,9 +322,9 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
          incrementStat s NumOfRestart 1
          ki <- fromIntegral <$> getStat s NumOfRestart
          -- let ki = lf - ls
-         set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
-         -- set' nextRestart $ count + ceiling (step * gef ** (ki - 1))
-         -- set' nextRestart $ count + 50                               -- -| Fix50, GH
+         -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
+         set' nextRestart $ count + ceiling (step * gef ** ki)                -- -| best?
+         -- set' nextRestart $ count + 50                                     -- -| Fix50, GH
          -- set' nextRestart $ count + ceiling (lf ** 2.0)
          when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return True
@@ -370,7 +371,6 @@ dumpStats DumpCSV s@Solver{..} = do
   setStat s NumOfAssigned =<< nAssigns s
   setStat s NumOfClause =<< get' clauses
   setStat s NumOfLearnt =<< get' learnts
-  count <- getStat s NumOfBackjump
   sts <- init <$> getStats s
   -- update EMAs, which type is Double
   ns <- get' emaScale
