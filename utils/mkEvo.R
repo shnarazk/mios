@@ -5,7 +5,7 @@
 
 library("ggplot2")
 library("grid")
-version = "0.5.1"
+version = "0.6.0"
 
 ew=2^14
 
@@ -85,7 +85,7 @@ getData = function (single, t, p) {
     rbind(df1, df2, df3, df4, df5, df6, df7, df8, df9, dfa, dfb, dfc, dfd, dfe, dff, dfg)
 }
 
-graph = function (df, kind, mes, logGraph=FALSE, hls=NULL) {
+graph = function (df, kind, mes, logGraph=FALSE, leg=FALSE, hls=NULL) {
     d <- subset(df, grepl(kind, df$type))
     g <- ggplot(NULL)
     g <- g + geom_line(data=d, aes(x=num, y=value, color=id), size=0.4)
@@ -94,18 +94,19 @@ graph = function (df, kind, mes, logGraph=FALSE, hls=NULL) {
     if (! is.null(hls)) {
         g <- g + geom_vline(xintercept = hls)
     }
-    if (logGraph == TRUE) {
-        g <- g + theme(legend.position="none")
-        g <- g + scale_x_log10(limits=c(min(df$num),max(df$num)))
-        g <- g + labs(subtitle=mes, x=NULL, y=NULL)
-    } else {
+    g <- g + labs(subtitle=mes, x=NULL, y=NULL)
+    if (leg) {
         g <- g + theme(legend.title=element_blank(),
                        legend.position="top",
                        legend.justification=c(0,0),
                        legend.direction="horizontal")
+    } else {
+        g <- g + theme(legend.position="none")
+    }
+    if (logGraph == TRUE) {
+        g <- g + scale_x_log10(limits=c(min(df$num),max(df$num)))
+    } else {
         g <- g + scale_x_continuous(limits=c(min(df$num),max(df$num)))
-        # g <- g + labs(subtitle=mes, x="conflict index", y=NULL)
-        g <- g + labs(subtitle=mes, x=NULL, y=NULL)
     }
     g
 }
@@ -134,39 +135,38 @@ graph = function (df, kind, mes, logGraph=FALSE, hls=NULL) {
         for (i in seq(nrow(runs))) { df = rbind(df, getData(FALSE, runs[i,], 1 < ncol(runs))); }
     }
     cairo_pdf(filename=targetPDF, width=9, height=12, antialias="subpixel", onefile=TRUE)
-    g1 <- graph(df, "target",   "Restart", FALSE)
+    g1 <- graph(df, "target",   "Restart (Log-scaled)", TRUE, TRUE, ew)
     desc = if (1 < length(args)) args[2] else filename
     g1 <- g1 + labs(title=paste("State Evolution against Conflict Index", "(", desc, ")"))
     dt <- subset(df, grepl("target", df$type))
     g1 <- g1 + annotate("text",
-                        x=0.2*min(df$num) + 0.8*max(df$num),
+                        x=0.9*max(df$num),
                         y=0.9*min(dt$value) + 0.1*max(dt$value),
+                        hjust=1,
                         label=paste(format(as.POSIXlt(Sys.time()), "%Y-%m-%dT%H:%M:%S"), " ",
                                     "drawn with mkTrans.R (ver. ", version, ")", sep=""),
                         color="gray50", size=2.6)
 
     df[["id"]] = gsub("=.+", "", df[["id"]])
-    g2 <- graph(df, "target",         " - Restart (log-scaled)", TRUE, ew)
-    g3 <- graph(df, "assigns",        "EMA of the assigned vars for blocking restart", TRUE, ew)
-    g4 <- graph(df, "assign ratio",   "", TRUE)
-    g5 <- graph(df, "distances",      "EMA of Literal Block Distance for forcing restart", TRUE, ew)
-    g6 <- graph(df, "distance ratio", "", TRUE)
-    g7 <- graph(df, "conflict level", "EMA of Decision Level of conflict", TRUE, ew)
-    g8 <- graph(df, "clevel ratio",   "", TRUE)
-    g9 <- graph(df, "backjump level", "EMA of Decision Level by BackJump", TRUE, ew)
-    # ga <- graph(df, "blevel ratio",   "", TRUE)
-    ga <- graph(df, "b/c ratio",   "", TRUE)
+    g2 <- graph(df, "assigns",        "EMA of the assigned vars for blocking restart", TRUE, FALSE, ew)
+    g3 <- graph(df, "assign ratio",   "", TRUE, FALSE)
+    g4 <- graph(df, "distances",      "EMA of Literal Block Distance for forcing restart", TRUE, FALSE, ew)
+    g5 <- graph(df, "distance ratio", "", TRUE, FALSE)
+    g6 <- graph(df, "conflict level", "EMA of Decision Level of conflict", TRUE, FALSE, ew)
+    g7 <- graph(df, "clevel ratio",   "", TRUE, FALSE)
+    g8 <- graph(df, "backjump level", "EMA of Decision Level by BackJump", TRUE, FALSE, ew)
+    # g9 <- graph(df, "blevel ratio",   "", TRUE)
+    g9 <- graph(df, "b/c ratio",   "", TRUE, FALSE)
     grid.newpage()
-    pushViewport(viewport(layout=grid.layout(6,2),width=0.94,height=0.94))
+    pushViewport(viewport(layout=grid.layout(5,2),width=0.94,height=0.94))
     print(g1, vp=viewport(layout.pos.row=1, layout.pos.col=c(1,2)))
-    print(g2, vp=viewport(layout.pos.row=2, layout.pos.col=c(1,2)))
-    print(g3, vp=viewport(layout.pos.row=3, layout.pos.col=1))
-    print(g4, vp=viewport(layout.pos.row=3, layout.pos.col=2))
-    print(g5, vp=viewport(layout.pos.row=4, layout.pos.col=1))
-    print(g6, vp=viewport(layout.pos.row=4, layout.pos.col=2))
-    print(g7, vp=viewport(layout.pos.row=5, layout.pos.col=1))
-    print(g8, vp=viewport(layout.pos.row=5, layout.pos.col=2))
-    print(g9, vp=viewport(layout.pos.row=6, layout.pos.col=1))
-    print(ga, vp=viewport(layout.pos.row=6, layout.pos.col=2))
+    print(g2, vp=viewport(layout.pos.row=2, layout.pos.col=1))
+    print(g3, vp=viewport(layout.pos.row=2, layout.pos.col=2))
+    print(g4, vp=viewport(layout.pos.row=3, layout.pos.col=1))
+    print(g5, vp=viewport(layout.pos.row=3, layout.pos.col=2))
+    print(g6, vp=viewport(layout.pos.row=4, layout.pos.col=1))
+    print(g7, vp=viewport(layout.pos.row=4, layout.pos.col=2))
+    print(g8, vp=viewport(layout.pos.row=5, layout.pos.col=1))
+    print(g9, vp=viewport(layout.pos.row=5, layout.pos.col=2))
     ggsave(filename=targetPDF, width=9, height=12, scale=1.0, dpi=400)
 })()
