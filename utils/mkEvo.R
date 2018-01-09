@@ -5,7 +5,7 @@
 
 library("ggplot2")
 library("grid")
-version = "0.6.0"
+version = "0.6.1"
 
 ew=2^14
 
@@ -115,7 +115,7 @@ graph = function (df, kind, mes, logGraph=FALSE, leg=FALSE, hls=NULL) {
     df <- list()
     args <- commandArgs(trailingOnly=TRUE)
     filename <- args[1]
-    if (grep("\\.csv$", args[1])) {
+    if (grepl("\\.csv$", args[1])) {
         name <- gsub("\\.[^.]+$", "", filename)
         df <- getData(TRUE, filename, FALSE)
         if (dirname(name) != "") {
