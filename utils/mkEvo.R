@@ -5,9 +5,11 @@
 
 library("ggplot2")
 library("grid")
-version = "0.6.1"
+version = "0.6.2"
 
 ew=2^14
+blockTh = 1.25
+forceTh = 1.25
 
 getData = function (single, t, p) {
     df <- read.csv(as.character(t[[1]]), header=T, sep=",", comment="#")
@@ -18,82 +20,69 @@ getData = function (single, t, p) {
     }  else {
         tag = sub("^ +", "", as.character(t[[1]]))
     }
-    df1 <- data.frame(id=paste("#restart", tag),
-                      num=df[["NumOfBackjump"]],
+    df1 <- data.frame(id=paste("#restart", tag), num=df[["NumOfBackjump"]],
                       value=df[["NumOfRestart"]],
                       type="target")
-    df2 <- data.frame(id=paste("#blocked", tag),
-                      num=df[["NumOfBackjump"]],
+    df2 <- data.frame(id=paste("#blocked", tag), num=df[["NumOfBackjump"]],
                       value=df[["NumOfBlockRestart"]],
                       type="target")
-    df3 <- data.frame(id=paste("#geometric", tag),
-                      num=df[["NumOfBackjump"]],
+    df3 <- data.frame(id=paste("#geometric", tag), num=df[["NumOfBackjump"]],
                       value=df[["NumOfGeometricRestart"]],
                       type="target")
-    df4 <- data.frame(id=paste("FAST", tag),
-                      num=df[["NumOfBackjump"]],
+    df4 <- data.frame(id=paste("FAST", tag), num=df[["NumOfBackjump"]],
                       value=df[["emaDFast"]],
                       type="distances")
-    df5 <- data.frame(id=paste("SLOW", tag),
-                      num=df[["NumOfBackjump"]],
+    df5 <- data.frame(id=paste("SLOW", tag), num=df[["NumOfBackjump"]],
                       value=df[["emaDSlow"]],
                       type="distances")
-    df6 <- data.frame(id=paste("distance ratio ", tag),
-                      num=df[["NumOfBackjump"]],
+    df6 <- data.frame(id=paste("distance ratio ", tag), num=df[["NumOfBackjump"]],
                       value=df[["emaDFast"]]/df[["emaDSlow"]],
                       type="distance ratio")
-    df7 <- data.frame(id=paste("FAST", tag),
-                      num=df[["NumOfBackjump"]],
+    df7 <- data.frame(id=paste("FAST", tag), num=df[["NumOfBackjump"]],
                       value=df[["emaAFast"]],
                       type="assigns")
-    df8 <- data.frame(id=paste("SLOW", tag),
-                      num=df[["NumOfBackjump"]],
+    df8 <- data.frame(id=paste("SLOW", tag), num=df[["NumOfBackjump"]],
                       value=df[["emaASlow"]],
                       type="assigns")
-    df9 <- data.frame(id=paste("assign ratio", tag),
-                      num=df[["NumOfBackjump"]],
+    df9 <- data.frame(id=paste("assign ratio", tag), num=df[["NumOfBackjump"]],
                       value=df[["emaAFast"]]/df[["emaASlow"]],
                       type="assign ratio")
-    dfa <- data.frame(id=paste("FAST", tag),
-                      num=df[["NumOfBackjump"]],
+    dfa <- data.frame(id=paste("FAST", tag), num=df[["NumOfBackjump"]],
                       value=df[["emaLFast"]],
                       type="backjump level")
-    dfb <- data.frame(id=paste("SLOW", tag),
-                      num=df[["NumOfBackjump"]],
+    dfb <- data.frame(id=paste("SLOW", tag), num=df[["NumOfBackjump"]],
                       value=df[["emaLSlow"]],
                       type="backjump level")
-    dfc <- data.frame(id=paste("level ratio", tag),
-                      num=df[["NumOfBackjump"]],
+    dfc <- data.frame(id=paste("level ratio", tag), num=df[["NumOfBackjump"]],
                       value=df[["emaLFast"]]/df[["emaLSlow"]],
                       type="blevel ratio")
-    dfd <- data.frame(id=paste("FAST", tag),
-                      num=df[["NumOfBackjump"]],
+    dfd <- data.frame(id=paste("FAST", tag), num=df[["NumOfBackjump"]],
                       value=df[["emaRFast"]],
                       type="conflict level")
-    dfe <- data.frame(id=paste("SLOW", tag),
-                      num=df[["NumOfBackjump"]],
+    dfe <- data.frame(id=paste("SLOW", tag), num=df[["NumOfBackjump"]],
                       value=df[["emaRSlow"]],
                       type="conflict level")
-    dff <- data.frame(id=paste("level ratio", tag),
-                      num=df[["NumOfBackjump"]],
+    dff <- data.frame(id=paste("level ratio", tag), num=df[["NumOfBackjump"]],
                       value=df[["emaRFast"]]/df[["emaRSlow"]],
                       type="clevel ratio")
-    dfg <- data.frame(id=paste("b/c ratio", tag),
-                      num=df[["NumOfBackjump"]],
+    dfg <- data.frame(id=paste("b/c ratio", tag), num=df[["NumOfBackjump"]],
                       value=df[["emaRSlow"]]/df[["emaLSlow"]],
                       type="b/c ratio")
     rbind(df1, df2, df3, df4, df5, df6, df7, df8, df9, dfa, dfb, dfc, dfd, dfe, dff, dfg)
 }
 
-graph = function (df, kind, mes, logGraph=FALSE, leg=FALSE, hls=NULL) {
+graph = function (df, kind, mes, logGraph=FALSE, leg=FALSE, hls=NULL, vls=NULL) {
     d <- subset(df, grepl(kind, df$type))
     g <- ggplot(NULL)
+    if (! is.null(hls)) {
+        g <- g + geom_vline(xintercept = hls, color="green", size=0.6)
+    }
+    if (! is.null(vls)) {
+        g <- g + geom_hline(yintercept = vls, color="green", size=0.3)
+    }
     g <- g + geom_line(data=d, aes(x=num, y=value, color=id), size=0.4)
     g <- g + theme(plot.margin=grid::unit(c(8,8,8,8), "pt"))
     g <- g + scale_y_continuous(limits=c(min(d$value),max(d$value)))
-    if (! is.null(hls)) {
-        g <- g + geom_vline(xintercept = hls)
-    }
     g <- g + labs(subtitle=mes, x=NULL, y=NULL)
     if (leg) {
         g <- g + theme(legend.title=element_blank(),
@@ -149,9 +138,9 @@ graph = function (df, kind, mes, logGraph=FALSE, leg=FALSE, hls=NULL) {
 
     df[["id"]] = gsub("=.+", "", df[["id"]])
     g2 <- graph(df, "assigns",        "EMA of the assigned vars for blocking restart", TRUE, FALSE, ew)
-    g3 <- graph(df, "assign ratio",   "", TRUE, FALSE)
+    g3 <- graph(df, "assign ratio",   "", TRUE, FALSE, NULL, blockTh)
     g4 <- graph(df, "distances",      "EMA of Literal Block Distance for forcing restart", TRUE, FALSE, ew)
-    g5 <- graph(df, "distance ratio", "", TRUE, FALSE)
+    g5 <- graph(df, "distance ratio", "", TRUE, FALSE, NULL, forceTh)
     g6 <- graph(df, "conflict level", "EMA of Decision Level of conflict", TRUE, FALSE, ew)
     g7 <- graph(df, "clevel ratio",   "", TRUE, FALSE)
     g8 <- graph(df, "backjump level", "EMA of Decision Level by BackJump", TRUE, FALSE, ew)
