@@ -23,22 +23,23 @@ import SAT.Mios.Types (MiosConfiguration (..), defaultConfiguration)
 -- | configuration swithces
 data MiosProgramOption = MiosProgramOption
                      {
-                       _targetFile :: Maybe String
-                     , _targets :: [String]
-                     , _outputFile :: Maybe String
-                     , _confVariableDecayRate :: !Double
-                     , _confClauseDecayRate :: Double
+                       _targetFile            :: Maybe String
+                     , _targets               :: [String]
+                     , _outputFile            :: Maybe String
+                     , _confVariableDecayRate :: Double
+                     , _confClauseDecayRate   :: Double
+                     , _confRestartExpansion  :: Double
 --                     , _confRandomDecisionRate :: Int
-                     , _confMaxSize :: !Int
-                     , _confCheckAnswer :: !Bool
-                     , _confVerbose :: !Bool
-                     , _confBenchmark :: Integer
-                     , _confBenchSeq :: !Int
-                     , _confNoAnswer :: !Bool
-                     , _confDumpStat :: !Int
-                     , _validateAssignment :: !Bool
-                     , _displayHelp :: !Bool
-                     , _displayVersion :: !Bool
+                     , _confMaxSize           :: Int
+                     , _confCheckAnswer       :: Bool
+                     , _confVerbose           :: Bool
+                     , _confBenchmark         :: Integer
+                     , _confBenchSeq          :: Int
+                     , _confNoAnswer          :: Bool
+                     , _confDumpStat          :: Int
+                     , _validateAssignment    :: Bool
+                     , _displayHelp           :: Bool
+                     , _displayVersion        :: Bool
                      }
 
 -- | default option settings
@@ -50,8 +51,9 @@ miosDefaultOption = MiosProgramOption
   , _outputFile = Nothing
   , _confVariableDecayRate = variableDecayRate defaultConfiguration
   , _confClauseDecayRate = clauseDecayRate defaultConfiguration
---  , _confRandomDecisionRate = randomDecisionRate defaultConfiguration
-  , _confMaxSize = 4000000    -- 4,000,000 = 4M
+  , _confRestartExpansion = restartExpansion defaultConfiguration
+  --, _confRandomDecisionRate = randomDecisionRate defaultConfiguration
+  , _confMaxSize = 5000000    -- 5,000,000 = 5M
   , _confCheckAnswer = False
   , _confVerbose = False
   , _confBenchmark = -1
@@ -73,6 +75,9 @@ miosOptions =
   , Option ['c'] ["clause-decay-rate"]
     (ReqArg (\v c -> c { _confClauseDecayRate = read v }) (show (_confClauseDecayRate miosDefaultOption)))
     "[solver] clause activity decay rate (0.0 - 1.0)"
+  , Option [] ["restart-expansion"]
+    (ReqArg (\v c -> c { _confRestartExpansion = read v }) (show (_confRestartExpansion miosDefaultOption)))
+    "[solver] geometric restart expansion rate (>= 1.0)"
 --  , Option ['r'] ["random-decision-rate"]
 --    (ReqArg (\v c -> c { _confRandomDecisionRate = read v }) (show (_confRandomDecisionRate miosDefaultOption)))
 --    "[solver] random selection rate (0 - 1000)"
@@ -143,4 +148,5 @@ toMiosConf opts = MiosConfiguration
 --                 , randomDecisionRate = _confRandomDecisionRate opts
                  , dumpSolverStatMode = _confDumpStat opts
                  , emaCoeffs = emaCoeffs defaultConfiguration
+                 , restartExpansion = _confRestartExpansion opts
                  }

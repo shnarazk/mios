@@ -277,10 +277,11 @@ data CNFDescription = CNFDescription
 -- | Solver's parameters; random decision rate was dropped.
 data MiosConfiguration = MiosConfiguration
                          {
-                           variableDecayRate  :: !Double  -- ^ decay rate for variable activity
-                         , clauseDecayRate    :: !Double  -- ^ decay rate for clause activity
-                         , dumpSolverStatMode :: !Int     -- ^ dump stats data during solving
-                         , emaCoeffs          :: !(Int, Int) -- ^ the coefficients
+                           variableDecayRate  :: !Double     -- ^ decay rate for variable activity
+                         , clauseDecayRate    :: !Double     -- ^ decay rate for clause activity
+                         , dumpSolverStatMode :: !Int        -- ^ dump stats data during solving
+                         , emaCoeffs          :: !(Int, Int) -- ^ the coefficients for restarts
+                         , restartExpansion   :: !Double     -- ^ geometric restart expansion factor
                          }
   deriving (Eq, Ord, Read, Show)
 
@@ -292,7 +293,7 @@ data MiosConfiguration = MiosConfiguration
 -- * Mios-1.2     uses @(0.95, 0.999, 0)@.
 --
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 0.999 0 (ef, es)
+defaultConfiguration = MiosConfiguration 0.95 0.999 0 (ef, es) 1.25
   where ef = (2 :: Int) ^ ( 5 :: Int)
         es = (2 :: Int) ^ (14 :: Int)
 
