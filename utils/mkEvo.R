@@ -5,14 +5,14 @@
 
 library("ggplot2")
 library("grid")
-version = "0.6.2"
+version = "0.6.3"
 
 ew=2^14
 blockTh = 1.25
 forceTh = 1.25
 
 getData = function (single, t, p) {
-    df <- read.csv(as.character(t[[1]]), header=T, sep=",", comment="#")
+    d <- read.csv(as.character(t[[1]]), header=T, sep=",", comment="#")
     if (single) {
         tag = ""
     } else if (p && t[[2]] != "") {
@@ -20,56 +20,42 @@ getData = function (single, t, p) {
     }  else {
         tag = sub("^ +", "", as.character(t[[1]]))
     }
-    df1 <- data.frame(id=paste("#restart", tag), num=df[["NumOfBackjump"]],
-                      value=df[["NumOfRestart"]],
-                      type="target")
-    df2 <- data.frame(id=paste("#blocked", tag), num=df[["NumOfBackjump"]],
-                      value=df[["NumOfBlockRestart"]],
-                      type="target")
-    df3 <- data.frame(id=paste("#geometric", tag), num=df[["NumOfBackjump"]],
-                      value=df[["NumOfGeometricRestart"]],
-                      type="target")
-    df4 <- data.frame(id=paste("FAST", tag), num=df[["NumOfBackjump"]],
-                      value=df[["emaDFast"]],
-                      type="distances")
-    df5 <- data.frame(id=paste("SLOW", tag), num=df[["NumOfBackjump"]],
-                      value=df[["emaDSlow"]],
-                      type="distances")
-    df6 <- data.frame(id=paste("distance ratio ", tag), num=df[["NumOfBackjump"]],
-                      value=df[["emaDFast"]]/df[["emaDSlow"]],
-                      type="distance ratio")
-    df7 <- data.frame(id=paste("FAST", tag), num=df[["NumOfBackjump"]],
-                      value=df[["emaAFast"]],
-                      type="assigns")
-    df8 <- data.frame(id=paste("SLOW", tag), num=df[["NumOfBackjump"]],
-                      value=df[["emaASlow"]],
-                      type="assigns")
-    df9 <- data.frame(id=paste("assign ratio", tag), num=df[["NumOfBackjump"]],
-                      value=df[["emaAFast"]]/df[["emaASlow"]],
-                      type="assign ratio")
-    dfa <- data.frame(id=paste("FAST", tag), num=df[["NumOfBackjump"]],
-                      value=df[["emaLFast"]],
-                      type="backjump level")
-    dfb <- data.frame(id=paste("SLOW", tag), num=df[["NumOfBackjump"]],
-                      value=df[["emaLSlow"]],
-                      type="backjump level")
-    dfc <- data.frame(id=paste("level ratio", tag), num=df[["NumOfBackjump"]],
-                      value=df[["emaLFast"]]/df[["emaLSlow"]],
-                      type="blevel ratio")
-    dfd <- data.frame(id=paste("FAST", tag), num=df[["NumOfBackjump"]],
-                      value=df[["emaRFast"]],
-                      type="conflict level")
-    dfe <- data.frame(id=paste("SLOW", tag), num=df[["NumOfBackjump"]],
-                      value=df[["emaRSlow"]],
-                      type="conflict level")
-    dff <- data.frame(id=paste("level ratio", tag), num=df[["NumOfBackjump"]],
-                      value=df[["emaRFast"]]/df[["emaRSlow"]],
-                      type="clevel ratio")
-    dfg <- data.frame(id=paste("b/c ratio", tag), num=df[["NumOfBackjump"]],
-                      value=df[["emaRSlow"]]/df[["emaLSlow"]],
-                      type="b/c ratio")
-    rbind(df1, df2, df3, df4, df5, df6, df7, df8, df9, dfa, dfb, dfc, dfd, dfe, dff, dfg)
-}
+    index <- d[["NumOfBackjump"]]
+    df <- NULL
+    df <- rbind(df, data.frame(id=paste("#restart", tag), num=index,
+                               value=d[["NumOfRestart"]], type="target"))
+    df <- rbind(df, data.frame(id=paste("#blocked", tag), num=index,
+                               value=d[["NumOfBlockRestart"]], type="target"))
+#    df <- rbind(df, data.frame(id=paste("#geometric", tag), num=index,
+#                               value=d[["NumOfGeometricRestart"]], type="target"))
+    df <- rbind(df, data.frame(id=paste("FAST", tag), num=index,
+                               value=d[["emaDFast"]], type="distances"))
+    df <- rbind(df, data.frame(id=paste("SLOW", tag), num=index,
+                               value=d[["emaDSlow"]], type="distances"))
+    df <- rbind(df, data.frame(id=paste("distance ratio ", tag), num=index,
+                               value=d[["emaDFast"]]/d[["emaDSlow"]], type="distance ratio"))
+    df <- rbind(df, data.frame(id=paste("FAST", tag), num=index,
+                               value=d[["emaAFast"]], type="assigns"))
+    df <- rbind(df, data.frame(id=paste("SLOW", tag), num=index,
+                               value=d[["emaASlow"]], type="assigns"))
+    df <- rbind(df, data.frame(id=paste("assign ratio", tag), num=index,
+                               value=d[["emaAFast"]]/d[["emaASlow"]], type="assign ratio"))
+    df <- rbind(df, data.frame(id=paste("FAST", tag), num=index,
+                               value=d[["emaLFast"]], type="backjump level"))
+    df <- rbind(df, data.frame(id=paste("SLOW", tag), num=index,
+                               value=d[["emaLSlow"]], type="backjump level"))
+    df <- rbind(df, data.frame(id=paste("level ratio", tag), num=index,
+                               value=d[["emaLFast"]]/d[["emaLSlow"]], type="blevel ratio"))
+    df <- rbind(df, data.frame(id=paste("FAST", tag), num=index,
+                               value=d[["emaRFast"]], type="conflict level"))
+    df <- rbind(df, data.frame(id=paste("SLOW", tag), num=index,
+                               value=d[["emaRSlow"]], type="conflict level"))
+    df <- rbind(df, data.frame(id=paste("level ratio", tag), num=index,
+                               value=d[["emaRFast"]]/d[["emaRSlow"]], type="clevel ratio"))
+    df <- rbind(df, data.frame(id=paste("b/c ratio", tag), num=index,
+                               value=d[["emaRSlow"]]/d[["emaLSlow"]], type="b/c ratio"))
+    df
+    }
 
 graph = function (df, kind, mes, logGraph=FALSE, leg=FALSE, hls=NULL, vls=NULL) {
     d <- subset(df, grepl(kind, df$type))
