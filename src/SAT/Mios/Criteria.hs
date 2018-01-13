@@ -296,7 +296,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
   let gef  = restartExpansion config
       step = 50 / gef :: Double
   if | count < next   -> return False
-     | False && mode == 1      -> do                                          -- -| GH
+     | mode == 1      -> do                                                   -- -| initial phase
          --when (0.25 < as / nv) $ set' restartMode 2
          when (cs < count) $ set' restartMode 2
          incrementStat s NumOfGeometricRestart 1
