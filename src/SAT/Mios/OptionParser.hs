@@ -28,6 +28,7 @@ data MiosProgramOption = MiosProgramOption
                      , _outputFile            :: Maybe String
                      , _confVariableDecayRate :: Double
                      , _confClauseDecayRate   :: Double
+                     , _confInitResatrtMode   :: Int
                      , _confRestartExpansion  :: Double
 --                     , _confRandomDecisionRate :: Int
                      , _confMaxSize           :: Int
@@ -51,6 +52,7 @@ miosDefaultOption = MiosProgramOption
   , _outputFile = Nothing
   , _confVariableDecayRate = variableDecayRate defaultConfiguration
   , _confClauseDecayRate = clauseDecayRate defaultConfiguration
+  , _confInitResatrtMode = initRestartMode defaultConfiguration
   , _confRestartExpansion = restartExpansion defaultConfiguration
   --, _confRandomDecisionRate = randomDecisionRate defaultConfiguration
   , _confMaxSize = 5000000    -- 5,000,000 = 5M
@@ -75,6 +77,9 @@ miosOptions =
   , Option ['c'] ["clause-decay-rate"]
     (ReqArg (\v c -> c { _confClauseDecayRate = read v }) (show (_confClauseDecayRate miosDefaultOption)))
     "[solver] clause activity decay rate (0.0 - 1.0)"
+  , Option [] ["initial-restart-mode"]
+    (ReqArg (\v c -> c { _confInitResatrtMode = read v }) (show (_confInitResatrtMode miosDefaultOption)))
+    "[solver] use the initial restart mode if the value is 1"
   , Option [] ["restart-expansion"]
     (ReqArg (\v c -> c { _confRestartExpansion = read v }) (show (_confRestartExpansion miosDefaultOption)))
     "[solver] geometric restart expansion rate (>= 1.0)"
@@ -148,5 +153,6 @@ toMiosConf opts = MiosConfiguration
 --                 , randomDecisionRate = _confRandomDecisionRate opts
                  , dumpSolverStatMode = _confDumpStat opts
                  , emaCoeffs = emaCoeffs defaultConfiguration
+                 , initRestartMode = _confInitResatrtMode opts
                  , restartExpansion = _confRestartExpansion opts
                  }

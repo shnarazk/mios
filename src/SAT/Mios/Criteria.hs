@@ -275,7 +275,6 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
   count <- getStat s NumOfBackjump -- it should be > 0
   nas <- fromIntegral <$> nAssigns s
   lvl <- fromIntegral <$> decisionLevel s
-  -- mode <- get' restartMode
   -- k <- getStat s NumOfRestart
   let (cf, cs) = emaCoeffs config
       -- nv = fromIntegral nVars
@@ -292,13 +291,13 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
   void $ {- rs <- rescaleSlow <$> -} revise emaRSlow (1 / fromIntegral cs) lrs
   void $ {- lf <-                 -} revise emaLFast (1 / fromIntegral cf) lvl
   void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) lvl
-  mode <- get' restartMode
+  mode <- get' restartMode      -- 1 for using the initial mode, 0 for skipping it
   let gef  = restartExpansion config
       step = 50 / gef :: Double
   if | count < next   -> return False
      | mode == 1      -> do                                                   -- -| initial phase
-         --when (0.25 < as / nv) $ set' restartMode 2
-         when (cs < count) $ set' restartMode 2
+         --when (0.25 < as / nv) $ set' restartMode 0
+         when (cs < count) $ set' restartMode 0
          incrementStat s NumOfGeometricRestart 1
          ki <- fromIntegral <$> getStat s NumOfGeometricRestart
          -- let ki = lf - ls
