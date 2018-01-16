@@ -95,7 +95,7 @@ data Solver = Solver
               , emaLSlow    :: !Double'          -- ^ slow ema value of assignment
               , emaScale    :: !Double'          -- ^ scaling factor
               , nextRestart :: !Int'             -- ^ next restart in number of conflict
-              , restartMode :: Int'              -- ^ mode of restart
+              , restartMode :: !Int'             -- ^ mode of restart
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
@@ -150,7 +150,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> new' 0.0                           -- emaLSlow
     <*> new' 0.0                           -- emaScale
     <*> new' 100                           -- nextRestart
-    <*> new' (initRestartMode conf)        -- restartMode
+    <*> new' (restartInitMode conf)        -- restartMode
 
 --------------------------------------------------------------------------------
 -- Accessors

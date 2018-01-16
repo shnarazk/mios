@@ -281,7 +281,7 @@ data MiosConfiguration = MiosConfiguration
                          , clauseDecayRate    :: !Double     -- ^ decay rate for clause activity
                          , dumpSolverStatMode :: !Int        -- ^ dump stats data during solving
                          , emaCoeffs          :: !(Int, Int) -- ^ the coefficients for restarts
-                         , initRestartMode    :: !Int        -- ^ use the initial restart mode
+                         , restartInitMode    :: !Int        -- ^ use the initial restart mode
                          , restartBExpansion  :: !Double     -- ^ blocking restart expansion factor
                          , restartFExpansion  :: !Double     -- ^ forcing restart expansion factor
                          }
