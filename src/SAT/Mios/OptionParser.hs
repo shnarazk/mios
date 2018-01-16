@@ -79,13 +79,13 @@ miosOptions =
   , Option ['c'] ["clause-decay-rate"]
     (ReqArg (\v c -> c { _confClauseDecayRate = read v }) (show (_confClauseDecayRate miosDefaultOption)))
     "[solver] clause activity decay rate (0.0 - 1.0)"
-  , Option [] ["restartI"]
-    (ReqArg (\v c -> c { _confInitResatrtMode = read v }) (show (_confInitResatrtMode miosDefaultOption)))
-    "[solver] use the initial restart mode if the value is 1"
-  , Option [] ["restartB"]
+  , Option [] ["Ri"]
+    (NoArg (\c -> c { _confInitResatrtMode = 1 }))
+    "[solver] use the initial restart mode"
+  , Option [] ["Rb"]
     (ReqArg (\v c -> c { _confRestartBE = read v }) (show (_confRestartBE miosDefaultOption)))
     "[solver] expansion rate for blocking restart (>= 1.0)"
-  , Option [] ["restartF"]
+  , Option [] ["Rf"]
     (ReqArg (\v c -> c { _confRestartFE = read v }) (show (_confRestartFE miosDefaultOption)))
     "[solver] expansion rate for forcing restart (>= 1.0)"
 --  , Option ['r'] ["random-decision-rate"]
