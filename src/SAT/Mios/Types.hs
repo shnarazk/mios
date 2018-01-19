@@ -281,7 +281,6 @@ data MiosConfiguration = MiosConfiguration
                          , clauseDecayRate    :: !Double     -- ^ decay rate for clause activity
                          , dumpSolverStatMode :: !Int        -- ^ dump stats data during solving
                          , emaCoeffs          :: !(Int, Int) -- ^ the coefficients for restarts
-                         , restartInitMode    :: !Int        -- ^ use the initial restart mode
                          , restartBExpansion  :: !Double     -- ^ blocking restart expansion factor
                          , restartFExpansion  :: !Double     -- ^ forcing restart expansion factor
                          }
@@ -295,7 +294,7 @@ data MiosConfiguration = MiosConfiguration
 -- * Mios-1.2     uses @(0.95, 0.999, 0)@.
 --
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 0.999 0 (ef, es) 0 1.35 1.35
+defaultConfiguration = MiosConfiguration 0.95 0.999 0 (ef, es) 1.35 1.35
   where ef = (2 :: Int) ^ ( 5 :: Int)
         es = (2 :: Int) ^ (14 :: Int)
 

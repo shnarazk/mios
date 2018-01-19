@@ -46,7 +46,7 @@ library:
   source-dirs:       src
 
 executables:
-  mios-73:
+  mios-73.1:
     source-dirs:     app
     main:            mios.hs
     dependencies:    mios
