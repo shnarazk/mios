@@ -21,7 +21,7 @@ module SAT.Mios.Criteria
          -- * Restart
        , checkRestartCondition
          -- * Reporting
-       , dumpSolver
+       , dumpStats
        )
         where
 
@@ -275,40 +275,43 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
   count <- getStat s NumOfBackjump -- it should be > 0
   nas <- fromIntegral <$> nAssigns s
   lvl <- fromIntegral <$> decisionLevel s
-  -- mode <- get' restartMode
-  k <- getStat s NumOfRestart
   let (c1, c2, c3, c4) = emaCoeffs config
-      step = 100
-      gef = 1.1 :: Double       -- geometric expansion factor
       revise :: Double' -> Double -> Double -> IO Double
       revise e a x  = do v <- ((a * x) +) . ((1 - a) *) <$> get' e; set' e v; return v
-      rescale :: Int -> Double -> Double
-      rescale x y = if count < x then fromIntegral x * y / fromIntegral count else y
   df <- revise emaDFast (1 / fromIntegral c1) lbd
   ds <- revise emaDSlow (1 / fromIntegral c2) lbd
   af <- revise emaAFast (1 / fromIntegral c3) nas
   as <- revise emaASlow (1 / fromIntegral c4) nas
-  lf <- revise emaLFast (1 / fromIntegral c1) lvl
-  ls <- revise emaLSlow (1 / fromIntegral c2) lvl
-  mode <- get' restartMode
+  when (0 < dumpSolverStatMode config) $ do
+    void $ {- lf <-                 -} revise emaLFast (1 / fromIntegral c1) lvl
+    void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral c2) lvl
+  mode <- get' restartMode      -- 1 for using the initial mode, 0 for skipping it
   if | count < next   -> return False
-     | mode == 1      -> do
+     | mode == 1      -> do                                                   -- -| initial mode
          when (c2 < count && df < 2.0 * ds) $ set' restartMode 2 -- enter the second mode
          incrementStat s NumOfRestart 1
          incrementStat s NumOfGeometricRestart 1
-         k' <- getStat s NumOfGeometricRestart
-         set' nextRestart (count + floor (fromIntegral step * gef ** fromIntegral k'))
-         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+         ki <- fromIntegral <$> getStat s NumOfGeometricRestart
+         let gef = 1.1
+             step = 100
+         set' nextRestart $ count + floor (step * gef ** ki)
+         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return True
-     | 1.25 * as < af -> do
+     | 1.25 * as < af -> do     -- -| BLOCKING |
          incrementStat s NumOfBlockRestart 1
-         set' nextRestart (count + floor (fromIntegral step + gef ** fromIntegral k))
-         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+         ki <- fromIntegral <$> getStat s NumOfRestart
+         let gef = restartBExpansion config
+             step = 100
+         set' nextRestart $ count + floor (step + gef ** ki)
+         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return False
-     | 1.25 * ds < df -> do
+     | 1.25 * ds < df -> do     -- | FORCING   |
          incrementStat s NumOfRestart 1
-         set' nextRestart (count + step)
-         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+         ki <- fromIntegral <$> getStat s NumOfRestart
+         let gef = restartFExpansion config
+             step = 100 / gef :: Double
+         set' nextRestart $ count + ceiling 100 -- (step + gef ** ki)
+         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return True
      | otherwise      -> return False
 
@@ -329,19 +332,19 @@ luby y x_ = loop 1 0
 
 -------------------------------------------------------------------------------- dump
 
-{-# INLINABLE dumpSolver #-}
+{-# INLINABLE dumpStats #-}
 -- | print statatistic data to stdio. This should be called after each restart.
-dumpSolver :: DumpMode -> Solver -> IO ()
+dumpStats :: DumpMode -> Solver -> IO ()
 
-dumpSolver NoDump _ = return ()
+dumpStats NoDump _ = return ()
 
-dumpSolver DumpCSVHeader s@Solver{..} = do
+dumpStats DumpCSVHeader s@Solver{..} = do
   sts <- init <$> getStats s
   let labels = map (show . fst) sts
         ++ ["emaDFast", "emaDSlow", "emaAFast", "emaASlow", "emaLFast", "emaLSlow"]
   putStrLn $ intercalate "," labels
 
-dumpSolver DumpCSV s@Solver{..} = do
+dumpStats DumpCSV s@Solver{..} = do
   -- First update the stat data
   sts <- init <$> getStats s
   va <- get' trailLim
@@ -370,4 +373,4 @@ dumpSolver DumpCSV s@Solver{..} = do
   putStrLn $ intercalate "," vals
 
 -- | FIXME: use Util/Stat
-dumpSolver DumpJSON _ = return ()                -- mode 2: JSON
+dumpStats DumpJSON _ = return ()                -- mode 2: JSON
