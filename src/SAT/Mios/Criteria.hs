@@ -299,7 +299,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
          ki <- fromIntegral <$> getStat s NumOfGeometricRestart
          let gef  = restartFExpansion config
              step = 50 / gef :: Double
-         set' nextRestart $ count + ceiling (step * gef ** ki)
+         set' nextRestart $ count + ceiling (step + gef ** ki)
          -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
          when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return True
@@ -308,16 +308,16 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
          ki <- fromIntegral <$> getStat s NumOfBlockRestart
          let gef  = restartBExpansion config
              step = 50 / gef :: Double
-         set' nextRestart $ count + ceiling (step * gef ** ki)
+         set' nextRestart $ count + ceiling (step + gef ** ki)
          -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
          when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return False
      | 1.25 * ds < df -> do     -- | FORCING   |
          incrementStat s NumOfRestart 1
-         -- ki <- fromIntegral <$> getStat s NumOfRestart
+         ki <- fromIntegral <$> getStat s NumOfRestart
          let gef  = restartFExpansion config
              step = 50 / gef :: Double
-         set' nextRestart $ count + 50 -- ceiling (step * gef ** ki)
+         set' nextRestart $ count + ceiling (step + gef ** ki)
          -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
          when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return True
