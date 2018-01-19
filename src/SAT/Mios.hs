@@ -52,7 +52,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "mios-1.6.1WIP#72 -- https://github.com/shnarazk/mios"
+versionId = "mios-1.6.1WIP#74 for comparing to 73"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ 0 = return 0
