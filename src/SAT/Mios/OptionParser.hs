@@ -28,8 +28,9 @@ data MiosProgramOption = MiosProgramOption
                      , _outputFile            :: Maybe String
                      , _confVariableDecayRate :: Double
                      , _confClauseDecayRate   :: Double
-                     , _confRestartBE         :: Double
-                     , _confRestartFE         :: Double
+                     , _confRestartB          :: Double
+                     , _confRestartF          :: Double
+                     , _confRestartS          :: Double
                      , _confResatrtInitMode   :: Int
 --                     , _confRandomDecisionRate :: Int
                      , _confMaxSize           :: Int
@@ -53,8 +54,9 @@ miosDefaultOption = MiosProgramOption
   , _outputFile = Nothing
   , _confVariableDecayRate = variableDecayRate defaultConfiguration
   , _confClauseDecayRate = clauseDecayRate defaultConfiguration
-  , _confRestartBE = restartBExpansion defaultConfiguration
-  , _confRestartFE = restartFExpansion defaultConfiguration
+  , _confRestartB = restartExpansionB defaultConfiguration
+  , _confRestartF = restartExpansionF defaultConfiguration
+  , _confRestartS = restartExpansionS defaultConfiguration
   , _confResatrtInitMode = restartInitMode defaultConfiguration
   --, _confRandomDecisionRate = randomDecisionRate defaultConfiguration
   , _confMaxSize = 5000000    -- 5,000,000 = 5M
@@ -80,11 +82,14 @@ miosOptions =
     (ReqArg (\v c -> c { _confClauseDecayRate = read v }) (show (_confClauseDecayRate miosDefaultOption)))
     "[solver] clause activity decay rate (0.0 - 1.0)"
   , Option [] ["Rb"]
-    (ReqArg (\v c -> c { _confRestartBE = read v }) (show (_confRestartBE miosDefaultOption)))
+    (ReqArg (\v c -> c { _confRestartB = read v }) (show (_confRestartB miosDefaultOption)))
     "[solver] expansion rate for blocking restart (>= 1.0)"
   , Option [] ["Rf"]
-    (ReqArg (\v c -> c { _confRestartFE = read v }) (show (_confRestartFE miosDefaultOption)))
+    (ReqArg (\v c -> c { _confRestartF = read v }) (show (_confRestartF miosDefaultOption)))
     "[solver] expansion rate for forcing restart (>= 1.0)"
+  , Option [] ["Rs"]
+    (ReqArg (\v c -> c { _confRestartS = read v }) (show (_confRestartS miosDefaultOption)))
+    "[solver] a fixed number of conflicts between restarts"
   , Option [] ["Ri"]
     (NoArg (\c -> c { _confResatrtInitMode = 1 }))
     "[solver] use the initial restart mode"
@@ -158,7 +163,8 @@ toMiosConf opts = MiosConfiguration
 --                 , randomDecisionRate = _confRandomDecisionRate opts
                  , dumpSolverStatMode = _confDumpStat opts
                  , emaCoeffs = emaCoeffs defaultConfiguration
-                 , restartBExpansion = _confRestartBE opts
-                 , restartFExpansion = _confRestartFE opts
                  , restartInitMode = _confResatrtInitMode opts
+                 , restartExpansionB = _confRestartB opts
+                 , restartExpansionF = _confRestartF opts
+                 , restartExpansionS = _confRestartS opts
                  }

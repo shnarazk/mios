@@ -282,8 +282,9 @@ data MiosConfiguration = MiosConfiguration
                          , dumpSolverStatMode :: !Int        -- ^ dump stats data during solving
                          , emaCoeffs          :: !(Int, Int) -- ^ the coefficients for restarts
                          , restartInitMode    :: !Int        -- ^ use the initial restart mode
-                         , restartBExpansion  :: !Double     -- ^ blocking restart expansion factor
-                         , restartFExpansion  :: !Double     -- ^ forcing restart expansion factor
+                         , restartExpansionB  :: !Double     -- ^ Blocking restart expansion factor
+                         , restartExpansionF  :: !Double     -- ^ Forcing restart expansion factor
+                         , restartExpansionS  :: !Double     -- ^ static Steps betwen restarts
                          }
   deriving (Eq, Ord, Read, Show)
 
@@ -295,7 +296,7 @@ data MiosConfiguration = MiosConfiguration
 -- * Mios-1.2     uses @(0.95, 0.999, 0)@.
 --
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 0.999 0 (ef, es) 0 1.35 1.35
+defaultConfiguration = MiosConfiguration 0.95 0.999 0 (ef, es) 0 1.35 1.35 100
   where ef = (2 :: Int) ^ ( 5 :: Int)
         es = (2 :: Int) ^ (14 :: Int)
 
