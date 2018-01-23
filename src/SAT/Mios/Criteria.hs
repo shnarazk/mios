@@ -293,17 +293,17 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
   mode <- get' restartMode      -- 1 for using the initial mode, 0 for skipping it
   let step = restartExpansionS config
   if | count < next   -> return False
-     | mode == 1      -> do                                                   -- -| initial mode
-         --when (0.25 < as / nv) $ set' restartMode 0
+     | mode == 1      -> do     -- -| INITIAL MODE    |
          when (cs < count) $ set' restartMode 0
          incrementStat s NumOfGeometricRestart 1
-         ki <- fromIntegral <$> getStat s NumOfGeometricRestart
+         incrementStat s NumOfRestart 1
+         ki <- fromIntegral <$> getStat s NumOfRestart -- not a typo!
          let gef = restartExpansionF config
          set' nextRestart $ count + ceiling (step + gef ** ki)
          -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
          when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return True
-     | 1.25 * as < af -> do     -- -| BLOCKING |
+     | 1.25 * as < af -> do     -- -| BLOCKING RESTART |
          incrementStat s NumOfBlockRestart 1
          ki <- fromIntegral <$> getStat s NumOfRestart
          let gef = restartExpansionB config
@@ -311,7 +311,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
          -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
          when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return False
-     | 1.25 * ds < df -> do     -- | FORCING   |
+     | 1.25 * ds < df -> do     -- | FORCING RESTART  |
          incrementStat s NumOfRestart 1
          ki <- fromIntegral <$> getStat s NumOfBlockRestart
          let gef = restartExpansionF config
