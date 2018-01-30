@@ -272,6 +272,7 @@ updateLBD s c@Clause{..} = do
 -- | updates DTL
 updateDLT :: Solver -> IO ()
 updateDLT Solver{..} = do
+{-
   let table = undefined :: Vec Int
       width = 63                -- for Int64
   n <- get' trail
@@ -288,12 +289,14 @@ updateDLT Solver{..} = do
                       merge j u = merge (j + 1) . (u .|.) =<< getNth table =<< getNth (lits cls) j
                   setNth table v =<< merge 1 0
         loop $ i + 1
-  -- loop 1
+  loop 1
+-}
   return ()
 
 -- | returns a POSIVITE value of NDL, or -1 for invalid cases
 ndlOf :: Solver -> Clause -> IO Int
 ndlOf Solver{..} Clause{..} = do
+{-
   n <- get' lits
   let loop :: Int -> Int -> IO Int
       loop ((< n) -> False) k = return $ popCount k
@@ -303,7 +306,8 @@ ndlOf Solver{..} Clause{..} = do
         if l == -1
           then return (-1)
           else loop (i + 1) . (k .&.) =<< getNth (undefined :: Vec Int) v
-  -- loop 1 0
+  loop 1 0
+-}
   return (-1)
 
 -------------------------------------------------------------------------------- restart
