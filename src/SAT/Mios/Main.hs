@@ -30,7 +30,7 @@ import Data.Int
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
-import SAT.Mios.Solver
+import SAT.Mios.Solver hiding (enqueue)
 import SAT.Mios.ClausePool
 import SAT.Mios.Criteria
 
@@ -83,11 +83,11 @@ newLearntClause s@Solver{..} ps = do
            -- update the solver state by @l@
            unsafeEnqueue s l1 c
            -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
-           lbd <- lbdOf s (lits c)
-           set' (rank c) lbd
+           r <- ndlOf s (lits c)          -- lbdOf s (lits c)
+           set' (rank c) r
            -- assert (0 < rank c)
            -- set' (protected c) True
-           return lbd
+           return r
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
 -- simplify its representation (returns @False@) or state that the constraint is
@@ -498,7 +498,6 @@ sortClauses s cm limit' = do
   keys <- newVec (2 * n) 0 :: IO (Vec Int)
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
-  updateDLT s
   let shiftLBD = activityWidth
       shiftIndex = shiftL 1 indexWidth
       am = fromIntegral activityMax :: Double
@@ -516,7 +515,11 @@ sortClauses s cm limit' = do
           then do setNth keys (2 * i) 0
                   assignKey (i + 1) (t + 1)
           else do a <- get' (activity c)               -- Second one... based on LBD
-                  r <- get' (rank c)
+                  r_ <- get' (rank c)
+                  r' <- ndlOf s (lits c)
+                  r <- if r' == 0
+                       then return r_
+                       else set' (rank c) r' >> return r'
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax
@@ -718,7 +721,8 @@ solve s@Solver{..} assumps = do
                   pushTo conflicts (negateLit a)
                   cancelUntil s 0
                   return False
-          else do confl <- propagate s
+          else do updateNdlOf s (lit2var a) NullClause -- we need call it after assume by hand
+                  confl <- propagate s
                   if confl /= NullClause
                     then do analyzeFinal s confl True
                             cancelUntil s 0
@@ -750,6 +754,7 @@ unsafeEnqueue s@Solver{..} p from = do
   setNth assigns v $ lit2lbool p
   setNth level v =<< decisionLevel s
   setNth reason v from     -- NOTE: @from@ might be NULL!
+  updateNdlOf s v from
   pushTo trail p
 
 -- | __Pre-condition:__ propagation queue is empty.

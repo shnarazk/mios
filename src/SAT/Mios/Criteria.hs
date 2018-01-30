@@ -18,7 +18,7 @@ module SAT.Mios.Criteria
        , addClause
          -- * Clause Metrics
        , lbdOf
-       , updateDLT
+       , updateNdlOf
        , ndlOf
          -- * Restart
        , checkRestartCondition
@@ -188,6 +188,7 @@ clauseNew s@Solver{..} ps isLearnt = do
    0 -> return (Left exit)
    1 -> do
      l <- getNth ps 1
+     updateNdlOf s (lit2var l) NullClause -- enqueue doen't update NDL
      Left <$> enqueue s l NullClause
    _ -> do
     -- allocate clause:
@@ -269,42 +270,30 @@ updateLBD s c@Clause{..} = do
     _ -> return ()
 -}
 
--- | updates DTL
-updateDLT :: Solver -> IO ()
-updateDLT Solver{..} = do
-  let table = undefined :: Vec Int
-      width = 63                -- for Int64
-  n <- get' trail
-  let loop :: Int -> IO ()
-      loop ((< n) -> False) = return ()
-      loop i = do
-        v <- lit2var <$> getNth trail i
-        cls <- getNth reason v
-        if cls == NullClause
-          then setNth table i . setBit 0 . (width .&.) =<< getNth level v
-          else do k <- get' cls
-                  let merge :: Int -> Int -> IO Int
-                      merge ((< k) -> False) u = return u
-                      merge j u = merge (j + 1) . (u .|.) =<< getNth table =<< getNth (lits cls) j
-                  setNth table v =<< merge 1 0
-        loop $ i + 1
-  -- loop 1
-  return ()
-
 -- | returns a POSIVITE value of NDL, or -1 for invalid cases
-ndlOf :: Solver -> Clause -> IO Int
-ndlOf Solver{..} Clause{..} = do
-  n <- get' lits
+{-# INLINE ndl_ #-}
+ndl_ :: Solver -> Stack -> IO Int
+ndl_ Solver{..} stack = do
+  n <- get' stack
   let loop :: Int -> Int -> IO Int
-      loop ((< n) -> False) k = return $ popCount k
-      loop i k = do
-        v <- lit2var <$> getNth lits i
-        l <- getNth level v
-        if l == -1
-          then return (-1)
-          else loop (i + 1) . (k .&.) =<< getNth (undefined :: Vec Int) v
-  -- loop 1 0
-  return (-1)
+      loop ((<= n) -> False) k = return k
+      loop i k = do v <- lit2var <$> getNth stack i
+                    a <- getNth assigns v
+                    if a == LBottom
+                      then return 0
+                      else loop (i + 1) . (k .|.) =<< getNth ndl v
+  loop 1 0
+
+-- | updates a /var/'s ndl, which is assigned by a 'reason' /clause/
+{-# INLINABLE updateNdlOf #-}
+updateNdlOf :: Solver -> Var -> Clause -> IO ()
+updateNdlOf s@Solver{..} v NullClause = setNth ndl v . setBit 0 . (63 .&.) =<< getNth level v
+updateNdlOf s@Solver{..} v Clause{..} = setNth ndl v 0 >> (setNth ndl v =<< ndl_ s lits)
+
+-- | returns the NDL
+{-# INLINABLE ndlOf #-}
+ndlOf :: Solver -> Stack -> IO Int
+ndlOf s stack = popCount <$> ndl_ s stack
 
 -------------------------------------------------------------------------------- restart
 
@@ -349,21 +338,6 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
          when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return True
      | otherwise      -> return False
-
-{-
-{-# INLINABLE luby #-}
-luby :: Double -> Int -> Double
-luby y x_ = loop 1 0
-  where
-    loop :: Int -> Int -> Double
-    loop sz sq
-      | sz < x_ + 1 = loop (2 * sz + 1) (sq + 1)
-      | otherwise   = loop2 x_ sz sq
-    loop2 :: Int -> Int -> Int -> Double
-    loop2 x sz sq
-      | sz - 1 == x = y ** fromIntegral sq
-      | otherwise   = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
--}
 
 -------------------------------------------------------------------------------- dump
 

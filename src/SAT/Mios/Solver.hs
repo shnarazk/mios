@@ -59,6 +59,7 @@ data Solver = Solver
               , qHead      :: !Int'              -- ^ 'trail' is divided at qHead; assignment part and queue part
               , reason     :: !ClauseVector      -- ^ For each variable, the constraint that implied its value
               , level      :: !(Vec Int)         -- ^ For each variable, the decision level it was assigned
+              , ndl        :: !(Vec Int)         -- ^ For each variable, the number of dependent levels
               , conflicts  :: !Stack             -- ^ Set of literals in the case of conflicts
                 -------- Variable Order
               , activities :: !(Vec Double)      -- ^ Heuristic measurement of the activity of a variable
@@ -113,6 +114,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> new' 0                             -- qHead
     <*> newClauseVector (nv + 1)           -- reason
     <*> newVec nv (-1)                     -- level
+    <*> newVec nv 0                        -- ndl
     <*> newStack nv                        -- conflicts
     -- Variable Order
     <*> newVec nv 0                        -- activities
