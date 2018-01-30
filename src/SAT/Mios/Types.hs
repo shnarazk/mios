@@ -250,20 +250,20 @@ class VarOrder o where
   newVar = error "newVar undefined"
 -}
   -- | should be called when a variable has increased in activity.
-  update :: o -> Var -> IO ()
-  update _  = error "update undefined"
+  updateVO :: o -> Var -> IO ()
+  updateVO _  = error "update undefined"
 {-
   -- | should be called when all variables have been assigned.
   updateAll :: o -> IO ()
   updateAll = error "updateAll undefined"
 -}
   -- | should be called when a variable becomes unbound (may be selected again).
-  undo :: o -> Var -> IO ()
-  undo _ _  = error "undo undefined"
+  undoVO :: o -> Var -> IO ()
+  undoVO _ _  = error "undo undefined"
 
   -- | returns a new, unassigned var as the next decision.
-  select :: o -> IO Var
-  select    = error "select undefined"
+  selectVO :: o -> IO Var
+  selectVO    = error "select undefined"
 
 -- | Misc information on a CNF
 data CNFDescription = CNFDescription
@@ -280,6 +280,7 @@ data MiosConfiguration = MiosConfiguration
                            variableDecayRate  :: !Double  -- ^ decay rate for variable activity
                          , clauseDecayRate    :: !Double  -- ^ decay rate for clause activity
                          , dumpStat           :: !Int     -- ^ dump stats data during solving
+                         , emaCoeffs          :: !(Int, Int, Int, Int) -- the coefficients
                          }
   deriving (Eq, Ord, Read, Show)
 
@@ -291,7 +292,7 @@ data MiosConfiguration = MiosConfiguration
 -- * Mios-1.2     uses @(0.95, 0.999, 0)@.
 --
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 0.999 0
+defaultConfiguration = MiosConfiguration 0.95 0.999 0 (2 ^ (5 :: Int), 2 ^ (14 :: Int), 2 ^ (5 :: Int), 2 ^ (12 :: Int))
 
 -------------------------------------------------------------------------------- Statistics
 

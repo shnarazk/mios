@@ -20,10 +20,14 @@ module SAT.Mios.Criteria
        , lbdOf
          -- * Restart
        , checkRestartCondition
+         -- * Reporting
+       , dumpSolver
        )
         where
 
-import Control.Monad (when)
+import Control.Monad (void, when)
+import Data.List (intercalate)
+import Numeric (showFFloat)
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -41,7 +45,7 @@ varBumpActivity s@Solver{..} x = do
   a <- (+) <$> getNth activities x <*> get' varInc
   setNth activities x a
   when (varActivityThreshold < a) $ varRescaleActivity s
-  update s x                    -- update the position in heap
+  updateVO s x                    -- update the position in heap
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE varDecayActivity #-}
@@ -264,53 +268,42 @@ updateLBD s c@Clause{..} = do
 
 -------------------------------------------------------------------------------- restart
 
-ema1, ema2, ema3, ema4 :: Double
-ema1 = 2 ** (-5)                -- coefficient for fast average of LBD
-ema2 = 2 ** (-14)               -- coefficient for slow average of LBD
-ema3 = 2 ** (-5)                -- coefficient for fast average of | assignment |
-ema4 = 2 ** (-12)               -- coefficient for slow average of | assignment |
-
-ema0 :: Int
-ema0 = 2 ^ (14 :: Int)          -- = floor $ 1 / ema2
-
 -- | #62
 checkRestartCondition :: Solver -> Int -> IO Bool
 checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
-  k <- getStat s NumOfRestart
-  let step = 100
   next <- get' nextRestart
-  count <- getStat s NumOfBackjump
+  count <- getStat s NumOfBackjump -- it should be > 0
   nas <- fromIntegral <$> nAssigns s
-  let revise a f x  = do f' <- ((a * x) +) . ((1 - a) *) <$> get' f
-                         set' f f'
-                         return f'
-      gef = 1.1 :: Double       -- geometric expansion factor
-  df <- revise ema1 emaDFast lbd
-  ds <- revise ema2 emaDSlow lbd
-  af <- revise ema3 emaAFast nas
-  as <- revise ema4 emaASlow nas
-  mode <- get' restartMode
-  if | count < next   -> return False
-     | mode == 1      -> do
-         when (ema0 < count && df < 2.0 * ds) $ set' restartMode 2 -- enter the second mode
-         incrementStat s NumOfRestart 1
-         incrementStat s NumOfGeometricRestart 1
-         k' <- getStat s NumOfGeometricRestart
-         set' nextRestart (count + floor (fromIntegral step * gef ** fromIntegral k'))
-         when (3 == dumpStat config) $ dumpSolver DumpCSV s
-         return True
-     | 1.25 * as < af -> do
+  lvl <- fromIntegral <$> decisionLevel s
+  let (c1, c2, c3, c4) = emaCoeffs config
+      rescale :: Int -> Double -> Double
+      rescale x y = if count < x then fromIntegral x * y / fromIntegral count else y
+      revise :: Double' -> Double -> Double -> IO Double
+      revise e a x  = do e' <- ((a * x) +) . ((1 - a) *) <$> get' e; set' e e'; return e'
+  df <- rescale c1 <$> revise emaDFast (1 / fromIntegral c1) lbd
+  ds <- rescale c2 <$> revise emaDSlow (1 / fromIntegral c2) lbd
+  af <- rescale c3 <$> revise emaAFast (1 / fromIntegral c3) nas
+  as <- rescale c4 <$> revise emaASlow (1 / fromIntegral c4) nas
+  lf <- rescale c1 <$> revise emaLFast (1 / fromIntegral c1) lvl
+  ls <- rescale c2 <$> revise emaLSlow (1 / fromIntegral c2) lvl
+  if | count < next ->          -- -| SKIP                           |
+         return False
+     | 1.25 * as < af -> do     -- -| BLOCKING RESTART by assignment |
          incrementStat s NumOfBlockRestart 1
-         set' nextRestart (count + floor (fromIntegral step + gef ** fromIntegral k))
+         -- k <- fromIntegral <$> getStat s NumOfRestart
+         set' nextRestart $ count + 50 -- + floor (k ** 0.4)
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return False
-     | 1.25 * ds < df -> do
+--   | 1.35 * ls < lf -> do     -- -| FORCING RESTART by level       |
+--   | 1.25 * ds < df -> do     -- -| FORCING RESTART by lbd         |
+--   | 1.25 * ls < lf && 1.00 * ds < df -> do GOOD
+     | 1.25 * ds < df && 1.50 * lf < ls -> do
          incrementStat s NumOfRestart 1
-         set' nextRestart (count + step)
+         set' nextRestart $ count + 50
          when (3 == dumpStat config) $ dumpSolver DumpCSV s
          return True
-     | otherwise      -> return False
-
+     | otherwise ->             -- -| PASS                           |
+         return False
 {-
 {-# INLINABLE luby #-}
 luby :: Double -> Int -> Double
@@ -325,3 +318,48 @@ luby y x_ = loop 1 0
       | sz - 1 == x = y ** fromIntegral sq
       | otherwise   = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
 -}
+
+-------------------------------------------------------------------------------- dump
+
+{-# INLINABLE dumpSolver #-}
+-- | print statatistic data to stdio. This should be called after each restart.
+dumpSolver :: DumpMode -> Solver -> IO ()
+
+dumpSolver NoDump _ = return ()
+
+dumpSolver DumpCSVHeader s@Solver{..} = do
+  sts <- init <$> getStats s
+  let labels = map (show . fst) sts
+        ++ ["emaDFast", "emaDSlow", "emaAFast", "emaASlow", "emaLFast", "emaLSlow"]
+  putStrLn $ intercalate "," labels
+
+dumpSolver DumpCSV s@Solver{..} = do
+  -- First update the stat data
+  sts <- init <$> getStats s
+  va <- get' trailLim
+  setStat s NumOfVariable . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
+  setStat s NumOfAssigned =<< nAssigns s
+  setStat s NumOfClause =<< get' clauses
+  setStat s NumOfLearnt =<< get' learnts
+  count <- getStat s NumOfBackjump
+  -- Additional data which type is Double
+  -- EMA rescaling
+  let (c1, c2, c3, c4) = emaCoeffs config
+      rescale :: Int -> Double -> Double
+      rescale x y = if count < x then fromIntegral x * y / fromIntegral count else y
+  df <- rescale c1 <$> get' emaDFast
+  ds <- rescale c2 <$> get' emaDSlow
+  af <- rescale c3 <$> get' emaAFast
+  as <- rescale c4 <$> get' emaASlow
+  lf <- rescale c1 <$> get' emaLFast
+  ls <- rescale c2 <$> get' emaLSlow
+  let emas = [ ("emaDFast", df), ("emaDSlow", ds)
+             , ("emaAFast", af), ("emaASlow", as)
+             , ("emaLFast", lf), ("emaLSlow", ls)
+             ]
+      fs x = showFFloat (Just 3) x ""
+      vals = map (show . snd) sts ++ map (fs . snd) emas
+  putStrLn $ intercalate "," vals
+
+-- | FIXME: use Util/Stat
+dumpSolver DumpJSON _ = return ()                -- mode 2: JSON

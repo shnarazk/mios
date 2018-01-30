@@ -690,7 +690,7 @@ search s@Solver{..} = do
 -}
                          loop False
                      | otherwise -> do                -- New variable decision
-                         v <- select s
+                         v <- selectVO s
                          -- #phasesaving <<<<  many have heuristic for polarity here
                          oldVal <- getNth phases v
                          unsafeAssume s $ var2lit v (0 < oldVal) -- cannot return @False@

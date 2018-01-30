@@ -33,7 +33,6 @@ module SAT.Mios.Solver
        , setStat
        , incrementStat
        , getStats
-       , dumpSolver
        )
         where
 
@@ -90,6 +89,8 @@ data Solver = Solver
               , emaDSlow    :: !Double'          -- ^ slow ema value of LBD
               , emaAFast    :: !Double'          -- ^ fast ema value of assignment
               , emaASlow    :: !Double'          -- ^ slow ema value of assignment
+              , emaLFast    :: !Double'          -- ^ fast ema value of assignment
+              , emaLSlow    :: !Double'          -- ^ slow ema value of assignment
               , nextRestart :: !Int'             -- ^ next restart in number of conflict
               , restartMode :: Int'              -- ^ mode of restart
               }
@@ -140,6 +141,8 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> new' 0.0                           -- emaDSlow
     <*> new' 0.0                           -- emaAFast
     <*> new' 0.0                           -- emaASlow
+    <*> new' 0.0                           -- emaLFast
+    <*> new' 0.0                           -- emaLSlow
     <*> new' 100                           -- nextRestart
     <*> new' 1                             -- restartMode
 
@@ -267,7 +270,7 @@ cancelUntil s@Solver{..} lvl = do
         -- This means we can't reduce it from clause DB and affects the performance.
         setNth reason x NullClause -- 'analyze` uses reason without checking assigns
         -- FIXME: #polarity https://github.com/shnarazk/minisat/blosb/master/core/Solver.cc#L212
-        undo s x
+        undoVO s x
         -- insertHeap s x              -- insertVerOrder
         loopOnTrail $ c - 1
     loopOnTrail ts
@@ -295,12 +298,12 @@ instance VarOrder Solver where
     -- growQueueSized (i + 1) propQ
     -- return i
 -}
-  {-# SPECIALIZE INLINE update :: Solver -> Var -> IO () #-}
-  update = increaseHeap
-  {-# SPECIALIZE INLINE undo :: Solver -> Var -> IO () #-}
-  undo s v = inHeap s v >>= (`unless` insertHeap s v)
-  {-# SPECIALIZE INLINE select :: Solver -> IO Var #-}
-  select s = do
+  {-# SPECIALIZE INLINE updateVO :: Solver -> Var -> IO () #-}
+  updateVO = increaseHeap
+  {-# SPECIALIZE INLINE undoVO :: Solver -> Var -> IO () #-}
+  undoVO s v = inHeap s v >>= (`unless` insertHeap s v)
+  {-# SPECIALIZE INLINE selectVO :: Solver -> IO Var #-}
+  selectVO s = do
     let
       asg = assigns s
       -- | returns the most active var (heap-based implementation)
@@ -418,37 +421,3 @@ getHeapRoot s@(order -> VarHeap to at) = do
   n <- getNth to 0
   when (1 < n) $ percolateDown s 1
   return r
-
--------------------------------------------------------------------------------- dump
-
-{-# INLINABLE dumpSolver #-}
--- | print statatistic data to stdio. This should be called after each restart.
-dumpSolver :: DumpMode -> Solver -> IO ()
-
-dumpSolver NoDump _ = return ()
-
-dumpSolver DumpCSVHeader s@Solver{..} = do
-  sts <- init <$> getStats s
-  let labels = map (show . fst) sts  ++ ["emaDFast", "emaDSlow", "emaAFast", "emaASlow"]
-  putStrLn $ intercalate "," labels
-
-dumpSolver DumpCSV s@Solver{..} = do
-  -- First update the stat data
-  df <- get' emaDFast
-  ds <- get' emaDSlow
-  af <- get' emaAFast
-  as <- get' emaASlow
-  sts <- init <$> getStats s
-  va <- get' trailLim
-  setStat s NumOfVariable . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
-  setStat s NumOfAssigned =<< nAssigns s
-  setStat s NumOfClause =<< get' clauses
-  setStat s NumOfLearnt =<< get' learnts
-  -- Additional data which type is Double
-  let emas = [("emaDFast", df), ("emaDSlow", ds), ("emaAFast", af), ("emaASlow", as)]
-      fs x = showFFloat (Just 3) x ""
-      vals = map (show . snd) sts ++ map (fs . snd) emas
-  putStrLn $ intercalate "," vals
-
--- | FIXME: use Util/Stat
-dumpSolver DumpJSON _ = return ()                -- mode 2: JSON
