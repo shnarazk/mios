@@ -198,7 +198,7 @@ analyze s@Solver{..} confl = do
       merger ((<= n) -> False) b = return b
       merger i b = do l <- getNth litsLearnt i
                       pushTo an'toClear l
-                      -- restrict the search depth (range) to 63
+                      -- restrict the search depth (range) to [0 .. 63]
                       merger (i + 1) . setBit b . (63 .&.) =<< getNth level (lit2var l)
   levels <- merger 2 0
   let loopOnLits :: Int -> Int -> IO ()
@@ -498,6 +498,7 @@ sortClauses s cm limit' = do
   keys <- newVec (2 * n) 0 :: IO (Vec Int)
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
+  updateDLT s
   let shiftLBD = activityWidth
       shiftIndex = shiftL 1 indexWidth
       am = fromIntegral activityMax :: Double

@@ -16,8 +16,10 @@ module SAT.Mios.Criteria
        , varDecayActivity
          -- * Clause
        , addClause
-         -- * Literal Block Distance
+         -- * Clause Metrics
        , lbdOf
+       , updateDLT
+       , ndlOf
          -- * Restart
        , checkRestartCondition
          -- * Reporting
@@ -26,6 +28,7 @@ module SAT.Mios.Criteria
         where
 
 import Control.Monad (void, when)
+import Data.Bits
 import Data.List (intercalate)
 import Numeric (showFFloat)
 import SAT.Mios.Types
@@ -228,9 +231,9 @@ addClause s@Solver{..} vecLits = do
    Left b  -> return b   -- No new clause was returned becaues a confilct occured or the clause is a literal
    Right c -> pushTo clauses c >> return True
 
--------------------------------------------------------------------------------- LBD
+-------------------------------------------------------------------------------- Clause Metrics
 
--- | returns a POSIVITE value
+-- | returns a POSIVITE value of Literal Block Distance
 {-# INLINABLE lbdOf #-}
 lbdOf :: Solver -> Stack -> IO Int
 lbdOf Solver{..} vec = do
@@ -265,6 +268,43 @@ updateLBD s c@Clause{..} = do
     -- _ | n < o -> setInt lbd n
     _ -> return ()
 -}
+
+-- | updates DTL
+updateDLT :: Solver -> IO ()
+updateDLT Solver{..} = do
+  let table = undefined :: Vec Int
+      width = 63                -- for Int64
+  n <- get' trail
+  let loop :: Int -> IO ()
+      loop ((< n) -> False) = return ()
+      loop i = do
+        v <- lit2var <$> getNth trail i
+        cls <- getNth reason v
+        if cls == NullClause
+          then setNth table i . setBit 0 . (width .&.) =<< getNth level v
+          else do k <- get' cls
+                  let merge :: Int -> Int -> IO Int
+                      merge ((< k) -> False) u = return u
+                      merge j u = merge (j + 1) . (u .|.) =<< getNth table =<< getNth (lits cls) j
+                  setNth table v =<< merge 1 0
+        loop $ i + 1
+  -- loop 1
+  return ()
+
+-- | returns a POSIVITE value of NDL, or -1 for invalid cases
+ndlOf :: Solver -> Clause -> IO Int
+ndlOf Solver{..} Clause{..} = do
+  n <- get' lits
+  let loop :: Int -> Int -> IO Int
+      loop ((< n) -> False) k = return $ popCount k
+      loop i k = do
+        v <- lit2var <$> getNth lits i
+        l <- getNth level v
+        if l == -1
+          then return (-1)
+          else loop (i + 1) . (k .&.) =<< getNth (undefined :: Vec Int) v
+  -- loop 1 0
+  return (-1)
 
 -------------------------------------------------------------------------------- restart
 
