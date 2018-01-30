@@ -16,16 +16,19 @@ module SAT.Mios.Criteria
        , varDecayActivity
          -- * Clause
        , addClause
-         -- * Literal Block Distance
+         -- * Clause Metrics
        , lbdOf
+       , updateDLT
+       , ndlOf
          -- * Restart
        , checkRestartCondition
          -- * Reporting
-       , dumpSolver
+       , dumpStats
        )
         where
 
 import Control.Monad (void, when)
+import Data.Bits
 import Data.List (intercalate)
 import Numeric (showFFloat)
 import SAT.Mios.Types
@@ -228,9 +231,9 @@ addClause s@Solver{..} vecLits = do
    Left b  -> return b   -- No new clause was returned becaues a confilct occured or the clause is a literal
    Right c -> pushTo clauses c >> return True
 
--------------------------------------------------------------------------------- LBD
+-------------------------------------------------------------------------------- Clause Metrics
 
--- | returns a POSIVITE value
+-- | returns a POSIVITE value of Literal Block Distance
 {-# INLINABLE lbdOf #-}
 lbdOf :: Solver -> Stack -> IO Int
 lbdOf Solver{..} vec = do
@@ -266,49 +269,84 @@ updateLBD s c@Clause{..} = do
     _ -> return ()
 -}
 
+-- | updates DTL
+updateDLT :: Solver -> IO ()
+updateDLT Solver{..} = do
+  let table = undefined :: Vec Int
+      width = 63                -- for Int64
+  n <- get' trail
+  let loop :: Int -> IO ()
+      loop ((< n) -> False) = return ()
+      loop i = do
+        v <- lit2var <$> getNth trail i
+        cls <- getNth reason v
+        if cls == NullClause
+          then setNth table i . setBit 0 . (width .&.) =<< getNth level v
+          else do k <- get' cls
+                  let merge :: Int -> Int -> IO Int
+                      merge ((< k) -> False) u = return u
+                      merge j u = merge (j + 1) . (u .|.) =<< getNth table =<< getNth (lits cls) j
+                  setNth table v =<< merge 1 0
+        loop $ i + 1
+  -- loop 1
+  return ()
+
+-- | returns a POSIVITE value of NDL, or -1 for invalid cases
+ndlOf :: Solver -> Clause -> IO Int
+ndlOf Solver{..} Clause{..} = do
+  n <- get' lits
+  let loop :: Int -> Int -> IO Int
+      loop ((< n) -> False) k = return $ popCount k
+      loop i k = do
+        v <- lit2var <$> getNth lits i
+        l <- getNth level v
+        if l == -1
+          then return (-1)
+          else loop (i + 1) . (k .&.) =<< getNth (undefined :: Vec Int) v
+  -- loop 1 0
+  return (-1)
+
 -------------------------------------------------------------------------------- restart
 
 -- | #62
-checkRestartCondition :: Solver -> Int -> IO Bool
-checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
+checkRestartCondition :: Solver -> Int -> Int -> IO Bool
+checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) = do
   next <- get' nextRestart
   count <- getStat s NumOfBackjump -- it should be > 0
   nas <- fromIntegral <$> nAssigns s
   lvl <- fromIntegral <$> decisionLevel s
-  -- mode <- get' restartMode
-  k <- getStat s NumOfRestart
-  let (c1, c2, c3, c4) = emaCoeffs config
-      step = 100
-      gef = 1.1 :: Double       -- geometric expansion factor
+  let (cf, cs) = emaCoeffs config
       revise :: Double' -> Double -> Double -> IO Double
       revise e a x  = do v <- ((a * x) +) . ((1 - a) *) <$> get' e; set' e v; return v
-      rescale :: Int -> Double -> Double
-      rescale x y = if count < x then fromIntegral x * y / fromIntegral count else y
-  df <- revise emaDFast (1 / fromIntegral c1) lbd
-  ds <- revise emaDSlow (1 / fromIntegral c2) lbd
-  af <- revise emaAFast (1 / fromIntegral c3) nas
-  as <- revise emaASlow (1 / fromIntegral c4) nas
-  lf <- revise emaLFast (1 / fromIntegral c1) lvl
-  ls <- revise emaLSlow (1 / fromIntegral c2) lvl
-  mode <- get' restartMode
+  ns <- revise emaScale (1 / fromIntegral cs) 1
+  let rescaleSlow :: Double -> Double
+      rescaleSlow x = x / ns
+  df <- revise emaDFast (1 / fromIntegral cf) lbd
+  ds <- rescaleSlow <$> revise emaDSlow (1 / fromIntegral cs) lbd
+  af <- revise emaAFast (1 / fromIntegral cf) nas
+  as <- rescaleSlow <$> revise emaASlow (1 / fromIntegral cs) nas
+  when (0 < dumpSolverStatMode config) $ do
+    void $ {- rf <-                 -} revise emaRFast (1 / fromIntegral cf) lrs
+    void $ {- rs <- rescaleSlow <$> -} revise emaRSlow (1 / fromIntegral cs) lrs
+    void $ {- lf <-                 -} revise emaLFast (1 / fromIntegral cf) lvl
+    void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) lvl
+  let step = restartExpansionS config
   if | count < next   -> return False
-     | mode == 1      -> do
-         when (c2 < count && df < 2.0 * ds) $ set' restartMode 2 -- enter the second mode
-         incrementStat s NumOfRestart 1
-         incrementStat s NumOfGeometricRestart 1
-         k' <- getStat s NumOfGeometricRestart
-         set' nextRestart (count + floor (fromIntegral step * gef ** fromIntegral k'))
-         when (3 == dumpStat config) $ dumpSolver DumpCSV s
-         return True
-     | 1.25 * as < af -> do
+     | 1.25 * as < af -> do     -- -| BLOCKING RESTART |
          incrementStat s NumOfBlockRestart 1
-         set' nextRestart (count + floor (fromIntegral step + gef ** fromIntegral k))
-         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+         ki <- fromIntegral <$> getStat s NumOfRestart
+         let gef = restartExpansionB config
+         set' nextRestart $ count + ceiling (step + gef ** ki)
+         -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
+         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return False
-     | 1.25 * ds < df -> do
+     | 1.25 * ds < df -> do     -- | FORCING RESTART  |
          incrementStat s NumOfRestart 1
-         set' nextRestart (count + step)
-         when (3 == dumpStat config) $ dumpSolver DumpCSV s
+         ki <- fromIntegral <$> getStat s NumOfBlockRestart
+         let gef = restartExpansionF config
+         set' nextRestart $ count + ceiling (step + gef ** ki)
+         -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
+         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return True
      | otherwise      -> return False
 
@@ -329,45 +367,46 @@ luby y x_ = loop 1 0
 
 -------------------------------------------------------------------------------- dump
 
-{-# INLINABLE dumpSolver #-}
+emaLabels :: [String]
+emaLabels = [ "emaDFast", "emaDSlow"
+            , "emaAFast", "emaASlow"
+            , "emaRFast", "emaRSlow"
+            , "emaLFast", "emaLSlow"
+            ]
+
+{-# INLINABLE dumpStats #-}
 -- | print statatistic data to stdio. This should be called after each restart.
-dumpSolver :: DumpMode -> Solver -> IO ()
+dumpStats :: DumpMode -> Solver -> IO ()
 
-dumpSolver NoDump _ = return ()
+dumpStats NoDump _ = return ()
 
-dumpSolver DumpCSVHeader s@Solver{..} = do
+dumpStats DumpCSVHeader s@Solver{..} = do
   sts <- init <$> getStats s
-  let labels = map (show . fst) sts
-        ++ ["emaDFast", "emaDSlow", "emaAFast", "emaASlow", "emaLFast", "emaLSlow"]
-  putStrLn $ intercalate "," labels
+  putStrLn . intercalate "," $ map (show . fst) sts ++ emaLabels
 
-dumpSolver DumpCSV s@Solver{..} = do
+dumpStats DumpCSV s@Solver{..} = do
   -- First update the stat data
-  sts <- init <$> getStats s
   va <- get' trailLim
   setStat s NumOfVariable . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
   setStat s NumOfAssigned =<< nAssigns s
   setStat s NumOfClause =<< get' clauses
   setStat s NumOfLearnt =<< get' learnts
-  count <- getStat s NumOfBackjump
-  -- Additional data which type is Double
-  -- EMA rescaling
-  let (c1, c2, c3, c4) = emaCoeffs config
-      rescale :: Int -> Double -> Double
-      rescale x y = if count < x then fromIntegral x * y / fromIntegral count else y
-  df <- rescale c1 <$> get' emaDFast
-  ds <- rescale c2 <$> get' emaDSlow
-  af <- rescale c3 <$> get' emaAFast
-  as <- rescale c4 <$> get' emaASlow
-  lf <- rescale c1 <$> get' emaLFast
-  ls <- rescale c2 <$> get' emaLSlow
-  let emas = [ ("emaDFast", df), ("emaDSlow", ds)
-             , ("emaAFast", af), ("emaASlow", as)
-             , ("emaLFast", lf), ("emaLSlow", ls)
-             ]
+  sts <- init <$> getStats s
+  -- update EMAs, which type is Double
+  ns <- get' emaScale
+  let fs :: Double -> String
       fs x = showFFloat (Just 3) x ""
-      vals = map (show . snd) sts ++ map (fs . snd) emas
-  putStrLn $ intercalate "," vals
+      rescaleSlow :: Double -> Double
+      rescaleSlow x = x / ns
+  df <- get' emaDFast
+  ds <- rescaleSlow <$> get' emaDSlow
+  af <- get' emaAFast
+  as <- rescaleSlow <$> get' emaASlow
+  rf <- get' emaRFast
+  rs <- rescaleSlow <$> get' emaRSlow
+  lf <- get' emaLFast
+  ls <- rescaleSlow <$> get' emaLSlow
+  putStrLn . intercalate "," $ map (show . snd) sts ++ map fs [df, ds, af, as, rf, rs, lf, ls]
 
 -- | FIXME: use Util/Stat
-dumpSolver DumpJSON _ = return ()                -- mode 2: JSON
+dumpStats DumpJSON _ = return ()                -- mode 2: JSON
