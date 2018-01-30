@@ -31,7 +31,6 @@ data MiosProgramOption = MiosProgramOption
                      , _confRestartB          :: Double
                      , _confRestartF          :: Double
                      , _confRestartS          :: Double
-                     , _confResatrtInitMode   :: Int
 --                     , _confRandomDecisionRate :: Int
                      , _confMaxSize           :: Int
                      , _confCheckAnswer       :: Bool
@@ -57,7 +56,6 @@ miosDefaultOption = MiosProgramOption
   , _confRestartB = restartExpansionB defaultConfiguration
   , _confRestartF = restartExpansionF defaultConfiguration
   , _confRestartS = restartExpansionS defaultConfiguration
-  , _confResatrtInitMode = restartInitMode defaultConfiguration
   --, _confRandomDecisionRate = randomDecisionRate defaultConfiguration
   , _confMaxSize = 5000000    -- 5,000,000 = 5M
   , _confCheckAnswer = False
@@ -90,9 +88,6 @@ miosOptions =
   , Option [] ["Rs"]
     (ReqArg (\v c -> c { _confRestartS = read v }) (show (_confRestartS miosDefaultOption)))
     "[solver] a fixed number of conflicts between restarts"
-  , Option [] ["Ri"]
-    (NoArg (\c -> c { _confResatrtInitMode = 1 }))
-    "[solver] use the initial restart mode"
 --  , Option ['r'] ["random-decision-rate"]
 --    (ReqArg (\v c -> c { _confRandomDecisionRate = read v }) (show (_confRandomDecisionRate miosDefaultOption)))
 --    "[solver] random selection rate (0 - 1000)"
@@ -163,7 +158,6 @@ toMiosConf opts = MiosConfiguration
 --                 , randomDecisionRate = _confRandomDecisionRate opts
                  , dumpSolverStatMode = _confDumpStat opts
                  , emaCoeffs = emaCoeffs defaultConfiguration
-                 , restartInitMode = _confResatrtInitMode opts
                  , restartExpansionB = _confRestartB opts
                  , restartExpansionF = _confRestartF opts
                  , restartExpansionS = _confRestartS opts

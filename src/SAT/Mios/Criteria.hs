@@ -290,19 +290,8 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
     void $ {- rs <- rescaleSlow <$> -} revise emaRSlow (1 / fromIntegral cs) lrs
     void $ {- lf <-                 -} revise emaLFast (1 / fromIntegral cf) lvl
     void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) lvl
-  mode <- get' restartMode      -- 1 for using the initial mode, 0 for skipping it
   let step = restartExpansionS config
   if | count < next   -> return False
-     | mode == 1      -> do     -- -| INITIAL MODE    |
-         when (cs < count) $ set' restartMode 0
-         incrementStat s NumOfGeometricRestart 1
-         incrementStat s NumOfRestart 1
-         ki <- fromIntegral <$> getStat s NumOfRestart -- not a typo!
-         let gef = restartExpansionF config
-         set' nextRestart $ count + ceiling (step + gef ** ki)
-         -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
-         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
-         return True
      | 1.25 * as < af -> do     -- -| BLOCKING RESTART |
          incrementStat s NumOfBlockRestart 1
          ki <- fromIntegral <$> getStat s NumOfRestart
