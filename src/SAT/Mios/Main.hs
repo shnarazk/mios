@@ -84,6 +84,8 @@ newLearntClause s@Solver{..} ps = do
            unsafeEnqueue s l1 c
            -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
            r <- ndlOf s (lits c)          -- lbdOf s (lits c)
+           -- l <- lbdOf s (lits c)
+           -- putStrLn $ show k ++ "," ++ show l ++ "," ++ show r
            set' (rank c) r
            -- assert (0 < rank c)
            -- set' (protected c) True

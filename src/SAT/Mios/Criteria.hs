@@ -270,30 +270,37 @@ updateLBD s c@Clause{..} = do
     _ -> return ()
 -}
 
--- | returns a POSIVITE value of NDL, or -1 for invalid cases
-{-# INLINE ndl_ #-}
-ndl_ :: Solver -> Stack -> IO Int
-ndl_ Solver{..} stack = do
-  n <- get' stack
-  let loop :: Int -> Int -> IO Int
-      loop ((<= n) -> False) k = return k
-      loop i k = do v <- lit2var <$> getNth stack i
-                    a <- getNth assigns v
-                    if a == LBottom
-                      then return 0
-                      else loop (i + 1) . (k .|.) =<< getNth ndl v
-  loop 1 0
-
 -- | updates a /var/'s ndl, which is assigned by a 'reason' /clause/
 {-# INLINABLE updateNdlOf #-}
 updateNdlOf :: Solver -> Var -> Clause -> IO ()
-updateNdlOf s@Solver{..} v NullClause = setNth ndl v . setBit 0 . (63 .&.) =<< getNth level v
-updateNdlOf s@Solver{..} v Clause{..} = setNth ndl v 0 >> (setNth ndl v =<< ndl_ s lits)
+updateNdlOf s@Solver{..} v NullClause = do
+  l <- getNth level v
+  setNth ndl v $ if 0 == l then 0 else setBit 0 (63 .&. (l - 1))
+updateNdlOf s@Solver{..} v Clause{..} = do
+  n <- get' lits
+  setNth ndl v 0
+  let loop :: Int -> Int -> IO Int
+      loop ((<= n) -> False) k = return k
+      loop i k = do v <- lit2var <$> getNth lits i
+                    a <- getNth assigns v
+                    when (a == LBottom) $ error "unprepared path"
+                    loop (i + 1) . (k .|.) =<< getNth ndl v
+  setNth ndl v =<< loop 1 0
 
 -- | returns the NDL
 {-# INLINABLE ndlOf #-}
 ndlOf :: Solver -> Stack -> IO Int
-ndlOf s stack = popCount <$> ndl_ s stack
+ndlOf Solver{..} stack = do
+  n <- get' stack
+  let loop :: Int -> Int -> Int -> IO Int
+      loop ((<= n) -> False) u k = return $ u + popCount k
+      loop i u k = do v <- lit2var <$> getNth stack i
+                      a <- getNth assigns v
+                      if a == LBottom
+                        then loop (i + 1) (u + 1) k
+                        else loop (i + 1) u . (k .|.) =<< getNth ndl v
+  loop 1 0 0
+
 
 -------------------------------------------------------------------------------- restart
 
