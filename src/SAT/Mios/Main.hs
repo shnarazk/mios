@@ -83,11 +83,11 @@ newLearntClause s@Solver{..} ps = do
            -- update the solver state by @l@
            unsafeEnqueue s l1 c
            -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
-           r <- lbdOf s (lits c)
-           set' (rank c) r
+           lbd <- lbdOf s (lits c)
+           set' (rank c) lbd
            -- assert (0 < rank c)
            -- set' (protected c) True
-           return r
+           return lbd
 
 -- | __Simplify.__ At the top-level, a constraint may be given the opportunity to
 -- simplify its representation (returns @False@) or state that the constraint is
@@ -440,12 +440,6 @@ reduceDB s@Solver{..} = do
   n <- nLearnts s
   cvec <- getClauseVector learnts
   n' <- get' trail
-  let update :: Int -> IO ()
-      update ((<= n') -> False) = return ()
-      update i = do v <- lit2var <$> getNth trail i
-                    updateNdlOf s v =<< getNth reason v
-                    update (i + 1)
-  update 1
   let loop :: Int -> IO ()
       loop ((< n) -> False) = return ()
       loop i = do
@@ -505,6 +499,7 @@ sortClauses s cm limit' = do
   keys <- newVec (2 * n) 0 :: IO (Vec Int)
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
+  updateNDL s
   let shiftLBD = activityWidth
       shiftIndex = shiftL 1 indexWidth
       am = fromIntegral activityMax :: Double
@@ -526,9 +521,6 @@ sortClauses s cm limit' = do
                   r' <- ndlOf s (lits c)
 --                  let r = 3 * r_
                   let r = ceiling . sqrt . fromIntegral $ r_ * r'
---                  r <- if r' == 0
---                       then return r_
---                       else set' (rank c) r' >> return r'
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax

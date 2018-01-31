@@ -18,7 +18,7 @@ module SAT.Mios.Criteria
        , addClause
          -- * Clause Metrics
        , lbdOf
-       , updateNdlOf
+       , updateNDL
        , ndlOf
          -- * Restart
        , checkRestartCondition
@@ -188,7 +188,6 @@ clauseNew s@Solver{..} ps isLearnt = do
    0 -> return (Left exit)
    1 -> do
      l <- getNth ps 1
-     updateNdlOf s (lit2var l) NullClause -- enqueue doen't update NDL
      Left <$> enqueue s l NullClause
    _ -> do
     -- allocate clause:
@@ -271,21 +270,33 @@ updateLBD s c@Clause{..} = do
 -}
 
 -- | updates a /var/'s ndl, which is assigned by a 'reason' /clause/
-{-# INLINABLE updateNdlOf #-}
+{-# INLINE updateNdlOf #-}
 updateNdlOf :: Solver -> Var -> Clause -> IO ()
-updateNdlOf s@Solver{..} v NullClause = do
+updateNdlOf Solver{..} v NullClause = do
   l <- getNth level v
   setNth ndl v $ if 0 == l then 0 else setBit 0 (63 .&. (l - 1))
-updateNdlOf s@Solver{..} v Clause{..} = do
+updateNdlOf Solver{..} v Clause{..} = do
   n <- get' lits
   setNth ndl v 0
   let loop :: Int -> Int -> IO Int
       loop ((<= n) -> False) k = return k
-      loop i k = do v <- lit2var <$> getNth lits i
-                    -- a <- getNth assigns v
+      loop i k = do v' <- lit2var <$> getNth lits i
+                    -- a <- getNth assigns v'
                     -- when (a == LBottom) $ error "unprepared path"
-                    loop (i + 1) . (k .|.) =<< getNth ndl v
+                    loop (i + 1) . (k .|.) =<< getNth ndl v'
   setNth ndl v =<< loop 1 0
+
+-- | updates all assigned vars' ndl
+{-# INLINABLE updateNDL #-}
+updateNDL :: Solver -> IO ()
+updateNDL s@Solver{..} = do
+  n <- get' trail
+  let update :: Int -> IO ()
+      update ((<= n) -> False) = return ()
+      update i = do v <- lit2var <$> getNth trail i
+                    updateNdlOf s v =<< getNth reason v
+                    update (i + 1)
+  update 1
 
 -- | returns the NDL
 {-# INLINABLE ndlOf #-}
