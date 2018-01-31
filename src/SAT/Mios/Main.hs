@@ -83,9 +83,7 @@ newLearntClause s@Solver{..} ps = do
            -- update the solver state by @l@
            unsafeEnqueue s l1 c
            -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
-           r <- ndlOf s (lits c)          -- lbdOf s (lits c)
-           -- l <- lbdOf s (lits c)
-           -- putStrLn $ show k ++ "," ++ show l ++ "," ++ show r
+           r <- lbdOf s (lits c)
            set' (rank c) r
            -- assert (0 < rank c)
            -- set' (protected c) True
@@ -441,6 +439,13 @@ reduceDB :: Solver -> IO ()
 reduceDB s@Solver{..} = do
   n <- nLearnts s
   cvec <- getClauseVector learnts
+  n' <- get' trail
+  let update :: Int -> IO ()
+      update ((<= n') -> False) = return ()
+      update i = do v <- lit2var <$> getNth trail i
+                    updateNdlOf s v =<< getNth reason v
+                    update (i + 1)
+  update 1
   let loop :: Int -> IO ()
       loop ((< n) -> False) = return ()
       loop i = do
@@ -519,9 +524,11 @@ sortClauses s cm limit' = do
           else do a <- get' (activity c)               -- Second one... based on LBD
                   r_ <- get' (rank c)
                   r' <- ndlOf s (lits c)
-                  r <- if r' == 0
-                       then return r_
-                       else set' (rank c) r' >> return r'
+--                  let r = 3 * r_
+                  let r = ceiling . sqrt . fromIntegral $ r_ * r'
+--                  r <- if r' == 0
+--                       then return r_
+--                       else set' (rank c) r' >> return r'
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax
@@ -723,8 +730,7 @@ solve s@Solver{..} assumps = do
                   pushTo conflicts (negateLit a)
                   cancelUntil s 0
                   return False
-          else do updateNdlOf s (lit2var a) NullClause -- we need call it after assume by hand
-                  confl <- propagate s
+          else do confl <- propagate s
                   if confl /= NullClause
                     then do analyzeFinal s confl True
                             cancelUntil s 0
@@ -756,7 +762,6 @@ unsafeEnqueue s@Solver{..} p from = do
   setNth assigns v $ lit2lbool p
   setNth level v =<< decisionLevel s
   setNth reason v from     -- NOTE: @from@ might be NULL!
-  updateNdlOf s v from
   pushTo trail p
 
 -- | __Pre-condition:__ propagation queue is empty.

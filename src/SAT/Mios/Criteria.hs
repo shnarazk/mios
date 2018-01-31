@@ -282,8 +282,8 @@ updateNdlOf s@Solver{..} v Clause{..} = do
   let loop :: Int -> Int -> IO Int
       loop ((<= n) -> False) k = return k
       loop i k = do v <- lit2var <$> getNth lits i
-                    a <- getNth assigns v
-                    when (a == LBottom) $ error "unprepared path"
+                    -- a <- getNth assigns v
+                    -- when (a == LBottom) $ error "unprepared path"
                     loop (i + 1) . (k .|.) =<< getNth ndl v
   setNth ndl v =<< loop 1 0
 
@@ -300,7 +300,6 @@ ndlOf Solver{..} stack = do
                         then loop (i + 1) (u + 1) k
                         else loop (i + 1) u . (k .|.) =<< getNth ndl v
   loop 1 0 0
-
 
 -------------------------------------------------------------------------------- restart
 
