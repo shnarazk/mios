@@ -498,7 +498,7 @@ sortClauses s cm limit' = do
   keys <- newVec (2 * n) 0 :: IO (Vec Int)
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
-  updateDLT s
+  -- updateDLT s
   let shiftLBD = activityWidth
       shiftIndex = shiftL 1 indexWidth
       am = fromIntegral activityMax :: Double
