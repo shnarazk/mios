@@ -49,6 +49,7 @@ import SAT.Mios.Types
 import SAT.Mios.Main
 import SAT.Mios.OptionParser
 import SAT.Mios.Validator
+import SAT.Mios.Solver (emaLSlow)
 
 -- | version name
 versionId :: String
@@ -85,18 +86,19 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
     when (0 < _confBenchmark opts) $
       void $ forkIO $ do let fromMicro = 1000000 :: Int
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
-                         putMVar token (Left TimeOut)
+                         putMVar token ((Left TimeOut), -1)
                          killThread solverId
     when (_confMaxSize opts < _numberOfVariables desc) $
       if -1 == _confBenchmark opts
         then errorWithoutStackTrace $ "ABORT: too many variables to solve, " ++ show desc
-        else putMVar token (Left OutOfMemory) >> killThread solverId
+        else putMVar token ((Left OutOfMemory), -1) >> killThread solverId
     s <- newSolver (toMiosConf opts) desc
     injectClausesFromCNF s desc cls
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
     when (0 < _confDumpStat opts) $ dumpStats DumpCSVHeader s
     result <- solve s []
-    putMVar token result
+    ls <- get' (emaLSlow s)
+    putMVar token (result, ls)
     killThread solverId
 
 executeSolver _ = return ()
@@ -106,16 +108,18 @@ executeSolver _ = return ()
 --   * 0 if UNSAT
 --   * 1 if satisfiable (by finding an assignment)
 --   * other bigger values are used for aborted cases.
-reportResult :: MiosProgramOption -> Integer -> SolverResult -> IO ()
+reportResult :: MiosProgramOption -> Integer -> (SolverResult, Double) -> IO ()
 -- abnormal cases, catching 'too large CNF', 'timeout' for now.
-reportResult opts@(_targetFile -> Just cnfFile) _ (Left flag) =
+reportResult opts@(_targetFile -> Just cnfFile) _ ((Left flag), lvl) =
   putStrLn ("\"" ++ takeWhile (' ' /=) versionId ++ "\","
-             ++ show (_confBenchSeq opts) ++ ","
-             ++ "\"" ++ cnfFile ++ "\","
-             ++ show (_confBenchmark opts) ++ "," ++ show (fromEnum flag))
+            ++ show (_confBenchSeq opts) ++ ","
+            ++ "\"" ++ cnfFile ++ "\","
+            ++ show (_confBenchmark opts) ++ "," ++ show (fromEnum flag) ++ ","
+            ++ showFFloat (Just 3) lvl ""
+           )
 
 -- solver terminated normally
-reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
+reportResult opts@(_targetFile -> Just cnfFile) t0 ((Right result), lvl) = do
   t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
   case result of
     _ | 0 <= _confBenchmark opts -> return ()
@@ -144,9 +148,10 @@ reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
     putStrLn $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
       ++ show (_confBenchSeq opts) ++ ","
       ++ "\"" ++ cnfFile ++ "\","
-      ++ if valid
-         then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "," ++ show phase
-         else show (_confBenchmark opts) ++ "," ++ show (fromEnum InternalInconsistent)
+      ++ (if valid
+          then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "," ++ show phase
+          else show (_confBenchmark opts) ++ "," ++ show (fromEnum InternalInconsistent))
+      ++ "," ++ showFFloat (Just 3) lvl ""
 
 reportResult _ _ _ = return ()
 

@@ -335,7 +335,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
     void $ {- rf <-                 -} revise emaRFast (1 / fromIntegral cf) lrs
     void $ {- rs <- rescaleSlow <$> -} revise emaRSlow (1 / fromIntegral cs) lrs
     void $ {- lf <-                 -} revise emaLFast (1 / fromIntegral cf) lvl
-    void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) lvl
+  void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) lvl
   let step = restartExpansionS config
   if | count < next   -> return False
      | 1.25 * as < af -> do     -- -| BLOCKING RESTART |
