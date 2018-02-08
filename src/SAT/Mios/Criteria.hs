@@ -18,8 +18,8 @@ module SAT.Mios.Criteria
        , addClause
          -- * Clause Metrics
        , lbdOf
-       , updateNDL
-       , ndlOf
+       , updateNDD
+       , nddOf
          -- * Restart
        , checkRestartCondition
          -- * Reporting
@@ -269,8 +269,41 @@ updateLBD s c@Clause{..} = do
     _ -> return ()
 -}
 
+-- | returns a vector index of NDD for the nth bit of a var
+{-# INLINE varBit2vIndex #-}
+varBit2vIndex :: Int -> Int -> Int
+varBit2vIndex v b
+  | 62 <= b   = 2 * v + 1
+  | otherwise = 2 * v
+
+-- | returns a bit index of NDD for the nth bit of a var
+{-# INLINE varBit2bIndex #-}
+varBit2bIndex :: Int -> Int -> Int
+varBit2bIndex v b = mod b 62
+
 -- | updates a /var/'s ndl, which is assigned by a 'reason' /clause/
-{-# INLINE updateNdlOf #-}
+{-# INLINE updateNddOf #-}
+updateNddOf :: Solver -> Var -> Clause -> IO ()
+updateNddOf Solver{..} v NullClause = do
+  l <- getNth level v
+  setNth ndd (varBit2vIndex v l) $ if 0 == l then 0 else setBit 0 (varBit2bIndex v l)
+
+updateNddOf Solver{..} v Clause{..} = do
+  n <- get' lits
+  let iv = varBit2vIndex v 0
+  setNth ndd iv 0
+  setNth ndd (iv + 1) 0
+  let loop :: Int -> Int -> Int -> IO ()
+      loop ((<= n) -> False) low high = do setNth ndd iv low
+                                           setNth ndd (iv + 1) high
+      loop i low high = do v' <- lit2var <$> getNth lits i
+                           let jv = varBit2vIndex v' 0
+                           low' <- (low .|.) <$> getNth ndd jv
+                           high' <- (high .|.) <$> getNth ndd (jv + 1)
+                           loop (i + 1) low' high'
+  loop 1 0 0
+
+{-
 updateNdlOf :: Solver -> Var -> Clause -> IO ()
 updateNdlOf Solver{..} v NullClause = do
   l <- getNth level v
@@ -285,25 +318,43 @@ updateNdlOf Solver{..} v Clause{..} = do
                     -- when (a == LBottom) $ error "unprepared path"
                     loop (i + 1) . (k .|.) =<< getNth ndl v'
   setNth ndl v =<< loop 1 0
+-}
 
 -- | updates all assigned vars' ndl
-{-# INLINABLE updateNDL #-}
-updateNDL :: Solver -> IO ()
-updateNDL s@Solver{..} = do
+{-# INLINABLE updateNDD #-}
+updateNDD :: Solver -> IO ()
+updateNDD s@Solver{..} = do
   n <- get' trail
   let update :: Int -> IO ()
       update ((<= n) -> False) = return ()
       update i = do v <- lit2var <$> getNth trail i
-                    updateNdlOf s v =<< getNth reason v
+                    updateNddOf s v =<< getNth reason v
                     update (i + 1)
   update 1
 
 -- | returns the NDL
+{-# INLINABLE nddOf #-}
+nddOf :: Solver -> Stack -> IO Int
+nddOf Solver{..} stack = do
+  n <- get' stack
+  let loop :: Int -> Int -> Int -> Int -> IO Int -- var -> #unassigns -> #lowbits -> #highbits
+      loop ((<= n) -> False) u low high = return $ u + popCount low + popCount high
+      loop i u low high = do v <- lit2var <$> getNth stack i
+                             a <- getNth assigns v
+                             if a == LBottom
+                               then loop (i + 1) (u + 1) low high
+                               else do let iv = varBit2vIndex v 0
+                                       l <- getNth ndd iv
+                                       h <- getNth ndd (iv + 1)
+                                       loop (i + 1) u (low .|. l) (high .|. h)
+  loop 1 0 0 0
+
+{-
 {-# INLINABLE ndlOf #-}
 ndlOf :: Solver -> Stack -> IO Int
 ndlOf Solver{..} stack = do
   n <- get' stack
-  let loop :: Int -> Int -> Int -> IO Int
+  let loop :: Int -> Int -> Int -> IO Int -- var -> #unassigns -> #bits
       loop ((<= n) -> False) u k = return $ u + popCount k
       loop i u k = do v <- lit2var <$> getNth stack i
                       a <- getNth assigns v
@@ -311,6 +362,7 @@ ndlOf Solver{..} stack = do
                         then loop (i + 1) (u + 1) k
                         else loop (i + 1) u . (k .|.) =<< getNth ndl v
   loop 1 0 0
+-}
 
 -------------------------------------------------------------------------------- restart
 
