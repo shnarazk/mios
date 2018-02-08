@@ -83,16 +83,17 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
              UserInterrupt -> putStrLn "User interrupt recieved."
              ThreadKilled  -> reportResult opts t0 =<< readMVar token
              e -> print e) $ do
-    when (0 < _confBenchmark opts) $
-      void $ forkIO $ do let fromMicro = 1000000 :: Int
-                         threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
-                         putMVar token ((Left TimeOut), -1)
-                         killThread solverId
     when (_confMaxSize opts < _numberOfVariables desc) $
       if -1 == _confBenchmark opts
         then errorWithoutStackTrace $ "ABORT: too many variables to solve, " ++ show desc
-        else putMVar token ((Left OutOfMemory), -1) >> killThread solverId
+        else putMVar token (Left OutOfMemory, -1) >> killThread solverId
     s <- newSolver (toMiosConf opts) desc
+    when (0 < _confBenchmark opts) $
+      void $ forkIO $ do let fromMicro = 1000000 :: Int
+                         threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
+                         ls <- get' (emaLSlow s)
+                         putMVar token (Left TimeOut, ls)
+                         killThread solverId
     injectClausesFromCNF s desc cls
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
     when (0 < _confDumpStat opts) $ dumpStats DumpCSVHeader s
