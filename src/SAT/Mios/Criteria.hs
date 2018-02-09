@@ -272,7 +272,7 @@ updateLBD s c@Clause{..} = do
 -- | returns a vector index of NDD for the nth bit of a var
 {-# INLINE varBit2vIndex #-}
 varBit2vIndex :: Int -> Int -> Int
-varBit2vIndex v b
+varBit2vIndex v ((`mod` 124) -> b)
   | 62 <= b   = 2 * v + 1
   | otherwise = 2 * v
 
