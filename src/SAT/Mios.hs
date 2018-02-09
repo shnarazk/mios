@@ -49,7 +49,7 @@ import SAT.Mios.Types
 import SAT.Mios.Main
 import SAT.Mios.OptionParser
 import SAT.Mios.Validator
-import SAT.Mios.Solver (emaLSlow)
+import SAT.Mios.Solver (emaScale, emaLSlow)
 
 -- | version name
 versionId :: String
@@ -91,15 +91,17 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
     when (0 < _confBenchmark opts) $
       void $ forkIO $ do let fromMicro = 1000000 :: Int
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
+                         ns <- get' (emaScale s)
                          ls <- get' (emaLSlow s)
-                         putMVar token (Left TimeOut, ls)
+                         putMVar token (Left TimeOut, ls / ns)
                          killThread solverId
     injectClausesFromCNF s desc cls
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
     when (0 < _confDumpStat opts) $ dumpStats DumpCSVHeader s
     result <- solve s []
+    ns <- get' (emaScale s)
     ls <- get' (emaLSlow s)
-    putMVar token (result, ls)
+    putMVar token (result, ls / ns)
     killThread solverId
 
 executeSolver _ = return ()
