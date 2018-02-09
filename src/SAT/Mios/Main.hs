@@ -499,7 +499,7 @@ sortClauses s cm limit' = do
   keys <- newVec (2 * n) 0 :: IO (Vec Int)
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
-  updateNDL s
+  -- updateNDL s
   let shiftLBD = activityWidth
       shiftIndex = shiftL 1 indexWidth
       am = fromIntegral activityMax :: Double
@@ -517,10 +517,10 @@ sortClauses s cm limit' = do
           then do setNth keys (2 * i) 0
                   assignKey (i + 1) (t + 1)
           else do a <- get' (activity c)               -- Second one... based on LBD
-                  r_ <- get' (rank c)
-                  r' <- ndlOf s (lits c)
+                  r <- get' (rank c)
+--                  r' <- ndlOf s (lits c)
 --                  let r = 3 * r_
-                  let r = ceiling . sqrt . fromIntegral $ r_ * r'
+--                  let r = ceiling . sqrt . fromIntegral $ r_ * r'
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax
