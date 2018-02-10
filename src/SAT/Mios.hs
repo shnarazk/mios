@@ -93,7 +93,7 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
                          ns <- get' (emaScale s)
                          ls <- get' (emaLSlow s)
-                         putMVar token (Left TimeOut, ls / ns)
+                         putMVar token (Left TimeOut, if ns == 0 then 0 else ls / ns)
                          killThread solverId
     injectClausesFromCNF s desc cls
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
@@ -101,7 +101,7 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
     result <- solve s []
     ns <- get' (emaScale s)
     ls <- get' (emaLSlow s)
-    putMVar token (result, ls / ns)
+    putMVar token (result, if ns == 0 then 0 else ls / ns)
     killThread solverId
 
 executeSolver _ = return ()
