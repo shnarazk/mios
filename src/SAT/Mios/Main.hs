@@ -520,7 +520,7 @@ sortClauses s cm limit' = do
                   r_ <- get' (rank c)
                   r' <- nddOf s (lits c)
 --                  let r = 3 * r_
-                  let r = ceiling . sqrt . fromIntegral $ r_ * r'
+                  let r = r' -- ceiling . sqrt . fromIntegral $ r_ * r'
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax
