@@ -35,7 +35,6 @@ import SAT.Mios.ClausePool
 import SAT.Mios.Criteria
 
 -- | #114: __RemoveWatch__
-{-# INLINABLE removeWatch #-}
 removeWatch :: Solver -> Clause -> IO ()
 removeWatch Solver{..} c = do
   let lstack = lits c
@@ -96,7 +95,6 @@ newLearntClause s@Solver{..} ps = do
 -- conflicting; in that case the propagation has not been correctly defined.
 --
 -- MIOS NOTE: the original doesn't update watchers; only checks its satisfiabiliy.
-{-# INLINABLE simplify #-}
 simplify :: Solver -> Clause -> IO Bool
 simplify s c = do
   n <- get' c
@@ -445,6 +443,7 @@ reduceDB s@Solver{..} = do
       loop i = do
         removeWatch s =<< getNth cvec i
         loop $ i + 1
+  putStrLn "reduceDB -- dive"
   k <- sortClauses s learnts $ div n 2 -- k is the number of clauses not to be purged
 {-
   -- #GLUCOSE3.0 keep more
@@ -461,6 +460,7 @@ reduceDB s@Solver{..} = do
   -- putStrLn $ "reduceDB: purge " ++ show (n - k) ++ " out of " ++ show n
   reset watches
   shrinkBy learnts (n - k)
+  putStrLn "reduceDB -- done"
   incrementStat s NumOfReduction 1
 
 -- constants for sort key layout
@@ -500,6 +500,7 @@ sortClauses s cm limit' = do
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
   updateNDD s
+  putStrLn "sortClauses -- assign"
   let shiftLBD = activityWidth
       shiftIndex = shiftL 1 indexWidth
       am = fromIntegral activityMax :: Double
@@ -517,10 +518,11 @@ sortClauses s cm limit' = do
           then do setNth keys (2 * i) 0
                   assignKey (i + 1) (t + 1)
           else do a <- get' (activity c)               -- Second one... based on LBD
-                  r_ <- get' (rank c)
+--                  r_ <- get' (rank c)
                   r' <- nddOf s (lits c)
 --                  let r = 3 * r_
                   let r = r' -- ceiling . sqrt . fromIntegral $ r_ * r'
+                  when (r < 0 || rankMax < r) $ error (show r)
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax
@@ -529,6 +531,7 @@ sortClauses s cm limit' = do
                   assignKey (i + 1) $ if l then t + 1 else t
   limit <- max limit' <$> assignKey 0 0
   -- 2: sort keyVector
+  putStrLn "sortClauses -- sort"
   let limit2 = 2 * limit
       sortOnRange :: Int -> Int -> IO ()
       sortOnRange left right
@@ -585,6 +588,7 @@ sortClauses s cm limit' = do
           sweep i -- (indexMax .&. bits)
         seek $ i + 1
   seek 0
+  putStrLn "sortClauses -- done"
   return limit
 
 -- | #M22
@@ -747,7 +751,6 @@ solve s@Solver{..} assumps = do
     else return $ Right (UNSAT [])
 
 -- | Though 'enqueue' is defined in 'Solver', most functions in M114 use @unsafeEnqueue@.
-{-# INLINABLE unsafeEnqueue #-}
 unsafeEnqueue :: Solver -> Lit -> Clause -> IO ()
 unsafeEnqueue s@Solver{..} p from = do
   let v = lit2var p
@@ -757,7 +760,6 @@ unsafeEnqueue s@Solver{..} p from = do
   pushTo trail p
 
 -- | __Pre-condition:__ propagation queue is empty.
-{-# INLINE unsafeAssume #-}
 unsafeAssume :: Solver -> Lit -> IO ()
 unsafeAssume s@Solver{..} p = do
   pushTo trailLim =<< get' trail

@@ -42,7 +42,6 @@ varActivityThreshold :: Double
 varActivityThreshold = 1e100
 
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
-{-# INLINE varBumpActivity #-}
 varBumpActivity :: Solver -> Var -> IO ()
 varBumpActivity s@Solver{..} x = do
   a <- (+) <$> getNth activities x <*> get' varInc
@@ -51,12 +50,10 @@ varBumpActivity s@Solver{..} x = do
   updateVO s x                    -- update the position in heap
 
 -- | __Fig. 14 (p.19)__
-{-# INLINABLE varDecayActivity #-}
 varDecayActivity :: Solver -> IO ()
 varDecayActivity Solver{..} = modify' varInc (/ variableDecayRate config)
 
 -- | __Fig. 14 (p.19)__
-{-# INLINABLE varRescaleActivity #-}
 varRescaleActivity :: Solver -> IO ()
 varRescaleActivity Solver{..} = do
   let
@@ -70,7 +67,6 @@ claActivityThreshold :: Double
 claActivityThreshold = 1e20
 
 -- | __Fig. 14 (p.19)__
-{-# INLINE claBumpActivity #-}
 claBumpActivity :: Solver -> Clause -> IO ()
 claBumpActivity s@Solver{..} Clause{..} = do
   a <- (+) <$> get' activity <*> get' claInc
@@ -78,12 +74,10 @@ claBumpActivity s@Solver{..} Clause{..} = do
   when (claActivityThreshold <= a) $ claRescaleActivity s
 
 -- | __Fig. 14 (p.19)__
-{-# INLINE claDecayActivity #-}
 claDecayActivity :: Solver -> IO ()
 claDecayActivity Solver{..} = modify' claInc (/ clauseDecayRate config)
 
 -- | __Fig. 14 (p.19)__
-{-# INLINABLE claRescaleActivity #-}
 claRescaleActivity :: Solver -> IO ()
 claRescaleActivity Solver{..} = do
   vec <- getClauseVector learnts
@@ -100,7 +94,6 @@ claRescaleActivity Solver{..} = do
 
 {-
 -- | __Fig. 14 (p.19)__
-{-# INLINABLE claRescaleActivityAfterRestart #-}
 claRescaleActivityAfterRestart :: Solver -> IO ()
 claRescaleActivityAfterRestart Solver{..} = do
   vec <- getClauseVector learnts
@@ -135,7 +128,6 @@ claRescaleActivityAfterRestart Solver{..} = do
 -- * @Left False@ if the clause is in a confilct
 -- * @Left True@ if the clause is satisfied
 -- * @Right clause@ if the clause is enqueued successfully
-{-# INLINABLE clauseNew #-}
 clauseNew :: Solver -> Stack -> Bool -> IO (Either Bool Clause)
 clauseNew s@Solver{..} ps isLearnt = do
   -- now ps[0] is the number of living literals
@@ -223,7 +215,6 @@ clauseNew s@Solver{..} ps isLearnt = do
 
 -- | returns @False@ if a conflict has occured.
 -- This function is called only before the solving phase to register the given clauses.
-{-# INLINABLE addClause #-}
 addClause :: Solver -> Stack -> IO Bool
 addClause s@Solver{..} vecLits = do
   result <- clauseNew s vecLits False
@@ -234,7 +225,6 @@ addClause s@Solver{..} vecLits = do
 -------------------------------------------------------------------------------- Clause Metrics
 
 -- | returns a POSIVITE value of Literal Block Distance
-{-# INLINABLE lbdOf #-}
 lbdOf :: Solver -> Stack -> IO Int
 lbdOf Solver{..} vec = do
   k <- (\k -> if 1000000 < k then 1 else k + 1) <$> get' lbd'key
@@ -250,13 +240,11 @@ lbdOf Solver{..} vec = do
   loop 1 0
 
 {-
-{-# INLINE setLBD #-}
 setLBD :: Solver -> Clause -> IO ()
 setLBD _ NullClause = error "LBD44"
 setLBD s c = set' (rank c) =<< lbdOf s (lits c)
 
 -- | update the lbd field of /c/
-{-# INLINE updateLBD #-}
 updateLBD :: Solver -> Clause -> IO ()
 updateLBD s NullClause = error "LBD71"
 updateLBD s c@Clause{..} = do
@@ -270,19 +258,16 @@ updateLBD s c@Clause{..} = do
 -}
 
 -- | returns a vector index of NDD for the nth bit of a var
-{-# INLINE varBit2vIndex #-}
 varBit2vIndex :: Int -> Int -> Int
 varBit2vIndex v ((`mod` 124) -> b)
   | 62 <= b   = 2 * v + 1
   | otherwise = 2 * v
 
 -- | returns a bit index of NDD for the nth bit of a var
-{-# INLINE varBit2bIndex #-}
 varBit2bIndex :: Int -> Int -> Int
 varBit2bIndex v b = mod b 62
 
 -- | updates a /var/'s ndl, which is assigned by a 'reason' /clause/
-{-# INLINE updateNddOf #-}
 updateNddOf :: Solver -> Int -> Var -> Clause -> IO ()
 updateNddOf Solver{..} thr v NullClause = do
   l <- getNth level v
@@ -321,7 +306,6 @@ updateNdlOf Solver{..} v Clause{..} = do
 -}
 
 -- | updates all assigned vars' ndl
-{-# INLINABLE updateNDD #-}
 updateNDD :: Solver -> IO ()
 updateNDD s@Solver{..} = do
   ns <- get' emaScale
@@ -333,10 +317,11 @@ updateNDD s@Solver{..} = do
       update i = do v <- lit2var <$> getNth trail i
                     updateNddOf s thr v =<< getNth reason v
                     update (i + 1)
+  putStrLn "updateNDD"
   update 1
+  putStrLn "updateNDD done"
 
 -- | returns the NDL
-{-# INLINABLE nddOf #-}
 nddOf :: Solver -> Stack -> IO Int
 nddOf Solver{..} stack = do
   n <- get' stack
@@ -347,13 +332,13 @@ nddOf Solver{..} stack = do
                              if a == LBottom
                                then loop (i + 1) (u + 1) low high
                                else do let iv = varBit2vIndex v 0
+                                       when (360 < iv) $ error (show iv)
                                        l <- getNth ndd iv
                                        h <- getNth ndd (iv + 1)
                                        loop (i + 1) u (low .|. l) (high .|. h)
   max 1 <$> loop 1 0 0 0
 
 {-
-{-# INLINABLE ndlOf #-}
 ndlOf :: Solver -> Stack -> IO Int
 ndlOf Solver{..} stack = do
   n <- get' stack
@@ -420,7 +405,6 @@ emaLabels = [ "emaDFast", "emaDSlow"
             , "emaLFast", "emaLSlow"
             ]
 
-{-# INLINABLE dumpStats #-}
 -- | print statatistic data to stdio. This should be called after each restart.
 dumpStats :: DumpMode -> Solver -> IO ()
 
