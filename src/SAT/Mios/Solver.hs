@@ -114,7 +114,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> new' 0                             -- qHead
     <*> newClauseVector (nv + 1)           -- reason
     <*> newVec nv (-1)                     -- level
-    <*> newVec (2 * nv) 0                  -- ndd
+    <*> newVec (2 * (nv + 1)) 0            -- ndd
     <*> newStack nv                        -- conflicts
     -- Variable Order
     <*> newVec nv 0                        -- activities
