@@ -83,7 +83,7 @@ newLearntClause s@Solver{..} ps = do
            -- update the solver state by @l@
            unsafeEnqueue s l1 c
            -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
-           lbd <- lbdOf s (lits c)
+           lbd <- nddOf {- lbdOf -} s (lits c)
            set' (rank c) lbd
            -- assert (0 < rank c)
            -- set' (protected c) True
@@ -145,12 +145,12 @@ analyze s@Solver{..} confl = do
         d <- get' (rank c)
         when (0 /= d) $ claBumpActivity s c
         -- update LBD like #Glucose4.0
-        when (2 < d) $ do
-          nblevels <- lbdOf s (lits c)
-          when (nblevels + 1 < d) $ -- improve the LBD
-            -- when (d <= 30) $ set' (protected c) True -- 30 is `lbLBDFrozenClause`
-            -- seems to be interesting: keep it fro the next round
-            set' (rank c) nblevels    -- Update it
+--        when (2 < d) $ do
+--          nblevels <- lbdOf s (lits c)
+--          when (nblevels + 1 < d) $ -- improve the LBD
+--            -- when (d <= 30) $ set' (protected c) True -- 30 is `lbLBDFrozenClause`
+--            -- seems to be interesting: keep it fro the next round
+--            set' (rank c) nblevels    -- Update it
         sc <- get' c
         let lstack = lits c
             loopOnLiterals :: Int -> Int -> Int -> IO (Int, Int)
@@ -517,10 +517,10 @@ sortClauses s cm limit' = do
           then do setNth keys (2 * i) 0
                   assignKey (i + 1) (t + 1)
           else do a <- get' (activity c)               -- Second one... based on LBD
-                  r_ <- get' (rank c)
-                  r' <- nddOf s (lits c)
+--                  r_ <- get' (rank c)
+                  r <- nddOf s (lits c)
 --                  let r = 3 * r_
-                  let r = r' -- ceiling . sqrt . fromIntegral $ r_ * r'
+--                  let r = r' -- ceiling . sqrt . fromIntegral $ r_ * r'
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax
