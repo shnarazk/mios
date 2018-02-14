@@ -386,11 +386,10 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
   ds <- rescaleSlow <$> revise emaDSlow (1 / fromIntegral cs) lbd
   af <- revise emaAFast (1 / fromIntegral cf) nas
   as <- rescaleSlow <$> revise emaASlow (1 / fromIntegral cs) nas
+  void $ {- rs <- rescaleSlow <$> -} revise emaRSlow (1 / fromIntegral cs) lrs
   when (0 < dumpSolverStatMode config) $ do
     void $ {- rf <-                 -} revise emaRFast (1 / fromIntegral cf) lrs
-    void $ {- rs <- rescaleSlow <$> -} revise emaRSlow (1 / fromIntegral cs) lrs
     void $ {- lf <-                 -} revise emaLFast (1 / fromIntegral cf) lvl
-    void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) lvl
   let step = restartExpansionS config
   if | count < next   -> return False
      | 1.25 * as < af -> do     -- -| BLOCKING RESTART |
@@ -399,6 +398,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
          let gef = restartExpansionB config
          set' nextRestart $ count + ceiling (step + gef ** ki)
          -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
+         void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) lvl
          when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return False
      | 1.25 * ds < df -> do     -- | FORCING RESTART  |
@@ -407,6 +407,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
          let gef = restartExpansionF config
          set' nextRestart $ count + ceiling (step + gef ** ki)
          -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
+         void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) 0
          when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return True
      | otherwise      -> return False
