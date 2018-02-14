@@ -517,10 +517,11 @@ sortClauses s cm limit' = do
           then do setNth keys (2 * i) 0
                   assignKey (i + 1) (t + 1)
           else do a <- get' (activity c)               -- Second one... based on LBD
-                  r_ <- get' (rank c)
+--                  r_ <- get' (rank c)
+                  r_ <- get' (lits c)
                   r' <- nddOf s (lits c)
 --                  let r = 3 * r_
-                  let r = r' -- ceiling . sqrt . fromIntegral $ r_ * r'
+                  let r = ceiling . sqrt . fromIntegral $ r_ * r'
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax
