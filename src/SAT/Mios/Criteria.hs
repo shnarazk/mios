@@ -328,7 +328,7 @@ updateNDD s@Solver{..} = do
   lv <- get' emaLSlow
   n <- get' trail
   let -- thr = if ns == 0 then 0 else floor . logBase 2 $ lv / ns :: Int
-      thr = if ns == 0 then 0 else floor $ lv / (2 * ns) :: Int
+      thr = if ns == 0 then 0 else floor (0.9 * lv / ns) :: Int
       update :: Int -> IO ()
       update ((<= n) -> False) = return ()
       update i = do v <- lit2var <$> getNth trail i
