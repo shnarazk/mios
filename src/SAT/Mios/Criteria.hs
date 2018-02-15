@@ -340,17 +340,14 @@ updateNDD s@Solver{..} = do
 nddOf :: Solver -> Stack -> IO Int
 nddOf Solver{..} stack = do
   n <- get' stack
-  let loop :: Int -> Int -> Int -> Int -> IO Int -- var -> #unassigns -> #lowbits -> #highbits
-      loop ((<= n) -> False) u low high = return $ u + popCount low + popCount high
-      loop i u low high = do v <- lit2var <$> getNth stack i
-                             a <- getNth assigns v
-                             if a == LBottom
-                               then loop (i + 1) (u + 1) low high
-                               else do let iv = varBit2vIndex v 0
-                                       l <- getNth ndd iv
-                                       h <- getNth ndd (iv + 1)
-                                       loop (i + 1) u (low .|. l) (high .|. h)
-  max 1 <$> loop 1 0 0 0
+  let loop :: Int -> Int -> Int -> IO Int -- var -> #lowbits -> #highbits
+      loop ((<= n) -> False) low high = return $ popCount low + popCount high
+      loop i low high = do v <- lit2var <$> getNth stack i
+                           let iv = varBit2vIndex v 0
+                           l <- getNth ndd iv
+                           h <- getNth ndd (iv + 1)
+                           loop (i + 1) (low .|. l) (high .|. h)
+  max 1 <$> loop 1 0 0
 
 {-
 {-# INLINABLE ndlOf #-}
