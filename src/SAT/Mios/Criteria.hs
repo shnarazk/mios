@@ -283,12 +283,12 @@ varBit2bIndex v b = mod b 62
 
 -- | updates a /var/'s ndl, which is assigned by a 'reason' /clause/
 {-# INLINE updateNddOf #-}
-updateNddOf :: Solver -> Int -> Var -> Clause -> IO ()
-updateNddOf Solver{..} thr v NullClause = do
+updateNddOf :: Solver -> Var -> Clause -> IO ()
+updateNddOf Solver{..} v NullClause = do
   l <- getNth level v
-  setNth ndd (varBit2vIndex v l) $ if l <= thr then 0 else setBit 0 (varBit2bIndex v l)
+  setNth ndd (varBit2vIndex v l) $ if l == 0 then 0 else setBit 0 (varBit2bIndex v l)
 
-updateNddOf Solver{..} _ v Clause{..} = do
+updateNddOf Solver{..} v Clause{..} = do
   n <- get' lits
   let iv = varBit2vIndex v 0
   setNth ndd iv 0
@@ -324,14 +324,12 @@ updateNdlOf Solver{..} v Clause{..} = do
 {-# INLINABLE updateNDD #-}
 updateNDD :: Solver -> IO ()
 updateNDD s@Solver{..} = do
-  ns <- get' emaScale
-  lv <- get' emaLSlow
   n <- get' trail
-  let thr = if ns == 0 then 0 else floor . logBase 2 $ lv / ns :: Int
+  let -- thr = if ns == 0 then 0 else floor . logBase 2 $ lv / ns :: Int
       update :: Int -> IO ()
       update ((<= n) -> False) = return ()
       update i = do v <- lit2var <$> getNth trail i
-                    updateNddOf s thr v =<< getNth reason v
+                    updateNddOf s v =<< getNth reason v
                     update (i + 1)
   update 1
 

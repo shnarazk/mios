@@ -520,11 +520,10 @@ sortClauses s cm limit' = do
           then do setNth keys (2 * i) 0
                   assignKey (i + 1) (t + 1)
           else do a <- get' (activity c)               -- Second one... based on LBD
-                  r_ <- get' (rank c)
---                  r_ <- get' (lits c)
-                  r' <- nddOf s (lits c)
---                  let r = ceiling . sqrt . fromIntegral $ r_ * r'
-                  let r = ceiling $ fromIntegral r_ * iceburg + fromIntegral r' * (1 - iceburg)
+                  rs <- fromIntegral <$> get' (rank c)       -- surface
+                  rv <- fromIntegral <$> nddOf s (lits c)    -- volume
+                  let r = ceiling . logBase 2 $ rs ** iceburg * rv ** (1 - iceburg) -- or rs * rv ** (1 - iceburg)
+--                  let r = ceiling $ fromIntegral r_ * iceburg + fromIntegral r' * (1 - iceburg)
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax
