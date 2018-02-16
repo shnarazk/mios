@@ -46,7 +46,7 @@ library:
   source-dirs:       src
 
 executables:
-  mios-74-horizon:
+  mios-74-revert:
     source-dirs:     app
     main:            mios.hs
     dependencies:    mios
