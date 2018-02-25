@@ -376,31 +376,21 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
   af  <- updateEMA emaAFast nas
   as  <- updateEMA emaASlow nas
   void $ updateEMA emaCSlow cLv
-  when (0 < dumpSolverStatMode config) $ void $ updateEMA emaCFast cLv
-  let step = restartExpansionS config
-  if | count < next   -> updateEMA emaBSlow bLv >> return False
-     | 1.25 * as < af -> do     -- -| BLOCKING RESTART |
-         incrementStat s NumOfBlockRestart 1
-         ki <- fromIntegral <$> getStat s NumOfRestart
-         let gef = restartExpansionB config
-         set' nextRestart $ count + ceiling (step + gef ** ki)
-         -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
-         -- void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) lvl
-         void $ updateEMA emaBSlow bLv
-         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
-         return False
-     | 1.25 * ds < df -> do     -- | FORCING RESTART  |
-         incrementStat s NumOfRestart 1
-         ki <- fromIntegral <$> getStat s NumOfBlockRestart
-         let gef = restartExpansionF config
-         set' nextRestart $ count + ceiling (step + gef ** ki)
-         -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
-         -- void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) 0
-         void $ updateEMA emaBSlow 0
-         when (0 < dumpSolverStatMode config) $ void $ updateEMA emaBFast bLv
-         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
-         return True
-     | otherwise      -> updateEMA emaBSlow bLv >> return False
+  let filled = next <= count
+      blockingRestart = filled && 1.25 * as < af
+      forcingRestart = filled && 1.25 * ds < df
+  void $ updateEMA emaBSlow (if forcingRestart then 0 else bLv)
+  when (0 < dumpSolverStatMode config) $ do void $ updateEMA emaCFast cLv
+                                            void $ updateEMA emaBFast (if forcingRestart then 0 else bLv)
+  if (not blockingRestart && not forcingRestart)
+    then return False
+    else do incrementStat s (if blockingRestart then NumOfBlockRestart else NumOfRestart) 1
+            ki <- fromIntegral <$> getStat s (if blockingRestart then NumOfRestart else NumOfBlockRestart)
+            let gef = (if blockingRestart then restartExpansionB else restartExpansionF) config
+                step = restartExpansionS config
+            set' nextRestart $ count + ceiling (step + gef ** ki)
+            when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
+            return forcingRestart
 
 -------------------------------------------------------------------------------- dump
 
