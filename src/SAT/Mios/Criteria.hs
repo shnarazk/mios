@@ -372,7 +372,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
   nas <- fromIntegral <$> nAssigns s
   bLv <- fromIntegral <$> decisionLevel s
   df  <- updateEMA emaDFast lbd
-  ds  <- updateEMA emaASlow lbd
+  ds  <- updateEMA emaDSlow lbd
   af  <- updateEMA emaAFast nas
   as  <- updateEMA emaASlow nas
   void $ updateEMA emaCSlow cLv
