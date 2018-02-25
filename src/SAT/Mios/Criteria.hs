@@ -364,36 +364,29 @@ ndlOf Solver{..} stack = do
 
 -------------------------------------------------------------------------------- restart
 
--- | #62
+-- | #62, #74
 checkRestartCondition :: Solver -> Int -> Int -> IO Bool
-checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) = do
+checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) = do
   next <- get' nextRestart
   count <- getStat s NumOfBackjump -- it should be > 0
   nas <- fromIntegral <$> nAssigns s
-  lvl <- fromIntegral <$> decisionLevel s
-  let (cf, cs) = emaCoeffs config
-      revise :: Double' -> Double -> Double -> IO Double
-      revise e a x  = do v <- ((a * x) +) . ((1 - a) *) <$> get' e; set' e v; return v
-  ns <- revise emaScale (1 / fromIntegral cs) 1
-  let rescaleSlow :: Double -> Double
-      rescaleSlow x = x / ns
-  df <- revise emaDFast (1 / fromIntegral cf) lbd
-  ds <- rescaleSlow <$> revise emaDSlow (1 / fromIntegral cs) lbd
-  af <- revise emaAFast (1 / fromIntegral cf) nas
-  as <- rescaleSlow <$> revise emaASlow (1 / fromIntegral cs) nas
-  void $ {- rs <- rescaleSlow <$> -} revise emaRSlow (1 / fromIntegral cs) lrs
-  when (0 < dumpSolverStatMode config) $ do
-    void $ {- rf <-                 -} revise emaRFast (1 / fromIntegral cf) lrs
-    void $ {- lf <-                 -} revise emaLFast (1 / fromIntegral cf) lvl
+  bLv <- fromIntegral <$> decisionLevel s
+  df  <- updateEMA emaDFast lbd
+  ds  <- updateEMA emaASlow lbd
+  af  <- updateEMA emaAFast nas
+  as  <- updateEMA emaASlow nas
+  void $ updateEMA emaCSlow cLv
+  when (0 < dumpSolverStatMode config) $ void $ updateEMA emaCFast cLv
   let step = restartExpansionS config
-  if | count < next   -> return False
+  if | count < next   -> updateEMA emaBSlow bLv >> return False
      | 1.25 * as < af -> do     -- -| BLOCKING RESTART |
          incrementStat s NumOfBlockRestart 1
          ki <- fromIntegral <$> getStat s NumOfRestart
          let gef = restartExpansionB config
          set' nextRestart $ count + ceiling (step + gef ** ki)
          -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
-         void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) lvl
+         -- void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) lvl
+         void $ updateEMA emaBSlow bLv
          when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return False
      | 1.25 * ds < df -> do     -- | FORCING RESTART  |
@@ -402,18 +395,20 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> lrs) =
          let gef = restartExpansionF config
          set' nextRestart $ count + ceiling (step + gef ** ki)
          -- set' nextRestart $ count + ceiling (step + 10 * logBase gef ki)
-         void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) 0
+         -- void $ {- ls <- rescaleSlow <$> -} revise emaLSlow (1 / fromIntegral cs) 0
+         void $ updateEMA emaBSlow 0
+         when (0 < dumpSolverStatMode config) $ void $ updateEMA emaBFast bLv
          when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          return True
-     | otherwise      -> return False
+     | otherwise      -> updateEMA emaBSlow bLv >> return False
 
 -------------------------------------------------------------------------------- dump
 
 emaLabels :: [String]
-emaLabels = [ "emaDFast", "emaDSlow"
-            , "emaAFast", "emaASlow"
-            , "emaRFast", "emaRSlow"
-            , "emaLFast", "emaLSlow"
+emaLabels = [ "emaAFast", "emaASlow" -- Assingment rate
+            , "emaBFast", "emaBSlow" -- Backjumped level
+            , "emaCFast", "emaCSlow" -- Conflicting level
+            , "emaDFast", "emaDSlow" -- (Literal Block) Distance
             ]
 
 {-# INLINABLE dumpStats #-}
@@ -434,21 +429,17 @@ dumpStats DumpCSV s@Solver{..} = do
   setStat s NumOfClause =<< get' clauses
   setStat s NumOfLearnt =<< get' learnts
   sts <- init <$> getStats s
-  -- update EMAs, which type is Double
-  ns <- get' emaScale
   let fs :: Double -> String
       fs x = showFFloat (Just 3) x ""
-      rescaleSlow :: Double -> Double
-      rescaleSlow x = x / ns
-  df <- get' emaDFast
-  ds <- rescaleSlow <$> get' emaDSlow
-  af <- get' emaAFast
-  as <- rescaleSlow <$> get' emaASlow
-  rf <- get' emaRFast
-  rs <- rescaleSlow <$> get' emaRSlow
-  lf <- get' emaLFast
-  ls <- rescaleSlow <$> get' emaLSlow
-  putStrLn . intercalate "," $ map (show . snd) sts ++ map fs [df, ds, af, as, rf, rs, lf, ls]
+  af <- getEMA emaAFast
+  as <- getEMA emaASlow
+  bf <- getEMA emaBFast
+  bs <- getEMA emaBSlow
+  cf <- getEMA emaCFast
+  cs <- getEMA emaCSlow
+  df <- getEMA emaDFast
+  ds <- getEMA emaDSlow
+  putStrLn . intercalate "," $ map (show . snd) sts ++ map fs [af, as, bf, bs, cf, cs, df, ds]
 
 -- | FIXME: use Util/Stat
 dumpStats DumpJSON _ = return ()                -- mode 2: JSON

@@ -46,7 +46,7 @@ library:
   source-dirs:       src
 
 executables:
-  mios-74-revert:
+  mios-74-altitude:
     source-dirs:     app
     main:            mios.hs
     dependencies:    mios

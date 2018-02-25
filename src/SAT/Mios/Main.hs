@@ -499,8 +499,9 @@ sortClauses s cm limit' = do
   keys <- newVec (2 * n) 0 :: IO (Vec Int)
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
-  rl <- get' (emaLSlow s)
-  cl <- get' (emaRSlow s)
+  updateNDD s
+  cl <- getEMA (emaCSlow s)
+  fillRate <- if cl == 0 then return 0 else (/ cl) <$> getEMA (emaBSlow s)  -- 0 <=backjumped level / coflict level < 1.0
   let shiftLBD = activityWidth
       shiftIndex = shiftL 1 indexWidth
       am = fromIntegral activityMax :: Double
@@ -518,7 +519,9 @@ sortClauses s cm limit' = do
           then do setNth keys (2 * i) 0
                   assignKey (i + 1) (t + 1)
           else do a <- get' (activity c)               -- Second one... based on LBD
-                  r <- fromIntegral <$> get' (rank c)       -- surface
+                  rLBD <- fromIntegral <$> get' (rank c)       -- above the level
+                  rNDD <- fromIntegral <$> nddOf s (lits c)    -- under the level
+                  let r = ceiling . logBase 2 $ rLBD ** fillRate * rNDD ** (1 - fillRate)
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax

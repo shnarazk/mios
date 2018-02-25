@@ -37,6 +37,11 @@ module SAT.Mios.Types
        , Int (LiftedF, LiftedT, LBottom, Conflict)
        -- a heap
        , VarOrder (..)
+       -- Exponential Moving Average, EMA
+       , EMA
+       , newEMA
+       , getEMA
+       , updateEMA
          -- * statistics
        , StatIndex (..)
        , DumpMode (..)
@@ -264,6 +269,39 @@ class VarOrder o where
   -- | returns a new, unassigned var as the next decision.
   selectVO :: o -> IO Var
   selectVO    = error "select undefined"
+
+-------------------------------------------------------------------------------- EMA
+
+-- | Exponential Moving Average, EMA
+type EMA = (Double', Maybe Double', Double)
+
+-- | returns a new EMA from a flag (slow or fast) and a window size
+{-# INLINE newEMA #-}
+newEMA :: Bool -> Int -> IO EMA
+newEMA True s = do v <- new' 0.0
+                   c <- new' 0.0
+                   return (v, Just c, 1 / fromIntegral s)
+newEMA False s = do v <- new' 0.0; return (v, Nothing, 1 / fromIntegral s)
+
+-- | returns an EMA value
+{-# INLINE getEMA #-}
+getEMA :: EMA -> IO Double
+getEMA (ema, Just cal, _) = do x <- get' ema
+                               c <- get' cal
+                               return $ if c == 0 then 0 else x / c
+getEMA (ema, Nothing, _)  = get' ema
+
+-- | updates an EMA
+{-# INLINE updateEMA #-}
+updateEMA :: EMA -> Double -> IO Double
+updateEMA (ema, Just cal, cof) x = do e <- ((cof * x) +) . ((1 - cof) *) <$> get' ema
+                                      set' ema e
+                                      c <- ((cof * 1) +) . ((1 - cof) *) <$> get' cal
+                                      set' cal c
+                                      return $ e / c
+updateEMA (ema, Nothing, cof) x = do e <- ((cof * x) +) . ((1 - cof) *) <$> get' ema; set' ema e; return e
+
+-------------------------------------------------------------------------------- CNF
 
 -- | Misc information on a CNF
 data CNFDescription = CNFDescription

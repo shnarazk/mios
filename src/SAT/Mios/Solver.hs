@@ -85,16 +85,15 @@ data Solver = Solver
               , stats      :: !(Vec [Int])       -- ^ statistics information holder
               , lbd'seen   :: !(Vec Int)         -- ^ used in lbd computation
               , lbd'key    :: !Int'              -- ^ used in lbd computation
-                -------- restart heuristics #62
-              , emaDFast    :: !Double'          -- ^ fast ema value of LBD
-              , emaDSlow    :: !Double'          -- ^ slow ema value of LBD
-              , emaAFast    :: !Double'          -- ^ fast ema value of assignment
-              , emaASlow    :: !Double'          -- ^ slow ema value of assignment
-              , emaRFast    :: !Double'          -- ^ fast ema value of decision level at conflict
-              , emaRSlow    :: !Double'          -- ^ slow ema value of decision level at conflict
-              , emaLFast    :: !Double'          -- ^ fast ema value of assignment
-              , emaLSlow    :: !Double'          -- ^ slow ema value of assignment
-              , emaScale    :: !Double'          -- ^ scaling factor
+                -------- restart heuristics #62, clause evaluation criteria #74
+              , emaAFast    :: !EMA              -- ^ Number of Assignments Fast
+              , emaASlow    :: !EMA              -- ^ Number of Assignments Slow
+              , emaBFast    :: !EMA              -- ^ Backjumped and Restart Dicision Level Fast
+              , emaBSlow    :: !EMA              -- ^ Backjumped and Restart Dicision Level Slow
+              , emaCFast    :: !EMA              -- ^ Conflicting Level Fast
+              , emaCSlow    :: !EMA              -- ^ Conflicting Level Slow
+              , emaDFast    :: !EMA              -- ^ (Literal Block) Distance Fast
+              , emaDSlow    :: !EMA              -- ^ (Literal Block) Distance Slow
               , nextRestart :: !Int'             -- ^ next restart in number of conflict
               }
 
@@ -141,16 +140,18 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> newVec nv 0                        -- lbd'seen
     <*> new' 0                             -- lbd'key
     -- restart heuristics #62
-    <*> new' 0.0                           -- emaDFast
-    <*> new' 0.0                           -- emaDSlow
-    <*> new' 0.0                           -- emaAFast
-    <*> new' 0.0                           -- emaASlow
-    <*> new' 0.0                           -- emaRFast
-    <*> new' 0.0                           -- emaRSlow
-    <*> new' 0.0                           -- emaLFast
-    <*> new' 0.0                           -- emaLSlow
-    <*> new' 0.0                           -- emaScale
+    <*> fastEma                            -- emaAFast
+    <*> slowEma                            -- emaASlow
+    <*> fastEma                            -- emaBFast
+    <*> slowEma                            -- emaBSlow
+    <*> fastEma                            -- emaCFast
+    <*> slowEma                            -- emaCSlow
+    <*> fastEma                            -- emaDFast
+    <*> slowEma                            -- emaDSlow
     <*> new' 100                           -- nextRestart
+  where
+    fastEma = newEMA False . fst $ emaCoeffs conf
+    slowEma = newEMA True . snd $ emaCoeffs conf
 
 --------------------------------------------------------------------------------
 -- Accessors
