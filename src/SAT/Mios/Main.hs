@@ -521,7 +521,9 @@ sortClauses s cm limit' = do
           else do a <- get' (activity c)               -- Second one... based on LBD
                   rLBD <- fromIntegral <$> get' (rank c)       -- above the level
                   rNDD <- fromIntegral <$> nddOf s (lits c)    -- under the level
-                  let r = ceiling . logBase 2 $ rLBD ** fillRate * rNDD ** (1 - fillRate)
+                  let r = if rNDD == 1                         -- this implies rLBD == 1.
+                          then 1
+                          else ceiling . logBase 2 $ rLBD ** fillRate * rNDD ** (1 - fillRate)
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax
