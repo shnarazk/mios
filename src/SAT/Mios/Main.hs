@@ -500,8 +500,8 @@ sortClauses s cm limit' = do
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
   updateNDD s
-  cl <- getEMA (emaCSlow s)
-  fillRate <- if cl == 0 then return 0 else (/ cl) <$> getEMA (emaBSlow s)  -- 0 <=backjumped level / coflict level < 1.0
+  cl <- getEMA (emaCFast s)
+  surface <- if cl == 0 then return 0 else (/ cl) <$> getEMA (emaBFast s)  -- 0 <=backjumped level / coflict level < 1.0
   let shiftLBD = activityWidth
       shiftIndex = shiftL 1 indexWidth
       am = fromIntegral activityMax :: Double
@@ -523,7 +523,7 @@ sortClauses s cm limit' = do
                   rNDD <- fromIntegral <$> nddOf s (lits c)    -- under the level
                   let r = if rNDD == 1                         -- this implies rLBD == 1.
                           then 1
-                          else ceiling . logBase 2 $ rLBD ** fillRate * rNDD ** (1 - fillRate)
+                          else ceiling . logBase 2 $ rLBD ** surface * rNDD ** (1 - surface)
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax
