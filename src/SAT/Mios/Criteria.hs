@@ -379,9 +379,10 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
   let filled = next <= count
       blockingRestart = filled && 1.25 * as < af
       forcingRestart = filled && 1.25 * ds < df
-  void $ updateEMA emaBFast (if forcingRestart then 0 else bLv)
+      lv' = if forcingRestart then 0 else bLv
+  void $ updateEMA emaBFast lv'
   when (0 < dumpSolverStatMode config) $ do void $ updateEMA emaCSlow cLv
-                                            void $ updateEMA emaBSlow (if forcingRestart then 0 else bLv)
+                                            void $ updateEMA emaBSlow lv'
   if (not blockingRestart && not forcingRestart)
     then return False
     else do incrementStat s (if blockingRestart then NumOfBlockRestart else NumOfRestart) 1
