@@ -395,11 +395,15 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
 
 -------------------------------------------------------------------------------- dump
 
-emaLabels :: [String]
-emaLabels = [ "emaAFast", "emaASlow" -- Assingment rate
-            , "emaBFast", "emaBSlow" -- Backjumped level
-            , "emaCFast", "emaCSlow" -- Conflicting level
-            , "emaDFast", "emaDSlow" -- (Literal Block) Distance
+emaLabels :: [(String, Solver -> EMA)]
+emaLabels = [ ("emaAFast", emaAFast)
+            , ("emaASlow", emaASlow)
+            , ("emaBFast", emaBFast)
+            , ("emaBSlow", emaBSlow)
+            , ("emaCFast", emaCFast)
+            , ("emaCSlow", emaCSlow)
+            , ("emaDFast", emaDFast)
+            , ("emaDSlow", emaDSlow)
             ]
 
 {-# INLINABLE dumpStats #-}
@@ -410,27 +414,21 @@ dumpStats NoDump _ = return ()
 
 dumpStats DumpCSVHeader s@Solver{..} = do
   sts <- init <$> getStats s
-  putStrLn . intercalate "," $ map (show . fst) sts ++ emaLabels
+  putStrLn . intercalate "," $ map (show . fst) sts ++ map fst emaLabels
 
 dumpStats DumpCSV s@Solver{..} = do
-  -- First update the stat data
+  -- update the stat data before dump
   va <- get' trailLim
   setStat s NumOfVariable . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
   setStat s NumOfAssigned =<< nAssigns s
   setStat s NumOfClause =<< get' clauses
   setStat s NumOfLearnt =<< get' learnts
   sts <- init <$> getStats s
-  let fs :: Double -> String
-      fs x = showFFloat (Just 3) x ""
-  af <- getEMA emaAFast
-  as <- getEMA emaASlow
-  bf <- getEMA emaBFast
-  bs <- getEMA emaBSlow
-  cf <- getEMA emaCFast
-  cs <- getEMA emaCSlow
-  df <- getEMA emaDFast
-  ds <- getEMA emaDSlow
-  putStrLn . intercalate "," $ map (show . snd) sts ++ map fs [af, as, bf, bs, cf, cs, df, ds]
+  let fs :: (Solver -> EMA) -> IO String
+      fs e = do x <- getEMA (e s)
+                return $ showFFloat (Just 3) x ""
+  vals <- mapM (fs . snd) emaLabels
+  putStrLn . intercalate "," $ map (show . snd) sts ++ vals
 
 -- | FIXME: use Util/Stat
 dumpStats DumpJSON _ = return ()                -- mode 2: JSON
