@@ -46,7 +46,7 @@ library:
   source-dirs:       src
 
 executables:
-  mios-74-altitude:
+  mios-74-altitude-no-read:
     source-dirs:     app
     main:            mios.hs
     dependencies:    mios

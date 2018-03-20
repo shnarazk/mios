@@ -73,11 +73,14 @@ executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just pat
 -- This is another entry point for standalone programs.
 executeSolver :: MiosProgramOption -> IO ()
 executeSolver opts@(_targetFile -> (Just cnfFile)) = do
-  t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
   (desc, cls) <- parseCNF (_targetFile opts)
   -- when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
   token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
   solverId <- myThreadId
+  s <- newSolver (toMiosConf opts) desc
+  injectClausesFromCNF s desc cls
+  t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
+  void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
   handle (\case
              UserInterrupt -> putStrLn "User interrupt recieved."
              ThreadKilled  -> reportResult opts t0 =<< readMVar token
@@ -87,13 +90,10 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
                          putMVar token (Left TimeOut)
                          killThread solverId
-    when (_confMaxSize opts < _numberOfVariables desc) $
+    when (False && _confMaxSize opts < _numberOfVariables desc) $
       if -1 == _confBenchmark opts
         then errorWithoutStackTrace $ "ABORT: too many variables to solve, " ++ show desc
         else putMVar token (Left OutOfMemory) >> killThread solverId
-    s <- newSolver (toMiosConf opts) desc
-    injectClausesFromCNF s desc cls
-    void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
     when (0 < _confDumpStat opts) $ dumpStats DumpCSVHeader s
     result <- solve s []
     putMVar token result
