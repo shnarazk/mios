@@ -90,7 +90,7 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
                          putMVar token (Left TimeOut)
                          killThread solverId
-    when (False && _confMaxSize opts < _numberOfVariables desc) $
+    when (_confMaxSize opts < _numberOfVariables desc) $
       if -1 == _confBenchmark opts
         then errorWithoutStackTrace $ "ABORT: too many variables to solve, " ++ show desc
         else putMVar token (Left OutOfMemory) >> killThread solverId
