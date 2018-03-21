@@ -75,12 +75,16 @@ executeSolver :: MiosProgramOption -> IO ()
 executeSolver opts@(_targetFile -> (Just cnfFile)) = do
   (desc, cls) <- parseCNF (_targetFile opts)
   -- when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
-  token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
   solverId <- myThreadId
+  when (_confMaxSize opts < _numberOfVariables desc || 10000000 < _numberOfClauses desc) $
+    if -1 == _confBenchmark opts
+      then errorWithoutStackTrace $ "ABORT: too many variables or clauses to solve, " ++ show desc
+      else reportResult opts 0 (Left OutOfMemory) >> killThread solverId
   s <- newSolver (toMiosConf opts) desc
   injectClausesFromCNF s desc cls
   t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
   void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
+  token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
   handle (\case
              UserInterrupt -> putStrLn "User interrupt recieved."
              ThreadKilled  -> reportResult opts t0 =<< readMVar token
