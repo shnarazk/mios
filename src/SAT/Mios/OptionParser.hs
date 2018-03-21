@@ -57,7 +57,7 @@ miosDefaultOption = MiosProgramOption
   , _confRestartF = restartExpansionF defaultConfiguration
   , _confRestartS = restartExpansionS defaultConfiguration
   --, _confRandomDecisionRate = randomDecisionRate defaultConfiguration
-  , _confMaxSize = 5000000    -- 5,000,000 = 5M
+  , _confMaxSize = 4000000    -- 4,000,000 = 4M
   , _confCheckAnswer = False
   , _confVerbose = False
   , _confBenchmark = -1
