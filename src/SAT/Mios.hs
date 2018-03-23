@@ -76,7 +76,7 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
   (desc, cls) <- parseCNF (_targetFile opts)
   -- when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
   solverId <- myThreadId
-  when (_confMaxSize opts < _numberOfVariables desc || 10000000 < _numberOfClauses desc) $
+  when (_confMaxClauses opts < _numberOfClauses desc) $
     if -1 == _confBenchmark opts
       then errorWithoutStackTrace $ "ABORT: too many variables or clauses to solve, " ++ show desc
       else reportResult opts 0 (Left OutOfMemory) >> killThread solverId
@@ -94,7 +94,7 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
                          putMVar token (Left TimeOut)
                          killThread solverId
-    when (_confMaxSize opts < _numberOfVariables desc) $
+    when (_confMaxClauses opts < _numberOfClauses desc) $
       if -1 == _confBenchmark opts
         then errorWithoutStackTrace $ "ABORT: too many variables to solve, " ++ show desc
         else putMVar token (Left OutOfMemory) >> killThread solverId
