@@ -120,7 +120,7 @@ instance StackFamily ClauseExtManager C.Clause where
     !b <- IORef.readIORef _keyVector
     if MV.length v - 1 <= n
       then do
-          let len = max 8 $ MV.length v
+          let len = max 8 $ div (MV.length v) 4
           v' <- MV.unsafeGrow v len
           b' <- growBy b len
           MV.unsafeWrite v' n c

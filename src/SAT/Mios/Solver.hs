@@ -104,7 +104,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     -- Clause Database
     <$> newManager dummy_nc                -- clauses
     <*> newManager 2000                    -- learnts
-    <*> newWatcherList nv 2                -- watches
+    <*> newWatcherList nv 512              -- watches
     -- Assignment Management
     <*> newVec nv LBottom                  -- assigns
     <*> newVec nv LBottom                  -- phases

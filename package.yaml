@@ -54,6 +54,7 @@ executables:
       - condition: flag(llvm)
         then:
           ghc-prof-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto -rtsopts
+                                --with-rtsopts="-A64M -c -H128M -M8G"
         else:
           ghc-prof-options:	-O2 -funbox-strict-fields -fprof-auto -rtsopts
   cnf-stat:
