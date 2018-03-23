@@ -99,7 +99,7 @@ data ClauseExtManager = ClauseExtManager
     _nActives     :: !Int'                         -- number of active clause
   , _purged       :: !Bool'                        -- whether it needs gc
   , _clauseVector :: IORef.IORef C.ClauseVector    -- clause list
-  , _keyVector    :: IORef.IORef (Vec [Int])     -- Int list
+  , _keyVector    :: IORef.IORef (Vec Int)         -- Int list
   }
 
 -- | 'ClauseExtManager' is a 'SingleStorage` on the number of clauses in it.
@@ -120,7 +120,7 @@ instance StackFamily ClauseExtManager C.Clause where
     !b <- IORef.readIORef _keyVector
     if MV.length v - 1 <= n
       then do
-          let len = max 8 $ div (MV.length v) 4
+          let len = max 8 $ div (MV.length v) 2
           v' <- MV.unsafeGrow v len
           b' <- growBy b len
           MV.unsafeWrite v' n c
@@ -228,7 +228,7 @@ purifyManager ClauseExtManager{..} = do
 
 -- | returns the associated Int vector, which holds /blocking literals/.
 {-# INLINE getKeyVector #-}
-getKeyVector :: ClauseExtManager -> IO (Vec [Int])
+getKeyVector :: ClauseExtManager -> IO (Vec Int)
 getKeyVector ClauseExtManager{..} = IORef.readIORef _keyVector
 
 -- | O(1) inserter
@@ -241,7 +241,7 @@ pushClauseWithKey ClauseExtManager{..} !c k = do
   !b <- IORef.readIORef _keyVector
   if MV.length v - 1 <= n
     then do
-        let len = max 8 $ div (MV.length v) 4
+        let len = max 8 $ div (MV.length v) 2
         v' <- MV.unsafeGrow v len
         b' <- growBy b len
         MV.unsafeWrite v' n c
@@ -277,7 +277,11 @@ type WatcherList = V.Vector ClauseExtManager
 -- | For /n/ vars, we need [0 .. 2 + 2 * n - 1] slots, namely /2 * (n + 1)/-length vector
 -- FIXME: sometimes n > 1M
 newWatcherList :: Int -> Int -> IO WatcherList
-newWatcherList n m = V.replicateM (int2lit (negate n) + 2) (newManager m)
+newWatcherList n m = do let n' = int2lit (negate n) + 2
+                        v <- MV.unsafeNew n'
+                        mapM_  (\i -> MV.unsafeWrite v i =<< newManager m) [0 .. n' - 1]
+                        V.unsafeFreeze v
+--  V.replicateM (int2lit (negate n) + 2) (newManager m)
 
 -- | returns the watcher List for "Literal" /l/.
 {-# INLINE getNthWatcher #-}

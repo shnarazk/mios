@@ -82,7 +82,7 @@ data Solver = Solver
               , an'lastDL  :: !Stack             -- ^ last decision level used in 'SAT.Mios.Main.analyze'
               , clsPool    :: ClausePool         -- ^ clause recycler
               , litsLearnt :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze' and 'SAT.Mios.Main.search' to create a learnt clause
-              , stats      :: !(Vec [Int])       -- ^ statistics information holder
+              , stats      :: !(Vec Int)         -- ^ statistics information holder
               , lbd'seen   :: !(Vec Int)         -- ^ used in lbd computation
               , lbd'key    :: !Int'              -- ^ used in lbd computation
                 -------- restart heuristics #62, clause evaluation criteria #74
@@ -104,7 +104,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     -- Clause Database
     <$> newManager dummy_nc                -- clauses
     <*> newManager 2000                    -- learnts
-    <*> newWatcherList nv 512              -- watches
+    <*> newWatcherList nv 1                -- watches
     -- Assignment Management
     <*> newVec nv LBottom                  -- assigns
     <*> newVec nv LBottom                  -- phases
