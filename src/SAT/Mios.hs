@@ -88,30 +88,31 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
       then errorWithoutStackTrace $ "ABORT: too many clauses to solve, " ++ show desc
       else reportResult opts 0 (Left OutOfMemory) >> killThread solverId
 
-  -- Streamly
   t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
   putStrLn $ " - number of clauses = " ++ show (_numberOfClauses desc)
-  s <- newSolver (toMiosConf opts) desc
-  it1 <- reportElapsedTime True " - making a new solver: " t0
-  injectClausesStreamly s desc cls
-  it2 <- reportElapsedTime True "injecting w/ streamly: " it1
 
   -- original ByteString
+  s <- newSolver (toMiosConf opts) desc
+  ct <- reportElapsedTime True "- making a new solver: " t0
+  injectClausesFromCNF s desc . snd =<< parseCNF (_targetFile opts)
+  ct <- reportElapsedTime True "injecting w/ ByteString: " ct
+
+  -- Streamly
   s1 <- newSolver (toMiosConf opts) desc
-  it3 <- reportElapsedTime False "- making a new solver: " it2
-  injectClausesFromCNF s1 desc . snd =<< parseCNF (_targetFile opts)
-  it4 <- reportElapsedTime True "injecting w/ ByteString: " it3
+  ct <- reportElapsedTime False " - making a new solver: " ct
+  injectClausesStreamly s1 desc cls
+  ct <- reportElapsedTime True "injecting w/ streamly: " ct
 
   -- Handle-based ByteString
   s2 <- newSolver (toMiosConf opts) desc
-  it5 <- reportElapsedTime False "- making a new solver: " it4
+  ct <- reportElapsedTime False "- making a new solver: " ct
   (desc', h') <- parseCNFHeader (_targetFile opts)
   injectClausesFromHandle s2 desc' h'
-  it6 <- reportElapsedTime True "injecting w/ Handle: " it5
+  ct <- reportElapsedTime True "injecting w/ Handle: " ct
 
   -- memory-to-memory pseudo generator
   s2 <- newSolver (toMiosConf opts) desc
-  it7 <- reportElapsedTime False " - making a new solver: " it6
+  ct <- reportElapsedTime False " - making a new solver: " ct
   realNc <- get' (clauses s)
   cvec <- getClauseVector (clauses s)
   let loop :: Int -> IO Int
@@ -120,7 +121,7 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
                   unless (c == NullClause) $ void $ addClause s2 (lits c)
                   loop (i + 1)
   realc <- loop 1
-  void $ reportElapsedTime True ("injecting w/o IO (" ++ show realc ++ "):") it7
+  void $ reportElapsedTime True ("injecting w/o IO (" ++ show realc ++ "):") ct
   -- killThread solverId
   putStrLn "solving..."
   void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
@@ -340,8 +341,18 @@ skipComments !s
   where
     c = B.head s
 
-{-# INLINABLE parseInt #-}
+{-# INLINE parseInt #-}
 parseInt :: B.ByteString -> (Int, B.ByteString)
+parseInt !st = do
+  let !zero = ord '0'
+      loop :: B.ByteString -> Int -> (Int, B.ByteString)
+      loop !s !val = case B.uncons s of
+        Just (c, s') -> if '0' <= c && c <= '9' then loop s' (val * 10 + ord c - zero) else (val, s')
+  case B.uncons st of
+    Just ('-', st') -> let (k, x) = loop st' 0 in (negate k, x)
+    Just ('0', st') -> (0, st')
+    _ -> loop st 0
+{-
 parseInt !st = do
   let !zero = ord '0'
       loop :: B.ByteString -> Int -> (Int, B.ByteString)
@@ -355,21 +366,21 @@ parseInt !st = do
     _   -> loop st 0
 --    c | '0' <= c && c <= '9'  -> loop st 0
 --    _ -> error "PARSE ERROR! Unexpected char"
+-}
 
-{-# INLINABLE readClause #-}
+{-# INLINE readClause #-}
 readClause :: Solver -> Stack -> Vec Int -> B.ByteString -> IO B.ByteString
 readClause s buffer bvec stream = do
-  let
-    loop :: Int -> B.ByteString -> IO B.ByteString
-    loop !i !b = case parseInt $ skipWhitespace b of
-                   (0, b') -> do setNth buffer 0 $ i - 1
-                                 sortStack buffer
-                                 void $ addClause s buffer
-                                 return b'
-                   (k, b') -> case int2lit k of
-                                l -> do setNth buffer i l
-                                        setNth bvec l LiftedT
-                                        loop (i + 1) b'
+  let loop :: Int -> B.ByteString -> IO B.ByteString
+      loop !i !b = case parseInt $ skipWhitespace b of
+                     (0, b') -> do setNth buffer 0 $ i - 1
+                                   sortStack buffer
+                                   void $ addClause s buffer
+                                   return b'
+                     (k, b') -> case int2lit k of
+                                  l -> do setNth buffer i l
+                                          setNth bvec l LiftedT
+                                          loop (i + 1) b'
   loop 1 . skipComments . skipWhitespace $ stream
 
 showPath :: FilePath -> String
@@ -384,6 +395,7 @@ showPath str = replicate (len - length basename) ' ' ++ if elem '/' str then bas
 parseCNFHeader :: Maybe FilePath -> IO (CNFDescription, Handle)
 parseCNFHeader target@(Just cnfFile) = do
   h <- openFile cnfFile ReadMode
+  liftIO $ hSetBuffering h LineBuffering
   let skip = do s <- B.hGetLine h
                 if B.empty == s
                   then return (CNFDescription (-1) (-1) target, undefined)
@@ -403,7 +415,6 @@ injectClausesStreamly s (CNFDescription nv nc _) h = do
   let maxLit = int2lit $ negate nv
   buffer <- newVec (maxLit + 1) 0 :: IO (Vec Int)
   polvec <- newVec (maxLit + 1) 0 :: IO (Vec Int)
-  liftIO $ hSetBuffering h LineBuffering
   let readClause' :: [Lit] -> IO ()
       readClause' lits = do
         let loop :: [Lit] -> Int -> IO ()
@@ -454,14 +465,14 @@ injectClausesFromHandle s (CNFDescription nv nc _) h = do
         checkPolarity $ v + 1
   checkPolarity 1
 
-{-# INLINABLE readClauseFromHandle #-}
+{-# INLINE readClauseFromHandle #-}
 readClauseFromHandle :: Solver -> Stack -> Vec Int -> Handle -> IO ()
 readClauseFromHandle s buffer bvec h = do
   let loop :: Int -> B.ByteString -> IO ()
       loop !i !b = case parseInt $ skipWhitespace b of
                      (0, _) -> do setNth buffer 0 $ i - 1
-                                   sortStack buffer
-                                   void $ addClause s buffer
+                                  sortStack buffer
+                                  void $ addClause s buffer
                      (k, b') -> case int2lit k of
                                   l -> do setNth buffer i l
                                           setNth bvec l LiftedT
