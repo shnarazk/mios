@@ -5,7 +5,7 @@
   , LambdaCase
   , ViewPatterns
 #-}
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 
 module SAT.Mios
        (
@@ -41,6 +41,8 @@ import Control.Monad ((<=<), unless, void, when)
 import Data.Char
 import qualified Data.ByteString.Char8 as B
 import Numeric (showFFloat)
+import Streamly
+import qualified Streamly.Prelude as S
 import System.CPUTime
 import System.Exit
 import System.IO
@@ -49,6 +51,9 @@ import SAT.Mios.Types
 import SAT.Mios.Main
 import SAT.Mios.OptionParser
 import SAT.Mios.Validator
+
+import SAT.Mios.Solver
+import SAT.Mios.Clause
 
 -- | version name
 versionId :: String
@@ -73,7 +78,8 @@ executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just pat
 -- This is another entry point for standalone programs.
 executeSolver :: MiosProgramOption -> IO ()
 executeSolver opts@(_targetFile -> (Just cnfFile)) = do
-  (desc, cls) <- parseCNF (_targetFile opts)
+  -- (desc, cls) <- parseCNF (_targetFile opts)
+  (desc, cls) <- parseCNFHeader (_targetFile opts)
   -- when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
   solverId <- myThreadId
   when (_confMaxClauses opts < _numberOfClauses desc) $
@@ -83,17 +89,25 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
   t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
   putStrLn $ "making a new solver..." ++ show (_numberOfClauses desc)
   s <- newSolver (toMiosConf opts) desc
+  it1 <- reportElapsedTime True "making a new solver: " t0
   putStrLn "injecting..."
-  buffer <- newVec 10 0 :: IO (Vec Int)
-  setNth buffer 0 4
-  setNth buffer 1 1
-  setNth buffer 2 3
-  setNth buffer 3 5
-  setNth buffer 4 7
-  mapM_ (\_ -> addClause s buffer) [1..10000000] -- 10,000,000
-  putStrLn "done"
+  -- injectClausesFromCNF s desc cls
+  injectClausesStreamly s desc cls
+  void $ reportElapsedTime True "injecting w/ streamly: " it1
+
+  putStrLn $ "making a new solver again..."
+  s' <- newSolver (toMiosConf opts) desc
+  it2 <- reportElapsedTime False "" 1
+  putStrLn "injecting..."
+  realNc <- get' (clauses s)
+  let loop :: Int -> IO Int
+      loop n@((< realNc) -> False) = return n
+      loop i = do c <- getNth (clauses s) i
+                  unless (c == NullClause) $ void $ addClause s' (lits c)
+                  loop (i + 1)
+  realc <- loop 0
+  void $ reportElapsedTime True ("injecting w/o I/O (" ++ show realc ++ "):") it2
   -- killThread solverId
-  injectClausesFromCNF s desc cls
   putStrLn "solving..."
   void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
   token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
@@ -350,3 +364,54 @@ showPath str = replicate (len - length basename) ' ' ++ if elem '/' str then bas
     len = 50
     basename = reverse . takeWhile (/= '/') . reverse $ str
     basename' = take len str
+
+-------------------------------------------------------------------------------- Streamly
+
+parseCNFHeader :: Maybe FilePath -> IO (CNFDescription, Handle)
+parseCNFHeader target@(Just cnfFile) = do
+  h <- openFile cnfFile ReadMode
+  let skip = do s <- B.hGetLine h
+                if B.empty == s
+                  then return (CNFDescription (-1) (-1) target, undefined)
+                  else case B.head s of
+                         'c'-> skip
+                         'p' -> let [_, cnf, nv', nc'] = B.words s
+                                    Just (nv, _) = B.readInt nv'
+                                    Just (nc, _) = B.readInt nc'
+                                in return (CNFDescription nv nc target, h)
+                         otherwise -> putStrLn (B.unpack s) >> skip
+  skip
+
+-- | parses ByteString then injects the clauses in it into a solver
+{-# INLINABLE injectClausesStreamly #-}
+injectClausesStreamly :: Solver -> CNFDescription -> Handle -> IO ()
+injectClausesStreamly s (CNFDescription nv nc _) h = do
+  let maxLit = int2lit $ negate nv
+  buffer <- newVec (maxLit + 1) 0 :: IO (Vec Int)
+  polvec <- newVec (maxLit + 1) 0 :: IO (Vec Int)
+  liftIO $ hSetBuffering h LineBuffering
+  let readClause' :: [Lit] -> IO ()
+      readClause' lits = do
+        let loop :: [Lit] -> Int -> IO ()
+            loop [] i = do setNth buffer 0 (i - 1) -- '1` is the literal corresponding to '0'
+                           -- sortStack buffer
+                           void $ addClause s buffer
+            loop (l:ls) i = do setNth buffer i l
+                               setNth polvec l LiftedT
+                               loop ls (i + 1)
+        loop lits 1
+  runStreaming $ parallely $ do y <- S.fromHandle h
+                                let lits = init $ map (int2lit . read) (words y)
+                                liftIO $ unless (null lits) $ readClause' lits
+  -- static polarity
+  let checkPolarity :: Int -> IO ()
+      checkPolarity ((< nv) -> False) = return ()
+      checkPolarity v = do
+        p <- getNth polvec $ var2lit v True
+        if p == LiftedF
+          then setAssign s v p
+          else do n <- getNth polvec $ var2lit v False
+                  when (n == LiftedF) $ setAssign s v p
+        checkPolarity $ v + 1
+  checkPolarity 1
+

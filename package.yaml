@@ -41,7 +41,7 @@ dependencies:
   - primitive >=0.6
   - bytestring >=0.10
   - vector >=0.12
-
+  - streamly
 library:
   source-dirs:       src
 
@@ -69,8 +69,6 @@ executables:
           buildable: true
         else:
           buildable: false
-
-executables:
   mios-st:
     source-dirs:     app
     main:            st.hs
