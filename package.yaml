@@ -46,14 +46,43 @@ library:
   source-dirs:       src
 
 executables:
-  mios-77:
+  mios-78:
     source-dirs:     app
     main:            mios.hs
-    dependencies:    mios
+    dependencies:
+      - mios
+      - streamly
     when:
       - condition: flag(llvm)
         then:
           ghc-prof-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto -rtsopts
+                                --rtsopts-with="-H16M -A16M"
+        else:
+          ghc-prof-options:	-O2 -funbox-strict-fields -fprof-auto -rtsopts
+  cnf-stat:
+    source-dirs:     utils
+    main:            cnf-stat.hs
+    dependencies:    mios
+    when:
+      - condition:   flag(utils)
+        then:
+          buildable: true
+        else:
+          buildable: false
+
+executables:
+  mios-st:
+    source-dirs:     app
+    main:            st.hs
+    dependencies:
+      - mios
+      - streamly
+      - path-io
+    when:
+      - condition: flag(llvm)
+        then:
+          ghc-prof-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto -rtsopts
+                                --rtsopts-with="-H16M -A16M"
         else:
           ghc-prof-options:	-O2 -funbox-strict-fields -fprof-auto -rtsopts
   cnf-stat:

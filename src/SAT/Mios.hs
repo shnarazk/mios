@@ -52,7 +52,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "mios-1.6.1WIP#72#73#74#77 -- https://github.com/shnarazk/mios"
+versionId = "mios-1.6.1WIP#72#73#74#77#78 -- https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ 0 = return 0
@@ -78,11 +78,23 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
   solverId <- myThreadId
   when (_confMaxClauses opts < _numberOfClauses desc) $
     if -1 == _confBenchmark opts
-      then errorWithoutStackTrace $ "ABORT: too many variables or clauses to solve, " ++ show desc
+      then errorWithoutStackTrace $ "ABORT: too many clauses to solve, " ++ show desc
       else reportResult opts 0 (Left OutOfMemory) >> killThread solverId
-  s <- newSolver (toMiosConf opts) desc
-  injectClausesFromCNF s desc cls
   t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
+  putStrLn $ "making a new solver..." ++ show (_numberOfClauses desc)
+  s <- newSolver (toMiosConf opts) desc
+  putStrLn "injecting..."
+  buffer <- newVec 10 0 :: IO (Vec Int)
+  setNth buffer 0 4
+  setNth buffer 1 1
+  setNth buffer 2 3
+  setNth buffer 3 5
+  setNth buffer 4 7
+  mapM_ (\_ -> addClause s buffer) [1..10000000] -- 10,000,000
+  putStrLn "done"
+  -- killThread solverId
+  injectClausesFromCNF s desc cls
+  putStrLn "solving..."
   void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
   token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
   handle (\case
@@ -129,7 +141,7 @@ reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
     UNSAT t -> do when (_confVerbose opts) $ hPutStrLn stderr "UNSAT" -- contradiction
                   print t
   dumpAssigmentAsCNF (_outputFile opts) result
-  valid <- if _confCheckAnswer opts || 0 <= _confBenchmark opts
+  valid <- if _confCheckAnswer opts -- || 0 <= _confBenchmark opts
            then case result of
                   SAT asg -> do (desc, cls) <- parseCNF (_targetFile opts)
                                 s' <- newSolver (toMiosConf opts) desc
@@ -264,11 +276,12 @@ parseCNF target@(Just cnfFile) = do
   seek =<< B.readFile cnfFile
 
 -- | parses ByteString then injects the clauses in it into a solver
+{-# INLINABLE injectClausesFromCNF #-}
 injectClausesFromCNF :: Solver -> CNFDescription -> B.ByteString -> IO ()
 injectClausesFromCNF s (CNFDescription nv nc _) bs = do
   let maxLit = int2lit $ negate nv
-  buffer <- newVec (maxLit + 1) 0
-  polvec <- newVec (maxLit + 1) 0
+  buffer <- newVec (maxLit + 1) 0 :: IO (Vec Int)
+  polvec <- newVec (maxLit + 1) 0 :: IO (Vec Int)
   let loop :: Int -> B.ByteString -> IO ()
       loop ((< nc) -> False) _ = return ()
       loop !i !b = loop (i + 1) =<< readClause s buffer polvec b
