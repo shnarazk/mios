@@ -41,7 +41,6 @@ dependencies:
   - primitive >=0.6
   - bytestring >=0.10
   - vector >=0.12
-  - streamly
 library:
   source-dirs:       src
 
@@ -51,7 +50,6 @@ executables:
     main:            mios.hs
     dependencies:
       - mios
-      - streamly
     when:
       - condition: flag(llvm)
         then:
@@ -69,20 +67,6 @@ executables:
           buildable: true
         else:
           buildable: false
-  mios-st:
-    source-dirs:     app
-    main:            st.hs
-    dependencies:
-      - mios
-      - streamly
-      - path-io
-    when:
-      - condition: flag(llvm)
-        then:
-          ghc-prof-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto -rtsopts
-                                --rtsopts-with="-H16M -A16M"
-        else:
-          ghc-prof-options:	-O2 -funbox-strict-fields -fprof-auto -rtsopts
   cnf-stat:
     source-dirs:     utils
     main:            cnf-stat.hs

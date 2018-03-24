@@ -41,8 +41,8 @@ import Control.Monad ((<=<), unless, void, when)
 import Data.Char
 import qualified Data.ByteString.Char8 as B
 import Numeric (showFFloat)
-import Streamly
-import qualified Streamly.Prelude as S
+-- import Streamly
+-- import qualified Streamly.Prelude as S
 import System.CPUTime
 import System.Exit
 import System.IO
@@ -52,9 +52,9 @@ import SAT.Mios.Main
 import SAT.Mios.OptionParser
 import SAT.Mios.Validator
 
-import SAT.Mios.Solver (clauses)
-import SAT.Mios.Clause (Clause(..))
-import SAT.Mios.ClauseManager (getClauseVector)
+-- import SAT.Mios.Solver (clauses)
+-- import SAT.Mios.Clause (Clause(..))
+-- import SAT.Mios.ClauseManager (getClauseVector)
 
 -- | version name
 versionId :: String
@@ -79,8 +79,7 @@ executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just pat
 -- This is another entry point for standalone programs.
 executeSolver :: MiosProgramOption -> IO ()
 executeSolver opts@(_targetFile -> (Just cnfFile)) = do
-  -- (desc, cls) <- parseCNF (_targetFile opts)
-  (desc, cls) <- parseCNFHeader (_targetFile opts)
+  (desc, cls) <- parseCNF (_targetFile opts)
   -- when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
   solverId <- myThreadId
   when (_confMaxClauses opts < _numberOfClauses desc) $
@@ -88,6 +87,7 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
       then errorWithoutStackTrace $ "ABORT: too many clauses to solve, " ++ show desc
       else reportResult opts 0 (Left OutOfMemory) >> killThread solverId
 
+{-
   t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
   putStrLn $ " - number of clauses = " ++ show (_numberOfClauses desc)
 
@@ -124,8 +124,9 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
   void $ reportElapsedTime True ("injecting w/o IO (" ++ show realc ++ "):") ct
   -- killThread solverId
   putStrLn "solving..."
-  void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
+-}
   token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
+  t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
   handle (\case
              UserInterrupt -> putStrLn "User interrupt recieved."
              ThreadKilled  -> reportResult opts t0 =<< readMVar token
@@ -135,10 +136,16 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
                          putMVar token (Left TimeOut)
                          killThread solverId
-    when (_confMaxClauses opts < _numberOfClauses desc) $
-      if -1 == _confBenchmark opts
-        then errorWithoutStackTrace $ "ABORT: too many variables to solve, " ++ show desc
-        else putMVar token (Left OutOfMemory) >> killThread solverId
+    -- when (_confMaxClauses opts < _numberOfClauses desc) $
+    --   if -1 == _confBenchmark opts
+    --     then errorWithoutStackTrace $ "ABORT: too many variables to solve, " ++ show desc
+    --     else putMVar token (Left OutOfMemory) >> killThread solverId
+    -- (desc, cls) <- parseCNFHeader (_targetFile opts)
+    s <- newSolver (toMiosConf opts) desc
+    -- ct <- reportElapsedTime True "- making a new solver: " t0
+    injectClausesFromCNF s desc cls
+    void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
+    -- ct <- reportElapsedTime True "injecting w/ ByteString: " ct
     when (0 < _confDumpStat opts) $ dumpStats DumpCSVHeader s
     result <- solve s []
     putMVar token result
@@ -390,6 +397,7 @@ showPath str = replicate (len - length basename) ' ' ++ if elem '/' str then bas
     basename = reverse . takeWhile (/= '/') . reverse $ str
     basename' = take len str
 
+{-
 -------------------------------------------------------------------------------- Streamly
 
 parseCNFHeader :: Maybe FilePath -> IO (CNFDescription, Handle)
@@ -478,3 +486,4 @@ readClauseFromHandle s buffer bvec h = do
                                           setNth bvec l LiftedT
                                           loop (i + 1) b'
   loop 1 . skipComments . skipWhitespace =<< B.hGetLine h
+-}
