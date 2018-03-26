@@ -43,14 +43,11 @@ makeClauseFromStack :: ClausePool -> Stack -> IO Clause
 makeClauseFromStack pool v = do
   let pickup :: Int -> IO Clause
       pickup ((<= storeLimit) -> False) = return NullClause
-      pickup i = do
-        let mgr = getManager pool i
-        nn <- get' mgr
-        if 0 < nn
-          then do c <- lastOf mgr
-                  popFrom mgr
-                  return c
-          else pickup $ i + 1
+      pickup i = do let mgr = getManager pool i
+                    nn <- get' mgr
+                    if 0 < nn
+                      then do c <- lastOf mgr; popFrom mgr; return c
+                      else pickup $ i + 1
   n <- get' v
   c <- pickup (n - 2)
   if c == NullClause
@@ -60,9 +57,7 @@ makeClauseFromStack pool v = do
                 loop ((<= n) -> False) = return ()
                 loop i = (setNth lstack i =<< getNth v i) >> loop (i + 1)
             loop 0
-            -- the caller (newLearntClause) should set these slots
-            --  - rank
-            --  - protected
+            -- the caller (newLearntClause) should set these slots: rank, protected
             set' (activity c) 0.0
             return c
 
