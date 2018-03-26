@@ -281,7 +281,6 @@ newWatcherList n m = do let n' = int2lit (negate n) + 2
                         v <- MV.unsafeNew n'
                         mapM_  (\i -> MV.unsafeWrite v i =<< newManager m) [0 .. n' - 1]
                         V.unsafeFreeze v
---  V.replicateM (int2lit (negate n) + 2) (newManager m)
 
 -- | returns the watcher List for "Literal" /l/.
 {-# INLINE getNthWatcher #-}

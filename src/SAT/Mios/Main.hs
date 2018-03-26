@@ -64,14 +64,13 @@ newLearntClause s@Solver{..} ps = do
            let lstack = lits c
                findMax :: Int -> Int -> Int -> IO Int -- Pick a second literal to watch:
                findMax ((<= k) -> False) j _ = return j
-               findMax i j val = do
-                 v <- lit2var <$> getNth lstack i
-                 a <- getNth assigns v
-                 b <- getNth level v
-                 if (a /= LBottom) && (val < b)
-                   then findMax (i + 1) i b
-                   else findMax (i + 1) j val
-           swapBetween lstack 2 =<< findMax 1 1 0 -- Let @max_i@ be the index of the literal with highest decision level
+               findMax i j val = do v <- lit2var <$> getNth lstack i
+                                    a <- getNth assigns v
+                                    b <- getNth level v
+                                    if (a /= LBottom) && (val < b)
+                                      then findMax (i + 1) i b
+                                      else findMax (i + 1) j val
+           swapBetween lstack 2 =<< findMax 1 1 0 -- get the index of the literal with highest level
            -- Bump, enqueue, store clause:
            claBumpActivity s c
            -- Add clause to all managers
@@ -84,7 +83,7 @@ newLearntClause s@Solver{..} ps = do
            unsafeEnqueue s l1 c
            -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
            lbd <- lbdOf s (lits c)
-           set' (rank c) lbd
+           setRank c lbd
            -- assert (0 < rank c)
            -- set' (protected c) True
            return lbd
@@ -142,7 +141,7 @@ analyze s@Solver{..} confl = do
   dl <- decisionLevel s
   let loopOnClauseChain :: Clause -> Lit -> Int -> Int -> Int -> IO Int
       loopOnClauseChain c p ti bl pathC = do -- p : literal, ti = trail index, bl = backtrack level
-        d <- get' (rank c)
+        d <- getRank c
         when (0 /= d) $ claBumpActivity s c
         -- update LBD like #Glucose4.0
         when (2 < d) $ do
@@ -150,7 +149,7 @@ analyze s@Solver{..} confl = do
           when (nblevels + 1 < d) $ -- improve the LBD
             -- when (d <= 30) $ set' (protected c) True -- 30 is `lbLBDFrozenClause`
             -- seems to be interesting: keep it fro the next round
-            set' (rank c) nblevels    -- Update it
+            setRank c nblevels     --  Update it
         sc <- get' c
         let lstack = lits c
             loopOnLiterals :: Int -> Int -> Int -> IO (Int, Int)
@@ -169,7 +168,7 @@ analyze s@Solver{..} confl = do
                           -- UPDATEVARACTIVITY: glucose heuristics
                           r <- getNth reason v
                           when (r /= NullClause) $ do
-                            ra <- get' (rank r)
+                            ra <- getRank r
                             when (0 /= ra) $ pushTo an'lastDL q
                           -- end of glucose heuristics
                           loopOnLiterals (j + 1) b (pc + 1)
@@ -519,7 +518,7 @@ sortClauses s cm limit' = do
           then do setNth keys (2 * i) 0
                   assignKey (i + 1) (t + 1)
           else do a <- get' (activity c)               -- Second one... based on LBD
-                  rLBD <- fromIntegral <$> get' (rank c)       -- above the level
+                  rLBD <- fromIntegral <$> getRank c           -- above the level
                   rNDD <- fromIntegral <$> nddOf s (lits c)    -- under the level
                   let r = if rNDD == 1                         -- this implies rLBD == 1.
                           then 1
