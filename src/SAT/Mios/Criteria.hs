@@ -136,99 +136,40 @@ claRescaleActivityAfterRestart Solver{..} = do
 -- * @Left True@ if the clause is satisfied
 -- * @Right clause@ if the clause is enqueued successfully
 {-# INLINABLE clauseNew #-}
-clauseNew :: Solver -> Stack -> Bool -> IO (Either Bool Clause)
-clauseNew s@Solver{..} ps isLearnt = do
-  -- now ps[0] is the number of living literals
-  exit <- do
-    let
-      handle :: Int -> Int -> Int -> IO Bool
-      handle j l n      -- removes duplicates, but returns @True@ if this clause is satisfied
-        | j > n = return False
-        | otherwise = do
-            y <- getNth ps j
-            if | y == l    -> do                      -- finds a duplicate
-                   swapBetween ps j n
-                   modifyNth ps (subtract 1) 0
-                   handle j l (n - 1)
-               | - y == l  -> reset ps >> return True -- p and negateLit p occurs in ps
-               | otherwise -> handle (j + 1) l n
-      loopForLearnt :: Int -> IO Bool
-      loopForLearnt i = do
-        n <- get' ps
-        if n < i
-          then return False
-          else do
-              l <- getNth ps i
-              sat <- handle (i + 1) l n
-              if sat
-                then return True
-                else loopForLearnt $ i + 1
-      loop :: Int -> IO Bool
-      loop i = do
-        n <- get' ps
-        if n < i
-          then return False
-          else do
-              l <- getNth ps i     -- check the i-th literal's satisfiability
-              sat <- valueLit s l  -- any literal in ps is true
-              case sat of
-               1  -> reset ps >> return True
-               -1 -> do
-                 swapBetween ps i n
-                 modifyNth ps (subtract 1) 0
-                 loop i
-               _ -> do
-                 sat' <- handle (i + 1) l n
-                 if sat'
-                   then return True
-                   else loop $ i + 1
-    if isLearnt then loopForLearnt 1 else loop 1
+clauseNew :: Solver -> Stack -> IO (Either Bool Clause)
+-- clauseNew s@Solver{..} ps True = error "unexpected call of clauseNew"
+clauseNew s@Solver{..} ps = do
+  n <- get' ps
+  sortStack ps
+  let loop :: Int -> Int -> Lit -> IO Bool
+      loop ((<= n) -> False) j _ = setNth ps 0 (j - 1) >> return False
+      loop i j l' = do l <- getNth ps i -- check the i-th literal's satisfiability
+                       sat <- valueLit s l
+                       if | sat == LiftedT || negateLit l == l' -> reset ps >> return True
+                          | sat /= LiftedF && l /= l' -> setNth ps j l >> loop (i + 1) (j + 1) l
+                          | otherwise -> loop (i + 1) j l'
+  exit <- loop 1 1 LBottom
   k <- get' ps
   case k of
    0 -> return (Left exit)
-   1 -> do
-     l <- getNth ps 1
-     Left <$> enqueue s l NullClause
-   _ -> do
-    -- allocate clause:
-     c <- newClauseFromStack isLearnt ps
-     let lstack = lits c
-     when isLearnt $ do
-       -- Pick a second literal to watch:
-       let
-         findMax :: Int -> Int -> Int -> IO Int
-         findMax ((<= k) -> False) j _ = return j
-         findMax i j val = do
-           v' <- lit2var <$> getNth lstack i
-           varBumpActivity s v' -- this is a just good chance to bump activities of literals in this clause
-           a <- getNth assigns v'
-           b <- getNth level v'
-           if (a /= LBottom) && (val < b)
-             then findMax (i + 1) i b
-             else findMax (i + 1) j val
-       -- Let @max_i@ be the index of the literal with highest decision level
-       max_i <- findMax 1 1 0
-       swapBetween lstack 2 max_i
-       -- check literals occurences
-       -- x <- asList c
-       -- unless (length x == length (nub x)) $ error "new clause contains a element doubly"
-       -- Bumping:
-       claBumpActivity s c -- newly learnt clauses should be considered active
-     -- Add clause to watcher lists:
-     l1 <- getNth lstack 1
-     l2 <- getNth lstack 2
-     pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
-     pushClauseWithKey (getNthWatcher watches (negateLit l2)) c 0
-     return (Right c)
+   1 -> do l <- getNth ps 1
+           Left <$> enqueue s l NullClause
+   _ -> do c <- newClauseFromStack False ps
+           let lstack = lits c
+           l1 <- getNth lstack 1
+           l2 <- getNth lstack 2
+           pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
+           pushClauseWithKey (getNthWatcher watches (negateLit l2)) c 0
+           return (Right c)
 
 -- | returns @False@ if a conflict has occured.
--- This function is called only before the solving phase to register the given clauses.
+-- This function is called only before the solving phase to register the given clauses (not learnt).
 {-# INLINABLE addClause #-}
 addClause :: Solver -> Stack -> IO Bool
 addClause s@Solver{..} vecLits = do
-  result <- clauseNew s vecLits False
+  result <- clauseNew s vecLits
   case result of
-   Left b  -> return b   -- No new clause was returned becaues a confilct occured or the clause is a literal
+   Left b  -> return b -- No clause is returned becaues a confilct occured or the clause is a literal
    Right c -> pushTo clauses c >> return True
 
 -------------------------------------------------------------------------------- Clause Metrics

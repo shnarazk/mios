@@ -381,7 +381,6 @@ readClause s buffer bvec stream = do
   let loop :: Int -> B.ByteString -> IO B.ByteString
       loop !i !b = case parseInt $ skipWhitespace b of
                      (0, b') -> do setNth buffer 0 $ i - 1
-                                   sortStack buffer
                                    void $ addClause s buffer
                                    return b'
                      (k, b') -> case int2lit k of
@@ -427,7 +426,6 @@ injectClausesStreamly s (CNFDescription nv nc _) h = do
       readClause' lits = do
         let loop :: [Lit] -> Int -> IO ()
             loop [] i = do setNth buffer 0 (i - 1) -- '1` is the literal corresponding to '0'
-                           sortStack buffer
                            void $ addClause s buffer
             loop (l:ls) i = do setNth buffer i l
                                setNth polvec l LiftedT
@@ -479,7 +477,6 @@ readClauseFromHandle s buffer bvec h = do
   let loop :: Int -> B.ByteString -> IO ()
       loop !i !b = case parseInt $ skipWhitespace b of
                      (0, _) -> do setNth buffer 0 $ i - 1
-                                  sortStack buffer
                                   void $ addClause s buffer
                      (k, b') -> case int2lit k of
                                   l -> do setNth buffer i l
