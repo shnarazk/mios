@@ -33,9 +33,8 @@ import SAT.Mios.Types
 data Clause = Clause
               {
                activity   :: !Double'  -- ^ activity of this clause
-              , lits       :: !Stack    -- ^ which this clause consists of
+              , lits       :: !Stack    -- ^ literals and rank
 --            , protected  :: !Bool'    -- ^ protected from reduce
---            , rank       :: !Int'     -- ^ goodness like LBD; computed in 'Ranking'
               }
   | NullClause                              -- as null pointer
 --  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
