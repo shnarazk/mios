@@ -67,5 +67,5 @@ putBackToPool :: ClausePool -> Clause -> IO ()
 putBackToPool pool c = do
   n <- get' c
   l <- getRank c
-  when (0 /= l) $ do let n = realLengthOfStack (lits c) - 3
+  when (0 /= l) $ do let n = realLengthOfStack (lits c) - 4 -- = | {size, watches x 2, rank} |
                      when (n <= storeLimit) $ pushTo (getManager pool n) c

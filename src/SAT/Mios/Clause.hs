@@ -109,7 +109,7 @@ getRank Clause{..} = do
   a <- getNth lits (n + 1)
   b <- get' rank
   if a == b then return () else error "rank broken!"
-  return a
+  return b
 
 {-# INLINE setRank #-}
 setRank :: Clause -> Int -> IO ()
