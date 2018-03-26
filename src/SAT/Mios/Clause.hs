@@ -100,11 +100,11 @@ newClauseFromStack l vec = do
     loop ((<= n) -> False) = setNth vec (n + 1) (if l then 1 else 0)
     loop i = (setNth v i =<< getNth vec i) >> loop (i + 1)
   loop 0
-  Clause <$> new' 0.0 {- <*> new' False -} <*> return v <*> new' (if l then 1 else 0)
+  Clause <$> new' 0.0 {- <*> new' False -} <*> return v
 
 {-# INLINE getRank #-}
 getRank :: Clause -> IO Int
-getRank Clause{..} = do n <- get' lits; a <- getNth lits (n + 1); return b
+getRank Clause{..} = do n <- get' lits; getNth lits (n + 1)
 
 {-# INLINE setRank #-}
 setRank :: Clause -> Int -> IO ()
