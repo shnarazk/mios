@@ -1,7 +1,8 @@
 -- | (This is a part of MIOS.)
 -- Advanced heuristics library for 'SAT.Mios.Main'
 {-# LANGUAGE
-    MultiWayIf
+    BangPatterns
+  , MultiWayIf
   , RecordWildCards
   , ViewPatterns
   #-}
@@ -137,17 +138,16 @@ claRescaleActivityAfterRestart Solver{..} = do
 -- * @Right clause@ if the clause is enqueued successfully
 {-# INLINABLE clauseNew #-}
 clauseNew :: Solver -> Stack -> IO (Either Bool Clause)
--- clauseNew s@Solver{..} ps True = error "unexpected call of clauseNew"
 clauseNew s@Solver{..} ps = do
   n <- get' ps
   sortStack ps
   let loop :: Int -> Int -> Lit -> IO Bool
       loop ((<= n) -> False) j _ = setNth ps 0 (j - 1) >> return False
-      loop i j l' = do l <- getNth ps i -- check the i-th literal's satisfiability
-                       sat <- valueLit s l
-                       if | sat == LiftedT || negateLit l == l' -> reset ps >> return True
-                          | sat /= LiftedF && l /= l' -> setNth ps j l >> loop (i + 1) (j + 1) l
-                          | otherwise -> loop (i + 1) j l'
+      loop !i !j !l' = do l <- getNth ps i -- check the i-th literal's satisfiability
+                          sat <- valueLit s l
+                          if | sat == LiftedT || negateLit l == l' -> reset ps >> return True
+                             | sat /= LiftedF && l /= l' -> setNth ps j l >> loop (i + 1) (j + 1) l
+                             | otherwise -> loop (i + 1) j l'
   exit <- loop 1 1 LBottom
   k <- get' ps
   case k of

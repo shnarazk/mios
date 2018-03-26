@@ -5,7 +5,7 @@
   , LambdaCase
   , ViewPatterns
 #-}
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Safe #-}
 
 module SAT.Mios
        (
@@ -79,9 +79,9 @@ executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just pat
 -- This is another entry point for standalone programs.
 executeSolver :: MiosProgramOption -> IO ()
 executeSolver opts@(_targetFile -> (Just cnfFile)) = do
+  solverId <- myThreadId
   (desc, cls) <- parseCNF (_targetFile opts)
   -- when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
-  solverId <- myThreadId
   when (_confMaxClauses opts < _numberOfClauses desc) $
     if -1 == _confBenchmark opts
       then errorWithoutStackTrace $ "ABORT: too many clauses to solve, " ++ show desc
@@ -136,11 +136,6 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
                          putMVar token (Left TimeOut)
                          killThread solverId
-    -- when (_confMaxClauses opts < _numberOfClauses desc) $
-    --   if -1 == _confBenchmark opts
-    --     then errorWithoutStackTrace $ "ABORT: too many variables to solve, " ++ show desc
-    --     else putMVar token (Left OutOfMemory) >> killThread solverId
-    -- (desc, cls) <- parseCNFHeader (_targetFile opts)
     s <- newSolver (toMiosConf opts) desc
     -- ct <- reportElapsedTime True "- making a new solver: " t0
     injectClausesFromCNF s desc cls
@@ -293,6 +288,13 @@ dumpAssigmentAsCNF (Just fname) (UNSAT _) =
 dumpAssigmentAsCNF (Just fname) (SAT l) =
   withFile fname WriteMode $ \h -> do hPutStrLn h "s SAT"; hPutStrLn h . (++ " 0") . unwords $ map show l
 
+showPath :: FilePath -> String
+showPath str = replicate (len - length basename) ' ' ++ if elem '/' str then basename else basename'
+  where
+    len = 50
+    basename = reverse . takeWhile (/= '/') . reverse $ str
+    basename' = take len str
+
 --------------------------------------------------------------------------------
 -- DIMACS CNF Reader
 --------------------------------------------------------------------------------
@@ -305,7 +307,7 @@ parseCNF target@(Just cnfFile) = do
                       (x, second) -> case B.readInt (skipWhitespace second) of
                                        Just (y, _) -> CNFDescription x y target
       seek :: B.ByteString -> IO (CNFDescription, B.ByteString)
-      seek bs
+      seek !bs
         | B.head bs == 'p' = return (parseP l, B.tail bs')
         | otherwise = seek (B.tail bs')
         where (l, bs') = B.span ('\n' /=) bs
@@ -359,21 +361,6 @@ parseInt !st = do
     Just ('-', st') -> let (k, x) = loop st' 0 in (negate k, x)
     Just ('0', st') -> (0, st')
     _ -> loop st 0
-{-
-parseInt !st = do
-  let !zero = ord '0'
-      loop :: B.ByteString -> Int -> (Int, B.ByteString)
-      loop !s !val = case B.head s of
-        c | '0' <= c && c <= '9'  -> loop (B.tail s) (val * 10 + ord c - zero)
-        _ -> (val, B.tail s)
-  case B.head st of
-    '-' -> let (k, x) = loop (B.tail st) 0 in (negate k, x)
-    '0' -> (0, B.tail st)
---    '+' -> loop st (0 :: Int)
-    _   -> loop st 0
---    c | '0' <= c && c <= '9'  -> loop st 0
---    _ -> error "PARSE ERROR! Unexpected char"
--}
 
 {-# INLINE readClause #-}
 readClause :: Solver -> Stack -> Vec Int -> B.ByteString -> IO B.ByteString
@@ -388,13 +375,6 @@ readClause s buffer bvec stream = do
                                           setNth bvec l LiftedT
                                           loop (i + 1) b'
   loop 1 . skipComments . skipWhitespace $ stream
-
-showPath :: FilePath -> String
-showPath str = replicate (len - length basename) ' ' ++ if elem '/' str then basename else basename'
-  where
-    len = 50
-    basename = reverse . takeWhile (/= '/') . reverse $ str
-    basename' = take len str
 
 {-
 -------------------------------------------------------------------------------- Streamly
