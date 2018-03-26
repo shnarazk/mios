@@ -86,44 +86,42 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
     if -1 == _confBenchmark opts
       then errorWithoutStackTrace $ "ABORT: too many clauses to solve, " ++ show desc
       else reportResult opts 0 (Left OutOfMemory) >> killThread solverId
-
 {-
   t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
   putStrLn $ " - number of clauses = " ++ show (_numberOfClauses desc)
 
   -- original ByteString
   s <- newSolver (toMiosConf opts) desc
-  ct <- reportElapsedTime True "- making a new solver: " t0
+  ct <- reportElapsedTime True " - making a new solver: " t0
   injectClausesFromCNF s desc . snd =<< parseCNF (_targetFile opts)
   ct <- reportElapsedTime True "injecting w/ ByteString: " ct
 
-  -- Streamly
-  s1 <- newSolver (toMiosConf opts) desc
-  ct <- reportElapsedTime False " - making a new solver: " ct
-  injectClausesStreamly s1 desc cls
-  ct <- reportElapsedTime True "injecting w/ streamly: " ct
+--  -- Streamly
+--  s' <- newSolver (toMiosConf opts) desc
+--  ct <- reportElapsedTime False " - making a new solver: " ct
+--  injectClausesStreamly s' desc cls
+--  ct <- reportElapsedTime True "injecting w/ streamly: " ct
 
-  -- Handle-based ByteString
-  s2 <- newSolver (toMiosConf opts) desc
-  ct <- reportElapsedTime False "- making a new solver: " ct
-  (desc', h') <- parseCNFHeader (_targetFile opts)
-  injectClausesFromHandle s2 desc' h'
-  ct <- reportElapsedTime True "injecting w/ Handle: " ct
+--  -- Handle-based ByteString
+--  s' <- newSolver (toMiosConf opts) desc
+--  ct <- reportElapsedTime False "- making a new solver: " ct
+--  (desc', h') <- parseCNFHeader (_targetFile opts)
+--  injectClausesFromHandle s' desc' h'
+--  ct <- reportElapsedTime True "injecting w/ Handle: " ct
 
   -- memory-to-memory pseudo generator
-  s2 <- newSolver (toMiosConf opts) desc
+  s' <- newSolver (toMiosConf opts) desc
   ct <- reportElapsedTime False " - making a new solver: " ct
   realNc <- get' (clauses s)
   cvec <- getClauseVector (clauses s)
   let loop :: Int -> IO Int
       loop n@((< realNc) -> False) = return n
       loop i = do c <- getNth cvec i
-                  unless (c == NullClause) $ void $ addClause s2 (lits c)
+                  unless (c == NullClause) $ void $ addClause s' (lits c)
                   loop (i + 1)
   realc <- loop 1
   void $ reportElapsedTime True ("injecting w/o IO (" ++ show realc ++ "):") ct
-  -- killThread solverId
-  putStrLn "solving..."
+  killThread solverId
 -}
   token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
   t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
