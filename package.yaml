@@ -50,6 +50,7 @@ executables:
     main:            mios.hs
     dependencies:
       - mios
+      - gitrev
     when:
       - condition: flag(llvm)
         then:
