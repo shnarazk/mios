@@ -88,10 +88,8 @@ data Solver = Solver
                 -------- restart heuristics #62, clause evaluation criteria #74
               , emaAFast    :: !EMA              -- ^ Number of Assignments Fast
               , emaASlow    :: !EMA              -- ^ Number of Assignments Slow
-              , emaBFast    :: !EMA              -- ^ Backjumped and Restart Dicision Level Fast
-              , emaBSlow    :: !EMA              -- ^ Backjumped and Restart Dicision Level Slow
-              , emaCFast    :: !EMA              -- ^ Conflicting Level Fast
-              , emaCSlow    :: !EMA              -- ^ Conflicting Level Slow
+              , emaBDLvl    :: !EMA              -- ^ Backjumped and Restart Dicision Level
+              , emaCDLvl    :: !EMA              -- ^ Conflicting Level
               , emaDFast    :: !EMA              -- ^ (Literal Block) Distance Fast
               , emaDSlow    :: !EMA              -- ^ (Literal Block) Distance Slow
               , nextRestart :: !Int'             -- ^ next restart in number of conflict
@@ -142,10 +140,8 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     -- restart heuristics #62
     <*> fastEma                            -- emaAFast
     <*> slowEma                            -- emaASlow
-    <*> fastEma                            -- emaBFast
-    <*> slowEma                            -- emaBSlow
-    <*> fastEma                            -- emaCFast
-    <*> slowEma                            -- emaCSlow
+    <*> newEMA True (2 ^ 10)               -- emaBDLvl
+    <*> newEMA True (2 ^ 10)               -- emaCDLvl
     <*> fastEma                            -- emaDFast
     <*> slowEma                            -- emaDSlow
     <*> new' 100                           -- nextRestart

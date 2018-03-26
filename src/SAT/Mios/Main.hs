@@ -499,8 +499,8 @@ sortClauses s cm limit' = do
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
   updateNDD s
-  cl <- getEMA (emaCFast s)
-  surface <- if cl == 0 then return 0 else (/ cl) <$> getEMA (emaBFast s)  -- 0 <=backjumped level / coflict level < 1.0
+  cl <- getEMA (emaCDLvl s)
+  surface <- if cl == 0 then return 0 else (/ cl) <$> getEMA (emaBDLvl s)  -- 0 <=backjumped level / coflict level < 1.0
   let shiftLBD = activityWidth
       shiftIndex = shiftL 1 indexWidth
       am = fromIntegral activityMax :: Double
