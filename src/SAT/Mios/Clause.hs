@@ -33,9 +33,9 @@ import SAT.Mios.Types
 data Clause = Clause
               {
                activity   :: !Double'  -- ^ activity of this clause
---            , protected  :: !Bool'    -- ^ protected from reduce
               , lits       :: !Stack    -- ^ which this clause consists of
-              , rank       :: !Int'     -- ^ goodness like LBD; computed in 'Ranking'
+--            , protected  :: !Bool'    -- ^ protected from reduce
+--            , rank       :: !Int'     -- ^ goodness like LBD; computed in 'Ranking'
               }
   | NullClause                              -- as null pointer
 --  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
@@ -104,19 +104,11 @@ newClauseFromStack l vec = do
 
 {-# INLINE getRank #-}
 getRank :: Clause -> IO Int
-getRank Clause{..} = do
-  n <- get' lits
-  a <- getNth lits (n + 1)
-  b <- get' rank
-  if a == b then return () else error "rank broken!"
-  return b
+getRank Clause{..} = do n <- get' lits; a <- getNth lits (n + 1); return b
 
 {-# INLINE setRank #-}
 setRank :: Clause -> Int -> IO ()
-setRank Clause{..} k = do
-  n <- get' lits
-  setNth lits (n + 1) k
-  set' rank k
+setRank Clause{..} k = do n <- get' lits; setNth lits (n + 1) k
 
 -------------------------------------------------------------------------------- Clause Vector
 
