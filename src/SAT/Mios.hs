@@ -95,6 +95,8 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
     -- ct <- reportElapsedTime True "- making a new solver: " t0
     injectClausesFromCNF s desc cls
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
+    -- putMVar token (Left TimeOut)
+    -- killThread solverId
     -- ct <- reportElapsedTime True "injecting w/ ByteString: " ct
     when (0 < _confDumpStat opts) $ dumpStats DumpCSVHeader s
     result <- solve s []
@@ -274,26 +276,18 @@ injectClausesFromCNF :: Solver -> CNFDescription -> B.ByteString -> IO ()
 injectClausesFromCNF s (CNFDescription nv nc _) bs = do
   let maxLit = int2lit $ negate nv
   buffer <- newVec (maxLit + 1) 0 :: IO (Vec Int)
-  polvec <- newVec (maxLit + 1) 0 :: IO (Vec Int)
   let loop :: Int -> B.ByteString -> IO ()
       loop ((< nc) -> False) _ = return ()
-      loop !i !b = loop (i + 1) =<< readClause s buffer polvec b
+      loop !i !b = loop (i + 1) =<< readClause s buffer b
   loop 0 bs
-  -- static polarity
-  let checkPolarity :: Int -> IO ()
-      checkPolarity ((< nv) -> False) = return ()
-      checkPolarity v = do
-        p <- getNth polvec $ var2lit v True
-        if p == LiftedF
-          then setAssign s v p
-          else do n <- getNth polvec $ var2lit v False
-                  when (n == LiftedF) $ setAssign s v p
-        checkPolarity $ v + 1
-  checkPolarity 1
 
 {-# INLINE skipWhitespace #-}
 skipWhitespace :: B.ByteString -> B.ByteString
-skipWhitespace !s = B.dropWhile (`elem` " \t\n") s
+skipWhitespace !s = B.dropWhile (== ' ') {- (`elem` " \t") -} s
+
+{-# INLINE skipWhitespace' #-}
+skipWhitespace' :: B.ByteString -> B.ByteString
+skipWhitespace' !s = B.dropWhile (`elem` " \t\n") s
 
 -- | skip comment lines
 -- __Pre-condition:__ we are on the benngining of a line
@@ -318,15 +312,14 @@ parseInt !st = do
     _ -> loop st 0
 
 {-# INLINE readClause #-}
-readClause :: Solver -> Stack -> Vec Int -> B.ByteString -> IO B.ByteString
-readClause s buffer bvec stream = do
+readClause :: Solver -> Stack {- -> Vec Int -} -> B.ByteString -> IO B.ByteString
+readClause s buffer {- bvec -} stream = do
   let loop :: Int -> B.ByteString -> IO B.ByteString
       loop !i !b = case parseInt $ skipWhitespace b of
-                     (0, b') -> do setNth buffer 0 $ i - 1
-                                   void $ addClause s buffer
-                                   return b'
-                     (k, b') -> case int2lit k of
-                                  l -> do setNth buffer i l
-                                          setNth bvec l LiftedT
-                                          loop (i + 1) b'
-  loop 1 . skipComments . skipWhitespace $ stream
+                     (k, b') -> if k == 0
+                                then do setNth buffer 0 $ i - 1
+                                        void $ addClause s buffer
+                                        return b'
+                                else do setNth buffer i (int2lit k)
+                                        loop (i + 1) b'
+  loop 1 . skipComments . skipWhitespace' $ stream
