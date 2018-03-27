@@ -32,7 +32,7 @@ import SAT.Mios.Types
 -- This matches both of @Clause@ and @GClause@ in MiniSat.
 data Clause = Clause
               {
-               activity   :: !Double'  -- ^ activity of this clause
+               activity    :: !Double'  -- ^ activity of this clause
               , lits       :: !Stack    -- ^ literals and rank
 --            , protected  :: !Bool'    -- ^ protected from reduce
               }
