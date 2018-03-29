@@ -82,16 +82,14 @@ data Solver = Solver
               , an'lastDL  :: !Stack             -- ^ last decision level used in 'SAT.Mios.Main.analyze'
               , clsPool    :: ClausePool         -- ^ clause recycler
               , litsLearnt :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze' and 'SAT.Mios.Main.search' to create a learnt clause
-              , stats      :: !(Vec [Int])       -- ^ statistics information holder
+              , stats      :: !(Vec Int)         -- ^ statistics information holder
               , lbd'seen   :: !(Vec Int)         -- ^ used in lbd computation
               , lbd'key    :: !Int'              -- ^ used in lbd computation
                 -------- restart heuristics #62, clause evaluation criteria #74
               , emaAFast    :: !EMA              -- ^ Number of Assignments Fast
               , emaASlow    :: !EMA              -- ^ Number of Assignments Slow
-              , emaBFast    :: !EMA              -- ^ Backjumped and Restart Dicision Level Fast
-              , emaBSlow    :: !EMA              -- ^ Backjumped and Restart Dicision Level Slow
-              , emaCFast    :: !EMA              -- ^ Conflicting Level Fast
-              , emaCSlow    :: !EMA              -- ^ Conflicting Level Slow
+              , emaBDLvl    :: !EMA              -- ^ Backjumped and Restart Dicision Level
+              , emaCDLvl    :: !EMA              -- ^ Conflicting Level
               , emaDFast    :: !EMA              -- ^ (Literal Block) Distance Fast
               , emaDSlow    :: !EMA              -- ^ (Literal Block) Distance Slow
               , nextRestart :: !Int'             -- ^ next restart in number of conflict
@@ -104,7 +102,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     -- Clause Database
     <$> newManager dummy_nc                -- clauses
     <*> newManager 2000                    -- learnts
-    <*> newWatcherList nv 2                -- watches
+    <*> newWatcherList nv 1                -- watches
     -- Assignment Management
     <*> newVec nv LBottom                  -- assigns
     <*> newVec nv LBottom                  -- phases
@@ -142,10 +140,8 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     -- restart heuristics #62
     <*> fastEma                            -- emaAFast
     <*> slowEma                            -- emaASlow
-    <*> fastEma                            -- emaBFast
-    <*> slowEma                            -- emaBSlow
-    <*> fastEma                            -- emaCFast
-    <*> slowEma                            -- emaCSlow
+    <*> newEMA True (2 ^ 10)               -- emaBDLvl
+    <*> newEMA True (2 ^ 10)               -- emaCDLvl
     <*> fastEma                            -- emaDFast
     <*> slowEma                            -- emaDSlow
     <*> new' 100                           -- nextRestart
