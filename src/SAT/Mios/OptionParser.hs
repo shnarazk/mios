@@ -93,7 +93,7 @@ miosOptions =
 --    "[solver] random selection rate (0 - 1000)"
   , Option [] ["maxsize"]
     (ReqArg (\v c -> c { _confMaxClauses = read v }) (show (_confMaxClauses miosDefaultOption)))
-    "[solver] limit of the number of variables"
+    "[solver] limit of the number of given clauses"
   , Option [':'] ["validate-assignment"]
     (NoArg (\c -> c { _validateAssignment = True }))
     "[solver] read an assignment from STDIN and validate it"
