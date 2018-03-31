@@ -45,16 +45,18 @@ varActivityThreshold = 1e100
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 {-# INLINE varBumpActivity #-}
 varBumpActivity :: Solver -> Var -> IO ()
-varBumpActivity s@Solver{..} x = do
-  a <- (+) <$> getNth activities x <*> get' varInc
-  setNth activities x a
+varBumpActivity s@Solver{..} v = do
+  x <- getNth activities v
+  y <- fromIntegral <$> getStat s NumOfBackjump
+  let a = (x + y) / 2
+  setNth activities v a
   when (varActivityThreshold < a) $ varRescaleActivity s
-  updateVO s x                    -- update the position in heap
+  updateVO s v                    -- update the position in heap
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE varDecayActivity #-}
 varDecayActivity :: Solver -> IO ()
-varDecayActivity Solver{..} = modify' varInc (/ variableDecayRate config)
+varDecayActivity Solver{..} = return () -- modify' varInc (/ variableDecayRate config)
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE varRescaleActivity #-}
