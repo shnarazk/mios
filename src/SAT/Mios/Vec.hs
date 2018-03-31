@@ -98,6 +98,7 @@ instance VecFamily (UVector Int) Int where
   growBy = UV.unsafeGrow
   asList v = mapM (UV.unsafeRead v) [0 .. UV.length v - 1]
 
+{-
 -- Note: type @[Int]@ is selected for 'UVector' not to export it.
 data instance Vec [Int] = Vec (UVector Int)
 
@@ -119,6 +120,7 @@ instance VecFamily (Vec [Int]) Int where
   {-# SPECIALIZE INLINE growBy :: Vec [Int] -> Int -> IO (Vec [Int]) #-}
   growBy (Vec v) n = Vec <$> UV.unsafeGrow v n
   asList (Vec v) = mapM (getNth v) [0 .. UV.length v - 1]
+-}
 
 {- NOT IN USE
 data instance Vec [Double] = Vec (UVector Double)
@@ -185,6 +187,9 @@ instance VecFamily ByteArrayInt Int where
                   BA.writeByteArray v 0 (0 :: Int)
                   BA.setByteArray v 1 n k
                   return $ ByteArrayInt v
+  growBy (ByteArrayInt v) n = do v' <- BA.newByteArray (BA.sizeofMutableByteArray v + 8 * n)
+                                 BA.copyMutableByteArray v' 0 v 0 (BA.sizeofMutableByteArray v)
+                                 return (ByteArrayInt v')
   asList (ByteArrayInt v) = mapM (BA.readByteArray v) [0 .. div (BA.sizeofMutableByteArray v) 8 - 1]
 
 instance VecFamily ByteArrayDouble Double where

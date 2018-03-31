@@ -59,6 +59,7 @@ data Solver = Solver
               , qHead      :: !Int'              -- ^ 'trail' is divided at qHead; assignment part and queue part
               , reason     :: !ClauseVector      -- ^ For each variable, the constraint that implied its value
               , level      :: !(Vec Int)         -- ^ For each variable, the decision level it was assigned
+              , ndd        :: !(Vec Int)         -- ^ For each variable, the number of depending decisions
               , conflicts  :: !Stack             -- ^ Set of literals in the case of conflicts
                 -------- Variable Order
               , activities :: !(Vec Double)      -- ^ Heuristic measurement of the activity of a variable
@@ -81,19 +82,16 @@ data Solver = Solver
               , an'lastDL  :: !Stack             -- ^ last decision level used in 'SAT.Mios.Main.analyze'
               , clsPool    :: ClausePool         -- ^ clause recycler
               , litsLearnt :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze' and 'SAT.Mios.Main.search' to create a learnt clause
-              , stats      :: !(Vec [Int])       -- ^ statistics information holder
+              , stats      :: !(Vec Int)         -- ^ statistics information holder
               , lbd'seen   :: !(Vec Int)         -- ^ used in lbd computation
               , lbd'key    :: !Int'              -- ^ used in lbd computation
-                -------- restart heuristics #62
-              , emaDFast    :: !Double'          -- ^ fast ema value of LBD
-              , emaDSlow    :: !Double'          -- ^ slow ema value of LBD
-              , emaAFast    :: !Double'          -- ^ fast ema value of assignment
-              , emaASlow    :: !Double'          -- ^ slow ema value of assignment
-              , emaRFast    :: !Double'          -- ^ fast ema value of decision level at conflict
-              , emaRSlow    :: !Double'          -- ^ slow ema value of decision level at conflict
-              , emaLFast    :: !Double'          -- ^ fast ema value of assignment
-              , emaLSlow    :: !Double'          -- ^ slow ema value of assignment
-              , emaScale    :: !Double'          -- ^ scaling factor
+                -------- restart heuristics #62, clause evaluation criteria #74
+              , emaAFast    :: !EMA              -- ^ Number of Assignments Fast
+              , emaASlow    :: !EMA              -- ^ Number of Assignments Slow
+              , emaBDLvl    :: !EMA              -- ^ Backjumped and Restart Dicision Level
+              , emaCDLvl    :: !EMA              -- ^ Conflicting Level
+              , emaDFast    :: !EMA              -- ^ (Literal Block) Distance Fast
+              , emaDSlow    :: !EMA              -- ^ (Literal Block) Distance Slow
               , nextRestart :: !Int'             -- ^ next restart in number of conflict
               }
 
@@ -104,7 +102,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     -- Clause Database
     <$> newManager dummy_nc                -- clauses
     <*> newManager 2000                    -- learnts
-    <*> newWatcherList nv 2                -- watches
+    <*> newWatcherList nv 1                -- watches
     -- Assignment Management
     <*> newVec nv LBottom                  -- assigns
     <*> newVec nv LBottom                  -- phases
@@ -113,6 +111,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> new' 0                             -- qHead
     <*> newClauseVector (nv + 1)           -- reason
     <*> newVec nv (-1)                     -- level
+    <*> newVec (2 * (nv + 1)) 0            -- ndd
     <*> newStack nv                        -- conflicts
     -- Variable Order
     <*> newVec nv 0                        -- activities
@@ -139,16 +138,16 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> newVec nv 0                        -- lbd'seen
     <*> new' 0                             -- lbd'key
     -- restart heuristics #62
-    <*> new' 0.0                           -- emaDFast
-    <*> new' 0.0                           -- emaDSlow
-    <*> new' 0.0                           -- emaAFast
-    <*> new' 0.0                           -- emaASlow
-    <*> new' 0.0                           -- emaRFast
-    <*> new' 0.0                           -- emaRSlow
-    <*> new' 0.0                           -- emaLFast
-    <*> new' 0.0                           -- emaLSlow
-    <*> new' 0.0                           -- emaScale
+    <*> fastEma                            -- emaAFast
+    <*> slowEma                            -- emaASlow
+    <*> newEMA True (2 ^ 10)               -- emaBDLvl
+    <*> newEMA True (2 ^ 10)               -- emaCDLvl
+    <*> fastEma                            -- emaDFast
+    <*> slowEma                            -- emaDSlow
     <*> new' 100                           -- nextRestart
+  where
+    fastEma = newEMA False . fst $ emaCoeffs conf
+    slowEma = newEMA True . snd $ emaCoeffs conf
 
 --------------------------------------------------------------------------------
 -- Accessors

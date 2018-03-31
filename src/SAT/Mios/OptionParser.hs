@@ -32,7 +32,7 @@ data MiosProgramOption = MiosProgramOption
                      , _confRestartF          :: Double
                      , _confRestartS          :: Double
 --                     , _confRandomDecisionRate :: Int
-                     , _confMaxSize           :: Int
+                     , _confMaxClauses        :: Int
                      , _confCheckAnswer       :: Bool
                      , _confVerbose           :: Bool
                      , _confBenchmark         :: Integer
@@ -57,7 +57,7 @@ miosDefaultOption = MiosProgramOption
   , _confRestartF = restartExpansionF defaultConfiguration
   , _confRestartS = restartExpansionS defaultConfiguration
   --, _confRandomDecisionRate = randomDecisionRate defaultConfiguration
-  , _confMaxSize = 5000000    -- 5,000,000 = 5M
+  , _confMaxClauses = 16000000   -- 16,000,000 = 16M
   , _confCheckAnswer = False
   , _confVerbose = False
   , _confBenchmark = -1
@@ -92,8 +92,8 @@ miosOptions =
 --    (ReqArg (\v c -> c { _confRandomDecisionRate = read v }) (show (_confRandomDecisionRate miosDefaultOption)))
 --    "[solver] random selection rate (0 - 1000)"
   , Option [] ["maxsize"]
-    (ReqArg (\v c -> c { _confMaxSize = read v }) (show (_confMaxSize miosDefaultOption)))
-    "[solver] limit of the number of variables"
+    (ReqArg (\v c -> c { _confMaxClauses = read v }) (show (_confMaxClauses miosDefaultOption)))
+    "[solver] limit of the number of given clauses"
   , Option [':'] ["validate-assignment"]
     (NoArg (\c -> c { _validateAssignment = True }))
     "[solver] read an assignment from STDIN and validate it"

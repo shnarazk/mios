@@ -41,21 +41,33 @@ dependencies:
   - primitive >=0.6
   - bytestring >=0.10
   - vector >=0.12
-
 library:
   source-dirs:       src
 
 executables:
-  mios-73:
+  mios-76:
     source-dirs:     app
     main:            mios.hs
-    dependencies:    mios
+    dependencies:
+      - mios
+      - gitrev
     when:
       - condition: flag(llvm)
         then:
           ghc-prof-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto -rtsopts
+                                --rtsopts-with="-H16M -A16M"
         else:
           ghc-prof-options:	-O2 -funbox-strict-fields -fprof-auto -rtsopts
+  cnf-stat:
+    source-dirs:     utils
+    main:            cnf-stat.hs
+    dependencies:    mios
+    when:
+      - condition:   flag(utils)
+        then:
+          buildable: true
+        else:
+          buildable: false
   cnf-stat:
     source-dirs:     utils
     main:            cnf-stat.hs

@@ -41,19 +41,25 @@ getData = function (single, t, p) {
     df <- rbind(df, data.frame(id=paste("assign ratio", tag), num=index,
                                value=d[["emaAFast"]]/d[["emaASlow"]], type="assign ratio"))
     df <- rbind(df, data.frame(id=paste("FAST", tag), num=index,
-                               value=d[["emaLFast"]], type="backjump level"))
+                               value=d[["emaBFast"]], type="backed level"))
     df <- rbind(df, data.frame(id=paste("SLOW", tag), num=index,
-                               value=d[["emaLSlow"]], type="backjump level"))
+                               value=d[["emaBSlow"]], type="backed level"))
     df <- rbind(df, data.frame(id=paste("level ratio", tag), num=index,
-                               value=d[["emaLFast"]]/d[["emaLSlow"]], type="blevel ratio"))
+                               value=d[["emaBFast"]]/d[["emaBSlow"]], type="blevel ratio"))
     df <- rbind(df, data.frame(id=paste("FAST", tag), num=index,
-                               value=d[["emaRFast"]], type="conflict level"))
+                               value=d[["emaCFast"]], type="conflict level"))
     df <- rbind(df, data.frame(id=paste("SLOW", tag), num=index,
-                               value=d[["emaRSlow"]], type="conflict level"))
+                               value=d[["emaCSlow"]], type="conflict level"))
     df <- rbind(df, data.frame(id=paste("level ratio", tag), num=index,
-                               value=d[["emaRFast"]]/d[["emaRSlow"]], type="clevel ratio"))
+                               value=d[["emaCFast"]]/d[["emaCSlow"]], type="clevel ratio"))
     df <- rbind(df, data.frame(id=paste("b/c ratio", tag), num=index,
-                               value=d[["emaRSlow"]]/d[["emaLSlow"]], type="b/c ratio"))
+                               value=d[["emaBSlow"]]/d[["emaCSlow"]], type="b/c ratio"))
+
+    df <- rbind(df, data.frame(id=paste("backed", tag), num=index,
+                               value=d[["emaBSlow"]], type="levels"))
+    df <- rbind(df, data.frame(id=paste("conflicting", tag), num=index,
+                               value=d[["emaCSlow"]], type="levels"))
+
     df
     }
 
@@ -124,14 +130,15 @@ graph = function (df, kind, mes, logGraph=FALSE, leg=FALSE, hls=NULL, vls=NULL) 
 
     df[["id"]] = gsub("=.+", "", df[["id"]])
     g2 <- graph(df, "assigns",        "EMA of the assigned vars for blocking restart", TRUE, FALSE, ew)
-    g3 <- graph(df, "assign ratio",   "", TRUE, FALSE, NULL, blockTh)
+    g3 <- graph(df, "assign ratio",   "assign fast / slow ratio", TRUE, FALSE, NULL, blockTh)
     g4 <- graph(df, "distances",      "EMA of Literal Block Distance for forcing restart", TRUE, FALSE, ew)
-    g5 <- graph(df, "distance ratio", "", TRUE, FALSE, NULL, forceTh)
-    g6 <- graph(df, "conflict level", "EMA of Decision Level of conflict", TRUE, FALSE, ew)
-    g7 <- graph(df, "clevel ratio",   "", TRUE, FALSE)
-    g8 <- graph(df, "backjump level", "EMA of Decision Level by BackJump", TRUE, FALSE, ew)
+    g5 <- graph(df, "distance ratio", "distance fast / slow ratio", TRUE, FALSE, NULL, forceTh)
+    g6 <- graph(df, "conflict level", "EMA of Decision Level of Conflict", TRUE, FALSE, NULL)
+#    g7 <- graph(df, "clevel ratio",   "conflict level fast / slow ratio", TRUE, FALSE)
+    g7 <- graph(df, "levels",   "EMA of conflicting and backed levels", TRUE, FALSE)
+    g8 <- graph(df, "backed level", "EMA of Decision Level by BackJump", TRUE, FALSE, NULL)
     # g9 <- graph(df, "blevel ratio",   "", TRUE)
-    g9 <- graph(df, "b/c ratio",   "", TRUE, FALSE)
+    g9 <- graph(df, "b/c ratio",   "backed level / conflict level (fill ratio)", TRUE, FALSE)
     grid.newpage()
     pushViewport(viewport(layout=grid.layout(5,2),width=0.94,height=0.94))
     print(g1, vp=viewport(layout.pos.row=1, layout.pos.col=c(1,2)))
