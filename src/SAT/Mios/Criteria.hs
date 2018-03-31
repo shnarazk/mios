@@ -244,23 +244,6 @@ updateNddOf Solver{..} v Clause{..} = do
                            loop (i + 1) low' high'
   loop 1 0 0
 
-{-
-updateNdlOf :: Solver -> Var -> Clause -> IO ()
-updateNdlOf Solver{..} v NullClause = do
-  l <- getNth level v
-  setNth ndl v $ if 0 == l then 0 else setBit 0 (63 .&. (l - 1))
-updateNdlOf Solver{..} v Clause{..} = do
-  n <- get' lits
-  setNth ndl v 0
-  let loop :: Int -> Int -> IO Int
-      loop ((<= n) -> False) k = return k
-      loop i k = do v' <- lit2var <$> getNth lits i
-                    -- a <- getNth assigns v'
-                    -- when (a == LBottom) $ error "unprepared path"
-                    loop (i + 1) . (k .|.) =<< getNth ndl v'
-  setNth ndl v =<< loop 1 0
--}
-
 -- | updates all assigned vars' ndl
 {-# INLINABLE updateNDD #-}
 updateNDD :: Solver -> IO ()
@@ -287,21 +270,6 @@ nddOf Solver{..} stack = do
                            h <- getNth ndd (iv + 1)
                            loop (i + 1) (low .|. l) (high .|. h)
   max 1 <$> loop 1 0 0
-
-{-
-{-# INLINABLE ndlOf #-}
-ndlOf :: Solver -> Stack -> IO Int
-ndlOf Solver{..} stack = do
-  n <- get' stack
-  let loop :: Int -> Int -> Int -> IO Int -- var -> #unassigns -> #bits
-      loop ((<= n) -> False) u k = return $ u + popCount k
-      loop i u k = do v <- lit2var <$> getNth stack i
-                      a <- getNth assigns v
-                      if a == LBottom
-                        then loop (i + 1) (u + 1) k
-                        else loop (i + 1) u . (k .|.) =<< getNth ndl v
-  loop 1 0 0
--}
 
 -------------------------------------------------------------------------------- restart
 
