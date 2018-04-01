@@ -38,11 +38,11 @@ import SAT.Mios.Criteria
 {-# INLINABLE removeWatch #-}
 removeWatch :: Solver -> Clause -> IO ()
 removeWatch Solver{..} c = do
-  let (Clause lstack) = c
+  let lstack = lits c
   l1 <- negateLit <$> getNth lstack 1
-  markClause (getNthWatcher watches l1) c nullClause
+  markClause (getNthWatcher watches l1) c
   l2 <- negateLit <$> getNth lstack 2
-  markClause (getNthWatcher watches l2) c nullClause
+  markClause (getNthWatcher watches l2) c
   putBackToPool clsPool c
 
 --------------------------------------------------------------------------------
@@ -58,10 +58,10 @@ newLearntClause s@Solver{..} ps = do
   k <- get' ps
   case k of
    1 -> do l <- getNth ps 1
-           unsafeEnqueue s l nullClause
+           unsafeEnqueue s l NullClause
            return 1
    _ -> do c <- makeClauseFromStack clsPool ps --  newClauseFromStack True ps
-           let (Clause lstack) = c
+           let lstack = lits c
                findMax :: Int -> Int -> Int -> IO Int -- Pick a second literal to watch:
                findMax ((<= k) -> False) j _ = return j
                findMax i j val = do v <- lit2var <$> getNth lstack i
@@ -82,7 +82,7 @@ newLearntClause s@Solver{..} ps = do
            -- update the solver state by @l@
            unsafeEnqueue s l1 c
            -- Since unsafeEnqueue updates the 1st literal's level, setLBD should be called after unsafeEnqueue
-           lbd <- lbdOf s lstack
+           lbd <- lbdOf s (lits c)
            setRank c lbd
            -- assert (0 < rank c)
            -- set' (protected c) True
@@ -99,7 +99,7 @@ newLearntClause s@Solver{..} ps = do
 simplify :: Solver -> Clause -> IO Bool
 simplify s c = do
   n <- get' c
-  let (Clause lstack) = c
+  let lstack = lits c
       loop ::Int -> IO Bool
       loop ((<= n) -> False) = return False
       loop i = do v <- valueLit s =<< getNth lstack i
@@ -144,15 +144,15 @@ analyze s@Solver{..} confl = do
         d <- getRank c
         when (0 /= d) $ claBumpActivity s c
         -- update LBD like #Glucose4.0
-        let (Clause lstack) = c
         when (2 < d) $ do
-          nblevels <- lbdOf s lstack
+          nblevels <- lbdOf s (lits c)
           when (nblevels + 1 < d) $ -- improve the LBD
             -- when (d <= 30) $ set' (protected c) True -- 30 is `lbLBDFrozenClause`
             -- seems to be interesting: keep it fro the next round
             setRank c nblevels     --  Update it
         sc <- get' c
-        let loopOnLiterals :: Int -> Int -> Int -> IO (Int, Int)
+        let lstack = lits c
+            loopOnLiterals :: Int -> Int -> Int -> IO (Int, Int)
             loopOnLiterals ((<= sc) -> False) b pc = return (b, pc) -- b = btLevel, pc = pathC
             loopOnLiterals j b pc = do
               (q :: Lit) <- getNth lstack j
@@ -167,7 +167,7 @@ analyze s@Solver{..} confl = do
                       then do
                           -- UPDATEVARACTIVITY: glucose heuristics
                           r <- getNth reason v
-                          when (r /= nullClause) $ do
+                          when (r /= NullClause) $ do
                             ra <- getRank r
                             when (0 /= ra) $ pushTo an'lastDL q
                           -- end of glucose heuristics
@@ -204,7 +204,7 @@ analyze s@Solver{..} confl = do
       loopOnLits ((<= n) -> False) n' = shrinkBy litsLearnt $ n - n' + 1
       loopOnLits i j = do
         l <- getNth litsLearnt i
-        c1 <- (nullClause ==) <$> getNth reason (lit2var l)
+        c1 <- (NullClause ==) <$> getNth reason (lit2var l)
         if c1
           then setNth litsLearnt j l >> loopOnLits (i + 1) (j + 1)
           else do
@@ -261,7 +261,7 @@ analyzeRemovable Solver{..} p minLevel = do
             c <- getNth reason (lit2var sl) -- getRoot sl
             nl <- get' c
             let
-              (Clause lstack) = c
+              lstack = lits c
               loopOnLit :: Int -> IO Bool -- loopOnLit (int i = 1; i < c.size(); i++){
               loopOnLit ((<= nl) -> False) = loopOnStack
               loopOnLit i = do
@@ -271,7 +271,7 @@ analyzeRemovable Solver{..} p minLevel = do
                 c1 <- (1 /=) <$> getNth an'seen v'
                 if c1 && (0 /= l')   -- if (!analyze_seen[var(p)] && level[var(p)] != 0){
                   then do
-                      c3 <- (nullClause /=) <$> getNth reason v'
+                      c3 <- (NullClause /=) <$> getNth reason v'
                       if c3 && testBit minLevel (l' .&. 63) -- if (reason[var(p)] != GClause_NULL && ((1 << (level[var(p)] & 31)) & min_level) != 0){
                         then do
                             setNth an'seen v' 1   -- analyze_seen[var(p)] = 1;
@@ -307,7 +307,7 @@ analyzeFinal Solver{..} confl skipFirst = do
   rl <- get' rootLevel
   unless (rl == 0) $ do
     n <- get' confl
-    let (Clause lstack) = confl
+    let lstack = lits confl
         loopOnConfl :: Int -> IO ()
         loopOnConfl ((<= n) -> False) = return ()
         loopOnConfl i = do
@@ -327,11 +327,11 @@ analyzeFinal Solver{..} confl skipFirst = do
           saw <- getNth an'seen x
           when (saw == 1) $ do
             (r :: Clause) <- getNth reason x
-            if r == nullClause
+            if r == NullClause
               then pushTo conflicts (negateLit l)
               else do
                   k <- get' r
-                  let (Clause lstack') = r
+                  let lstack' = lits r
                       loopOnLits :: Int -> IO ()
                       loopOnLits ((<= k) -> False) = return ()
                       loopOnLits j = do
@@ -386,7 +386,7 @@ propagate s@Solver{..} = do
                       forClause (i + 1) (j + 1)
               else do                               -- Make sure the false literal is data[1]:
                   (c :: Clause) <- getNth cvec i
-                  let (Clause lstack) = c
+                  let !lstack = lits c
                   tmp <- getNth lstack 1
                   first <- if falseLit == tmp
                            then do l2 <- getNth lstack 2
@@ -426,7 +426,7 @@ propagate s@Solver{..} = do
                               _       -> shrinkBy ws (i - j) >> return c   -- conflict
       c <- forClause 0 0
       while c =<< ((<) <$> get' qHead <*> get' trail)
-  while nullClause =<< ((<) <$> get' qHead <*> get' trail)
+  while NullClause =<< ((<) <$> get' qHead <*> get' trail)
 
 -- | #M22
 -- reduceDB: () -> [void]
@@ -519,8 +519,7 @@ sortClauses s cm limit' = do
                   assignKey (i + 1) (t + 1)
           else do a <- fromIntegral <$> getActivity c          -- Second one... based on LBD
                   rLBD <- fromIntegral <$> getRank c           -- above the level
-                  let (Clause lits) = c
-                  rNDD <- fromIntegral <$> nddOf s lits        -- under the level
+                  rNDD <- fromIntegral <$> nddOf s (lits c)    -- under the level
                   let r = if rNDD == 1                         -- this implies rLBD == 1.
                           then 1
                           else ceiling . logBase 2 $ rLBD ** surface * rNDD ** (1 - surface)
@@ -604,7 +603,7 @@ simplifyDB s@Solver{..} = do
   if good
     then do
       p <- propagate s
-      if p /= nullClause
+      if p /= NullClause
         then set' ok LiftedF >> return False
         else do
             -- Remove satisfied clauses and their watcher lists:
@@ -649,7 +648,7 @@ search s@Solver{..} = do
       loop restart = do
         confl <- propagate s
         d <- decisionLevel s
-        if confl /= nullClause  -- CONFLICT
+        if confl /= NullClause  -- CONFLICT
           then do incrementStat s NumOfBackjump 1
                   r <- get' rootLevel
                   if d == r                       -- Contradiction found:
@@ -726,7 +725,7 @@ solve s@Solver{..} assumps = do
                   cancelUntil s 0
                   return False
           else do confl <- propagate s
-                  if confl /= nullClause
+                  if confl /= NullClause
                     then do analyzeFinal s confl True
                             cancelUntil s 0
                             return False
@@ -764,4 +763,4 @@ unsafeEnqueue s@Solver{..} p from = do
 unsafeAssume :: Solver -> Lit -> IO ()
 unsafeAssume s@Solver{..} p = do
   pushTo trailLim =<< get' trail
-  unsafeEnqueue s p nullClause
+  unsafeEnqueue s p NullClause

@@ -75,7 +75,6 @@ data Solver = Solver
               , learntSCnt :: Int'               -- ^ used in 'SAT.Mios.Main.search'
               , maxLearnts :: Double'            -- ^ used in 'SAT.Mios.Main.search'
                 -------- Working Memory
-              , nullClause :: !Clause            -- ^
               , ok         :: !Int'              -- ^ internal flag
               , an'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.analyze'
               , an'toClear :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
@@ -98,20 +97,19 @@ data Solver = Solver
 
 -- | returns an everything-is-initialized solver from the arguments.
 newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
-newSolver conf (CNFDescription nv dummy_nc _) = do
-  null <- makeNullClause
+newSolver conf (CNFDescription nv dummy_nc _) =
   Solver
     -- Clause Database
-    <$> newManager dummy_nc null           -- clauses
-    <*> newManager 2000 null               -- learnts
-    <*> newWatcherList nv 1 null           -- watches
+    <$> newManager dummy_nc                -- clauses
+    <*> newManager 2000                    -- learnts
+    <*> newWatcherList nv 1                -- watches
     -- Assignment Management
     <*> newVec nv LBottom                  -- assigns
     <*> newVec nv LBottom                  -- phases
     <*> newStack nv                        -- trail
     <*> newStack nv                        -- trailLim
     <*> new' 0                             -- qHead
-    <*> newClauseVector (nv + 1) null      -- reason
+    <*> newClauseVector (nv + 1)           -- reason
     <*> newVec nv (-1)                     -- level
     <*> newVec (2 * (nv + 1)) 0            -- ndd
     <*> newStack nv                        -- conflicts
@@ -129,13 +127,12 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> new' 100                           -- learntSCnt
     <*> new' 2000                          -- maxLearnts
     -- Working Memory
-    <*> makeNullClause                     -- nullClause
     <*> new' LiftedT                       -- ok
     <*> newVec nv 0                        -- an'seen
     <*> newStack nv                        -- an'toClear
     <*> newStack nv                        -- an'stack
     <*> newStack nv                        -- an'lastDL
-    <*> newClausePool 10 null              -- clsPool
+    <*> newClausePool 10                   -- clsPool
     <*> newStack nv                        -- litsLearnt
     <*> newVec (fromEnum EndOfStatIndex) 0 -- stats
     <*> newVec nv 0                        -- lbd'seen
@@ -189,7 +186,7 @@ valueLit (assigns -> a) p = (\x -> if positiveLit p then x else negate x) <$> ge
 -- returns @True@ if the clause is locked (used as a reason). __Learnt clauses only__
 {-# INLINE locked #-}
 locked :: Solver -> Clause -> IO Bool
-locked s c@(Clause lits) = (c ==) <$> (getNth (reason s) . lit2var =<< getNth lits 1)
+locked s c = (c ==) <$> (getNth (reason s) . lit2var =<< getNth (lits c) 1)
 
 -------------------------------------------------------------------------------- Statistics
 
@@ -253,7 +250,7 @@ enqueue s@Solver{..} p from = do
 assume :: Solver -> Lit -> IO Bool
 assume s p = do
   pushTo (trailLim s) =<< get' (trail s)
-  enqueue s p (nullClause s)
+  enqueue s p NullClause
 
 -- | #M22: Revert to the states at given level (keeping all assignment at 'level' but not beyond).
 {-# INLINABLE cancelUntil #-}
@@ -274,7 +271,7 @@ cancelUntil s@Solver{..} lvl = do
         -- #reason to set reason Null
         -- if we don't clear @reason[x] :: Clause@ here, @reason[x]@ remains as locked.
         -- This means we can't reduce it from clause DB and affects the performance.
-        setNth reason x nullClause -- 'analyze` uses reason without checking assigns
+        setNth reason x NullClause -- 'analyze` uses reason without checking assigns
         -- FIXME: #polarity https://github.com/shnarazk/minisat/blosb/master/core/Solver.cc#L212
         undoVO s x
         -- insertHeap s x              -- insertVerOrder
