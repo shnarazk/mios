@@ -158,9 +158,9 @@ clauseNew s@Solver{..} ps = do
   case k of
    0 -> return (Left exit)
    1 -> do l <- getNth ps 1
-           Left <$> enqueue s l NullClause
+           Left <$> enqueue s l nullClause
    _ -> do c <- newClauseFromStack False ps
-           let lstack = lits c
+           let (Clause lstack) = c
            l1 <- getNth lstack 1
            l2 <- getNth lstack 2
            pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
@@ -230,24 +230,23 @@ varBit2bIndex v b = mod b 62
 -- | updates a /var/'s ndl, which is assigned by a 'reason' /clause/
 {-# INLINE updateNddOf #-}
 updateNddOf :: Solver -> Var -> Clause -> IO ()
-updateNddOf Solver{..} v NullClause = do
-  l <- getNth level v
-  setNth ndd (varBit2vIndex v l) $ if l == 0 then 0 else setBit 0 (varBit2bIndex v l)
-
-updateNddOf Solver{..} v Clause{..} = do
-  n <- get' lits
-  let iv = varBit2vIndex v 0
-  setNth ndd iv 0
-  setNth ndd (iv + 1) 0
-  let loop :: Int -> Int -> Int -> IO ()
-      loop ((<= n) -> False) low high = do setNth ndd iv low
-                                           setNth ndd (iv + 1) high
-      loop i low high = do v' <- lit2var <$> getNth lits i
-                           let jv = varBit2vIndex v' 0
-                           low' <- (low .|.) <$> getNth ndd jv
-                           high' <- (high .|.) <$> getNth ndd (jv + 1)
-                           loop (i + 1) low' high'
-  loop 1 0 0
+updateNddOf Solver{..} v c@(Clause lits) = do
+  n <- get' c
+  case n of
+    0 -> do l <- getNth level v
+            setNth ndd (varBit2vIndex v l) $ if l == 0 then 0 else setBit 0 (varBit2bIndex v l)
+    _ -> do let iv = varBit2vIndex v 0
+            setNth ndd iv 0
+            setNth ndd (iv + 1) 0
+            let loop :: Int -> Int -> Int -> IO ()
+                loop ((<= n) -> False) low high = do setNth ndd iv low
+                                                     setNth ndd (iv + 1) high
+                loop i low high = do v' <- lit2var <$> getNth lits i
+                                     let jv = varBit2vIndex v' 0
+                                     low' <- (low .|.) <$> getNth ndd jv
+                                     high' <- (high .|.) <$> getNth ndd (jv + 1)
+                                     loop (i + 1) low' high'
+            loop 1 0 0
 
 -- | updates all assigned vars' ndl
 {-# INLINABLE updateNDD #-}

@@ -12,6 +12,7 @@
 module SAT.Mios.Clause
        (
          Clause (..)
+       , makeNullClause
        , newClauseFromStack
        , getRank
        , setRank
@@ -32,12 +33,8 @@ import SAT.Mios.Types
 -- | __Fig. 7.(p.11)__
 -- normal, null (and binary) clause.
 -- This matches both of @Clause@ and @GClause@ in MiniSat.
-data Clause = Clause
-              {
-                lits       :: !Stack    -- ^ literals and rank
-              }
-  | NullClause                              -- as null pointer
---  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
+newtype Clause = Clause Stack          -- ^ literals and rank
+--  | BinaryClause Lit                 -- binary clause consists of only a propagating literal
 
 -- | The equality on 'Clause' is defined with 'reallyUnsafePtrEquality'.
 instance Eq Clause where
@@ -45,18 +42,18 @@ instance Eq Clause where
   (==) x y = x `seq` y `seq` tagToEnum# (reallyUnsafePtrEquality# x y)
 
 instance Show Clause where
-  show NullClause = "NullClause"
+--  show NullClause = "NullClause"
   show _ = "a clause"
 
 -- | 'Clause' is a 'VecFamily' of 'Lit'.
 instance VecFamily Clause Lit where
   {-# SPECIALIZE INLINE getNth :: Clause -> Int -> IO Int #-}
-  getNth Clause{..} n = error "no getNth for Clause"
+  getNth _ n = error "no getNth for Clause"
   {-# SPECIALIZE INLINE setNth :: Clause -> Int -> Int -> IO () #-}
-  setNth Clause{..} n x = error "no setNth for Clause"
+  setNth _ n x = error "no setNth for Clause"
   -- | returns a vector of literals in it.
-  asList NullClause = return []
-  asList Clause{..} = take <$> get' lits <*> (tail <$> asList lits)
+--  asList NullClause = return []
+  asList cls = take <$> get' cls <*> (tail <$> asList cls)
   -- dump mes NullClause = return $ mes ++ "Null"
   -- dump mes Clause{..} = return $ mes ++ "a clause"
 {-
@@ -71,18 +68,18 @@ instance VecFamily Clause Lit where
 instance SingleStorage Clause Int where
   -- | returns the number of literals in a clause, even if the given clause is a binary clause
   {-# SPECIALIZE INLINE get' :: Clause -> IO Int #-}
-  get' = get' . lits
+  get' (Clause c) = get' c
   -- getSize (BinaryClause _) = return 1
   -- | sets the number of literals in a clause, even if the given clause is a binary clause
   {-# SPECIALIZE INLINE set' :: Clause -> Int -> IO () #-}
-  set' c n = set' (lits c) n
+  set' (Clause c) n = set' c n
   -- getSize (BinaryClause _) = return 1
 
 -- | 'Clause' is a 'Stackfamily'on literals since literals in it will be discared if satisifed at level = 0.
 instance StackFamily Clause Lit where
   -- | drop the last /N/ literals in a 'Clause' to eliminate unsatisfied literals
   {-# SPECIALIZE INLINE shrinkBy :: Clause -> Int -> IO () #-}
-  shrinkBy c n = modifyNth (lits c) (subtract n) 0
+  shrinkBy (Clause c) n = modifyNth c (subtract n) 0
 
 -- coverts a binary clause to normal clause in order to reuse map-on-literals-in-a-clause codes.
 -- liftToClause :: Clause -> Clause
@@ -100,21 +97,24 @@ newClauseFromStack l vec = do
   loop 0
   return $ Clause v
 
+makeNullClause :: IO Clause
+makeNullClause = do v <- newStack 0; set' v 0; return $ Clause v
+
 {-# INLINE getRank #-}
 getRank :: Clause -> IO Int
-getRank Clause{..} = do n <- get' lits; getNth lits (n + 1)
+getRank cls = do n <- get' cls; getNth cls (n + 1)
 
 {-# INLINE setRank #-}
 setRank :: Clause -> Int -> IO ()
-setRank Clause{..} k = do n <- get' lits; setNth lits (n + 1) k
+setRank cls k = do n <- get' cls; setNth cls (n + 1) k
 
 {-# INLINE getActivity #-}
 getActivity :: Clause -> IO Int
-getActivity Clause{..} = do n <- get' lits; getNth lits (n + 2)
+getActivity cls = do n <- get' cls; getNth cls (n + 2)
 
 {-# INLINE setActivity #-}
 setActivity :: Clause -> Int -> IO ()
-setActivity Clause{..} k = do n <- get' lits; setNth lits (n + 2) k
+setActivity cls k = do n <- get' cls; setNth cls (n + 2) k
 
 -------------------------------------------------------------------------------- Clause Vector
 
@@ -138,8 +138,8 @@ instance VecFamily ClauseVector Clause where
 -}
 
 -- | returns a new 'ClauseVector'.
-newClauseVector  :: Int -> IO ClauseVector
-newClauseVector n = do
+newClauseVector  :: Int -> Clause -> IO ClauseVector
+newClauseVector n null = do
   v <- MV.new (max 4 n)
-  MV.set v NullClause
+  MV.set v null
   return v
