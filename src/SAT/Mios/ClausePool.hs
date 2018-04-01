@@ -27,9 +27,6 @@ type ClausePool = V.Vector CM.ClauseSimpleManager
 storeLimit :: Int
 storeLimit = 62
 
-numExtraFields :: Int
-numExtraFields = 3 -- size + rank + activity
-
 -- | returns a new 'ClausePool'
 newClausePool ::Int -> IO ClausePool
 newClausePool n = V.fromList <$> mapM (\_ -> CM.newManager n) [0 .. storeLimit]
@@ -46,13 +43,13 @@ makeClauseFromStack :: ClausePool -> Stack -> IO Clause
 makeClauseFromStack pool v = do
   let pickup :: Int -> IO Clause
       pickup ((<= storeLimit) -> False) = return NullClause
-      pickup i = do let mgr = getManager pool i
-                    nn <- get' mgr
-                    if 0 < nn
-                      then do c <- lastOf mgr; popFrom mgr; return c
-                      else pickup $ i + 1
+      pickup numLits = do let mgr = getManager pool numLits
+                          nn <- get' mgr
+                          if 0 < nn
+                            then do c <- lastOf mgr; popFrom mgr; return c
+                            else pickup $ numLits + 1
   n <- get' v
-  c <- pickup (n - numExtraFields)
+  c <- pickup (n - 2) -- mapping the number of literals for the smallest clauses to zero
   if c == NullClause
     then newClauseFromStack True v
     else do let lstack = lits c
@@ -69,5 +66,4 @@ putBackToPool :: ClausePool -> Clause -> IO ()
 putBackToPool pool c = do
   n <- get' c
   l <- getRank c
-  when (0 /= l) $ do let n = realLengthOfStack (lits c) - numExtraFields
-                     when (n <= storeLimit) $ pushTo (getManager pool n) c
+  when (0 /= l) $ do when (n <= storeLimit) $ pushTo (getManager pool n) c
