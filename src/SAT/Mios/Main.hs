@@ -517,7 +517,7 @@ sortClauses s cm limit' = do
         if k == 2                  -- Main criteria. Like in MiniSat we keep all binary clauses
           then do setNth keys (2 * i) 0
                   assignKey (i + 1) (t + 1)
-          else do a <- get' (activity c)               -- Second one... based on LBD
+          else do a <- fromIntegral <$> getActivity c          -- Second one... based on LBD
                   rLBD <- fromIntegral <$> getRank c           -- above the level
                   rNDD <- fromIntegral <$> nddOf s (lits c)    -- under the level
                   let r = if rNDD == 1                         -- this implies rLBD == 1.

@@ -27,6 +27,9 @@ type ClausePool = V.Vector CM.ClauseSimpleManager
 storeLimit :: Int
 storeLimit = 62
 
+numExtraFields :: Int
+numExtraFields = 3 -- size + rank + activity
+
 -- | returns a new 'ClausePool'
 newClausePool ::Int -> IO ClausePool
 newClausePool n = V.fromList <$> mapM (\_ -> CM.newManager n) [0 .. storeLimit]
@@ -49,16 +52,15 @@ makeClauseFromStack pool v = do
                       then do c <- lastOf mgr; popFrom mgr; return c
                       else pickup $ i + 1
   n <- get' v
-  c <- pickup (n - 2)
+  c <- pickup (n - numExtraFields)
   if c == NullClause
     then newClauseFromStack True v
     else do let lstack = lits c
                 loop :: Int -> IO ()
-                loop ((<= n) -> False) = return ()
+                loop ((<= n) -> False) = setActivity c 1
                 loop i = (setNth lstack i =<< getNth v i) >> loop (i + 1)
             loop 0
             -- the caller (newLearntClause) should set these slots: rank, protected
-            set' (activity c) 0.0
             return c
 
 -- | Note: only not-too-large and learnt clauses are recycled.
@@ -67,5 +69,5 @@ putBackToPool :: ClausePool -> Clause -> IO ()
 putBackToPool pool c = do
   n <- get' c
   l <- getRank c
-  when (0 /= l) $ do let n = realLengthOfStack (lits c) - 4 -- = | {size, watches x 2, rank} |
+  when (0 /= l) $ do let n = realLengthOfStack (lits c) - numExtraFields
                      when (n <= storeLimit) $ pushTo (getManager pool n) c

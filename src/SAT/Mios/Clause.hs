@@ -15,6 +15,8 @@ module SAT.Mios.Clause
        , newClauseFromStack
        , getRank
        , setRank
+       , getActivity
+       , setActivity
          -- * Vector of Clause
        , ClauseVector
        , newClauseVector
@@ -32,9 +34,7 @@ import SAT.Mios.Types
 -- This matches both of @Clause@ and @GClause@ in MiniSat.
 data Clause = Clause
               {
-               activity    :: !Double'  -- ^ activity of this clause
-              , lits       :: !Stack    -- ^ literals and rank
---            , protected  :: !Bool'    -- ^ protected from reduce
+                lits       :: !Stack    -- ^ literals and rank
               }
   | NullClause                              -- as null pointer
 --  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
@@ -94,12 +94,11 @@ instance StackFamily Clause Lit where
 newClauseFromStack :: Bool -> Stack -> IO Clause
 newClauseFromStack l vec = do
   n <- get' vec
-  v <- newStack (n + 1)
-  let
-    loop ((<= n) -> False) = setNth vec (n + 1) (if l then 1 else 0)
-    loop i = (setNth v i =<< getNth vec i) >> loop (i + 1)
+  v <- newStack (n + 2)         -- n + rank + activity
+  let loop ((<= n) -> False) = setNth vec (n + 1) (if l then 1 else 0) >> setNth vec (n + 2) 1
+      loop i = (setNth v i =<< getNth vec i) >> loop (i + 1)
   loop 0
-  Clause <$> new' 0.0 {- <*> new' False -} <*> return v
+  return $ Clause v
 
 {-# INLINE getRank #-}
 getRank :: Clause -> IO Int
@@ -108,6 +107,14 @@ getRank Clause{..} = do n <- get' lits; getNth lits (n + 1)
 {-# INLINE setRank #-}
 setRank :: Clause -> Int -> IO ()
 setRank Clause{..} k = do n <- get' lits; setNth lits (n + 1) k
+
+{-# INLINE getActivity #-}
+getActivity :: Clause -> IO Int
+getActivity Clause{..} = do n <- get' lits; getNth lits (n + 2)
+
+{-# INLINE setActivity #-}
+setActivity :: Clause -> Int -> IO ()
+setActivity Clause{..} k = do n <- get' lits; setNth lits (n + 2) k
 
 -------------------------------------------------------------------------------- Clause Vector
 
