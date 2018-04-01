@@ -52,7 +52,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "mios-1.6.1WIP#72#73#74#77#78 -- https://github.com/shnarazk/mios"
+versionId = "mios-#80 -- https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ 0 = return 0
@@ -95,8 +95,8 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
     -- ct <- reportElapsedTime True "- making a new solver: " t0
     injectClausesFromCNF s desc cls
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
-    -- putMVar token (Left TimeOut)
-    -- killThread solverId
+    putMVar token (Left TimeOut)
+    killThread solverId
     -- ct <- reportElapsedTime True "injecting w/ ByteString: " ct
     when (0 < _confDumpStat opts) $ dumpStats DumpCSVHeader s
     result <- solve s []

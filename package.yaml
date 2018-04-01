@@ -24,16 +24,6 @@ flags:
     description:     Build misc utilities for developer
     manual:          true
     default:         false
-
-when:
-  - condition:       flag(llvm)
-    then:
-      ghc-options:      -j -O2 -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -fwarn-missing-signatures
-      ghc-prof-options:	-j -O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto
-    else:
-      ghc-options:      -j -O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
-      ghc-prof-options:	-j -O2 -funbox-strict-fields -fprof-auto
-
 default-extensions:   Strict
 dependencies:
   - base >= 4.7 && < 5
@@ -41,23 +31,26 @@ dependencies:
   - primitive >=0.6
   - bytestring >=0.10
   - vector >=0.12
+
+when:
+  - condition:       flag(llvm)
+    then:
+      ghc-options:      -j -O2 -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -fwarn-missing-signatures
+      ghc-prof-options: -j -O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto
+    else:
+      ghc-options:      -j -O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
+      ghc-prof-options: -j -O2 -funbox-strict-fields -fprof-auto
+
 library:
   source-dirs:       src
 
 executables:
-  mios-76:
+  mios-80.0:
     source-dirs:     app
     main:            mios.hs
     dependencies:
       - mios
       - gitrev
-    when:
-      - condition: flag(llvm)
-        then:
-          ghc-prof-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto -rtsopts
-                                --rtsopts-with="-H16M -A16M"
-        else:
-          ghc-prof-options:	-O2 -funbox-strict-fields -fprof-auto -rtsopts
   cnf-stat:
     source-dirs:     utils
     main:            cnf-stat.hs
