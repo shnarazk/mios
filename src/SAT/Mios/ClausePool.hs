@@ -53,7 +53,7 @@ makeClauseFromStack pool v = do
                       else pickup $ i + 1
   n <- get' v
   c' <- pickup (n - numExtraFields)
-  if c' /= Nothing
+  if c' == Nothing
     then newClauseFromStack True v
     else do let (Just c@(Clause lstack)) = c'
                 loop :: Int -> IO ()

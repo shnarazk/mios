@@ -24,6 +24,7 @@ module SAT.Mios.ClauseManager
        , WatcherList
        , newWatcherList
        , getNthWatcher
+       , purifyWatchers
        )
        where
 
@@ -83,9 +84,9 @@ instance StackFamily ClauseSimpleManager C.Clause where
 instance ClauseManager ClauseSimpleManager where
   -- | returns a new instance.
   {-# SPECIALIZE INLINE newManager :: Int -> C.Clause -> IO ClauseSimpleManager #-}
-  newManager initialSize null = do
+  newManager initialSize nullC = do
     i <- new' 0
-    v <- C.newClauseVector initialSize null
+    v <- C.newClauseVector initialSize nullC
     ClauseSimpleManager i <$> IORef.newIORef v
   -- | returns the internal 'C.ClauseVector'.
   {-# SPECIALIZE INLINE getClauseVector :: ClauseSimpleManager -> IO C.ClauseVector #-}
@@ -139,9 +140,9 @@ instance StackFamily ClauseExtManager C.Clause where
 instance ClauseManager ClauseExtManager where
   -- | returns a new instance.
   {-# SPECIALIZE INLINE newManager :: Int -> C.Clause -> IO ClauseExtManager #-}
-  newManager initialSize null = do
+  newManager initialSize nullC = do
     i <- new' 0
-    v <- C.newClauseVector initialSize null
+    v <- C.newClauseVector initialSize nullC
     b <- newVec (MV.length v) 0
     ClauseExtManager i <$> new' False <*> IORef.newIORef v <*> IORef.newIORef b
   -- | returns the internal 'C.ClauseVector'.
@@ -190,7 +191,7 @@ instance ClauseManager ClauseExtManager where
 -- | sets the expire flag to a clause.
 {-# INLINABLE markClause #-}
 markClause :: ClauseExtManager -> C.Clause -> C.Clause -> IO ()
-markClause ClauseExtManager{..} c null = do
+markClause ClauseExtManager{..} c nullC = do
   !n <- get' _nActives
   !v <- IORef.readIORef _clauseVector
   let
@@ -198,14 +199,14 @@ markClause ClauseExtManager{..} c null = do
     seekIndex k = do
       -- assert (k < n)
       c' <- MV.unsafeRead v k
-      if c' == c then MV.unsafeWrite v k null else seekIndex $ k + 1
+      if c' == c then MV.unsafeWrite v k nullC else seekIndex (k + 1)
   unless (n == 0) $ do
     seekIndex 0
     set' _purged True
 
 {-# INLINABLE purifyManager #-}
-purifyManager :: ClauseExtManager -> C.Clause -> IO ()
-purifyManager ClauseExtManager{..} null = do
+purifyManager :: C.Clause -> ClauseExtManager -> IO ()
+purifyManager nullC ClauseExtManager{..} = do
   diry <- get' _purged
   when diry $ do
     n <- get' _nActives
@@ -216,7 +217,7 @@ purifyManager ClauseExtManager{..} null = do
       loop ((< n) -> False) n' = return n'
       loop i j = do
         c <- getNth vec i
-        if c /= null
+        if c /= nullC
           then do
               unless (i == j) $ do
                 setNth vec j c
@@ -277,10 +278,10 @@ type WatcherList = V.Vector ClauseExtManager
 -- | For /n/ vars, we need [0 .. 2 + 2 * n - 1] slots, namely /2 * (n + 1)/-length vector
 -- FIXME: sometimes n > 1M
 newWatcherList :: Int -> Int -> C.Clause -> IO WatcherList
-newWatcherList n m null = do let n' = int2lit (negate n) + 2
-                             v <- MV.unsafeNew n'
-                             mapM_  (\i -> MV.unsafeWrite v i =<< newManager m null) [0 .. n' - 1]
-                             V.unsafeFreeze v
+newWatcherList n m nullC = do let n' = int2lit (negate n) + 2
+                              v <- MV.unsafeNew n'
+                              mapM_  (\i -> MV.unsafeWrite v i =<< newManager m nullC) [0 .. n' - 1]
+                              V.unsafeFreeze v
 
 -- | returns the watcher List for "Literal" /l/.
 {-# INLINE getNthWatcher #-}
@@ -294,3 +295,6 @@ instance VecFamily WatcherList C.Clause where
 --  {-# SPECIALIZE INLINE reset :: WatcherList -> IO () #-}
 --  reset = V.mapM_ purifyManager
 --  dump _ _ = (mes ++) . concat <$> mapM (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i)) [1 .. V.length wl - 1]
+
+purifyWatchers :: C.Clause -> WatcherList -> IO ()
+purifyWatchers nullC m = V.mapM_ (purifyManager nullC) m
