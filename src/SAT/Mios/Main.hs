@@ -359,9 +359,8 @@ propagate :: Solver -> IO Clause
 propagate s@Solver{..} = do
   let
     while :: Clause -> Bool -> IO Clause
-    while confl False = print ("while end", confl == nullClause) >> return confl
+    while confl False = return confl
     while confl True = do
-      print ("propagate.while", confl == nullClause)
       (p :: Lit) <- getNth trail . (1 +) =<< get' qHead
       modify' qHead (+ 1)
       incrementStat s NumOfPropagation 1
@@ -426,11 +425,8 @@ propagate s@Solver{..} = do
                               LBottom -> forClause (i + 1) (j + 1)         -- unit clause
                               _       -> shrinkBy ws (i - j) >> return c   -- conflict
       c <- forClause 0 0
-      print "change confl"
       while c =<< ((<) <$> get' qHead <*> get' trail)
-  print (nullClause == nullClause)
-  while nullClause False
-  -- while nullClause =<< ((<) <$> get' qHead <*> get' trail)
+  while nullClause =<< ((<) <$> get' qHead <*> get' trail)
 
 -- | #M22
 -- reduceDB: () -> [void]
@@ -462,7 +458,7 @@ reduceDB s@Solver{..} = do
 -}
   loop k                               -- CAVEAT: `vec` is a zero-based vector
   -- putStrLn $ "reduceDB: purge " ++ show (n - k) ++ " out of " ++ show n
-  purifyWatchers nullClause watches
+  reset watches
   shrinkBy learnts (n - k)
   incrementStat s NumOfReduction 1
 
@@ -608,8 +604,6 @@ simplifyDB s@Solver{..} = do
   if good
     then do
       p <- propagate s
-      kk <- get' p
-      print ("simplifyDB", nullClause == nullClause, p == nullClause, kk)
       if p /= nullClause
         then set' ok LiftedF >> return False
         else do

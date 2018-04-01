@@ -75,7 +75,7 @@ data Solver = Solver
               , learntSCnt :: Int'               -- ^ used in 'SAT.Mios.Main.search'
               , maxLearnts :: Double'            -- ^ used in 'SAT.Mios.Main.search'
                 -------- Working Memory
-              , nullClause :: Clause             -- ^
+              , nullClause :: !Clause            -- ^
               , ok         :: !Int'              -- ^ internal flag
               , an'seen    :: !(Vec Int)         -- ^ used in 'SAT.Mios.Main.analyze'
               , an'toClear :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze'
@@ -99,19 +99,19 @@ data Solver = Solver
 -- | returns an everything-is-initialized solver from the arguments.
 newSolver :: MiosConfiguration -> CNFDescription -> IO Solver
 newSolver conf (CNFDescription nv dummy_nc _) = do
-  nullC <- makeNullClause
+  null <- makeNullClause
   Solver
     -- Clause Database
-    <$> newManager dummy_nc nullC          -- clauses
-    <*> newManager 2000 nullC              -- learnts
-    <*> newWatcherList nv 1 nullC          -- watches
+    <$> newManager dummy_nc null           -- clauses
+    <*> newManager 2000 null               -- learnts
+    <*> newWatcherList nv 1 null           -- watches
     -- Assignment Management
     <*> newVec nv LBottom                  -- assigns
     <*> newVec nv LBottom                  -- phases
     <*> newStack nv                        -- trail
     <*> newStack nv                        -- trailLim
     <*> new' 0                             -- qHead
-    <*> newClauseVector (nv + 1) nullC     -- reason
+    <*> newClauseVector (nv + 1) null      -- reason
     <*> newVec nv (-1)                     -- level
     <*> newVec (2 * (nv + 1)) 0            -- ndd
     <*> newStack nv                        -- conflicts
@@ -129,13 +129,13 @@ newSolver conf (CNFDescription nv dummy_nc _) = do
     <*> new' 100                           -- learntSCnt
     <*> new' 2000                          -- maxLearnts
     -- Working Memory
-    <*> return nullC                       -- nullClause
+    <*> makeNullClause                     -- nullClause
     <*> new' LiftedT                       -- ok
     <*> newVec nv 0                        -- an'seen
     <*> newStack nv                        -- an'toClear
     <*> newStack nv                        -- an'stack
     <*> newStack nv                        -- an'lastDL
-    <*> newClausePool 10 nullC             -- clsPool
+    <*> newClausePool 10 null              -- clsPool
     <*> newStack nv                        -- litsLearnt
     <*> newVec (fromEnum EndOfStatIndex) 0 -- stats
     <*> newVec nv 0                        -- lbd'seen

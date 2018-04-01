@@ -102,19 +102,19 @@ makeNullClause = do v <- newStack 0; set' v 0; return $ Clause v
 
 {-# INLINE getRank #-}
 getRank :: Clause -> IO Int
-getRank (Clause c) = do n <- get' c; getNth c (n + 1)
+getRank cls = do n <- get' cls; getNth cls (n + 1)
 
 {-# INLINE setRank #-}
 setRank :: Clause -> Int -> IO ()
-setRank (Clause c) k = do n <- get' c; setNth c (n + 1) k
+setRank cls k = do n <- get' cls; setNth cls (n + 1) k
 
 {-# INLINE getActivity #-}
 getActivity :: Clause -> IO Int
-getActivity (Clause c) = do n <- get' c; getNth c (n + 2)
+getActivity cls = do n <- get' cls; getNth cls (n + 2)
 
 {-# INLINE setActivity #-}
 setActivity :: Clause -> Int -> IO ()
-setActivity (Clause c) k = do n <- get' c; setNth c (n + 2) k
+setActivity cls k = do n <- get' cls; setNth cls (n + 2) k
 
 -------------------------------------------------------------------------------- Clause Vector
 
@@ -139,7 +139,7 @@ instance VecFamily ClauseVector Clause where
 
 -- | returns a new 'ClauseVector'.
 newClauseVector  :: Int -> Clause -> IO ClauseVector
-newClauseVector n nullC = do
+newClauseVector n null = do
   v <- MV.new (max 4 n)
-  MV.set v nullC
+  MV.set v null
   return v
