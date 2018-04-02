@@ -46,16 +46,18 @@ library:
   source-dirs:       src
 
 executables:
-  mios-1.6.0:
+  mios-81:
     source-dirs:     app
     main:            mios.hs
     dependencies:    mios
     when:
       - condition: flag(llvm)
         then:
-          ghc-prof-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto -rtsopts
+          ghc-options:      -O2 -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -fwarn-missing-signatures -rtsopts=all
+          ghc-prof-options: -O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto -rtsopts=all
         else:
-          ghc-prof-options:	-O2 -funbox-strict-fields -fprof-auto -rtsopts
+          ghc-options:      -O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures -rtsopts=all
+          ghc-prof-options: -O2 -funbox-strict-fields -fprof-auto -rtsopts=all
   cnf-stat:
     source-dirs:     utils
     main:            cnf-stat.hs
