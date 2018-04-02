@@ -95,8 +95,7 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
     -- ct <- reportElapsedTime True "- making a new solver: " t0
     injectClausesFromCNF s desc cls
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
-    putMVar token (Left TimeOut)
-    killThread solverId
+    -- putMVar token (Left TimeOut) >> killThread solverId
     -- ct <- reportElapsedTime True "injecting w/ ByteString: " ct
     when (0 < _confDumpStat opts) $ dumpStats DumpCSVHeader s
     result <- solve s []
