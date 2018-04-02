@@ -49,7 +49,9 @@ executables:
   mios-81:
     source-dirs:     app
     main:            mios.hs
-    dependencies:    mios
+    dependencies:
+      - mios
+      - gitrev
     when:
       - condition: flag(llvm)
         then:
