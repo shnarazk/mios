@@ -64,6 +64,6 @@ makeClauseFromStack pool v = do
 {-# INLINE putBackToPool #-}
 putBackToPool :: ClausePool -> Clause -> IO ()
 putBackToPool pool c = do
-  n <- get' c
+  n <- subtract 2 <$> get' c
   l <- getRank c
   when (0 /= l) $ do when (n <= storeLimit) $ pushTo (getManager pool n) c
