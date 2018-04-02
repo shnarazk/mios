@@ -27,10 +27,10 @@ flags:
 default-extensions:   Strict
 dependencies:
   - base >= 4.7 && < 5
-  - ghc-prim >=0.5
-  - primitive >=0.6
-  - bytestring >=0.10
-  - vector >=0.12
+  - ghc-prim >= 0.5
+  - primitive >= 0.6
+  - bytestring >= 0.10
+  - vector >= 0.12
 
 when:
   - condition:       flag(llvm)
