@@ -52,7 +52,7 @@ makeClauseFromStack pool v = do
                   return c
           else pickup $ i + 1
   n <- get' v
-  c <- pickup (n - 2)           -- mapping the number of literals for the smallest clauses to zero
+  c <- pickup (n - 2)
   if c == NullClause
     then newClauseFromStack True v
     else do let lstack = lits c
@@ -71,5 +71,5 @@ makeClauseFromStack pool v = do
 putBackToPool :: ClausePool -> Clause -> IO ()
 putBackToPool pool c = do
   l <- get' (rank c)
-  when (0 /= l) $ do n <- subtract 2 <$> get' c
+  when (0 /= l) $ do let n = realLengthOfStack (lits c) - 3
                      when (n <= storeLimit) $ pushTo (getManager pool n) c

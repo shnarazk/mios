@@ -336,19 +336,19 @@ sortStack vec = do
         | left + 1 == right = do
             a <- getNth vec left
             b <- getNth vec right
-            if a < b then return () else do setNth vec left b; setNth vec right a
+            if a < b then return () else swapBetween vec left right
         | otherwise = do
             let p = div (left + right) 2
             pivot <- getNth vec p
             swapBetween vec p left -- set a sentinel for r'
             let nextL :: Int -> IO Int
-                nextL !i
+                nextL i
                   | i <= right = do v <- getNth vec i; if v < pivot then nextL (i + 1) else return i
                   | otherwise = return i
                 nextR :: Int -> IO Int
-                nextR !i = do v <- getNth vec i; if pivot < v then nextR (i - 1) else return i
+                nextR i = do v <- getNth vec i; if pivot < v then nextR (i - 1) else return i
                 divide :: Int -> Int -> IO Int
-                divide !l !r = do
+                divide l r = do
                   l' <- nextL l
                   r' <- nextR r
                   if l' < r' then swapBetween vec l' r' >> divide (l' + 1) (r' - 1) else return r'
