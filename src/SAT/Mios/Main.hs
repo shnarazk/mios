@@ -16,7 +16,7 @@ module SAT.Mios.Main
        , newSolver
        , setAssign
        , addClause
-       , dumpSolver
+       , dumpStats
          -- * Main function
        , simplifyDB
        , solve
@@ -499,7 +499,7 @@ sortClauses s cm limit' = do
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
   let shiftLBD = activityWidth
-      shiftIndex = shiftL 1 indexWidth
+      shiftIndex = shiftL 1 indexWidth -- store a shifted value of index (**)
       am = fromIntegral activityMax :: Double
       scaleAct :: Double -> Int
       scaleAct x
@@ -524,7 +524,7 @@ sortClauses s cm limit' = do
                   assignKey (i + 1) $ if l then t + 1 else t
   limit <- max limit' <$> assignKey 0 0
   -- 2: sort keyVector
-  let limit2 = 2 * limit
+  let limit2 = 2 * limit        -- make two cells @(value, index)@ a unit
       sortOnRange :: Int -> Int -> IO ()
       sortOnRange left right
         | limit2 < left = return ()
@@ -570,7 +570,7 @@ sortClauses s cm limit' = do
           d <- getNth bvec i
           -- setNth keys i i
           let sweep k = do k' <- (indexMax .&.) <$> getNth keys (2 * k + 1)
-                           setNth keys (2 * k + 1) (indexMax .&. k)
+                           setNth keys (2 * k + 1) (indexMax .&. k) -- back to the real index from (**)
                            if k' == i
                              then do setNth vec k c
                                      setNth bvec k d
@@ -671,7 +671,7 @@ search s@Solver{..} = do
                   nl <- floor <$> get' maxLearnts
                   when (nl < k1 - k2) $ do
                     reduceDB s    -- Reduce the set of learnt clauses.
-                    when (2 == dumpStat config) $ dumpSolver DumpCSV s
+                    when (2 == dumpSolverStatMode config) $ dumpStats DumpCSV s
                   if | k2 == nVars -> return True     -- Model found
                      | restart -> do                  -- Reached bound on number of conflicts
                          (s `cancelUntil`) =<< get' rootLevel -- force a restart
@@ -690,7 +690,7 @@ search s@Solver{..} = do
 -}
                          loop False
                      | otherwise -> do                -- New variable decision
-                         v <- select s
+                         v <- selectVO s
                          -- #phasesaving <<<<  many have heuristic for polarity here
                          oldVal <- getNth phases v
                          unsafeAssume s $ var2lit v (0 < oldVal) -- cannot return @False@
@@ -733,7 +733,7 @@ solve s@Solver{..} assumps = do
                 toInt v = (\p -> if LiftedT == p then v else negate v) <$> valueVar s v
             asg1 <- mapM toInt [1 .. nVars]
             asg2 <- map lit2int <$> asList conflicts
-            when (0 < dumpStat config) $ dumpSolver DumpCSV s
+            when (0 < dumpSolverStatMode config) $ dumpStats DumpCSV s
             cancelUntil s 0     -- reset solver
             flag <- get' ok
             if | status && flag == LiftedT     -> return $ Right (SAT asg1)

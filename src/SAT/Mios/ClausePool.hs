@@ -52,7 +52,7 @@ makeClauseFromStack pool v = do
                   return c
           else pickup $ i + 1
   n <- get' v
-  c <- pickup (n - 2)
+  c <- pickup (n - 2)           -- mapping the number of literals for the smallest clauses to zero
   if c == NullClause
     then newClauseFromStack True v
     else do let lstack = lits c

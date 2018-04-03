@@ -52,7 +52,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "mios-1.6.0 -- https://github.com/shnarazk/mios"
+versionId = "#81 https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ 0 = return 0
@@ -87,14 +87,14 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
                          putMVar token (Left TimeOut)
                          killThread solverId
-    when (_confMaxSize opts < _numberOfVariables desc) $
+    when (_confMaxClauses opts < _numberOfClauses desc) $
       if -1 == _confBenchmark opts
-        then errorWithoutStackTrace $ "ABORT: too many variables to solve, " ++ show desc
+        then errorWithoutStackTrace $ "ABORT: too many clauses to solve, " ++ show desc
         else putMVar token (Left OutOfMemory) >> killThread solverId
     s <- newSolver (toMiosConf opts) desc
     injectClausesFromCNF s desc cls
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
-    when (0 < _confDumpStat opts) $ dumpSolver DumpCSVHeader s
+    when (0 < _confDumpStat opts) $ dumpStats DumpCSVHeader s
     result <- solve s []
     putMVar token result
     killThread solverId
@@ -241,6 +241,14 @@ dumpAssigmentAsCNF (Just fname) (UNSAT _) =
 dumpAssigmentAsCNF (Just fname) (SAT l) =
   withFile fname WriteMode $ \h -> do hPutStrLn h "s SAT"; hPutStrLn h . (++ " 0") . unwords $ map show l
 
+
+showPath :: FilePath -> String
+showPath str = replicate (len - length basename) ' ' ++ if elem '/' str then basename else basename'
+  where
+    len = 50
+    basename = reverse . takeWhile (/= '/') . reverse $ str
+    basename' = take len str
+
 --------------------------------------------------------------------------------
 -- DIMACS CNF Reader
 --------------------------------------------------------------------------------
@@ -253,83 +261,48 @@ parseCNF target@(Just cnfFile) = do
                       (x, second) -> case B.readInt (skipWhitespace second) of
                                        Just (y, _) -> CNFDescription x y target
       seek :: B.ByteString -> IO (CNFDescription, B.ByteString)
-      seek bs
+      seek !bs
         | B.head bs == 'p' = return (parseP l, B.tail bs')
         | otherwise = seek (B.tail bs')
         where (l, bs') = B.span ('\n' /=) bs
   seek =<< B.readFile cnfFile
 
 -- | parses ByteString then injects the clauses in it into a solver
+{-# INLINABLE injectClausesFromCNF #-}
 injectClausesFromCNF :: Solver -> CNFDescription -> B.ByteString -> IO ()
 injectClausesFromCNF s (CNFDescription nv nc _) bs = do
-  let maxLit = int2lit $ negate nv
-  buffer <- newVec (maxLit + 1) 0
-  polvec <- newVec (maxLit + 1) 0
-  let loop :: Int -> B.ByteString -> IO ()
-      loop ((< nc) -> False) _ = return ()
-      loop !i !b = loop (i + 1) =<< readClause s buffer polvec b
-  loop 0 bs
-  -- static polarity
-  let checkPolarity :: Int -> IO ()
-      checkPolarity ((< nv) -> False) = return ()
-      checkPolarity v = do
-        p <- getNth polvec $ var2lit v True
-        if p == LiftedF
-          then setAssign s v p
-          else do n <- getNth polvec $ var2lit v False
-                  when (n == LiftedF) $ setAssign s v p
-        checkPolarity $ v + 1
-  checkPolarity 1
+  buffer <- newVec (int2lit (negate nv) + 1) 0 :: IO (Vec Int)
+  let skipComments :: B.ByteString -> B.ByteString
+      skipComments !s = case B.uncons s of -- __Pre-condition:__ we are on the benngining of a line
+                          Just ('c', b') -> skipComments . B.tail . B.dropWhile (/= '\n') $ b'
+                          _ -> s
+      readClause :: Int -> B.ByteString -> IO ()
+      readClause ((< nc) -> False) _ = return ()
+      readClause !i !stream = do
+        let loop :: Int -> B.ByteString -> IO ()
+            loop !j !b = case parseInt $ skipWhitespace b of
+                           (k, b') -> if k == 0
+                                      then do setNth buffer 0 $ j - 1
+                                              void $ addClause s buffer
+                                              readClause (i + 1) b'
+                                      else do setNth buffer j (int2lit k)
+                                              loop (j + 1) b'
+        loop 1 . skipComments . B.dropWhile (`elem` " \t\n") $ stream
+  readClause 0 bs
 
 {-# INLINE skipWhitespace #-}
 skipWhitespace :: B.ByteString -> B.ByteString
-skipWhitespace !s = B.dropWhile (`elem` " \t\n") s
+skipWhitespace !s = B.dropWhile (== ' ') {- (`elem` " \t") -} s
 
--- | skip comment lines
--- __Pre-condition:__ we are on the benngining of a line
-{-# INLINE skipComments #-}
-skipComments :: B.ByteString -> B.ByteString
-skipComments !s
-  | c == 'c' = skipComments . B.tail . B.dropWhile (/= '\n') $ s
-  | otherwise = s
-  where
-    c = B.head s
-
-{-# INLINABLE parseInt #-}
+{-# INLINE parseInt #-}
 parseInt :: B.ByteString -> (Int, B.ByteString)
 parseInt !st = do
   let !zero = ord '0'
-      loop :: B.ByteString -> Int -> (Int, B.ByteString)
-      loop !s !val = case B.head s of
-        c | '0' <= c && c <= '9'  -> loop (B.tail s) (val * 10 + ord c - zero)
-        _ -> (val, B.tail s)
-  case B.head st of
-    '-' -> let (k, x) = loop (B.tail st) 0 in (negate k, x)
-    '0' -> (0, B.tail st)
---    '+' -> loop st (0 :: Int)
-    _   -> loop st 0
---    c | '0' <= c && c <= '9'  -> loop st 0
---    _ -> error "PARSE ERROR! Unexpected char"
-
-{-# INLINABLE readClause #-}
-readClause :: Solver -> Stack -> Vec Int -> B.ByteString -> IO B.ByteString
-readClause s buffer bvec stream = do
-  let
-    loop :: Int -> B.ByteString -> IO B.ByteString
-    loop !i !b = case parseInt $ skipWhitespace b of
-                   (0, b') -> do setNth buffer 0 $ i - 1
-                                 sortStack buffer
-                                 void $ addClause s buffer
-                                 return b'
-                   (k, b') -> case int2lit k of
-                                l -> do setNth buffer i l
-                                        setNth bvec l LiftedT
-                                        loop (i + 1) b'
-  loop 1 . skipComments . skipWhitespace $ stream
-
-showPath :: FilePath -> String
-showPath str = replicate (len - length basename) ' ' ++ if elem '/' str then basename else basename'
-  where
-    len = 50
-    basename = reverse . takeWhile (/= '/') . reverse $ str
-    basename' = take len str
+      loop :: (Int, B.ByteString) -> (Int, B.ByteString)
+      loop (val, s) = case B.uncons s of
+        Just (c, s') -> if '0' <= c && c <= '9' then loop (val * 10 + ord c - zero, s') else (val, s')
+        -- _ -> error (">>>>" ++ take 80 (B.unpack s))
+  case B.uncons st of
+    Just ('-', st') -> let (k, x) = loop (0, st') in (negate k, x)
+    Just ('0', st') -> (0, st')
+    _ -> loop (0, st)
