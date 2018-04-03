@@ -502,7 +502,7 @@ sortClauses s cm limit' = do
   cl <- getEMA (emaCDLvl s)
   surface <- if cl == 0 then return 0 else (/ cl) <$> getEMA (emaBDLvl s)  -- 0 <=backjumped level / coflict level < 1.0
   let shiftLBD = activityWidth
-      shiftIndex = shiftL 1 indexWidth
+      shiftIndex = shiftL 1 indexWidth -- store a shifted value of index (**)
       am = fromIntegral activityMax :: Double
       scaleAct :: Double -> Int
       scaleAct x
@@ -517,7 +517,7 @@ sortClauses s cm limit' = do
         if k == 2                  -- Main criteria. Like in MiniSat we keep all binary clauses
           then do setNth keys (2 * i) 0
                   assignKey (i + 1) (t + 1)
-          else do a <- get' (activity c)               -- Second one... based on LBD
+          else do a <- fromIntegral <$> getActivity c          -- Second one... based on LBD
                   rLBD <- fromIntegral <$> getRank c           -- above the level
                   rNDD <- fromIntegral <$> nddOf s (lits c)    -- under the level
                   let r = if rNDD == 1                         -- this implies rLBD == 1.
@@ -531,7 +531,7 @@ sortClauses s cm limit' = do
                   assignKey (i + 1) $ if l then t + 1 else t
   limit <- max limit' <$> assignKey 0 0
   -- 2: sort keyVector
-  let limit2 = 2 * limit
+  let limit2 = 2 * limit  -- make two cells @(value, index)@ a unit
       sortOnRange :: Int -> Int -> IO ()
       sortOnRange left right
         | limit2 < left = return ()
@@ -539,7 +539,8 @@ sortClauses s cm limit' = do
         | left + 2 == right = do
             a <- getNth keys left
             b <- getNth keys right
-            unless (a < b) $ do swapBetween keys left right
+            unless (a < b) $ do setNth keys left b  -- swapBetween keys left right
+                                setNth keys right a
                                 swapBetween keys (left + 1) (right + 1)
         | otherwise = do
             let p = 2 * div (left + right) 4
@@ -575,9 +576,8 @@ sortClauses s cm limit' = do
         when (indexMax < bits) $ do
           c <- getNth vec i
           d <- getNth bvec i
-          -- setNth keys i i
           let sweep k = do k' <- (indexMax .&.) <$> getNth keys (2 * k + 1)
-                           setNth keys (2 * k + 1) (indexMax .&. k)
+                           setNth keys (2 * k + 1) (indexMax .&. k) -- back to the real index from (**)
                            if k' == i
                              then do setNth vec k c
                                      setNth bvec k d

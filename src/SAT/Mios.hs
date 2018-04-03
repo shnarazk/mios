@@ -52,7 +52,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "mios-1.6.1WIP#72#73#74#77#78 -- https://github.com/shnarazk/mios"
+versionId = "mios-#80 -- https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ 0 = return 0
@@ -95,8 +95,7 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
     -- ct <- reportElapsedTime True "- making a new solver: " t0
     injectClausesFromCNF s desc cls
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
-    -- putMVar token (Left TimeOut)
-    -- killThread solverId
+    -- putMVar token (Left TimeOut) >> killThread solverId
     -- ct <- reportElapsedTime True "injecting w/ ByteString: " ct
     when (0 < _confDumpStat opts) $ dumpStats DumpCSVHeader s
     result <- solve s []
@@ -274,52 +273,38 @@ parseCNF target@(Just cnfFile) = do
 {-# INLINABLE injectClausesFromCNF #-}
 injectClausesFromCNF :: Solver -> CNFDescription -> B.ByteString -> IO ()
 injectClausesFromCNF s (CNFDescription nv nc _) bs = do
-  let maxLit = int2lit $ negate nv
-  buffer <- newVec (maxLit + 1) 0 :: IO (Vec Int)
-  let loop :: Int -> B.ByteString -> IO ()
-      loop ((< nc) -> False) _ = return ()
-      loop !i !b = loop (i + 1) =<< readClause s buffer b
-  loop 0 bs
+  buffer <- newVec (int2lit (negate nv) + 1) 0 :: IO (Vec Int)
+  let skipComments :: B.ByteString -> B.ByteString
+      skipComments !s = case B.uncons s of -- __Pre-condition:__ we are on the benngining of a line
+                          Just ('c', b') -> skipComments . B.tail . B.dropWhile (/= '\n') $ b'
+                          _ -> s
+      readClause :: Int -> B.ByteString -> IO ()
+      readClause ((< nc) -> False) _ = return ()
+      readClause !i !stream = do
+        let loop :: Int -> B.ByteString -> IO ()
+            loop !j !b = case parseInt $ skipWhitespace b of
+                           (k, b') -> if k == 0
+                                      then do setNth buffer 0 $ j - 1
+                                              void $ addClause s buffer
+                                              readClause (i + 1) b'
+                                      else do setNth buffer j (int2lit k)
+                                              loop (j + 1) b'
+        loop 1 . skipComments . B.dropWhile (`elem` " \t\n") $ stream
+  readClause 0 bs
 
 {-# INLINE skipWhitespace #-}
 skipWhitespace :: B.ByteString -> B.ByteString
 skipWhitespace !s = B.dropWhile (== ' ') {- (`elem` " \t") -} s
 
-{-# INLINE skipWhitespace' #-}
-skipWhitespace' :: B.ByteString -> B.ByteString
-skipWhitespace' !s = B.dropWhile (`elem` " \t\n") s
-
--- | skip comment lines
--- __Pre-condition:__ we are on the benngining of a line
-{-# INLINE skipComments #-}
-skipComments :: B.ByteString -> B.ByteString
-skipComments !s
-  | c == 'c' = skipComments . B.tail . B.dropWhile (/= '\n') $ s
-  | otherwise = s
-  where
-    c = B.head s
-
 {-# INLINE parseInt #-}
 parseInt :: B.ByteString -> (Int, B.ByteString)
 parseInt !st = do
   let !zero = ord '0'
-      loop :: B.ByteString -> Int -> (Int, B.ByteString)
-      loop !s !val = case B.uncons s of
-        Just (c, s') -> if '0' <= c && c <= '9' then loop s' (val * 10 + ord c - zero) else (val, s')
+      loop :: (Int, B.ByteString) -> (Int, B.ByteString)
+      loop (val, s) = case B.uncons s of
+        Just (c, s') -> if '0' <= c && c <= '9' then loop (val * 10 + ord c - zero, s') else (val, s')
+        -- _ -> error (">>>>" ++ take 80 (B.unpack s))
   case B.uncons st of
-    Just ('-', st') -> let (k, x) = loop st' 0 in (negate k, x)
+    Just ('-', st') -> let (k, x) = loop (0, st') in (negate k, x)
     Just ('0', st') -> (0, st')
-    _ -> loop st 0
-
-{-# INLINE readClause #-}
-readClause :: Solver -> Stack {- -> Vec Int -} -> B.ByteString -> IO B.ByteString
-readClause s buffer {- bvec -} stream = do
-  let loop :: Int -> B.ByteString -> IO B.ByteString
-      loop !i !b = case parseInt $ skipWhitespace b of
-                     (k, b') -> if k == 0
-                                then do setNth buffer 0 $ i - 1
-                                        void $ addClause s buffer
-                                        return b'
-                                else do setNth buffer i (int2lit k)
-                                        loop (i + 1) b'
-  loop 1 . skipComments . skipWhitespace' $ stream
+    _ -> loop (0, st)
