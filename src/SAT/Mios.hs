@@ -87,10 +87,10 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
                          threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
                          putMVar token (Left TimeOut)
                          killThread solverId
---    when (_confMaxSize opts < _numberOfVariables desc) $
---      if -1 == _confBenchmark opts
---        then errorWithoutStackTrace $ "ABORT: too many variables to solve, " ++ show desc
---        else putMVar token (Left OutOfMemory) >> killThread solverId
+    when (_confMaxClauses opts < _numberOfClauses desc) $
+      if -1 == _confBenchmark opts
+        then errorWithoutStackTrace $ "ABORT: too many clauses to solve, " ++ show desc
+        else putMVar token (Left OutOfMemory) >> killThread solverId
     s <- newSolver (toMiosConf opts) desc
     injectClausesFromCNF s desc cls
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
@@ -249,94 +249,8 @@ showPath str = replicate (len - length basename) ' ' ++ if elem '/' str then bas
     basename = reverse . takeWhile (/= '/') . reverse $ str
     basename' = take len str
 
-{-
 --------------------------------------------------------------------------------
 -- DIMACS CNF Reader
---------------------------------------------------------------------------------
-
--- | parses the header of a CNF file
-parseCNF :: Maybe FilePath -> IO (CNFDescription, B.ByteString)
-parseCNF target@(Just cnfFile) = do
-  let -- format: p cnf n m, length "p cnf" == 5
-      parseP line = case parseInt (skipWhitespace (B.drop 5 line)) of
-                      (x, second) -> case B.readInt (skipWhitespace second) of
-                                       Just (y, _) -> CNFDescription x y target
-      seek :: B.ByteString -> IO (CNFDescription, B.ByteString)
-      seek bs
-        | B.head bs == 'p' = return (parseP l, B.tail bs')
-        | otherwise = seek (B.tail bs')
-        where (l, bs') = B.span ('\n' /=) bs
-  seek =<< B.readFile cnfFile
-
--- | parses ByteString then injects the clauses in it into a solver
-injectClausesFromCNF :: Solver -> CNFDescription -> B.ByteString -> IO ()
-injectClausesFromCNF s (CNFDescription nv nc _) bs = do
-  let maxLit = int2lit $ negate nv
-  buffer <- newVec (maxLit + 1) 0
-  polvec <- newVec (maxLit + 1) 0
-  let loop :: Int -> B.ByteString -> IO ()
-      loop ((< nc) -> False) _ = return ()
-      loop !i !b = loop (i + 1) =<< readClause s buffer polvec b
-  loop 0 bs
-  -- static polarity
-  let checkPolarity :: Int -> IO ()
-      checkPolarity ((< nv) -> False) = return ()
-      checkPolarity v = do
-        p <- getNth polvec $ var2lit v True
-        if p == LiftedF
-          then setAssign s v p
-          else do n <- getNth polvec $ var2lit v False
-                  when (n == LiftedF) $ setAssign s v p
-        checkPolarity $ v + 1
-  checkPolarity 1
-
-{-# INLINE skipWhitespace #-}
-skipWhitespace :: B.ByteString -> B.ByteString
-skipWhitespace !s = B.dropWhile (`elem` " \t\n") s
-
--- | skip comment lines
--- __Pre-condition:__ we are on the benngining of a line
-{-# INLINE skipComments #-}
-skipComments :: B.ByteString -> B.ByteString
-skipComments !s
-  | c == 'c' = skipComments . B.tail . B.dropWhile (/= '\n') $ s
-  | otherwise = s
-  where
-    c = B.head s
-
-{-# INLINABLE parseInt #-}
-parseInt :: B.ByteString -> (Int, B.ByteString)
-parseInt !st = do
-  let !zero = ord '0'
-      loop :: B.ByteString -> Int -> (Int, B.ByteString)
-      loop !s !val = case B.head s of
-        c | '0' <= c && c <= '9'  -> loop (B.tail s) (val * 10 + ord c - zero)
-        _ -> (val, B.tail s)
-  case B.head st of
-    '-' -> let (k, x) = loop (B.tail st) 0 in (negate k, x)
-    '0' -> (0, B.tail st)
---    '+' -> loop st (0 :: Int)
-    _   -> loop st 0
---    c | '0' <= c && c <= '9'  -> loop st 0
---    _ -> error "PARSE ERROR! Unexpected char"
-
-{-# INLINABLE readClause #-}
-readClause :: Solver -> Stack -> Vec Int -> B.ByteString -> IO B.ByteString
-readClause s buffer bvec stream = do
-  let
-    loop :: Int -> B.ByteString -> IO B.ByteString
-    loop !i !b = case parseInt $ skipWhitespace b of
-                   (0, b') -> do setNth buffer 0 $ i - 1
-                                 sortStack buffer
-                                 void $ addClause s buffer
-                                 return b'
-                   (k, b') -> case int2lit k of
-                                l -> do setNth buffer i l
-                                        setNth bvec l LiftedT
-                                        loop (i + 1) b'
-  loop 1 . skipComments . skipWhitespace $ stream
--}
-
 --------------------------------------------------------------------------------
 
 -- | parses the header of a CNF file

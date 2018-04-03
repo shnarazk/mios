@@ -91,7 +91,7 @@ miosOptions =
 --  , Option ['r'] ["random-decision-rate"]
 --    (ReqArg (\v c -> c { _confRandomDecisionRate = read v }) (show (_confRandomDecisionRate miosDefaultOption)))
 --    "[solver] random selection rate (0 - 1000)"
-  , Option [] ["maxsize"]
+  , Option [] ["max-clause"]
     (ReqArg (\v c -> c { _confMaxClauses = read v }) (show (_confMaxClauses miosDefaultOption)))
     "[solver] limit of the number of given clauses"
   , Option [':'] ["validate-assignment"]
