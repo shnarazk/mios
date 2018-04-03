@@ -499,7 +499,7 @@ sortClauses s cm limit' = do
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
   let shiftLBD = activityWidth
-      shiftIndex = shiftL 1 indexWidth
+      shiftIndex = shiftL 1 indexWidth -- store a shifted value of index (**)
       am = fromIntegral activityMax :: Double
       scaleAct :: Double -> Int
       scaleAct x
@@ -524,7 +524,7 @@ sortClauses s cm limit' = do
                   assignKey (i + 1) $ if l then t + 1 else t
   limit <- max limit' <$> assignKey 0 0
   -- 2: sort keyVector
-  let limit2 = 2 * limit
+  let limit2 = 2 * limit        -- make two cells @(value, index)@ a unit
       sortOnRange :: Int -> Int -> IO ()
       sortOnRange left right
         | limit2 < left = return ()
@@ -532,7 +532,7 @@ sortClauses s cm limit' = do
         | left + 2 == right = do
             a <- getNth keys left
             b <- getNth keys right
-            unless (a < b) $ do swapBetween keys left right
+            unless (a < b) $ do setNth keys left b; setNth keys right a
                                 swapBetween keys (left + 1) (right + 1)
         | otherwise = do
             let p = 2 * div (left + right) 4
@@ -570,7 +570,7 @@ sortClauses s cm limit' = do
           d <- getNth bvec i
           -- setNth keys i i
           let sweep k = do k' <- (indexMax .&.) <$> getNth keys (2 * k + 1)
-                           setNth keys (2 * k + 1) (indexMax .&. k)
+                           setNth keys (2 * k + 1) (indexMax .&. k) -- back to the real index from (**)
                            if k' == i
                              then do setNth vec k c
                                      setNth bvec k d
