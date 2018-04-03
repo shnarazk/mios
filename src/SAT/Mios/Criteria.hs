@@ -223,6 +223,7 @@ clauseNew s@Solver{..} ps isLearnt = do
 {-# INLINABLE addClause #-}
 addClause :: Solver -> Stack -> IO Bool
 addClause s@Solver{..} vecLits = do
+  sortStack vecLits
   result <- clauseNew s vecLits False
   case result of
    Left b  -> return b   -- No new clause was returned becaues a confilct occured or the clause is a literal
