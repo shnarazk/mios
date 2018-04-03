@@ -37,6 +37,11 @@ module SAT.Mios.Types
        , Int (LiftedF, LiftedT, LBottom, Conflict)
        -- a heap
        , VarOrder (..)
+       -- Exponential Moving Average, EMA
+       , EMA
+       , newEMA
+       , getEMA
+       , updateEMA
          -- * statistics
        , StatIndex (..)
        , DumpMode (..)
@@ -250,20 +255,53 @@ class VarOrder o where
   newVar = error "newVar undefined"
 -}
   -- | should be called when a variable has increased in activity.
-  update :: o -> Var -> IO ()
-  update _  = error "update undefined"
+  updateVO :: o -> Var -> IO ()
+  updateVO _  = error "update undefined"
 {-
   -- | should be called when all variables have been assigned.
   updateAll :: o -> IO ()
   updateAll = error "updateAll undefined"
 -}
   -- | should be called when a variable becomes unbound (may be selected again).
-  undo :: o -> Var -> IO ()
-  undo _ _  = error "undo undefined"
+  undoVO :: o -> Var -> IO ()
+  undoVO _ _  = error "undo undefined"
 
   -- | returns a new, unassigned var as the next decision.
-  select :: o -> IO Var
-  select    = error "select undefined"
+  selectVO :: o -> IO Var
+  selectVO    = error "select undefined"
+
+-------------------------------------------------------------------------------- EMA
+
+-- | Exponential Moving Average, EMA
+type EMA = (Double', Maybe Double', Double)
+
+-- | returns a new EMA from a flag (slow or fast) and a window size
+{-# INLINE newEMA #-}
+newEMA :: Bool -> Int -> IO EMA
+newEMA True s = do v <- new' 0.0
+                   c <- new' 0.0
+                   return (v, Just c, 1 / fromIntegral s)
+newEMA False s = do v <- new' 0.0; return (v, Nothing, 1 / fromIntegral s)
+
+-- | returns an EMA value
+{-# INLINE getEMA #-}
+getEMA :: EMA -> IO Double
+getEMA (ema, Just cal, _) = do x <- get' ema
+                               c <- get' cal
+                               return $ if c == 0 then 0 else x / c
+getEMA (ema, Nothing, _)  = get' ema
+
+-- | updates an EMA
+{-# INLINE updateEMA #-}
+updateEMA :: EMA -> Double -> IO Double
+updateEMA (ema, Just cal, cof) x = do e <- ((cof * x) +) . ((1 - cof) *) <$> get' ema
+                                      set' ema e
+                                      c <- ((cof * 1) +) . ((1 - cof) *) <$> get' cal
+                                      set' cal c
+                                      return $ e / c
+updateEMA (ema, Nothing, cof) x = do e <- ((cof * x) +) . ((1 - cof) *) <$> get' ema; set' ema e; return e
+
+-------------------------------------------------------------------------------- CNF
 
 -- | Misc information on a CNF
 data CNFDescription = CNFDescription
@@ -277,9 +315,13 @@ data CNFDescription = CNFDescription
 -- | Solver's parameters; random decision rate was dropped.
 data MiosConfiguration = MiosConfiguration
                          {
-                           variableDecayRate  :: !Double  -- ^ decay rate for variable activity
-                         , clauseDecayRate    :: !Double  -- ^ decay rate for clause activity
-                         , dumpStat           :: !Int     -- ^ dump stats data during solving
+                           variableDecayRate  :: !Double     -- ^ decay rate for variable activity
+                         , clauseDecayRate    :: !Double     -- ^ decay rate for clause activity
+                         , dumpSolverStatMode :: !Int        -- ^ dump stats data during solving
+--                         , emaCoeffs          :: !(Int, Int) -- ^ the coefficients for restarts
+--                         , restartExpansionB  :: !Double     -- ^ Blocking restart expansion factor
+--                         , restartExpansionF  :: !Double     -- ^ Forcing restart expansion factor
+--                         , restartExpansionS  :: !Double     -- ^ static Steps between restarts
                          }
   deriving (Eq, Ord, Read, Show)
 
@@ -291,7 +333,9 @@ data MiosConfiguration = MiosConfiguration
 -- * Mios-1.2     uses @(0.95, 0.999, 0)@.
 --
 defaultConfiguration :: MiosConfiguration
-defaultConfiguration = MiosConfiguration 0.95 0.999 0
+defaultConfiguration = MiosConfiguration 0.95 0.999 0 -- (ef, es) 1.20 1.01 100
+  where ef = (2 :: Int) ^ ( 5 :: Int)
+        es = (2 :: Int) ^ (14 :: Int)
 
 -------------------------------------------------------------------------------- Statistics
 
