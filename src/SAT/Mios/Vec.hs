@@ -24,7 +24,7 @@ module SAT.Mios.Vec
        , StackFamily (..)
        , Stack
        , newStackFromList
-       , realLengthOfStack
+       , realLength
        , sortStack
        )
        where
@@ -212,6 +212,11 @@ instance VecFamily ByteArrayDouble Double where
                   return $ ByteArrayDouble v
   asList (ByteArrayDouble v) = mapM (BA.readByteArray v) [0 .. div (BA.sizeofMutableByteArray v) 8 - 1]
 
+-- | returns the number of allocated slots
+{-# INLINE realLength #-}
+realLength :: Vec Int -> Int
+realLength (ByteArrayInt v) = div (BA.sizeofMutableByteArray v) 8
+
 -------------------------------------------------------------------------------- SingleStorage
 
 -- | Interface for single (one-length vector) mutable data
@@ -322,11 +327,6 @@ newStackFromList l = do
       loop [] _ = return $ ByteArrayInt v
       loop (x:l') i = BA.writeByteArray v i x >> loop l' (i + 1)
   loop (length l : l) 0
-
--- | returns the number of allocated slots
-{-# INLINE realLengthOfStack #-}
-realLengthOfStack :: Stack -> Int
-realLengthOfStack (ByteArrayInt v) = div (BA.sizeofMutableByteArray v) 8
 
 -- | sort the content of a stack, in small-to-large order.
 {-# INLINABLE sortStack #-}

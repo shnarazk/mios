@@ -494,8 +494,7 @@ sortClauses s cm limit' = do
   n <- get' cm
   -- assert (n < indexMax)
   vec <- getClauseVector cm
-  bvec <- getKeyVector cm
-  keys <- newVec (2 * n) 0 :: IO (Vec Int)
+  keys <- allocateKeyVectorSize cm (2 * n) -- newVec (2 * n) 0 :: IO (Vec Int)
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
   updateNDD s
@@ -575,15 +574,12 @@ sortClauses s cm limit' = do
         bits <- getNth keys (2 * i + 1)
         when (indexMax < bits) $ do
           c <- getNth vec i
-          d <- getNth bvec i
           -- setNth keys i i
           let sweep k = do k' <- (indexMax .&.) <$> getNth keys (2 * k + 1)
                            setNth keys (2 * k + 1) (indexMax .&. k) -- back to the real index from (**)
                            if k' == i
                              then do setNth vec k c
-                                     setNth bvec k d
                              else do getNth vec k' >>= setNth vec k
-                                     getNth bvec k' >>= setNth bvec k
                                      sweep k'
           sweep i -- (indexMax .&. bits)
         seek $ i + 1

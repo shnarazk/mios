@@ -19,6 +19,7 @@ module SAT.Mios.ClauseManager
        , ClauseExtManager
        , pushClauseWithKey
        , getKeyVector
+       , allocateKeyVectorSize
        , markClause
          -- * WatcherList
        , WatcherList
@@ -29,6 +30,7 @@ module SAT.Mios.ClauseManager
 
 import Control.Monad (unless, when)
 import qualified Data.IORef as IORef
+import qualified Data.Primitive.ByteArray as BA
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
 import SAT.Mios.Types
@@ -294,3 +296,20 @@ instance VecFamily WatcherList C.Clause where
   {-# SPECIALIZE INLINE reset :: WatcherList -> IO () #-}
   reset = V.mapM_ purifyManager
 --  dump _ _ = (mes ++) . concat <$> mapM (\i -> dump ("\n" ++ show (lit2int i) ++ "' watchers:") (getNthWatcher wl i)) [1 .. V.length wl - 1]
+
+--------------------------------------------------------------------------------
+
+-- | returns the associated Int vector, which holds /blocking literals/.
+{-# INLINE setKeyVector #-}
+setKeyVector :: ClauseExtManager -> Vec Int -> IO ()
+setKeyVector ClauseExtManager{..} v = IORef.writeIORef _keyVector v
+
+{-# INLINABLE allocateKeyVectorSize #-}
+allocateKeyVectorSize :: ClauseExtManager -> Int -> IO (Vec Int)
+allocateKeyVectorSize  ClauseExtManager{..} n' = do
+  v <- IORef.readIORef _keyVector
+  if realLength v < n'          -- never shrink it
+    then do v' <- newVec n' 0
+            IORef.writeIORef _keyVector v'
+            return v'
+    else return b
