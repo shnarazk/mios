@@ -312,4 +312,4 @@ allocateKeyVectorSize  ClauseExtManager{..} n' = do
     then do v' <- newVec n' 0
             IORef.writeIORef _keyVector v'
             return v'
-    else return b
+    else return v
