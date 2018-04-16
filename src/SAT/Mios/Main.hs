@@ -494,6 +494,85 @@ sortClauses s cm limit' = do
   n <- get' cm
   -- assert (n < indexMax)
   vec <- getClauseVector cm
+  kvec <- getKeyVector cm
+--  keys <- newVec (2 * n) 0 :: IO (Vec Int)
+  at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
+  -- 1: assign keys
+  updateNDD s
+  cl <- getEMA (emaCDLvl s)
+  surface <- if cl == 0 then return 0 else (/ cl) <$> getEMA (emaBDLvl s)  -- 0 <=backjumped level / coflict level < 1.0
+  let shiftLBD = activityWidth
+      -- shiftIndex = shiftL 1 indexWidth -- store a shifted value of index (**)
+      am = fromIntegral activityMax :: Double
+      scaleAct :: Double -> Int
+      scaleAct x
+        | x < 1e-20 = activityMax
+        | otherwise = floor $ am * (1 - logBase 10 (x * 1e20) / 40)
+      assignKey :: Int -> Int -> IO Int
+      assignKey ((< n) -> False) t = return t
+      assignKey i t = do
+        -- setNth keys (2 * i + 1) $ shiftIndex + i
+        c <- getNth vec i
+        k <- get' c
+        if k == 2                  -- Main criteria. Like in MiniSat we keep all binary clauses
+          then do setNth kvec i 0
+                  assignKey (i + 1) (t + 1)
+          else do a <- get' (activity c)                       -- Second one... based on LBD
+                  rLBD <- fromIntegral <$> getRank c           -- above the level
+                  rNDD <- fromIntegral <$> nddOf s (lits c)    -- under the level
+                  let r = if rNDD == 1                         -- this implies rLBD == 1.
+                          then 1
+                          else ceiling . logBase 2 $ rLBD ** surface * rNDD ** (1 - surface)
+                  l <- locked s c
+                  let d =if | l -> 0
+                            | a < at -> rankMax
+                            | otherwise ->  min rankMax r                -- rank can be one
+                  setNth kvec i $ shiftL d shiftLBD + scaleAct a
+                  assignKey (i + 1) $ if l then t + 1 else t
+  limit <- max limit' <$> assignKey 0 0
+  -- 2: sort keyVector
+  let sortOnRange :: Int -> Int -> IO ()
+      sortOnRange left right
+        | limit < left = return ()
+        | left >= right = return ()
+        | left + 1 == right = do
+            a <- getNth kvec left
+            b <- getNth kvec right
+            unless (a < b) $ do setNth kvec left b
+                                setNth kvec right a
+                                swapBetween vec left right -- kvec (left + 1) (right + 1)
+        | otherwise = do
+            let p = div (left + right) 2
+            pivot <- getNth kvec p
+            swapBetween kvec p left -- set a sentinel for r'
+            swapBetween vec p left  -- kvec (p + 1) (left + 1)
+            let nextL :: Int -> IO Int
+                nextL i@((<= right) -> False) = return i
+                nextL i = do v <- getNth kvec i; if v < pivot then nextL (i + 1) else return i
+                nextR :: Int -> IO Int
+                nextR i = do v <- getNth kvec i; if pivot < v then nextR (i - 1) else return i
+                divide :: Int -> Int -> IO Int
+                divide l r = do
+                  l' <- nextL l
+                  r' <- nextR r
+                  if l' < r'
+                    then do swapBetween kvec l' r'
+                            swapBetween vec l' r'
+                            divide (l' + 1) (r' - 1)
+                    else return r'
+            m <- divide (left + 1) right
+            swapBetween kvec left m
+            swapBetween vec left m  -- bvec (left + 1) (m + 1)
+            sortOnRange left (m - 1)
+            sortOnRange (m + 1) right
+  sortOnRange 0 (n - 1)
+  return limit
+
+{-
+sortClauses s cm limit' = do
+  n <- get' cm
+  -- assert (n < indexMax)
+  vec <- getClauseVector cm
   keys <- allocateKeyVectorSize cm (2 * n) -- newVec (2 * n) 0 :: IO (Vec Int)
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
@@ -585,6 +664,7 @@ sortClauses s cm limit' = do
         seek $ i + 1
   seek 0
   return limit
+-}
 
 -- | #M22
 --
