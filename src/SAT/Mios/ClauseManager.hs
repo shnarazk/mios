@@ -19,8 +19,8 @@ module SAT.Mios.ClauseManager
        , ClauseExtManager
        , pushClauseWithKey
        , getKeyVector
-       , allocateKeyVectorSize
        , markClause
+--       , allocateKeyVectorSize
          -- * WatcherList
        , WatcherList
        , newWatcherList
