@@ -112,11 +112,15 @@ executeSolver _ = return ()
 --   * other bigger values are used for aborted cases.
 reportResult :: MiosProgramOption -> Integer -> SolverResult -> IO ()
 -- abnormal cases, catching 'too large CNF', 'timeout' for now.
-reportResult opts@(_targetFile -> Just cnfFile) _ (Left flag) =
-  putStrLn ("\"" ++ takeWhile (' ' /=) versionId ++ "\","
-             ++ show (_confBenchSeq opts) ++ ","
-             ++ "\"" ++ cnfFile ++ "\","
-             ++ show (_confBenchmark opts) ++ "," ++ show (fromEnum flag))
+reportResult opts@(_targetFile -> Just cnfFile) t0 (Left flag) = do
+  t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
+  when (0 <= _confBenchmark opts) $ do
+    let fromPico = 1000000000000 :: Double
+    putStrLn ("\"" ++ takeWhile (' ' /=) versionId ++ "\","
+              ++ show (_confBenchSeq opts) ++ ","
+              ++ "\"" ++ cnfFile ++ "\","
+              ++ showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) ","
+              ++ show (fromEnum flag))
 
 -- solver terminated normally
 reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
