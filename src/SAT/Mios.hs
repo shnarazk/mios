@@ -87,8 +87,18 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
              ThreadKilled  -> reportResult opts t0 =<< readMVar token
              e -> print e) $ do
     when (0 < _confBenchmark opts) $
-      void $ forkIO $ do let fromMicro = 1000000 :: Int
-                         threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
+      void $ forkIO $ do let toPico = 1000 * 1000 * 1000 * 1000 :: Integer
+                             -- since getCPUTime is in pico, everything should be in pico
+                             required :: Integer
+                             required = toPico * fromIntegral (_confBenchmark opts)
+                             checkTime :: Integer -> IO ()
+                             checkTime remain = do
+                               -- putStrLn $ "waiting in " ++ show (div remain toPico) ++ " sec"
+                               threadDelay $ div (fromIntegral remain) (1000 * 1000)   --  requires micro second
+                               elapsed <- subtract t0 <$> getCPUTime
+                               -- putStrLn $ "wasted in " ++ show (div elapsed toPico) ++ " sec"
+                               when (elapsed < required) $ checkTime (required - elapsed)
+                         checkTime required
                          putMVar token (Left TimeOut)
                          killThread solverId
     s <- newSolver (toMiosConf opts) desc
