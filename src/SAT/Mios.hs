@@ -95,7 +95,7 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
                              checkTime remain = do
                                -- putStrLn $ "waiting in " ++ show (div remain toPico) ++ " sec"
                                threadDelay $ div (fromIntegral remain) (1000 * 1000)   --  requires micro second
-                               elapsed <- subtract t0 <$> getCPUTime
+                               elapsed <- getCPUTime
                                -- putStrLn $ "wasted in " ++ show (div elapsed toPico) ++ " sec"
                                when (elapsed < required) $ checkTime (required - elapsed)
                          checkTime required
@@ -129,7 +129,7 @@ reportResult opts@(_targetFile -> Just cnfFile) t0 (Left flag) = do
     putStrLn ("\"" ++ takeWhile (' ' /=) versionId ++ "\","
               ++ show (_confBenchSeq opts) ++ ","
               ++ "\"" ++ cnfFile ++ "\","
-              ++ showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) ","
+              ++ showFFloat (Just 3) (fromIntegral t2 / fromPico) ","
               ++ show (fromEnum flag))
 
 -- solver terminated normally
@@ -163,7 +163,7 @@ reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
       ++ show (_confBenchSeq opts) ++ ","
       ++ "\"" ++ cnfFile ++ "\","
       ++ if valid
-         then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "," ++ show phase
+         then showFFloat (Just 3) (fromIntegral t2 / fromPico) "," ++ show phase
          else show (_confBenchmark opts) ++ "," ++ show (fromEnum InternalInconsistent)
 
 reportResult _ _ _ = return ()
