@@ -76,10 +76,6 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
   solverId <- myThreadId
   (desc, cls) <- parseCNF (_targetFile opts)
   -- when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
-  when (_confMaxClauses opts < _numberOfClauses desc) $
-    if -1 == _confBenchmark opts
-      then errorWithoutStackTrace $ "ABORT: too many clauses to solve, " ++ show desc
-      else reportResult opts 0 (Left OutOfMemory) >> killThread solverId
   token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
   t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
   handle (\case
