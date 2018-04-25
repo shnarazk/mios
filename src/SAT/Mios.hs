@@ -52,7 +52,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "#85.1 https://github.com/shnarazk/mios"
+versionId = "#85.2 https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ 0 = return 0
@@ -85,20 +85,17 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
   handle (\case
              UserInterrupt -> putStrLn "User interrupt recieved."
              ThreadKilled  -> reportResult opts t0 =<< readMVar token
-             e -> print e) $ do
+             e -> if -1 == _confBenchmark opts then print e else reportResult opts t0 (Left TimeOut)
+         ) $ do
     when (0 < _confBenchmark opts) $
-      void $ forkIO $ do let toPico = 1000 * 1000 * 1000 * 1000 :: Integer
-                             -- since getCPUTime is in pico, everything should be in pico
-                             required :: Integer
-                             required = toPico * fromIntegral (_confBenchmark opts)
-                             checkTime :: Integer -> IO ()
-                             checkTime remain = do
-                               -- putStrLn $ "waiting in " ++ show (div remain toPico) ++ " sec"
-                               threadDelay $ div (fromIntegral remain) (1000 * 1000)   --  requires micro second
-                               elapsed <- getCPUTime
-                               -- putStrLn $ "wasted in " ++ show (div elapsed toPico) ++ " sec"
-                               when (elapsed < required) $ checkTime (required - elapsed)
-                         checkTime required
+      void $ forkIO $ do let -- getCPUTime returns a pico sec. :: Integer, 1000 * 1000 * 1000 * 1000
+                             -- threadDelay requires a micro sec. :: Int,  1000 * 1000
+                             req = 1000000000000 * fromIntegral (_confBenchmark opts) :: Integer
+                             waiting = do elp <- getCPUTime
+                                          when (elp < req) $ do
+                                            threadDelay $ fromIntegral (req - elp) `div` 1000000
+                                            waiting
+                         waiting
                          putMVar token (Left TimeOut)
                          killThread solverId
     s <- newSolver (toMiosConf opts) desc
