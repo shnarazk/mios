@@ -85,6 +85,9 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
   handle (\case
              UserInterrupt -> putStrLn "User interrupt recieved."
              ThreadKilled  -> reportResult opts t0 =<< readMVar token
+             HeapOverflow  -> if -1 == _confBenchmark opts
+                              then putStrLn "Abort: out of heap memory"
+                              else reportResult opts t0 (Left OutOfMemory)
              e -> if -1 == _confBenchmark opts then print e else reportResult opts t0 (Left TimeOut)
          ) $ do
     when (0 < _confBenchmark opts) $
@@ -119,7 +122,17 @@ executeSolver _ = return ()
 --   * other bigger values are used for aborted cases.
 reportResult :: MiosProgramOption -> Integer -> SolverResult -> IO ()
 -- abnormal cases, catching 'too large CNF', 'timeout' for now.
-reportResult opts@(_targetFile -> Just cnfFile) t0 (Left flag) = do
+reportResult opts@(_targetFile -> Just cnfFile) t0 (Left OutOfMemory) = do
+  t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
+  when (0 <= _confBenchmark opts) $ do
+    let fromPico = 1000000000000 :: Double
+    putStrLn ("\"" ++ takeWhile (' ' /=) versionId ++ "\","
+              ++ show (_confBenchSeq opts) ++ ","
+              ++ "\"" ++ cnfFile ++ "\","
+              ++ show (_confBenchmark opts) ++ "," ++ show (fromEnum OutOfMemory)
+             )
+
+reportResult opts@(_targetFile -> Just cnfFile) t0 (Left TimeOut) = do
   t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
   when (0 <= _confBenchmark opts) $ do
     let fromPico = 1000000000000 :: Double
@@ -127,7 +140,8 @@ reportResult opts@(_targetFile -> Just cnfFile) t0 (Left flag) = do
               ++ show (_confBenchSeq opts) ++ ","
               ++ "\"" ++ cnfFile ++ "\","
               ++ showFFloat (Just 3) (fromIntegral t2 / fromPico) ","
-              ++ show (fromEnum flag))
+              ++ show (fromEnum TimeOut)
+             )
 
 -- solver terminated normally
 reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
