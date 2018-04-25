@@ -54,9 +54,12 @@ executables:
     when:
       - condition: flag(llvm)
         then:
+          ghc-options:          -j -O2 -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -fwarn-missing-signatures
+                                -rtsopts -with-rtsopts=-M4g
           ghc-prof-options:	-j -O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto -rtsopts
-                                --rtsopts-with="-H16M -A16M"
         else:
+          ghc-options:          -j -O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
+                                -rtsopts -with-rtsopts=-M4g
           ghc-prof-options:	-j -O2 -funbox-strict-fields -fprof-auto -rtsopts
   cnf-stat:
     source-dirs:     utils
