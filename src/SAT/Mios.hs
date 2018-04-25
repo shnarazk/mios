@@ -86,7 +86,7 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
              UserInterrupt -> putStrLn "User interrupt recieved."
              ThreadKilled  -> reportResult opts t0 =<< readMVar token
              HeapOverflow  -> if -1 == _confBenchmark opts
-                              then putStrLn "Abort: a too large problem or heap exhausted"
+                              then putStrLn "Abort: a too large problem or heap exhausted (use '+RTS -M16g' if you need)"
                               else reportResult opts t0 (Left OutOfMemory)
              e -> if -1 == _confBenchmark opts then print e else reportResult opts t0 (Left TimeOut)
          ) $ do
