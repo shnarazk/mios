@@ -24,7 +24,7 @@ module SAT.Mios.Vec
        , StackFamily (..)
        , Stack
        , newStackFromList
-       , realLengthOfStack
+       , realLength
        , sortStack
        )
        where
@@ -98,69 +98,6 @@ instance VecFamily (UVector Int) Int where
   growBy = UV.unsafeGrow
   asList v = mapM (UV.unsafeRead v) [0 .. UV.length v - 1]
 
-{-
--- Note: type @[Int]@ is selected for 'UVector' not to export it.
-data instance Vec [Int] = Vec (UVector Int)
-
-instance VecFamily (Vec [Int]) Int where
-  {-# SPECIALIZE INLINE getNth :: Vec [Int] -> Int -> IO Int #-}
-  getNth (Vec v) = UV.unsafeRead v
-  {-# SPECIALIZE INLINE setNth :: Vec [Int] -> Int -> Int -> IO () #-}
-  setNth (Vec v) = UV.unsafeWrite v
-  {-# SPECIALIZE INLINE reset :: Vec [Int] -> IO () #-}
-  reset (Vec v) = setNth v 0 0
-  {-# SPECIALIZE INLINE modifyNth :: Vec [Int] -> (Int -> Int) -> Int -> IO () #-}
-  modifyNth (Vec v) = UV.unsafeModify v
-  {-# SPECIALIZE INLINE swapBetween :: Vec [Int] -> Int -> Int -> IO () #-}
-  swapBetween (Vec v) = UV.unsafeSwap v
-  {-# SPECIALIZE INLINE newVec :: Int -> Int -> IO (Vec [Int]) #-}
-  newVec n x = Vec <$> newVec (n + 1) x
-  {-# SPECIALIZE INLINE setAll :: Vec [Int] -> Int -> IO () #-}
-  setAll (Vec v) = UV.set v
-  {-# SPECIALIZE INLINE growBy :: Vec [Int] -> Int -> IO (Vec [Int]) #-}
-  growBy (Vec v) n = Vec <$> UV.unsafeGrow v n
-  asList (Vec v) = mapM (getNth v) [0 .. UV.length v - 1]
--}
-
-{- NOT IN USE
-data instance Vec [Double] = Vec (UVector Double)
-
-instance VecFamily (UVector Double) Double where
-  {-# SPECIALIZE INLINE getNth :: UVector Double -> Int -> IO Double #-}
-  getNth = UV.unsafeRead
-  {-# SPECIALIZE INLINE setNth :: UVector Double -> Int -> Double -> IO () #-}
-  setNth = UV.unsafeWrite
-  {-# SPECIALIZE INLINE modifyNth :: UVector Double -> (Double -> Double) -> Int -> IO () #-}
-  modifyNth = UV.unsafeModify
-  {-# SPECIALIZE INLINE swapBetween:: UVector Double -> Int -> Int -> IO () #-}
-  swapBetween = UV.unsafeSwap
-  {-# SPECIALIZE INLINE newVec :: Int -> Double -> IO (UVector Double) #-}
-  newVec n x = do v <- UV.new n
-                  UV.set v x
-                  return v
-  {-# SPECIALIZE INLINE setAll :: UVector Double -> Double -> IO () #-}
-  setAll = UV.set
-  {-# SPECIALIZE INLINE growBy :: UVector Double -> Int -> IO (UVector Double) #-}
-  growBy = UV.unsafeGrow
-  asList v = mapM (UV.unsafeRead v) [0 .. UV.length v - 1]
-
-instance VecFamily (Vec Double) Double where
-  {-# SPECIALIZE INLINE getNth :: Vec Double -> Int -> IO Double #-}
-  getNth (Vec v) = UV.unsafeRead v
-  {-# SPECIALIZE INLINE setNth :: Vec Double -> Int -> Double -> IO () #-}
-  setNth (Vec v) = UV.unsafeWrite v
-  {-# SPECIALIZE INLINE modifyNth :: Vec Double -> (Double -> Double) -> Int -> IO () #-}
-  modifyNth (Vec v) = UV.unsafeModify v
-  {-# SPECIALIZE INLINE swapBetween :: Vec Double -> Int -> Int -> IO () #-}
-  swapBetween (Vec v) = UV.unsafeSwap v
-  {-# SPECIALIZE INLINE newVec :: Int -> Double -> IO (Vec Double) #-}
-  newVec n x = Vec <$> newVec (n + 1) x
-  {-# SPECIALIZE INLINE setAll :: Vec Double -> Double -> IO () #-}
-  setAll (Vec v) = UV.set v
-  {-# SPECIALIZE INLINE growBy :: Vec Double -> Int -> IO (Vec Double) #-}
-  growBy (Vec v) n = Vec <$> UV.unsafeGrow v n
--}
-
 -------------------------------------------------------------------------------- ByteArray
 
 data instance Vec Int = ByteArrayInt (BA.MutableByteArray RealWorld)
@@ -183,6 +120,7 @@ instance VecFamily ByteArrayInt Int where
                                         BA.writeByteArray v j (x :: Int)
   {-# SPECIALIZE INLINE reset :: ByteArrayInt -> IO () #-}
   reset (ByteArrayInt v) = BA.writeByteArray v 0 (0 :: Int)
+  {-# SPECIALIZE INLINE newVec :: Int -> Int -> IO ByteArrayInt #-}
   newVec n k = do v <- BA.newByteArray (8 * (n + 1))
                   BA.writeByteArray v 0 (0 :: Int)
                   BA.setByteArray v 1 n k
@@ -206,11 +144,17 @@ instance VecFamily ByteArrayDouble Double where
                                            BA.writeByteArray v j (x :: Int)
   {-# SPECIALIZE INLINE reset :: ByteArrayDouble -> IO () #-}
   reset (ByteArrayDouble v) = BA.writeByteArray v 0 (0 :: Double)
+  {-# SPECIALIZE INLINE newVec :: Int -> Double -> IO ByteArrayDouble #-}
   newVec n k = do v <- BA.newByteArray (8 * (n + 1))
                   BA.writeByteArray v 0 (0 :: Double)
                   BA.setByteArray v 1 n k
                   return $ ByteArrayDouble v
   asList (ByteArrayDouble v) = mapM (BA.readByteArray v) [0 .. div (BA.sizeofMutableByteArray v) 8 - 1]
+
+-- | returns the number of allocated slots
+{-# INLINE realLength #-}
+realLength :: Vec Int -> Int
+realLength (ByteArrayInt v) = div (BA.sizeofMutableByteArray v) 8
 
 -------------------------------------------------------------------------------- SingleStorage
 
@@ -322,11 +266,6 @@ newStackFromList l = do
       loop [] _ = return $ ByteArrayInt v
       loop (x:l') i = BA.writeByteArray v i x >> loop l' (i + 1)
   loop (length l : l) 0
-
--- | returns the number of allocated slots
-{-# INLINE realLengthOfStack #-}
-realLengthOfStack :: Stack -> Int
-realLengthOfStack (ByteArrayInt v) = div (BA.sizeofMutableByteArray v) 8
 
 -- | sort the content of a stack, in small-to-large order.
 {-# INLINABLE sortStack #-}
