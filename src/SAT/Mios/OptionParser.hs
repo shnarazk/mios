@@ -23,7 +23,7 @@ import SAT.Mios.Types (MiosConfiguration (..), defaultConfiguration)
 -- | configuration swithces
 data MiosProgramOption = MiosProgramOption
                      {
-                       _targetFile            :: Maybe String
+                       _targetFile            :: Either String String -- path or data
                      , _targets               :: [String]
                      , _outputFile            :: Maybe String
                      , _confVariableDecayRate :: Double
@@ -47,7 +47,7 @@ data MiosProgramOption = MiosProgramOption
 miosDefaultOption :: MiosProgramOption
 miosDefaultOption = MiosProgramOption
   {
-    _targetFile = Nothing
+    _targetFile = Left ""
   , _targets = []
   , _outputFile = Nothing
   , _confVariableDecayRate = variableDecayRate defaultConfiguration
@@ -137,7 +137,7 @@ miosParseOptions mes argv =
       (o, [], []) -> return $ foldl (flip id) miosDefaultOption o
       (o, l, []) -> do
         let conf = foldl (flip id) miosDefaultOption o
-        return $ conf { _targetFile = Just (head l), _targets = l }
+        return $ conf { _targetFile = Left (head l), _targets = l }
       (_, _, errs) -> ioError (userError (concat errs ++ miosUsage mes))
 
 -- | builds "MiosProgramOption" from a String

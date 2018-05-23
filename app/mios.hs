@@ -23,7 +23,7 @@ main :: IO ()
 main = do opts <- miosParseOptionsFromArgs versionId
           if | _displayVersion opts        -> putStrLn gitId
              | _displayHelp opts           -> putStrLn usage
-             | _targetFile opts == Nothing -> putStrLn usage
+             | _targetFile opts == Left "" -> putStrLn usage
              | _validateAssignment opts    -> executeValidator opts
              | otherwise                   -> executeSolver opts
 

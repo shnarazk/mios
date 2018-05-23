@@ -308,7 +308,7 @@ data CNFDescription = CNFDescription
   {
     _numberOfVariables :: !Int           -- ^ the number of variables
   , _numberOfClauses :: !Int             -- ^ the number of clauses
-  , _pathname :: Maybe FilePath          -- ^ given filename
+  , _pathname :: !FilePath               -- ^ given filename
   }
   deriving (Eq, Ord, Read, Show)
 

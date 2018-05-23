@@ -67,12 +67,12 @@ reportElapsedTime True mes t = do
 -- | executes a solver on the given CNF file.
 -- This is the simplest entry to standalone programs; not for Haskell programs.
 executeSolverOn :: FilePath -> IO ()
-executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just path })
+executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Left path })
 
 -- | executes a solver on the given 'arg :: MiosConfiguration'.
 -- This is another entry point for standalone programs.
 executeSolver :: MiosProgramOption -> IO ()
-executeSolver opts@(_targetFile -> (Just cnfFile)) = do
+executeSolver opts = do
   solverId <- myThreadId
   (desc, cls) <- parseCNF (_targetFile opts)
   -- when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
@@ -100,7 +100,7 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
     s <- newSolver (toMiosConf opts) desc
     -- ct <- reportElapsedTime True "- making a new solver: " t0
     injectClausesFromCNF s desc cls
-    void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
+    void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPathFixed opts ++ "] Parse: ") t0
     -- putMVar token (Left TimeOut)
     -- killThread solverId
     -- ct <- reportElapsedTime True "injecting w/ ByteString: " ct
@@ -118,30 +118,30 @@ executeSolver _ = return ()
 --   * other bigger values are used for aborted cases.
 reportResult :: MiosProgramOption -> Integer -> SolverResult -> IO ()
 -- abnormal cases, catching 'too large CNF', 'timeout' for now.
-reportResult opts@(_targetFile -> Just cnfFile) t0 (Left OutOfMemory) = do
-  t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
+reportResult opts t0 (Left OutOfMemory) = do
+  t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPathFixed opts ++ "] Total: ") t0
   when (0 <= _confBenchmark opts) $ do
     let fromPico = 1000000000000 :: Double
     putStrLn ("\"" ++ takeWhile (' ' /=) versionId ++ "\","
               ++ show (_confBenchSeq opts) ++ ","
-              ++ "\"" ++ cnfFile ++ "\","
+              ++ "\"" ++ showPath opts ++ "\","
               ++ show (_confBenchmark opts) ++ "," ++ show (fromEnum OutOfMemory)
              )
 
-reportResult opts@(_targetFile -> Just cnfFile) t0 (Left TimeOut) = do
-  t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
+reportResult opts t0 (Left TimeOut) = do
+  t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPathFixed opts ++ "] Total: ") t0
   when (0 <= _confBenchmark opts) $ do
     let fromPico = 1000000000000 :: Double
     putStrLn ("\"" ++ takeWhile (' ' /=) versionId ++ "\","
               ++ show (_confBenchSeq opts) ++ ","
-              ++ "\"" ++ cnfFile ++ "\","
+              ++ "\"" ++ showPath opts ++ "\","
               ++ showFFloat (Just 3) (fromIntegral t2 / fromPico) ","
               ++ show (fromEnum TimeOut)
              )
 
 -- solver terminated normally
-reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
-  t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
+reportResult opts t0 (Right result) = do
+  t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPathFixed opts ++ "] Total: ") t0
   case result of
     _ | 0 <= _confBenchmark opts -> return ()
     SAT _   | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "SATISFIABLE"
@@ -162,13 +162,13 @@ reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
     if _confVerbose opts
       then hPutStrLn stderr $ if valid then "A vaild answer" else "Internal error: mios returns a wrong answer"
       else unless valid $ hPutStrLn stderr "Internal error: mios returns a wrong answer"
-    void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Validate: ") t2
+    void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPathFixed opts ++ "] Validate: ") t2
   when (0 <= _confBenchmark opts) $ do
     let fromPico = 1000000000000 :: Double
         phase = case result of { SAT _   -> 1; UNSAT _ -> 0::Int }
     putStrLn $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
       ++ show (_confBenchSeq opts) ++ ","
-      ++ "\"" ++ cnfFile ++ "\","
+      ++ "\"" ++ showPath opts ++ "\","
       ++ if valid
          then showFFloat (Just 3) (fromIntegral t2 / fromPico) "," ++ show phase
          else show (_confBenchmark opts) ++ "," ++ show (fromEnum InternalInconsistent)
@@ -219,12 +219,12 @@ solveSATWithConfiguration conf desc cls = do
 -- | validates a given assignment from STDIN for the CNF file (2nd arg).
 -- this is the entry point for standalone programs.
 executeValidatorOn :: FilePath -> IO ()
-executeValidatorOn path = executeValidator (miosDefaultOption { _targetFile = Just path })
+executeValidatorOn path = executeValidator (miosDefaultOption { _targetFile = Left path })
 
 -- | validates a given assignment for the problem (2nd arg).
 -- This is another entry point for standalone programs; see app/mios.hs.
 executeValidator :: MiosProgramOption -> IO ()
-executeValidator opts@(_targetFile -> target@(Just cnfFile)) = do
+executeValidator opts@(_targetFile -> target@(Left cnfFile)) = do
   (desc, cls) <- parseCNF target
   when (_numberOfVariables desc == 0) . error $ "couldn't load " ++ show cnfFile
   s <- newSolver (toMiosConf opts) desc
@@ -266,21 +266,33 @@ dumpAssigmentAsCNF (Just fname) (UNSAT _) =
 dumpAssigmentAsCNF (Just fname) (SAT l) =
   withFile fname WriteMode $ \h -> do hPutStrLn h "s SAT"; hPutStrLn h . (++ " 0") . unwords $ map show l
 
-showPath :: FilePath -> String
-showPath str = replicate (len - length basename) ' ' ++ if elem '/' str then basename else basename'
+showPath :: MiosProgramOption -> String
+showPath (_targetFile -> Left str) = str
+showPath _ = "{a cnf embedded}"
+
+showPathFixed :: MiosProgramOption -> String
+showPathFixed (_targetFile -> Left str) = replicate (len - length basename) ' ' ++ if elem '/' str then basename else basename'
   where
     len = 50
     basename = reverse . takeWhile (/= '/') . reverse $ str
     basename' = take len str
+
+showPathFixed (_targetFile -> Right _) = replicate (len - length basename) ' ' ++ basename
+  where
+    len = 50
+    basename = "embedded data"
 
 --------------------------------------------------------------------------------
 -- DIMACS CNF Reader
 --------------------------------------------------------------------------------
 
 -- | parses the header of a CNF file
-parseCNF :: Maybe FilePath -> IO (CNFDescription, B.ByteString)
-parseCNF target@(Just cnfFile) = do
+parseCNF :: Either FilePath String -> IO (CNFDescription, B.ByteString)
+parseCNF pathOrData = do
   let -- format: p cnf n m, length "p cnf" == 5
+      target = case pathOrData of
+                 Left str -> str
+                 Right _  -> ""
       parseP line = case parseInt (skipWhitespace (B.drop 5 line)) of
                       (x, second) -> case B.readInt (skipWhitespace second) of
                                        Just (y, _) -> CNFDescription x y target
@@ -289,7 +301,9 @@ parseCNF target@(Just cnfFile) = do
         | B.head bs == 'p' = return (parseP l, B.tail bs')
         | otherwise = seek (B.tail bs')
         where (l, bs') = B.span ('\n' /=) bs
-  seek =<< B.readFile cnfFile
+  case pathOrData of
+    Left cnfFile -> seek =<< B.readFile cnfFile
+    Right bdata  -> seek $ B.pack bdata
 
 -- | parses ByteString then injects the clauses in it into a solver
 {-# INLINABLE injectClausesFromCNF #-}
