@@ -24,6 +24,10 @@ flags:
     description:     Build misc utilities for developer
     manual:          true
     default:         false
+  bot:
+    description:     Compile a discord bot
+    manual:          true
+    default:         false
 
 when:
   - condition:       flag(llvm)
@@ -61,6 +65,21 @@ executables:
           ghc-options:          -j -O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
                                 -rtsopts -with-rtsopts=-M7g
           ghc-prof-options:	-j -O2 -funbox-strict-fields -fprof-auto -rtsopts
+  mios-bot:
+    main:                mios-bot.hs
+    source-dirs:         app
+    when:
+      - condition:       flag(bot)
+        then:
+          buildable:     true
+        else:
+          buildable:     false
+    dependencies:
+      - mios
+      - gitrev
+      - discord-hs
+      - text==1.2.*
+      - req
   cnf-stat:
     source-dirs:     utils
     main:            cnf-stat.hs
