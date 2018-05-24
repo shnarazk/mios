@@ -27,6 +27,7 @@ module SAT.Mios
        , executeSolver
        , executeValidatorOn
        , executeValidator
+       , showAnswerFromString
          -- * File IO
        , parseCNF
        , injectClausesFromCNF
@@ -108,8 +109,6 @@ executeSolver opts = do
     result <- solve s []
     putMVar token result
     killThread solverId
-
-executeSolver _ = return ()
 
 -- | print messages on solver's result
 -- Note: the last field of benchmark CSV is:
@@ -345,3 +344,47 @@ parseInt !st = do
     Just ('-', st') -> let (k, x) = loop (0, st') in (negate k, x)
     Just ('0', st') -> (0, st')
     _ -> loop (0, st)
+
+
+--------------------------------------------------------------------------------
+
+-- | executes a solver on the given 'arg :: MiosConfiguration'.
+-- This is another entry point for standalone programs.
+
+showAnswerFromString :: String -> IO String
+showAnswerFromString str = do
+  let  opts = miosDefaultOption { _targetFile = Right str }
+  solverId <- myThreadId
+  (desc, cls) <- parseCNF (_targetFile opts)
+  token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
+  t0 <- reportElapsedTime False "" 0
+  handle (\case
+             UserInterrupt -> return "User interrupt recieved."
+             ThreadKilled  -> makeReport opts t0 =<< readMVar token
+             HeapOverflow  -> if -1 == _confBenchmark opts
+                              then return "Abort: a too large problem or heap exhausted"
+                              else makeReport opts t0 (Left OutOfMemory)
+             e -> if -1 == _confBenchmark opts then return "unhandled iterrupt" else makeReport opts t0 (Left TimeOut)
+         ) $ do
+    when (0 < _confBenchmark opts) $
+      void $ forkIO $ do let req = 1000000000000 * fromIntegral (_confBenchmark opts) :: Integer
+                             waiting = do elp <- getCPUTime
+                                          when (elp < req) $ do
+                                            threadDelay $ fromIntegral (req - elp) `div` 1000000
+                                            waiting
+                         waiting
+                         putMVar token (Left TimeOut)
+                         killThread solverId
+    s <- newSolver (toMiosConf opts) desc
+    injectClausesFromCNF s desc cls
+    result <- solve s []
+    putMVar token result
+    killThread solverId
+    return $ show desc
+
+makeReport :: MiosProgramOption -> Integer -> SolverResult -> IO String
+makeReport opts t0 (Left OutOfMemory) = return "out of memory"
+makeReport opts t0 (Left TimeOut) = return "time out"
+makeReport opts t0 (Right (SAT asg)) = return $ show asg
+makeReport opts t0 (Right (UNSAT _)) = return "UNSAT"
+makeReport _ _ _ = return ""
