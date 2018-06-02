@@ -13,6 +13,7 @@ a part of my research theme.
   * Version 1.1 was a *line-to-line* translation of [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip).
   * Version 1.2 imported some idea used in Glucose 4.0.
   * Version 1.5 uses Literal Block Distance (LBD).
+  * Version 1.6 adopts new ideas: EMA, ACIDS and so on.
 * runs in `IO` monad, uses `Data.Primitive.ByteArray` mainly and `reallyUnsafePtrEquality`.
 * very fast, compared with other SAT solvers written in Haskell; see below.
 
