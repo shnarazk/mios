@@ -479,7 +479,7 @@ activityMax = 2 ^ activityWidth - 1
 -- 2. smaller LBD
 -- 3. larger activity defined as MiniSat
 --
--- they are encoded into two "Int64"s as the following (10+52+32 layout):
+-- They are encoded into an "Int64" as the following (11+51 layout):
 --
 -- * 11 bits for rank (LBD): 'rankWidth'
 -- * 51 bits for converted activity: 'activityWidth'

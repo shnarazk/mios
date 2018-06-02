@@ -1,3 +1,20 @@
+{-
+  mios-bot:
+    main:                mios-bot.hs
+    source-dirs:         app
+    when:
+      - condition:       flag(bot)
+        then:
+          buildable:     true
+        else:
+          buildable:     false
+    dependencies:
+      - mios
+      - gitrev
+      - discord-hs
+      - text==1.2.*
+      - req
+-}{
 {-# LANGUAGE
     DataKinds
   , FlexibleInstances
@@ -16,7 +33,7 @@ import qualified Data.Text as T
 import GHC.TypeLits
 import Network.Discord
 
-import SAT.Mios (showAnswerFromString)
+import qualified SAT.Mios as Mios
 import Development.GitRev
 import DiscordSecret (token)
 {-
@@ -45,10 +62,9 @@ instance EventMap MnemonicHandler (DiscordApp IO) where
                        , messageAuthor = User{userIsBot = bot, userId = uid}}
              )
     | bot = return ()
-    | forMe c = do
+    | any (T.isPrefixOf "p cnf ") $ take 10 (T.lines c) = do
         v <- ("-- " ++) <$> version
-        -- let result = (T.unpack . T.unlines . tail . init . T.lines $ c)
-        result <- liftIO $ mios (T.unlines . tail . init . T.lines $ c)
+        result <- liftIO $ Mios.showAnswerFromString (T.unpack . T.unlines . tail . init . T.lines $ c)
         let res = "<@" ++ show uid ++ ">, I did. " ++ v ++ "\n```\n" ++ result ++ "```"
         void $ doFetch $ CreateMessage ch (T.pack res) Nothing
     | otherwise = return ()
@@ -59,11 +75,3 @@ instance EventHandler TypeCheckApp IO
 
 main :: IO ()
 main = runBot (Proxy :: Proxy (IO TypeCheckApp))
-
---------------------------------------------------------------------------------
-
-forMe :: T.Text -> Bool
-forMe str = any (T.isPrefixOf "p cnf ") $ take 10 (T.lines str)
-
-mios :: T.Text -> IO String
-mios text = showAnswerFromString (T.unpack text)

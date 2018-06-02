@@ -53,7 +53,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "#85, #71 https://github.com/shnarazk/mios"
+versionId = "1.6.1 https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ 0 = return 0
@@ -76,7 +76,6 @@ executeSolver :: MiosProgramOption -> IO ()
 executeSolver opts = do
   solverId <- myThreadId
   (desc, cls) <- parseCNF (_targetFile opts)
-  -- when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
   token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
   t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
   handle (\case
@@ -93,18 +92,16 @@ executeSolver opts = do
                              req = 1000000000000 * fromIntegral (_confBenchmark opts) :: Integer
                              waiting = do elp <- getCPUTime
                                           when (elp < req) $ do
-                                            threadDelay $ fromIntegral (req - elp) `div` 1000000
+                                            threadDelay . max 1000000 $ fromIntegral (req - elp) `div` 1000000
                                             waiting
                          waiting
                          putMVar token (Left TimeOut)
                          killThread solverId
     s <- newSolver (toMiosConf opts) desc
-    -- ct <- reportElapsedTime True "- making a new solver: " t0
     injectClausesFromCNF s desc cls
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPathFixed opts ++ "] Parse: ") t0
     -- putMVar token (Left TimeOut)
     -- killThread solverId
-    -- ct <- reportElapsedTime True "injecting w/ ByteString: " ct
     when (0 < _confDumpStat opts) $ dumpStats DumpCSVHeader s
     result <- solve s []
     putMVar token result
@@ -205,7 +202,6 @@ solveSAT = solveSATWithConfiguration defaultConfiguration
 solveSATWithConfiguration :: Traversable m => MiosConfiguration -> CNFDescription -> m [Int] -> IO [Int]
 solveSATWithConfiguration conf desc cls = do
   s <- newSolver conf desc
-  -- mapM_ (const (newVar s)) [0 .. _numberOfVariables desc - 1]
   mapM_ ((s `addClause`) <=< (newStackFromList . map int2lit)) cls
   noConf <- simplifyDB s
   if noConf
@@ -345,12 +341,10 @@ parseInt !st = do
     Just ('0', st') -> (0, st')
     _ -> loop (0, st)
 
-
 --------------------------------------------------------------------------------
 
 -- | executes a solver on the given 'arg :: MiosConfiguration'.
 -- This is another entry point for standalone programs.
-
 showAnswerFromString :: String -> IO String
 showAnswerFromString str = do
   let  opts = miosDefaultOption { _targetFile = Right str }
