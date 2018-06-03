@@ -281,16 +281,17 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
   next <- get' nextRestart
   count <- getStat s NumOfBackjump -- it should be > 0
   nas <- fromIntegral <$> nAssigns s
-  bLv <- fromIntegral <$> decisionLevel s
+  {- bLv <- fromIntegral <$> decisionLevel s -}
+  bLv_v1 <- fromIntegral <$> nAssigns s
   df  <- updateEMA emaDFast lbd
   ds  <- updateEMA emaDSlow lbd
   af  <- updateEMA emaAFast nas
   as  <- updateEMA emaASlow nas
-  void $ updateEMA emaCDLvl cLv
+  {- void $ updateEMA emaCDLvl cLv -}
   let filled = next <= count
       blockingRestart = filled && 1.25 * as < af
       forcingRestart = filled && 1.25 * ds < df
-      lv' = if forcingRestart then 0 else bLv
+      lv' = if forcingRestart then 0 else bLv_v1 {- bLv -}
   void $ updateEMA emaBDLvl lv'
   if (not blockingRestart && not forcingRestart)
     then return False

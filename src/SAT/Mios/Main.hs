@@ -653,6 +653,7 @@ search s@Solver{..} = do
                   if | k2 == nVars -> return True     -- Model found
                      | restart -> do                  -- Reached bound on number of conflicts
                          (s `cancelUntil`) =<< get' rootLevel -- force a restart
+                         updateEMA emaCDLvl . fromIntegral =<< nAssigns s
                          -- claRescaleActivityAfterRestart s
 {-
                          let toggle :: Int -> Int
