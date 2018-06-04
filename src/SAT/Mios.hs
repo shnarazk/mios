@@ -81,6 +81,9 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
   handle (\case
              UserInterrupt -> putStrLn "User interrupt recieved."
              ThreadKilled  -> reportResult opts t0 =<< readMVar token
+             HeapOverflow  -> if -1 == _confBenchmark opts
+                              then putStrLn "Abort: a too large problem or heap exhausted (use '+RTS -M16g' if you need)"
+                              else reportResult opts t0 (Left OutOfMemory)
              e -> print e) $ do
     when (0 < _confBenchmark opts) $
       void $ forkIO $ do let fromMicro = 1000000 :: Int
