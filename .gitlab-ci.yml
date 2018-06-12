@@ -1,0 +1,4 @@
+haddock:
+  stage: build
+  script:
+    - stack haddock
