@@ -146,7 +146,7 @@ reportResult opts t0 (Right result) = do
     UNSAT t -> do when (_confVerbose opts) $ hPutStrLn stderr "UNSAT" -- contradiction
                   print t
   dumpAssigmentAsCNF (_outputFile opts) result
-  valid <- if _confCheckAnswer opts -- || 0 <= _confBenchmark opts
+  valid <- if _confCheckAnswer opts {- || 0 <= _confBenchmark opts -}
            then case result of
                   SAT asg -> do (desc, cls) <- parseCNF (_targetFile opts)
                                 s' <- newSolver (toMiosConf opts) desc

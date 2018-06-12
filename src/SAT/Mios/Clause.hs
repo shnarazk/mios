@@ -102,10 +102,12 @@ newClauseFromStack l vec = do
   loop 0
   Clause v <$> new' 0.0
 
+-- | returns the rank, a goodness, of a given clause
 {-# INLINE getRank #-}
 getRank :: Clause -> IO Int
 getRank Clause{..} = do n <- get' lits; getNth lits (n + 1)
 
+-- | sets the rank of a given clause
 {-# INLINE setRank #-}
 setRank :: Clause -> Int -> IO ()
 setRank Clause{..} k = do n <- get' lits; setNth lits (n + 1) k
