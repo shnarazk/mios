@@ -1,0 +1,4 @@
+compiler: ghc-8.4.3
+resolver: nightly-2018-06-01
+allow-newer: true
+system-ghc: true

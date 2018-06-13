@@ -1,4 +1,5 @@
 haddock:
   stage: build
   script:
+    - cp .gitlab-ci-stack.yaml stack.yaml
     - stack haddock
