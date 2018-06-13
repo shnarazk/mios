@@ -79,7 +79,9 @@ executeSolver opts = do
   token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
   t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
   handle (\case
-             UserInterrupt -> putStrLn "User interrupt recieved."
+             UserInterrupt -> if -1 == _confBenchmark opts
+                              then putStrLn "User interrupt (SIGINT) recieved."
+                              else reportResult opts t0 (Left TimeOut)
              ThreadKilled  -> reportResult opts t0 =<< readMVar token
              HeapOverflow  -> if -1 == _confBenchmark opts
                               then putStrLn "Abort: a too large problem or heap exhausted (use '+RTS -M16g' if you need)"
