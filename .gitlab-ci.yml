@@ -1,3 +1,7 @@
+cache:
+  paths:
+    - .stack-work
+
 haddock:
   stage: build
   script:
