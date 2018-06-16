@@ -24,19 +24,15 @@ flags:
     description:     Build misc utilities for developer
     manual:          true
     default:         false
-  bot:
-    description:     Compile a discord bot
-    manual:          true
-    default:         false
 
 when:
   - condition:       flag(llvm)
     then:
       ghc-options:      -j -fwarn-missing-signatures -funbox-strict-fields -O2 -fllvm -optlo-O3 -optlc-O3
-      ghc-prof-options:	-j -O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto
+      ghc-prof-options:	-j -fwarn-missing-signatures -funbox-strict-fields -O2 -fllvm -optlo-O3 -fprof-auto
     else:
       ghc-options:      -j -fwarn-missing-signatures -funbox-strict-fields -O2 -msse2
-      ghc-prof-options:	-j -O2 -funbox-strict-fields -fprof-auto
+      ghc-prof-options:	-j -fwarn-missing-signatures -funbox-strict-fields -O2 -fprof-auto
 
 default-extensions:   Strict
 dependencies:
@@ -58,13 +54,15 @@ executables:
     when:
       - condition: flag(llvm)
         then:
-          ghc-options:          -j -funbox-strict-fields -fwarn-missing-signatures -O2 -fllvm -optlo-O3 -optlc-O3
+          ghc-options:          -j -fwarn-missing-signatures -funbox-strict-fields -O2 -fllvm -optlo-O3 -optlc-O3
                                 -rtsopts -with-rtsopts=-M7g
-          ghc-prof-options:	-j -funbox-strict-fields -O2 -fllvm -optlo-O3 -fprof-auto -rtsopts
+          ghc-prof-options:	-j -fwarn-missing-signatures -funbox-strict-fields -O2 -fllvm -optlo-O3 -fprof-auto
+                                -rtsopts
         else:
-          ghc-options:          -j -funbox-strict-fields -fwarn-missing-signatures -O2 -msse2
+          ghc-options:          -j -fwarn-missing-signatures -funbox-strict-fields -O2 -msse2
                                 -rtsopts -with-rtsopts=-M7g
-          ghc-prof-options:	-j -funbox-strict-fields -fprof-auto -rtsopts -O2
+          ghc-prof-options:	-j -fwarn-missing-signatures -funbox-strict-fields -O2 -fprof-auto
+                                -rtsopts
   cnf-stat:
     source-dirs:     utils
     main:            cnf-stat.hs
