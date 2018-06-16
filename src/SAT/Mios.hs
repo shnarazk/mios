@@ -52,7 +52,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "mios-1.6.0 -- https://github.com/shnarazk/mios"
+versionId = "1.6.0.1 https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ 0 = return 0
@@ -73,24 +73,31 @@ executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just pat
 -- This is another entry point for standalone programs.
 executeSolver :: MiosProgramOption -> IO ()
 executeSolver opts@(_targetFile -> (Just cnfFile)) = do
-  t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
-  (desc, cls) <- parseCNF (_targetFile opts)
-  -- when (_numberOfVariables desc == 0) $ error $ "couldn't load " ++ show cnfFile
-  token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
   solverId <- myThreadId
+  (desc, cls) <- parseCNF (_targetFile opts)
+  token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
+  t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
   handle (\case
-             UserInterrupt -> putStrLn "User interrupt recieved."
+             UserInterrupt -> if -1 == _confBenchmark opts
+                              then putStrLn "User interrupt (SIGINT) recieved."
+                              else reportResult opts t0 (Left TimeOut)
              ThreadKilled  -> reportResult opts t0 =<< readMVar token
-             e -> print e) $ do
+             HeapOverflow  -> if -1 == _confBenchmark opts
+                              then putStrLn "Abort: a too large problem or heap exhausted (use '+RTS -M16g' if you need)"
+                              else reportResult opts t0 (Left OutOfMemory)
+             e -> if -1 == _confBenchmark opts then print e else reportResult opts t0 (Left TimeOut)
+         ) $ do
     when (0 < _confBenchmark opts) $
-      void $ forkIO $ do let fromMicro = 1000000 :: Int
-                         threadDelay $ fromMicro * fromIntegral (_confBenchmark opts)
+      void $ forkIO $ do let -- getCPUTime returns a pico sec. :: Integer, 1000 * 1000 * 1000 * 1000
+                             -- threadDelay requires a micro sec. :: Int,  1000 * 1000
+                             req = 1000000000000 * fromIntegral (_confBenchmark opts) :: Integer
+                             waiting = do elp <- getCPUTime
+                                          when (elp < req) $ do
+                                            threadDelay . max 1000000 $ fromIntegral (req - elp) `div` 1000000
+                                            waiting
+                         waiting
                          putMVar token (Left TimeOut)
                          killThread solverId
-    when (_confMaxSize opts < _numberOfVariables desc) $
-      if -1 == _confBenchmark opts
-        then errorWithoutStackTrace $ "ABORT: too many variables to solve, " ++ show desc
-        else putMVar token (Left OutOfMemory) >> killThread solverId
     s <- newSolver (toMiosConf opts) desc
     injectClausesFromCNF s desc cls
     void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
