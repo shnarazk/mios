@@ -1,5 +1,5 @@
 name:                mios
-version:             1.6.0
+version:             1.6.0.1
 synopsis:            A Minisat-based CDCL SAT solver in Haskell
 description:
   A modern and very fast SAT solver written in Haskell, using CDCL, watch literals, VSIDS,
@@ -28,36 +28,39 @@ flags:
 when:
   - condition:       flag(llvm)
     then:
-      ghc-options:      -O2 -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -fwarn-missing-signatures
-      ghc-prof-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto
+      ghc-options:      -j -O2 -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -fwarn-missing-signatures
+      ghc-prof-options:	-j -O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto
     else:
-      ghc-options:      -O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
-      ghc-prof-options:	-O2 -funbox-strict-fields -fprof-auto
+      ghc-options:      -j -O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
+      ghc-prof-options:	-j -O2 -funbox-strict-fields -fprof-auto
 
 default-extensions:   Strict
 dependencies:
   - base >= 4.7 && < 5
-  - ghc-prim >=0.5
-  - primitive >=0.6
-  - bytestring >=0.10
-  - vector >=0.12
-
+  - ghc-prim >= 0.5
+  - primitive >= 0.6
+  - bytestring >= 0.10
+  - vector >= 0.12
 library:
   source-dirs:       src
 
 executables:
-  mios-1.6.0:
+  mios-1.6.0.1:
     source-dirs:     app
     main:            mios.hs
-    dependencies:    mios
+    dependencies:
+      - mios
+      - gitrev
     when:
       - condition: flag(llvm)
         then:
-          ghc-prof-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto -rtsopts
-                                 -rtsopts -with-rtsopts=-M7g -with-rtsopts=-A8m
-        else:
-          ghc-prof-options:	-O2 -funbox-strict-fields -fprof-auto -rtsopts
+          ghc-options:          -j -O2 -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -fwarn-missing-signatures
                                 -rtsopts -with-rtsopts=-M7g -with-rtsopts=-A8m
+          ghc-prof-options:	-j -O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto -rtsopts
+        else:
+          ghc-options:          -j -O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
+                                -rtsopts -with-rtsopts=-M7g -with-rtsopts=-A8m
+          ghc-prof-options:	-j -O2 -funbox-strict-fields -fprof-auto -rtsopts
   cnf-stat:
     source-dirs:     utils
     main:            cnf-stat.hs
