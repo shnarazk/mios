@@ -2,9 +2,13 @@
 
 ##### 1.6.1
 
-- use ACIDS, a variant of VSIDS
-- use variants of LBD
-- a better benchmark report
+- Use CPU clock time in benchmark mode correctly
+- Introduce new algorithms:
+  - ACIDS (average conflict-index decision score); *Armin Biere and Andreas Fröhlich, "Evaluating CDCL Variable Scoring Schemes", LCSN, vol.9340, pp.405-422, 2015.*
+  - An EMA-based restart heuristics (not evaluated well; might be canceled in a future release)
+  - A new clause scoring scheme
+- The clause sorter doesn't allocate a temporal vector
+- Use a maximum heap size as a terminating trigger (default: 7GB)
 
 ##### 1.6.0
 
