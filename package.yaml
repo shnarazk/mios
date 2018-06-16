@@ -29,11 +29,9 @@ when:
   - condition:       flag(llvm)
     then:
       ghc-options:      -O2 -funbox-strict-fields -fllvm -optlo-O3 -optlc-O3 -fwarn-missing-signatures
-                        -rtsopts -with-rtsopts=-M7g -with-rtsopts=-A8m
       ghc-prof-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto
     else:
       ghc-options:      -O2 -funbox-strict-fields -msse2 -fwarn-missing-signatures
-                        -rtsopts -with-rtsopts=-M7g -with-rtsopts=-A8m
       ghc-prof-options:	-O2 -funbox-strict-fields -fprof-auto
 
 default-extensions:   Strict
@@ -56,8 +54,10 @@ executables:
       - condition: flag(llvm)
         then:
           ghc-prof-options:	-O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto -rtsopts
+                                 -rtsopts -with-rtsopts=-M7g -with-rtsopts=-A8m
         else:
           ghc-prof-options:	-O2 -funbox-strict-fields -fprof-auto -rtsopts
+                                -rtsopts -with-rtsopts=-M7g -with-rtsopts=-A8m
   cnf-stat:
     source-dirs:     utils
     main:            cnf-stat.hs
