@@ -13,6 +13,7 @@
 ##### 1.6.0
 
 - switch to hpack
+- set a default memory limit in compile-time (fixed in 1.6.0.2)
 
 ##### 1.5.4
 
@@ -126,4 +127,3 @@ It's a valid assignment.
 $ echo "[1,2,-3,4,-5]" | mios -: test/data/uf200-012.cnf
 It's an invalid assignment.
 ```
-
