@@ -1,5 +1,11 @@
 ## Release Note
 
+##### 1.6.1
+
+- use ACIDS, a variant of VSIDS
+- use variants of LBD
+- a better benchmark report
+
 ##### 1.6.0
 
 - switch to hpack
