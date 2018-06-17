@@ -13,7 +13,7 @@ import SAT.Mios
 import Development.GitRev
 
 gitId :: String
-gitId = versionId ++ "/commit/" ++ $(gitHash)
+gitId = "mios " ++ versionId -- ++ "/commit/" ++ $(gitHash)
 
 usage :: String
 usage = miosUsage $ gitId ++ "\nUsage: mios [OPTIONS] target.cnf"
