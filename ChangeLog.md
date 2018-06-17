@@ -8,7 +8,7 @@
   - An EMA-based restart heuristics (not evaluated well; might be canceled in a future release)
   - A new clause scoring scheme
 - The clause sorter doesn't allocate a temporal vector
-- Use a maximum heap size as a terminating trigger (default: 7GB)
+- Set a maximum heap size as a terminating trigger (default: 7GB)
 
 ##### 1.6.0
 
