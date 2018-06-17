@@ -27,6 +27,7 @@ module SAT.Mios
        , executeSolver
        , executeValidatorOn
        , executeValidator
+       , showAnswerFromString
          -- * File IO
        , parseCNF
        , injectClausesFromCNF
@@ -52,7 +53,7 @@ import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "1.6.0.1 https://github.com/shnarazk/mios"
+versionId = "1.6.1 https://github.com/shnarazk/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ 0 = return 0
@@ -67,12 +68,12 @@ reportElapsedTime True mes t = do
 -- | executes a solver on the given CNF file.
 -- This is the simplest entry to standalone programs; not for Haskell programs.
 executeSolverOn :: FilePath -> IO ()
-executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Just path })
+executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Left path })
 
 -- | executes a solver on the given 'arg :: MiosConfiguration'.
 -- This is another entry point for standalone programs.
 executeSolver :: MiosProgramOption -> IO ()
-executeSolver opts@(_targetFile -> (Just cnfFile)) = do
+executeSolver opts = do
   solverId <- myThreadId
   (desc, cls) <- parseCNF (_targetFile opts)
   token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
@@ -100,13 +101,13 @@ executeSolver opts@(_targetFile -> (Just cnfFile)) = do
                          killThread solverId
     s <- newSolver (toMiosConf opts) desc
     injectClausesFromCNF s desc cls
-    void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Parse: ") t0
-    when (0 < _confDumpStat opts) $ dumpSolver DumpCSVHeader s
+    void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPathFixed opts ++ "] Parse: ") t0
+    -- putMVar token (Left TimeOut)
+    -- killThread solverId
+    when (0 < _confDumpStat opts) $ dumpStats DumpCSVHeader s
     result <- solve s []
     putMVar token result
     killThread solverId
-
-executeSolver _ = return ()
 
 -- | print messages on solver's result
 -- Note: the last field of benchmark CSV is:
@@ -115,15 +116,30 @@ executeSolver _ = return ()
 --   * other bigger values are used for aborted cases.
 reportResult :: MiosProgramOption -> Integer -> SolverResult -> IO ()
 -- abnormal cases, catching 'too large CNF', 'timeout' for now.
-reportResult opts@(_targetFile -> Just cnfFile) _ (Left flag) =
-  putStrLn ("\"" ++ takeWhile (' ' /=) versionId ++ "\","
-             ++ show (_confBenchSeq opts) ++ ","
-             ++ "\"" ++ cnfFile ++ "\","
-             ++ show (_confBenchmark opts) ++ "," ++ show (fromEnum flag))
+reportResult opts t0 (Left OutOfMemory) = do
+  t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPathFixed opts ++ "] Total: ") t0
+  when (0 <= _confBenchmark opts) $ do
+    let fromPico = 1000000000000 :: Double
+    putStrLn ("\"" ++ takeWhile (' ' /=) versionId ++ "\","
+              ++ show (_confBenchSeq opts) ++ ","
+              ++ "\"" ++ showPath opts ++ "\","
+              ++ show (_confBenchmark opts) ++ "," ++ show (fromEnum OutOfMemory)
+             )
+
+reportResult opts t0 (Left TimeOut) = do
+  t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPathFixed opts ++ "] Total: ") t0
+  when (0 <= _confBenchmark opts) $ do
+    let fromPico = 1000000000000 :: Double
+    putStrLn ("\"" ++ takeWhile (' ' /=) versionId ++ "\","
+              ++ show (_confBenchSeq opts) ++ ","
+              ++ "\"" ++ showPath opts ++ "\","
+              ++ showFFloat (Just 3) (fromIntegral t2 / fromPico) ","
+              ++ show (fromEnum TimeOut)
+             )
 
 -- solver terminated normally
-reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
-  t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Total: ") t0
+reportResult opts t0 (Right result) = do
+  t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPathFixed opts ++ "] Total: ") t0
   case result of
     _ | 0 <= _confBenchmark opts -> return ()
     SAT _   | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "SATISFIABLE"
@@ -132,7 +148,7 @@ reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
     UNSAT t -> do when (_confVerbose opts) $ hPutStrLn stderr "UNSAT" -- contradiction
                   print t
   dumpAssigmentAsCNF (_outputFile opts) result
-  valid <- if _confCheckAnswer opts || 0 <= _confBenchmark opts
+  valid <- if _confCheckAnswer opts                     -- or 0 <= _confBenchmark opts
            then case result of
                   SAT asg -> do (desc, cls) <- parseCNF (_targetFile opts)
                                 s' <- newSolver (toMiosConf opts) desc
@@ -144,15 +160,15 @@ reportResult opts@(_targetFile -> Just cnfFile) t0 (Right result) = do
     if _confVerbose opts
       then hPutStrLn stderr $ if valid then "A vaild answer" else "Internal error: mios returns a wrong answer"
       else unless valid $ hPutStrLn stderr "Internal error: mios returns a wrong answer"
-    void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPath cnfFile ++ "] Validate: ") t2
+    void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPathFixed opts ++ "] Validate: ") t2
   when (0 <= _confBenchmark opts) $ do
     let fromPico = 1000000000000 :: Double
         phase = case result of { SAT _   -> 1; UNSAT _ -> 0::Int }
     putStrLn $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
       ++ show (_confBenchSeq opts) ++ ","
-      ++ "\"" ++ cnfFile ++ "\","
+      ++ "\"" ++ showPath opts ++ "\","
       ++ if valid
-         then showFFloat (Just 3) (fromIntegral (t2 - t0) / fromPico) "," ++ show phase
+         then showFFloat (Just 3) (fromIntegral t2 / fromPico) "," ++ show phase
          else show (_confBenchmark opts) ++ "," ++ show (fromEnum InternalInconsistent)
 
 reportResult _ _ _ = return ()
@@ -188,7 +204,6 @@ solveSAT = solveSATWithConfiguration defaultConfiguration
 solveSATWithConfiguration :: Traversable m => MiosConfiguration -> CNFDescription -> m [Int] -> IO [Int]
 solveSATWithConfiguration conf desc cls = do
   s <- newSolver conf desc
-  -- mapM_ (const (newVar s)) [0 .. _numberOfVariables desc - 1]
   mapM_ ((s `addClause`) <=< (newStackFromList . map int2lit)) cls
   noConf <- simplifyDB s
   if noConf
@@ -201,12 +216,12 @@ solveSATWithConfiguration conf desc cls = do
 -- | validates a given assignment from STDIN for the CNF file (2nd arg).
 -- this is the entry point for standalone programs.
 executeValidatorOn :: FilePath -> IO ()
-executeValidatorOn path = executeValidator (miosDefaultOption { _targetFile = Just path })
+executeValidatorOn path = executeValidator (miosDefaultOption { _targetFile = Left path })
 
 -- | validates a given assignment for the problem (2nd arg).
 -- This is another entry point for standalone programs; see app/mios.hs.
 executeValidator :: MiosProgramOption -> IO ()
-executeValidator opts@(_targetFile -> target@(Just cnfFile)) = do
+executeValidator opts@(_targetFile -> target@(Left cnfFile)) = do
   (desc, cls) <- parseCNF target
   when (_numberOfVariables desc == 0) . error $ "couldn't load " ++ show cnfFile
   s <- newSolver (toMiosConf opts) desc
@@ -248,95 +263,124 @@ dumpAssigmentAsCNF (Just fname) (UNSAT _) =
 dumpAssigmentAsCNF (Just fname) (SAT l) =
   withFile fname WriteMode $ \h -> do hPutStrLn h "s SAT"; hPutStrLn h . (++ " 0") . unwords $ map show l
 
+showPath :: MiosProgramOption -> String
+showPath (_targetFile -> Left str) = str
+showPath _ = "{a cnf embedded}"
+
+showPathFixed :: MiosProgramOption -> String
+showPathFixed (_targetFile -> Left str) = replicate (len - length basename) ' ' ++ if elem '/' str then basename else basename'
+  where
+    len = 50
+    basename = reverse . takeWhile (/= '/') . reverse $ str
+    basename' = take len str
+
+showPathFixed (_targetFile -> Right _) = replicate (len - length basename) ' ' ++ basename
+  where
+    len = 50
+    basename = "embedded data"
+
 --------------------------------------------------------------------------------
 -- DIMACS CNF Reader
 --------------------------------------------------------------------------------
 
 -- | parses the header of a CNF file
-parseCNF :: Maybe FilePath -> IO (CNFDescription, B.ByteString)
-parseCNF target@(Just cnfFile) = do
+parseCNF :: Either FilePath String -> IO (CNFDescription, B.ByteString)
+parseCNF pathOrData = do
   let -- format: p cnf n m, length "p cnf" == 5
+      target = case pathOrData of
+                 Left str -> str
+                 Right _  -> ""
       parseP line = case parseInt (skipWhitespace (B.drop 5 line)) of
                       (x, second) -> case B.readInt (skipWhitespace second) of
                                        Just (y, _) -> CNFDescription x y target
       seek :: B.ByteString -> IO (CNFDescription, B.ByteString)
-      seek bs
+      seek !bs
         | B.head bs == 'p' = return (parseP l, B.tail bs')
         | otherwise = seek (B.tail bs')
         where (l, bs') = B.span ('\n' /=) bs
-  seek =<< B.readFile cnfFile
+  case pathOrData of
+    Left cnfFile -> seek =<< B.readFile cnfFile
+    Right bdata  -> seek $ B.pack bdata
 
 -- | parses ByteString then injects the clauses in it into a solver
+{-# INLINABLE injectClausesFromCNF #-}
 injectClausesFromCNF :: Solver -> CNFDescription -> B.ByteString -> IO ()
 injectClausesFromCNF s (CNFDescription nv nc _) bs = do
   let maxLit = int2lit $ negate nv
-  buffer <- newVec (maxLit + 1) 0
-  polvec <- newVec (maxLit + 1) 0
-  let loop :: Int -> B.ByteString -> IO ()
-      loop ((< nc) -> False) _ = return ()
-      loop !i !b = loop (i + 1) =<< readClause s buffer polvec b
-  loop 0 bs
-  -- static polarity
-  let checkPolarity :: Int -> IO ()
-      checkPolarity ((< nv) -> False) = return ()
-      checkPolarity v = do
-        p <- getNth polvec $ var2lit v True
-        if p == LiftedF
-          then setAssign s v p
-          else do n <- getNth polvec $ var2lit v False
-                  when (n == LiftedF) $ setAssign s v p
-        checkPolarity $ v + 1
-  checkPolarity 1
+  buffer <- newVec (maxLit + 1) 0 :: IO (Vec Int)
+  let skipComments :: B.ByteString -> B.ByteString
+      skipComments !s = case B.uncons s of -- __Pre-condition:__ we are on the benngining of a line
+                          Just ('c', b') -> skipComments . B.tail . B.dropWhile (/= '\n') $ b'
+                          _ -> s
+      readClause :: Int -> B.ByteString -> IO ()
+      readClause ((< nc) -> False) _ = return ()
+      readClause !i !stream = do
+        let loop :: Int -> B.ByteString -> IO ()
+            loop !j !b = case parseInt $ skipWhitespace b of
+                           (k, b') -> if k == 0
+                                      then do setNth buffer 0 $ j - 1
+                                              void $ addClause s buffer
+                                              readClause (i + 1) b'
+                                      else do setNth buffer j (int2lit k)
+                                              loop (j + 1) b'
+        loop 1 . skipComments . B.dropWhile (`elem` " \t\n") $ stream
+  readClause 0 bs
 
 {-# INLINE skipWhitespace #-}
 skipWhitespace :: B.ByteString -> B.ByteString
-skipWhitespace !s = B.dropWhile (`elem` " \t\n") s
+skipWhitespace !s = B.dropWhile (== ' ') {- (`elem` " \t") -} s
 
--- | skip comment lines
--- __Pre-condition:__ we are on the benngining of a line
-{-# INLINE skipComments #-}
-skipComments :: B.ByteString -> B.ByteString
-skipComments !s
-  | c == 'c' = skipComments . B.tail . B.dropWhile (/= '\n') $ s
-  | otherwise = s
-  where
-    c = B.head s
-
-{-# INLINABLE parseInt #-}
+{-# INLINE parseInt #-}
 parseInt :: B.ByteString -> (Int, B.ByteString)
 parseInt !st = do
   let !zero = ord '0'
-      loop :: B.ByteString -> Int -> (Int, B.ByteString)
-      loop !s !val = case B.head s of
-        c | '0' <= c && c <= '9'  -> loop (B.tail s) (val * 10 + ord c - zero)
-        _ -> (val, B.tail s)
-  case B.head st of
-    '-' -> let (k, x) = loop (B.tail st) 0 in (negate k, x)
-    '0' -> (0, B.tail st)
---    '+' -> loop st (0 :: Int)
-    _   -> loop st 0
---    c | '0' <= c && c <= '9'  -> loop st 0
---    _ -> error "PARSE ERROR! Unexpected char"
+      loop :: (Int, B.ByteString) -> (Int, B.ByteString)
+      loop (val, s) = case B.uncons s of
+        Just (c, s') -> if '0' <= c && c <= '9' then loop (val * 10 + ord c - zero, s') else (val, s')
+        -- _ -> error (">>>>" ++ take 80 (B.unpack s))
+  case B.uncons st of
+    Just ('-', st') -> let (k, x) = loop (0, st') in (negate k, x)
+    Just ('0', st') -> (0, st')
+    _ -> loop (0, st)
 
-{-# INLINABLE readClause #-}
-readClause :: Solver -> Stack -> Vec Int -> B.ByteString -> IO B.ByteString
-readClause s buffer bvec stream = do
-  let
-    loop :: Int -> B.ByteString -> IO B.ByteString
-    loop !i !b = case parseInt $ skipWhitespace b of
-                   (0, b') -> do setNth buffer 0 $ i - 1
-                                 sortStack buffer
-                                 void $ addClause s buffer
-                                 return b'
-                   (k, b') -> case int2lit k of
-                                l -> do setNth buffer i l
-                                        setNth bvec l LiftedT
-                                        loop (i + 1) b'
-  loop 1 . skipComments . skipWhitespace $ stream
+--------------------------------------------------------------------------------
 
-showPath :: FilePath -> String
-showPath str = replicate (len - length basename) ' ' ++ if elem '/' str then basename else basename'
-  where
-    len = 50
-    basename = reverse . takeWhile (/= '/') . reverse $ str
-    basename' = take len str
+-- | executes a solver on the given 'arg :: MiosConfiguration'.
+-- This is another entry point for standalone programs.
+showAnswerFromString :: String -> IO String
+showAnswerFromString str = do
+  let  opts = miosDefaultOption { _targetFile = Right str }
+  solverId <- myThreadId
+  (desc, cls) <- parseCNF (_targetFile opts)
+  token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
+  t0 <- reportElapsedTime False "" 0
+  handle (\case
+             UserInterrupt -> return "User interrupt recieved."
+             ThreadKilled  -> makeReport opts t0 =<< readMVar token
+             HeapOverflow  -> if -1 == _confBenchmark opts
+                              then return "Abort: a too large problem or heap exhausted"
+                              else makeReport opts t0 (Left OutOfMemory)
+             e -> if -1 == _confBenchmark opts then return "unhandled iterrupt" else makeReport opts t0 (Left TimeOut)
+         ) $ do
+    when (0 < _confBenchmark opts) $
+      void $ forkIO $ do let req = 1000000000000 * fromIntegral (_confBenchmark opts) :: Integer
+                             waiting = do elp <- getCPUTime
+                                          when (elp < req) $ do
+                                            threadDelay $ fromIntegral (req - elp) `div` 1000000
+                                            waiting
+                         waiting
+                         putMVar token (Left TimeOut)
+                         killThread solverId
+    s <- newSolver (toMiosConf opts) desc
+    injectClausesFromCNF s desc cls
+    result <- solve s []
+    putMVar token result
+    killThread solverId
+    return $ show desc
+
+makeReport :: MiosProgramOption -> Integer -> SolverResult -> IO String
+makeReport opts t0 (Left OutOfMemory) = return "out of memory"
+makeReport opts t0 (Left TimeOut) = return "time out"
+makeReport opts t0 (Right (SAT asg)) = return $ show asg
+makeReport opts t0 (Right (UNSAT _)) = return "UNSAT"
+makeReport _ _ _ = return ""

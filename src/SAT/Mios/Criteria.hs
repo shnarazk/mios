@@ -1,7 +1,8 @@
 -- | (This is a part of MIOS.)
 -- Advanced heuristics library for 'SAT.Mios.Main'
 {-# LANGUAGE
-    MultiWayIf
+    BangPatterns
+  , MultiWayIf
   , RecordWildCards
   , ViewPatterns
   #-}
@@ -16,14 +17,21 @@ module SAT.Mios.Criteria
        , varDecayActivity
          -- * Clause
        , addClause
-         -- * Literal Block Distance
+         -- * Clause Metrics
        , lbdOf
+       , updateNDD
+       , nddOf
          -- * Restart
        , checkRestartCondition
+         -- * Reporting
+       , dumpStats
        )
         where
 
-import Control.Monad (when)
+import Control.Monad (void, when)
+import Data.Bits
+import Data.List (intercalate)
+import Numeric (showFFloat)
 import SAT.Mios.Types
 import SAT.Mios.Clause
 import SAT.Mios.ClauseManager
@@ -37,16 +45,18 @@ varActivityThreshold = 1e100
 -- | __Fig. 14 (p.19)__ Bumping of clause activity
 {-# INLINE varBumpActivity #-}
 varBumpActivity :: Solver -> Var -> IO ()
-varBumpActivity s@Solver{..} x = do
-  a <- (+) <$> getNth activities x <*> get' varInc
-  setNth activities x a
+varBumpActivity s@Solver{..} v = do
+  x <- getNth activities v
+  y <- fromIntegral <$> getStat s NumOfBackjump
+  let a = (x + y) / 2
+  setNth activities v a
   when (varActivityThreshold < a) $ varRescaleActivity s
-  update s x                    -- update the position in heap
+  updateVO s v                    -- update the position in heap
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE varDecayActivity #-}
 varDecayActivity :: Solver -> IO ()
-varDecayActivity Solver{..} = modify' varInc (/ variableDecayRate config)
+varDecayActivity Solver{..} = return () -- modify' varInc (/ variableDecayRate config)
 
 -- | __Fig. 14 (p.19)__
 {-# INLINABLE varRescaleActivity #-}
@@ -129,104 +139,44 @@ claRescaleActivityAfterRestart Solver{..} = do
 -- * @Left True@ if the clause is satisfied
 -- * @Right clause@ if the clause is enqueued successfully
 {-# INLINABLE clauseNew #-}
-clauseNew :: Solver -> Stack -> Bool -> IO (Either Bool Clause)
-clauseNew s@Solver{..} ps isLearnt = do
-  -- now ps[0] is the number of living literals
-  exit <- do
-    let
-      handle :: Int -> Int -> Int -> IO Bool
-      handle j l n      -- removes duplicates, but returns @True@ if this clause is satisfied
-        | j > n = return False
-        | otherwise = do
-            y <- getNth ps j
-            if | y == l    -> do                      -- finds a duplicate
-                   swapBetween ps j n
-                   modifyNth ps (subtract 1) 0
-                   handle j l (n - 1)
-               | - y == l  -> reset ps >> return True -- p and negateLit p occurs in ps
-               | otherwise -> handle (j + 1) l n
-      loopForLearnt :: Int -> IO Bool
-      loopForLearnt i = do
-        n <- get' ps
-        if n < i
-          then return False
-          else do
-              l <- getNth ps i
-              sat <- handle (i + 1) l n
-              if sat
-                then return True
-                else loopForLearnt $ i + 1
-      loop :: Int -> IO Bool
-      loop i = do
-        n <- get' ps
-        if n < i
-          then return False
-          else do
-              l <- getNth ps i     -- check the i-th literal's satisfiability
-              sat <- valueLit s l  -- any literal in ps is true
-              case sat of
-               1  -> reset ps >> return True
-               -1 -> do
-                 swapBetween ps i n
-                 modifyNth ps (subtract 1) 0
-                 loop i
-               _ -> do
-                 sat' <- handle (i + 1) l n
-                 if sat'
-                   then return True
-                   else loop $ i + 1
-    if isLearnt then loopForLearnt 1 else loop 1
+clauseNew :: Solver -> Stack -> IO (Either Bool Clause)
+clauseNew s@Solver{..} ps = do
+  n <- get' ps
+  sortStack ps
+  let loop :: Int -> Int -> Lit -> IO Bool
+      loop ((<= n) -> False) j _ = setNth ps 0 (j - 1) >> return False
+      loop !i !j !l' = do l <- getNth ps i -- check the i-th literal's satisfiability
+                          sat <- valueLit s l
+                          if | sat == LiftedT || negateLit l == l' -> reset ps >> return True
+                             | sat /= LiftedF && l /= l' -> setNth ps j l >> loop (i + 1) (j + 1) l
+                             | otherwise -> loop (i + 1) j l'
+  exit <- loop 1 1 LBottom
   k <- get' ps
   case k of
    0 -> return (Left exit)
-   1 -> do
-     l <- getNth ps 1
-     Left <$> enqueue s l NullClause
-   _ -> do
-    -- allocate clause:
-     c <- newClauseFromStack isLearnt ps
-     let lstack = lits c
-     when isLearnt $ do
-       -- Pick a second literal to watch:
-       let
-         findMax :: Int -> Int -> Int -> IO Int
-         findMax ((<= k) -> False) j _ = return j
-         findMax i j val = do
-           v' <- lit2var <$> getNth lstack i
-           varBumpActivity s v' -- this is a just good chance to bump activities of literals in this clause
-           a <- getNth assigns v'
-           b <- getNth level v'
-           if (a /= LBottom) && (val < b)
-             then findMax (i + 1) i b
-             else findMax (i + 1) j val
-       -- Let @max_i@ be the index of the literal with highest decision level
-       max_i <- findMax 1 1 0
-       swapBetween lstack 2 max_i
-       -- check literals occurences
-       -- x <- asList c
-       -- unless (length x == length (nub x)) $ error "new clause contains a element doubly"
-       -- Bumping:
-       claBumpActivity s c -- newly learnt clauses should be considered active
-     -- Add clause to watcher lists:
-     l1 <- getNth lstack 1
-     l2 <- getNth lstack 2
-     pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
-     pushClauseWithKey (getNthWatcher watches (negateLit l2)) c 0
-     return (Right c)
+   1 -> do l <- getNth ps 1
+           Left <$> enqueue s l NullClause
+   _ -> do c <- newClauseFromStack False ps
+           let lstack = lits c
+           l1 <- getNth lstack 1
+           l2 <- getNth lstack 2
+           pushClauseWithKey (getNthWatcher watches (negateLit l1)) c 0
+           pushClauseWithKey (getNthWatcher watches (negateLit l2)) c 0
+           return (Right c)
 
 -- | returns @False@ if a conflict has occured.
--- This function is called only before the solving phase to register the given clauses.
+-- This function is called only before the solving phase to register the given clauses (not learnt).
 {-# INLINABLE addClause #-}
 addClause :: Solver -> Stack -> IO Bool
 addClause s@Solver{..} vecLits = do
-  result <- clauseNew s vecLits False
+  result <- clauseNew s vecLits
   case result of
-   Left b  -> return b   -- No new clause was returned becaues a confilct occured or the clause is a literal
+   Left b  -> return b -- No clause is returned becaues a confilct occured or the clause is a literal
    Right c -> pushTo clauses c >> return True
 
--------------------------------------------------------------------------------- LBD
+-------------------------------------------------------------------------------- Clause Metrics
 
--- | returns a POSIVITE value
+-- | returns a POSIVITE value of Literal Block Distance
 {-# INLINABLE lbdOf #-}
 lbdOf :: Solver -> Stack -> IO Int
 lbdOf Solver{..} vec = do
@@ -262,66 +212,130 @@ updateLBD s c@Clause{..} = do
     _ -> return ()
 -}
 
+-- | returns a vector index of NDD for the nth bit of a var
+{-# INLINE varBit2vIndex #-}
+varBit2vIndex :: Int -> Int -> Int
+varBit2vIndex v ((`mod` 124) -> b)
+  | 62 <= b   = 2 * v + 1
+  | otherwise = 2 * v
+
+-- | returns a bit index of NDD for the nth bit of a var
+{-# INLINE varBit2bIndex #-}
+varBit2bIndex :: Int -> Int -> Int
+varBit2bIndex v b = mod b 62
+
+-- | updates a /var/'s ndl, which is assigned by a 'reason' /clause/
+{-# INLINE updateNddOf #-}
+updateNddOf :: Solver -> Var -> Clause -> IO ()
+updateNddOf Solver{..} v NullClause = do
+  l <- getNth level v
+  setNth ndd (varBit2vIndex v l) $ if l == 0 then 0 else setBit 0 (varBit2bIndex v l)
+
+updateNddOf Solver{..} v Clause{..} = do
+  n <- get' lits
+  let iv = varBit2vIndex v 0
+  setNth ndd iv 0
+  setNth ndd (iv + 1) 0
+  let loop :: Int -> Int -> Int -> IO ()
+      loop ((<= n) -> False) low high = do setNth ndd iv low
+                                           setNth ndd (iv + 1) high
+      loop i low high = do v' <- lit2var <$> getNth lits i
+                           let jv = varBit2vIndex v' 0
+                           low' <- (low .|.) <$> getNth ndd jv
+                           high' <- (high .|.) <$> getNth ndd (jv + 1)
+                           loop (i + 1) low' high'
+  loop 1 0 0
+
+-- | updates all assigned vars' ndl
+{-# INLINABLE updateNDD #-}
+updateNDD :: Solver -> IO ()
+updateNDD s@Solver{..} = do
+  n <- get' trail
+  let -- thr = if ns == 0 then 0 else floor . logBase 2 $ lv / ns :: Int
+      update :: Int -> IO ()
+      update ((<= n) -> False) = return ()
+      update i = do v <- lit2var <$> getNth trail i
+                    updateNddOf s v =<< getNth reason v
+                    update (i + 1)
+  update 1
+
+-- | returns the NDL
+{-# INLINABLE nddOf #-}
+nddOf :: Solver -> Stack -> IO Int
+nddOf Solver{..} stack = do
+  n <- get' stack
+  let loop :: Int -> Int -> Int -> IO Int -- var -> #lowbits -> #highbits
+      loop ((<= n) -> False) low high = return $ popCount low + popCount high
+      loop i low high = do v <- lit2var <$> getNth stack i
+                           let iv = varBit2vIndex v 0
+                           l <- getNth ndd iv
+                           h <- getNth ndd (iv + 1)
+                           loop (i + 1) (low .|. l) (high .|. h)
+  max 1 <$> loop 1 0 0
+
 -------------------------------------------------------------------------------- restart
 
-ema1, ema2, ema3, ema4 :: Double
-ema1 = 2 ** (-5)                -- coefficient for fast average of LBD
-ema2 = 2 ** (-14)               -- coefficient for slow average of LBD
-ema3 = 2 ** (-5)                -- coefficient for fast average of | assignment |
-ema4 = 2 ** (-12)               -- coefficient for slow average of | assignment |
-
-ema0 :: Int
-ema0 = 2 ^ (14 :: Int)          -- = floor $ 1 / ema2
-
--- | #62
-checkRestartCondition :: Solver -> Int -> IO Bool
-checkRestartCondition s@Solver{..} (fromIntegral -> lbd) = do
-  k <- getStat s NumOfRestart
-  let step = 100
+-- | #62, #74
+checkRestartCondition :: Solver -> Int -> Int -> IO Bool
+checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) = do
   next <- get' nextRestart
-  count <- getStat s NumOfBackjump
+  count <- getStat s NumOfBackjump -- it should be > 0
   nas <- fromIntegral <$> nAssigns s
-  let revise a f x  = do f' <- ((a * x) +) . ((1 - a) *) <$> get' f
-                         set' f f'
-                         return f'
-      gef = 1.1 :: Double       -- geometric expansion factor
-  df <- revise ema1 emaDFast lbd
-  ds <- revise ema2 emaDSlow lbd
-  af <- revise ema3 emaAFast nas
-  as <- revise ema4 emaASlow nas
-  mode <- get' restartMode
-  if | count < next   -> return False
-     | mode == 1      -> do
-         when (ema0 < count && df < 2.0 * ds) $ set' restartMode 2 -- enter the second mode
-         incrementStat s NumOfRestart 1
-         incrementStat s NumOfGeometricRestart 1
-         k' <- getStat s NumOfGeometricRestart
-         set' nextRestart (count + floor (fromIntegral step * gef ** fromIntegral k'))
-         when (3 == dumpStat config) $ dumpSolver DumpCSV s
-         return True
-     | 1.25 * as < af -> do
-         incrementStat s NumOfBlockRestart 1
-         set' nextRestart (count + floor (fromIntegral step + gef ** fromIntegral k))
-         when (3 == dumpStat config) $ dumpSolver DumpCSV s
-         return False
-     | 1.25 * ds < df -> do
-         incrementStat s NumOfRestart 1
-         set' nextRestart (count + step)
-         when (3 == dumpStat config) $ dumpSolver DumpCSV s
-         return True
-     | otherwise      -> return False
+  bLv <- fromIntegral <$> decisionLevel s
+  df  <- updateEMA emaDFast lbd
+  ds  <- updateEMA emaDSlow lbd
+  af  <- updateEMA emaAFast nas
+  as  <- updateEMA emaASlow nas
+  void $ updateEMA emaCDLvl cLv
+  let filled = next <= count
+      blockingRestart = filled && 1.25 * as < af
+      forcingRestart = filled && 1.25 * ds < df
+      lv' = if forcingRestart then 0 else bLv
+  void $ updateEMA emaBDLvl lv'
+  if (not blockingRestart && not forcingRestart)
+    then return False
+    else do incrementStat s (if blockingRestart then NumOfBlockRestart else NumOfRestart) 1
+            ki <- fromIntegral <$> getStat s (if blockingRestart then NumOfRestart else NumOfBlockRestart)
+            let gef = (if blockingRestart then restartExpansionB else restartExpansionF) config
+                step = restartExpansionS config
+            set' nextRestart $ count + ceiling (step + gef ** ki)
+            when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
+            return forcingRestart
 
-{-
-{-# INLINABLE luby #-}
-luby :: Double -> Int -> Double
-luby y x_ = loop 1 0
-  where
-    loop :: Int -> Int -> Double
-    loop sz sq
-      | sz < x_ + 1 = loop (2 * sz + 1) (sq + 1)
-      | otherwise   = loop2 x_ sz sq
-    loop2 :: Int -> Int -> Int -> Double
-    loop2 x sz sq
-      | sz - 1 == x = y ** fromIntegral sq
-      | otherwise   = let s = div (sz - 1) 2 in loop2 (mod x s) s (sq - 1)
--}
+-------------------------------------------------------------------------------- dump
+
+emaLabels :: [(String, Solver -> EMA)]
+emaLabels = [ ("emaAFast", emaAFast)
+            , ("emaASlow", emaASlow)
+            , ("emaBDLvl", emaBDLvl)
+            , ("emaCDLvl", emaCDLvl)
+            , ("emaDFast", emaDFast)
+            , ("emaDSlow", emaDSlow)
+            ]
+
+{-# INLINABLE dumpStats #-}
+-- | print statatistic data to stdio. This should be called after each restart.
+dumpStats :: DumpMode -> Solver -> IO ()
+
+dumpStats NoDump _ = return ()
+
+dumpStats DumpCSVHeader s@Solver{..} = do
+  sts <- init <$> getStats s
+  putStrLn . intercalate "," $ map (show . fst) sts ++ map fst emaLabels
+
+dumpStats DumpCSV s@Solver{..} = do
+  -- update the stat data before dump
+  va <- get' trailLim
+  setStat s NumOfVariable . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
+  setStat s NumOfAssigned =<< nAssigns s
+  setStat s NumOfClause =<< get' clauses
+  setStat s NumOfLearnt =<< get' learnts
+  sts <- init <$> getStats s
+  let fs :: (Solver -> EMA) -> IO String
+      fs e = do x <- getEMA (e s)
+                return $ showFFloat (Just 3) x ""
+  vals <- mapM (fs . snd) emaLabels
+  putStrLn . intercalate "," $ map (show . snd) sts ++ vals
+
+-- | FIXME: use Util/Stat
+dumpStats DumpJSON _ = return ()                -- mode 2: JSON

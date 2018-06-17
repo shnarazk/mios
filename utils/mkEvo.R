@@ -5,70 +5,90 @@
 
 library("ggplot2")
 library("grid")
-version = "0.1.1"
+version = "0.6.3"
 
-getData = function (t, p) {
-    df <- read.csv(as.character(t[[1]]), header=T, sep=",", comment="#")
-    if (p && t[[2]] != "") {
+ew=2^14
+blockTh = 1.25
+forceTh = 1.25
+
+getData = function (single, t, p) {
+    d <- read.csv(as.character(t[[1]]), header=T, sep=",", comment="#")
+    if (single) {
+        tag = ""
+    } else if (p && t[[2]] != "") {
         tag = sub("^ +", "", as.character(t[[2]]))
     }  else {
         tag = sub("^ +", "", as.character(t[[1]]))
     }
-    df1 <- data.frame(id=paste("#total", tag),
-                      num=df[["NumOfBackjump"]],
-                      value=df[["NumOfRestart"]],
-                      type="target")
-    df2 <- data.frame(id=paste("#blocked", tag),
-                      num=df[["NumOfBackjump"]],
-                      value=df[["NumOfBlockRestart"]],
-                      type="target")
-    df3 <- data.frame(id=paste("#geometric", tag),
-                      num=df[["NumOfBackjump"]],
-                      value=df[["NumOfGeometricRestart"]],
-                      type="target")
-    df4 <- data.frame(id=paste("FAST", tag),
-                      num=df[["NumOfBackjump"]],
-                      value=df[["emaDFast"]],
-                      type="distances")
-    df5 <- data.frame(id=paste("SLOW", tag),
-                      num=df[["NumOfBackjump"]],
-                      value=df[["emaDSlow"]],
-                      type="distances")
-    df6 <- data.frame(id=tag, # paste("distance ratio", tag),
-                      num=df[["NumOfBackjump"]],
-                      value=df[["emaDFast"]]/df[["emaDSlow"]],
-                      type="distance ratio")
-    df7 <- data.frame(id=paste("FAST", tag),
-                      num=df[["NumOfBackjump"]],
-                      value=df[["emaAFast"]],
-                      type="assigns")
-    df8 <- data.frame(id=paste("SLOW", tag),
-                      num=df[["NumOfBackjump"]],
-                      value=df[["emaASlow"]],
-                      type="assigns")
-    df9 <- data.frame(id=tag, # paste("assign ratio", tag),
-                      num=df[["NumOfBackjump"]],
-                      value=df[["emaAFast"]]/df[["emaASlow"]],
-                      type="assign ratio")
-    rbind(df1, df2, df3, df4, df5, df6, df7, df8, df9)
-}
+    index <- d[["NumOfBackjump"]]
+    df <- NULL
+    df <- rbind(df, data.frame(id=paste("#restart", tag), num=index,
+                               value=d[["NumOfRestart"]], type="target"))
+    df <- rbind(df, data.frame(id=paste("#blocked", tag), num=index,
+                               value=d[["NumOfBlockRestart"]], type="target"))
+#    df <- rbind(df, data.frame(id=paste("#geometric", tag), num=index,
+#                               value=d[["NumOfGeometricRestart"]], type="target"))
+    df <- rbind(df, data.frame(id=paste("FAST", tag), num=index,
+                               value=d[["emaDFast"]], type="distances"))
+    df <- rbind(df, data.frame(id=paste("SLOW", tag), num=index,
+                               value=d[["emaDSlow"]], type="distances"))
+    df <- rbind(df, data.frame(id=paste("distance ratio ", tag), num=index,
+                               value=d[["emaDFast"]]/d[["emaDSlow"]], type="distance ratio"))
+    df <- rbind(df, data.frame(id=paste("FAST", tag), num=index,
+                               value=d[["emaAFast"]], type="assigns"))
+    df <- rbind(df, data.frame(id=paste("SLOW", tag), num=index,
+                               value=d[["emaASlow"]], type="assigns"))
+    df <- rbind(df, data.frame(id=paste("assign ratio", tag), num=index,
+                               value=d[["emaAFast"]]/d[["emaASlow"]], type="assign ratio"))
+    df <- rbind(df, data.frame(id=paste("FAST", tag), num=index,
+                               value=d[["emaBFast"]], type="backed level"))
+    df <- rbind(df, data.frame(id=paste("SLOW", tag), num=index,
+                               value=d[["emaBSlow"]], type="backed level"))
+    df <- rbind(df, data.frame(id=paste("level ratio", tag), num=index,
+                               value=d[["emaBFast"]]/d[["emaBSlow"]], type="blevel ratio"))
+    df <- rbind(df, data.frame(id=paste("FAST", tag), num=index,
+                               value=d[["emaCFast"]], type="conflict level"))
+    df <- rbind(df, data.frame(id=paste("SLOW", tag), num=index,
+                               value=d[["emaCSlow"]], type="conflict level"))
+    df <- rbind(df, data.frame(id=paste("level ratio", tag), num=index,
+                               value=d[["emaCFast"]]/d[["emaCSlow"]], type="clevel ratio"))
+    df <- rbind(df, data.frame(id=paste("b/c ratio", tag), num=index,
+                               value=d[["emaBSlow"]]/d[["emaCSlow"]], type="b/c ratio"))
 
-graph = function (df, kind, mes, logGraph=FALSE) {
+    df <- rbind(df, data.frame(id=paste("backed", tag), num=index,
+                               value=d[["emaBSlow"]], type="levels"))
+    df <- rbind(df, data.frame(id=paste("conflicting", tag), num=index,
+                               value=d[["emaCSlow"]], type="levels"))
+
+    df
+    }
+
+graph = function (df, kind, mes, logGraph=FALSE, leg=FALSE, hls=NULL, vls=NULL) {
     d <- subset(df, grepl(kind, df$type))
     g <- ggplot(NULL)
+    if (! is.null(hls)) {
+        g <- g + geom_vline(xintercept = hls, color="green", size=0.6)
+    }
+    if (! is.null(vls)) {
+        g <- g + geom_hline(yintercept = vls, color="green", size=0.3)
+    }
     g <- g + geom_line(data=d, aes(x=num, y=value, color=id), size=0.4)
-    g <- g + theme(legend.title=element_blank(),
-                   legend.position="top",
-                   legend.justification=c(0,0),
-                   legend.direction="horizontal",
-                   plot.margin=grid::unit(c(8,8,8,8), "pt"))
+    g <- g + theme(plot.margin=grid::unit(c(8,8,8,8), "pt"))
+    g <- g + scale_y_continuous(limits=c(min(d$value),max(d$value)))
+    g <- g + labs(subtitle=mes, x=NULL, y=NULL)
+    if (leg) {
+        g <- g + theme(legend.title=element_blank(),
+                       legend.position="top",
+                       legend.justification=c(0,0),
+                       legend.direction="horizontal")
+    } else {
+        g <- g + theme(legend.position="none")
+    }
     if (logGraph == TRUE) {
         g <- g + scale_x_log10(limits=c(min(df$num),max(df$num)))
     } else {
         g <- g + scale_x_continuous(limits=c(min(df$num),max(df$num)))
     }
-    g <- g + scale_y_continuous(limits=c(min(d$value),max(d$value)))
-    g <- g + labs(subtitle=mes, x="conflict index", y=NULL)
     g
 }
 
@@ -76,41 +96,59 @@ graph = function (df, kind, mes, logGraph=FALSE) {
     df <- list()
     args <- commandArgs(trailingOnly=TRUE)
     filename <- args[1]
-    if (grep("\\.csv$", args[1])) {
+    if (grepl("\\.csv$", args[1])) {
         name <- gsub("\\.[^.]+$", "", filename)
-        df <- getData(args[1], FALSE)
-        targetPDF <- paste("ema-", name, ".pdf", sep="")
+        df <- getData(TRUE, filename, FALSE)
+        if (dirname(name) != "") {
+            targetPDF <- paste(dirname(name), "/ema-", basename(name), ".pdf", sep="")
+        } else {
+            targetPDF <- paste("ema-", name, ".pdf", sep="")
+        }
     } else {
         exps <- args[1]
         runs <- read.csv(exps, comment="#", sep=",", header=F)
         name <- gsub("\\.[^.]+$", "", exps)
-        targetPDF <- paste("sim-", name, ".pdf", sep="")
-        for (i in seq(nrow(runs))) { df = rbind(df, getData(runs[i,], 1 < ncol(runs))); }
+        if (dirname(name) != "") {
+            targetPDF <- paste(dirname(name), "/sim-", basename(name), ".pdf", sep="")
+        } else {
+            targetPDF <- paste("sim-", name, ".pdf", sep="")
+        }
+        for (i in seq(nrow(runs))) { df = rbind(df, getData(FALSE, runs[i,], 1 < ncol(runs))); }
     }
     cairo_pdf(filename=targetPDF, width=9, height=12, antialias="subpixel", onefile=TRUE)
-    g1 <- graph(df, "target",   "Restart", FALSE)
+    g1 <- graph(df, "target",   "Restart (Log-scaled)", TRUE, TRUE, ew)
     desc = if (1 < length(args)) args[2] else filename
     g1 <- g1 + labs(title=paste("State Evolution against Conflict Index", "(", desc, ")"))
     dt <- subset(df, grepl("target", df$type))
     g1 <- g1 + annotate("text",
-                        x=0.2*min(df$num) + 0.8*max(df$num),
+                        x=0.9*max(df$num),
                         y=0.9*min(dt$value) + 0.1*max(dt$value),
+                        hjust=1,
                         label=paste(format(as.POSIXlt(Sys.time()), "%Y-%m-%dT%H:%M:%S"), " ",
                                     "drawn with mkTrans.R (ver. ", version, ")", sep=""),
                         color="gray50", size=2.6)
 
     df[["id"]] = gsub("=.+", "", df[["id"]])
-    g2 <- graph(df, "distances", "EMA of Literal Block Distance -> forcing restart", TRUE)
-    g3 <- graph(df, "distance ratio",  " - LBD evolution ratio", TRUE)
-    g4 <- graph(df, "assigns",   "EMA of Assignment ->  blocking restart", TRUE)
-    g5 <- graph(df, "assign ratio",    " - Assignment evolution ratio", TRUE)
-
+    g2 <- graph(df, "assigns",        "EMA of the assigned vars for blocking restart", TRUE, FALSE, ew)
+    g3 <- graph(df, "assign ratio",   "assign fast / slow ratio", TRUE, FALSE, NULL, blockTh)
+    g4 <- graph(df, "distances",      "EMA of Literal Block Distance for forcing restart", TRUE, FALSE, ew)
+    g5 <- graph(df, "distance ratio", "distance fast / slow ratio", TRUE, FALSE, NULL, forceTh)
+    g6 <- graph(df, "conflict level", "EMA of Decision Level of Conflict", TRUE, FALSE, NULL)
+#    g7 <- graph(df, "clevel ratio",   "conflict level fast / slow ratio", TRUE, FALSE)
+    g7 <- graph(df, "levels",   "EMA of conflicting and backed levels", TRUE, FALSE)
+    g8 <- graph(df, "backed level", "EMA of Decision Level by BackJump", TRUE, FALSE, NULL)
+    # g9 <- graph(df, "blevel ratio",   "", TRUE)
+    g9 <- graph(df, "b/c ratio",   "backed level / conflict level (fill ratio)", TRUE, FALSE)
     grid.newpage()
-    pushViewport(viewport(layout=grid.layout(3,2)))
+    pushViewport(viewport(layout=grid.layout(5,2),width=0.94,height=0.94))
     print(g1, vp=viewport(layout.pos.row=1, layout.pos.col=c(1,2)))
     print(g2, vp=viewport(layout.pos.row=2, layout.pos.col=1))
-    print(g3, vp=viewport(layout.pos.row=3, layout.pos.col=1))
-    print(g4, vp=viewport(layout.pos.row=2, layout.pos.col=2))
+    print(g3, vp=viewport(layout.pos.row=2, layout.pos.col=2))
+    print(g4, vp=viewport(layout.pos.row=3, layout.pos.col=1))
     print(g5, vp=viewport(layout.pos.row=3, layout.pos.col=2))
+    print(g6, vp=viewport(layout.pos.row=4, layout.pos.col=1))
+    print(g7, vp=viewport(layout.pos.row=4, layout.pos.col=2))
+    print(g8, vp=viewport(layout.pos.row=5, layout.pos.col=1))
+    print(g9, vp=viewport(layout.pos.row=5, layout.pos.col=2))
     ggsave(filename=targetPDF, width=9, height=12, scale=1.0, dpi=400)
 })()

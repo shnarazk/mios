@@ -13,7 +13,7 @@ a part of my research theme.
   * Version 1.1 was a *line-to-line* translation of [MiniSat 1.14](http://minisat.se/downloads/MiniSat_v1.14.2006-Aug-29.src.zip).
   * Version 1.2 imported some idea used in Glucose 4.0.
   * Version 1.5 uses Literal Block Distance (LBD).
-  * Version 1.6 adopts EMA-based Glucose restarts.
+  * Version 1.6 adopts new ideas: EMA, ACIDS and so on.
 * runs in `IO` monad, uses `Data.Primitive.ByteArray` mainly and `reallyUnsafePtrEquality`.
 * very fast, compared with other SAT solvers written in Haskell; see below.
 
@@ -22,7 +22,7 @@ a part of my research theme.
 - SAT-Competition 2017 Main track, running 3 jobs *in parallel* with a 510 second timeout on Intel Core i7-3930K @ 12x 3.8GHz
   (Therefore results near the threshold should be affected by other threads more or less.)
 
-![Cactus plot with Mios-1.5.4: SAT Competition 2017 main](https://narazaki-lab.github.io/SAT/cactus-1.6.0.png)
+![Cactus plot with Mios-1.6.1: SAT Competition 2017 main](https://shujinarazaki.gitlab.io/pages/images/mios-1.6.1.png)
 
 ### > Install
 
@@ -36,7 +36,7 @@ a part of my research theme.
 
 ```
 git clone https://github.com/shnarazk/mios
-stack init --resolver lts-10.X  # for ghc-8.2.X
+stack init --resolver lts-11.X  # for ghc-8.2.X
 stack install
 ```
 
@@ -57,11 +57,13 @@ $ mios a.cnf
 an assignment :: [Int]
 
 $ mios --help
-mios-1.6.0 -- https://github.com/shnarazk/mios
+mios 1.6.1 https://github.com/shnarazk/mios/
 Usage: mios [OPTIONS] target.cnf
   -d 0.95   --variable-decay-rate=0.95  [solver] variable activity decay rate (0.0 - 1.0)
   -c 0.999  --clause-decay-rate=0.999   [solver] clause activity decay rate (0.0 - 1.0)
-            --maxsize=4000000           [solver] limit of the number of variables
+            --Rb=1.2                    [solver] expansion rate for blocking restart (>= 1.0)
+            --Rf=1.01                   [solver] expansion rate for forcing restart (>= 1.0)
+            --Rs=100.0                  [solver] a fixed number of conflicts between restarts
   -:        --validate-assignment       [solver] read an assignment from STDIN and validate it
             --validate                  [solver] self-check (satisfiable) assignment
   -o file   --output=file               [option] filename to store result

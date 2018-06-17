@@ -13,6 +13,10 @@ module SAT.Mios.Clause
        (
          Clause (..)
        , newClauseFromStack
+       , getRank
+       , setRank
+       -- , getActivity
+       -- , setActivity
          -- * Vector of Clause
        , ClauseVector
        , newClauseVector
@@ -30,10 +34,9 @@ import SAT.Mios.Types
 -- This matches both of @Clause@ and @GClause@ in MiniSat.
 data Clause = Clause
               {
-                rank       :: !Int'     -- ^ goodness like LBD; computed in 'Ranking'
-              , activity   :: !Double'  -- ^ activity of this clause
---              , protected  :: !Bool'    -- ^ protected from reduce
-              , lits       :: !Stack    -- ^ which this clause consists of
+                lits       :: !Stack    -- ^ literals and rank
+              , activity    :: !Double'  -- ^ activity of this clause
+--            , protected  :: !Bool'    -- ^ protected from reduce
               }
   | NullClause                              -- as null pointer
 --  | BinaryClause Lit                        -- binary clause consists of only a propagating literal
@@ -93,12 +96,31 @@ instance StackFamily Clause Lit where
 newClauseFromStack :: Bool -> Stack -> IO Clause
 newClauseFromStack l vec = do
   n <- get' vec
-  v <- newStack n
-  let
-    loop ((<= n) -> False) = return ()
-    loop i = (setNth v i =<< getNth vec i) >> loop (i + 1)
+  v <- newStack (n + 1)
+  let loop ((<= n) -> False) = setNth vec (n + 1) (if l then 1 else 0) -- >> setNth vec (n + 2) 1
+      loop i = (setNth v i =<< getNth vec i) >> loop (i + 1)
   loop 0
-  Clause <$> new' (if l then 1 else 0) <*> new' 0.0 {- <*> new' False -} <*> return v
+  Clause v <$> new' 0.0
+
+-- | returns the rank, a goodness, of a given clause
+{-# INLINE getRank #-}
+getRank :: Clause -> IO Int
+getRank Clause{..} = do n <- get' lits; getNth lits (n + 1)
+
+-- | sets the rank of a given clause
+{-# INLINE setRank #-}
+setRank :: Clause -> Int -> IO ()
+setRank Clause{..} k = do n <- get' lits; setNth lits (n + 1) k
+
+{-
+{-# INLINE getActivity #-}
+getActivity :: Clause -> IO Int
+getActivity Clause{..} = do n <- get' lits; getNth lits (n + 2)
+
+{-# INLINE setActivity #-}
+setActivity :: Clause -> Int -> IO ()
+setActivity Clause{..} k = do n <- get' lits; setNth lits (n + 2) k
+-}
 
 -------------------------------------------------------------------------------- Clause Vector
 

@@ -13,7 +13,7 @@ import SAT.Mios
 import Development.GitRev
 
 gitId :: String
-gitId = versionId ++ "/commit/" ++ $(gitHash)
+gitId = "mios " ++ versionId ++ "/" -- ++ "/commit/" ++ $(gitHash)
 
 usage :: String
 usage = miosUsage $ gitId ++ "\nUsage: mios [OPTIONS] target.cnf"
@@ -23,7 +23,7 @@ main :: IO ()
 main = do opts <- miosParseOptionsFromArgs versionId
           if | _displayVersion opts        -> putStrLn gitId
              | _displayHelp opts           -> putStrLn usage
-             | _targetFile opts == Nothing -> putStrLn usage
+             | _targetFile opts == Left "" -> putStrLn usage
              | _validateAssignment opts    -> executeValidator opts
              | otherwise                   -> executeSolver opts
 

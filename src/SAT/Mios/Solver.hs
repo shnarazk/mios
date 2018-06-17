@@ -33,7 +33,6 @@ module SAT.Mios.Solver
        , setStat
        , incrementStat
        , getStats
-       , dumpSolver
        )
         where
 
@@ -60,6 +59,7 @@ data Solver = Solver
               , qHead      :: !Int'              -- ^ 'trail' is divided at qHead; assignment part and queue part
               , reason     :: !ClauseVector      -- ^ For each variable, the constraint that implied its value
               , level      :: !(Vec Int)         -- ^ For each variable, the decision level it was assigned
+              , ndd        :: !(Vec Int)         -- ^ For each variable, the number of depending decisions
               , conflicts  :: !Stack             -- ^ Set of literals in the case of conflicts
                 -------- Variable Order
               , activities :: !(Vec Double)      -- ^ Heuristic measurement of the activity of a variable
@@ -82,16 +82,17 @@ data Solver = Solver
               , an'lastDL  :: !Stack             -- ^ last decision level used in 'SAT.Mios.Main.analyze'
               , clsPool    :: ClausePool         -- ^ clause recycler
               , litsLearnt :: !Stack             -- ^ used in 'SAT.Mios.Main.analyze' and 'SAT.Mios.Main.search' to create a learnt clause
-              , stats      :: !(Vec [Int])       -- ^ statistics information holder
+              , stats      :: !(Vec Int)         -- ^ statistics information holder
               , lbd'seen   :: !(Vec Int)         -- ^ used in lbd computation
               , lbd'key    :: !Int'              -- ^ used in lbd computation
-                -------- restart heuristics #62
-              , emaDFast    :: !Double'          -- ^ fast ema value of LBD
-              , emaDSlow    :: !Double'          -- ^ slow ema value of LBD
-              , emaAFast    :: !Double'          -- ^ fast ema value of assignment
-              , emaASlow    :: !Double'          -- ^ slow ema value of assignment
+                -------- restart heuristics #62, clause evaluation criteria #74
+              , emaAFast    :: !EMA              -- ^ Number of Assignments Fast
+              , emaASlow    :: !EMA              -- ^ Number of Assignments Slow
+              , emaBDLvl    :: !EMA              -- ^ Backjumped and Restart Dicision Level
+              , emaCDLvl    :: !EMA              -- ^ Conflicting Level
+              , emaDFast    :: !EMA              -- ^ (Literal Block) Distance Fast
+              , emaDSlow    :: !EMA              -- ^ (Literal Block) Distance Slow
               , nextRestart :: !Int'             -- ^ next restart in number of conflict
-              , restartMode :: Int'              -- ^ mode of restart
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
@@ -101,7 +102,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     -- Clause Database
     <$> newManager dummy_nc                -- clauses
     <*> newManager 2000                    -- learnts
-    <*> newWatcherList nv 2                -- watches
+    <*> newWatcherList nv 1                -- watches
     -- Assignment Management
     <*> newVec nv LBottom                  -- assigns
     <*> newVec nv LBottom                  -- phases
@@ -110,6 +111,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> new' 0                             -- qHead
     <*> newClauseVector (nv + 1)           -- reason
     <*> newVec nv (-1)                     -- level
+    <*> newVec (2 * (nv + 1)) 0            -- ndd
     <*> newStack nv                        -- conflicts
     -- Variable Order
     <*> newVec nv 0                        -- activities
@@ -136,12 +138,16 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> newVec nv 0                        -- lbd'seen
     <*> new' 0                             -- lbd'key
     -- restart heuristics #62
-    <*> new' 0.0                           -- emaDFast
-    <*> new' 0.0                           -- emaDSlow
-    <*> new' 0.0                           -- emaAFast
-    <*> new' 0.0                           -- emaASlow
+    <*> fastEma                            -- emaAFast
+    <*> slowEma                            -- emaASlow
+    <*> newEMA True (2 ^ 10)               -- emaBDLvl
+    <*> newEMA True (2 ^ 10)               -- emaCDLvl
+    <*> fastEma                            -- emaDFast
+    <*> slowEma                            -- emaDSlow
     <*> new' 100                           -- nextRestart
-    <*> new' 1                             -- restartMode
+  where
+    fastEma = newEMA False . fst $ emaCoeffs conf
+    slowEma = newEMA True . snd $ emaCoeffs conf
 
 --------------------------------------------------------------------------------
 -- Accessors
@@ -267,7 +273,7 @@ cancelUntil s@Solver{..} lvl = do
         -- This means we can't reduce it from clause DB and affects the performance.
         setNth reason x NullClause -- 'analyze` uses reason without checking assigns
         -- FIXME: #polarity https://github.com/shnarazk/minisat/blosb/master/core/Solver.cc#L212
-        undo s x
+        undoVO s x
         -- insertHeap s x              -- insertVerOrder
         loopOnTrail $ c - 1
     loopOnTrail ts
@@ -295,12 +301,12 @@ instance VarOrder Solver where
     -- growQueueSized (i + 1) propQ
     -- return i
 -}
-  {-# SPECIALIZE INLINE update :: Solver -> Var -> IO () #-}
-  update = increaseHeap
-  {-# SPECIALIZE INLINE undo :: Solver -> Var -> IO () #-}
-  undo s v = inHeap s v >>= (`unless` insertHeap s v)
-  {-# SPECIALIZE INLINE select :: Solver -> IO Var #-}
-  select s = do
+  {-# SPECIALIZE INLINE updateVO :: Solver -> Var -> IO () #-}
+  updateVO = increaseHeap
+  {-# SPECIALIZE INLINE undoVO :: Solver -> Var -> IO () #-}
+  undoVO s v = inHeap s v >>= (`unless` insertHeap s v)
+  {-# SPECIALIZE INLINE selectVO :: Solver -> IO Var #-}
+  selectVO s = do
     let
       asg = assigns s
       -- | returns the most active var (heap-based implementation)
@@ -418,37 +424,3 @@ getHeapRoot s@(order -> VarHeap to at) = do
   n <- getNth to 0
   when (1 < n) $ percolateDown s 1
   return r
-
--------------------------------------------------------------------------------- dump
-
-{-# INLINABLE dumpSolver #-}
--- | print statatistic data to stdio. This should be called after each restart.
-dumpSolver :: DumpMode -> Solver -> IO ()
-
-dumpSolver NoDump _ = return ()
-
-dumpSolver DumpCSVHeader s@Solver{..} = do
-  sts <- init <$> getStats s
-  let labels = map (show . fst) sts  ++ ["emaDFast", "emaDSlow", "emaAFast", "emaASlow"]
-  putStrLn $ intercalate "," labels
-
-dumpSolver DumpCSV s@Solver{..} = do
-  -- First update the stat data
-  df <- get' emaDFast
-  ds <- get' emaDSlow
-  af <- get' emaAFast
-  as <- get' emaASlow
-  sts <- init <$> getStats s
-  va <- get' trailLim
-  setStat s NumOfVariable . (nVars -) =<< if va == 0 then get' trail else getNth trailLim 1
-  setStat s NumOfAssigned =<< nAssigns s
-  setStat s NumOfClause =<< get' clauses
-  setStat s NumOfLearnt =<< get' learnts
-  -- Additional data which type is Double
-  let emas = [("emaDFast", df), ("emaDSlow", ds), ("emaAFast", af), ("emaASlow", as)]
-      fs x = showFFloat (Just 3) x ""
-      vals = map (show . snd) sts ++ map (fs . snd) emas
-  putStrLn $ intercalate "," vals
-
--- | FIXME: use Util/Stat
-dumpSolver DumpJSON _ = return ()                -- mode 2: JSON
