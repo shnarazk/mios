@@ -140,8 +140,8 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     -- restart heuristics #62
     <*> fastEma                            -- emaAFast
     <*> slowEma                            -- emaASlow
-    <*> newEMA True (2 ^ 10)               -- emaBDLvl
-    <*> newEMA True (2 ^ 10)               -- emaCDLvl
+    <*> newEMA True (2 ^ 7)               -- emaBDLvl
+    <*> newEMA True (2 ^ 7)               -- emaCDLvl
     <*> fastEma                            -- emaDFast
     <*> slowEma                            -- emaDSlow
     <*> new' 100                           -- nextRestart
