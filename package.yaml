@@ -29,7 +29,7 @@ when:
   - condition:       flag(llvm)
     then:
       ghc-options:      -j -fwarn-missing-signatures -funbox-strict-fields -O2 -fllvm -optlo-O3 -optlc-O3
-      ghc-prof-options:	-j -fwarn-missing-signatures -funbox-strict-fields  -O2 -funbox-strict-fields -fllvm -optlo-O3 -fprof-auto
+      ghc-prof-options:	-j -fwarn-missing-signatures -funbox-strict-fields -O2 -fllvm -optlo-O3 -fprof-auto
     else:
       ghc-options:      -j -fwarn-missing-signatures -funbox-strict-fields -O2 -msse2
       ghc-prof-options:	-j -fwarn-missing-signatures -funbox-strict-fields -O2 -fprof-auto
