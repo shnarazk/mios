@@ -73,13 +73,3 @@ executables:
           buildable: true
         else:
           buildable: false
-  cnf-stat:
-    source-dirs:     utils
-    main:            cnf-stat.hs
-    dependencies:    mios
-    when:
-      - condition:   flag(utils)
-        then:
-          buildable: true
-        else:
-          buildable: false
