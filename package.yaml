@@ -73,13 +73,15 @@ executables:
           buildable: true
         else:
           buildable: false
-  cnf-stat:
-    source-dirs:     utils
-    main:            cnf-stat.hs
-    dependencies:    mios
-    when:
-      - condition:   flag(utils)
-        then:
-          buildable: true
-        else:
-          buildable: false
+
+tests:
+  mios-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - mios
+      - hspec
