@@ -298,7 +298,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
             ki <- fromIntegral <$> getStat s (if blockingRestart then NumOfRestart else NumOfBlockRestart)
             let gef = (if blockingRestart then restartExpansionB else restartExpansionF) config
                 step = restartExpansionS config
-            set' nextRestart $ count + step -- ceiling (step + gef ** ki) -- 161variant4
+            set' nextRestart $ count + ceiling step -- ceiling (step + gef ** ki) -- 161variant4
             when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
             return forcingRestart
 
