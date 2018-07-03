@@ -45,7 +45,7 @@ library:
   source-dirs:       src
 
 executables:
-  mios-WIP:
+  mios-161v4:
     source-dirs:     app
     main:            mios.hs
     dependencies:
