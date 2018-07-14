@@ -35,7 +35,8 @@ import SAT.Mios.Types
 data Clause = Clause
               {
                 lits       :: !Stack    -- ^ literals and rank
-              , activity    :: !Double'  -- ^ activity of this clause
+              , rank       :: !Int'     -- ^ another metrics of this clause
+              , activity   :: !Double'  -- ^ activity of this clause
 --            , protected  :: !Bool'    -- ^ protected from reduce
               }
   | NullClause                              -- as null pointer
@@ -97,20 +98,20 @@ newClauseFromStack :: Bool -> Stack -> IO Clause
 newClauseFromStack l vec = do
   n <- get' vec
   v <- newStack (n + 1)
-  let loop ((<= n) -> False) = setNth vec (n + 1) (if l then 1 else 0) -- >> setNth vec (n + 2) 1
+  let loop ((<= n) -> False) = return ()
       loop i = (setNth v i =<< getNth vec i) >> loop (i + 1)
   loop 0
-  Clause v <$> new' 0.0
+  Clause v <$> new' (if l then 1 else 0) <*> new' 0.0
 
 -- | returns the rank, a goodness, of a given clause
 {-# INLINE getRank #-}
 getRank :: Clause -> IO Int
-getRank Clause{..} = do n <- get' lits; getNth lits (n + 1)
+getRank Clause{..} = get' rank
 
 -- | sets the rank of a given clause
 {-# INLINE setRank #-}
 setRank :: Clause -> Int -> IO ()
-setRank Clause{..} k = do n <- get' lits; setNth lits (n + 1) k
+setRank Clause{..} k = set' rank k
 
 {-
 {-# INLINE getActivity #-}
