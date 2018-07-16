@@ -494,7 +494,7 @@ sortClauses s cm limit' = do
   -- 1: assign keys
   updateNDD s
   cl <- getEMA (emaCDLvl s)
-  surface <- if cl == 0 then return 0 else (/ cl) <$> getEMA (emaBDLvl s)  -- 0 <=backjumped level / coflict level < 1.0
+  -- surface <- if cl == 0 then return 0 else (/ cl) <$> getEMA (emaBDLvl s)  -- 0 <=backjumped level / coflict level < 1.0
   let shiftLBD = activityWidth
       am = fromIntegral activityMax :: Double
       scaleAct :: Double -> Int
@@ -512,13 +512,13 @@ sortClauses s cm limit' = do
           else do a <- get' (activity c)                       -- Second one... based on LBD
                   rLBD <- fromIntegral <$> getRank c           -- above the level
                   rNDD <- fromIntegral <$> nddOf s (lits c)    -- under the level
-                  let r = if rNDD == 1                         -- this implies rLBD == 1.
-                          then 1
-                          else ceiling . logBase 2 $ rLBD ** surface * rNDD ** (1 - surface)
+--                  let r = if rNDD == 1                         -- this implies rLBD == 1.
+--                          then 1
+--                          else ceiling . logBase 2 $ rLBD ** surface * rNDD ** (1 - surface)
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax
-                            | otherwise ->  min rankMax r                -- rank can be one
+                            | otherwise ->  min rankMax rLBD                -- rank can be one
                   setNth kvec i $ shiftL d shiftLBD + scaleAct a
                   assignKey (i + 1) $ if l then t + 1 else t
   limit <- max limit' <$> assignKey 0 0
