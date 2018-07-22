@@ -292,6 +292,30 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
       forcingRestart = filled && 1.25 * ds < df
       lv' = if forcingRestart then 0 else bLv
   void $ updateEMA emaBDLvl lv'
+  case (blockingRestart, forcingRestart) of
+    (False, False) -> return False
+    (True, True)   -> do        -- I have no idea what this case means.
+      kb <- getStat s NumOfBlockRestart
+      kf <- getStat s NumOfRestart
+      let delta = negate $ div (min kb kf) 2
+      incrementStat s NumOfBlockRestart delta
+      incrementStat s NumOfRestart delta
+      return False
+    (True, False)  -> do
+      incrementStat s NumOfBlockRestart 1
+      ki <- fromIntegral <$> getStat s NumOfRestart
+      let ef = ceiling $ restartExpansionS config + restartExpansionB config ** ki
+      set' nextRestart $ count + ef
+      when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
+      return False
+    (False, True) -> do
+      incrementStat s NumOfRestart 1
+      ki <- fromIntegral <$> getStat s NumOfBlockRestart
+      let ef = ceiling $ restartExpansionS config + restartExpansionF config ** ki
+      set' nextRestart $ count + ef
+      when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
+      return True
+{-
   if (not blockingRestart && not forcingRestart)
     then return False
     else do incrementStat s (if blockingRestart then NumOfBlockRestart else NumOfRestart) 1
@@ -301,6 +325,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
             set' nextRestart $ count + ceiling (step + gef ** ki)
             when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
             return forcingRestart
+-}
 
 -------------------------------------------------------------------------------- dump
 
