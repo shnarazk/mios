@@ -295,22 +295,22 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
   case (blockingRestart, forcingRestart) of
     (False, False) -> return False
     (True, True)   -> do        -- I have no idea what this case means.
-      set' lastRestartMode 0
+      set' restartCount 0
       return False
     (True, False)  -> do        -- blocking restart
       incrementStat s NumOfBlockRestart 1
-      mc <- min 0 . (subtract 1) <$> get' lastRestartMode
+      mc <- max 0 . (+ 1) <$> get' restartCount
       let ef = ceiling $ restartStep config + restartExpansion config ** fromIntegral mc
       set' nextRestart $ count + ef
-      set' lastRestartMode mc
+      set' restartCount mc
       when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
       return False
     (False, True) -> do         -- forcing restart
       incrementStat s NumOfRestart 1
-      mc <- max 0 . (+ 1) <$> get' lastRestartMode
+      mc <- min 0 . (subtract 1) <$> get' restartCount
       let ef = ceiling $ restartStep config + restartExpansion config ** fromIntegral mc
       set' nextRestart $ count + ef
-      set' lastRestartMode mc
+      set' restartCount mc
       when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
       return True
 
