@@ -275,7 +275,7 @@ nddOf Solver{..} stack = do
 
 -------------------------------------------------------------------------------- restart
 
--- | #62, #74
+-- | #62, #74, #91
 checkRestartCondition :: Solver -> Int -> Int -> IO Bool
 checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) = do
   next <- get' nextRestart
@@ -295,37 +295,24 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
   case (blockingRestart, forcingRestart) of
     (False, False) -> return False
     (True, True)   -> do        -- I have no idea what this case means.
-      kb <- getStat s NumOfBlockRestart
-      kf <- getStat s NumOfRestart
-      let delta = negate $ div (min kb kf) 2
-      incrementStat s NumOfBlockRestart delta
-      incrementStat s NumOfRestart delta
+      set' lastRestartMode 0
       return False
-    (True, False)  -> do
+    (True, False)  -> do        -- blocking restart
       incrementStat s NumOfBlockRestart 1
-      ki <- fromIntegral <$> getStat s NumOfRestart
-      let ef = ceiling $ restartExpansionS config + restartExpansionB config ** ki
+      mc <- min 0 . (subtract 1) <$> get' lastRestartMode
+      let ef = ceiling $ restartStep config + restartExpansion config ** fromIntegral mc
       set' nextRestart $ count + ef
+      set' lastRestartMode mc
       when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
       return False
-    (False, True) -> do
+    (False, True) -> do         -- forcing restart
       incrementStat s NumOfRestart 1
-      ki <- fromIntegral <$> getStat s NumOfBlockRestart
-      let ef = ceiling $ restartExpansionS config + restartExpansionF config ** ki
+      mc <- max 0 . (+ 1) <$> get' lastRestartMode
+      let ef = ceiling $ restartStep config + restartExpansion config ** fromIntegral mc
       set' nextRestart $ count + ef
+      set' lastRestartMode mc
       when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
       return True
-{-
-  if (not blockingRestart && not forcingRestart)
-    then return False
-    else do incrementStat s (if blockingRestart then NumOfBlockRestart else NumOfRestart) 1
-            ki <- fromIntegral <$> getStat s (if blockingRestart then NumOfRestart else NumOfBlockRestart)
-            let gef = (if blockingRestart then restartExpansionB else restartExpansionF) config
-                step = restartExpansionS config
-            set' nextRestart $ count + ceiling (step + gef ** ki)
-            when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
-            return forcingRestart
--}
 
 -------------------------------------------------------------------------------- dump
 
