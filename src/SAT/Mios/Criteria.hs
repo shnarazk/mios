@@ -336,9 +336,11 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
   if (not blockingRestart && not forcingRestart)
     then return False
     else do -- incrementStat s (if blockingRestart then NumOfBlockRestart else NumOfRestart) 1
---            when (blockingRestart && forcingRestart) $ do
---              setStat s NumOfBlockRestart 0
---              setStat s NumOfRestart 0
+            when (blockingRestart && forcingRestart) $ do
+              nb <- getStat s NumOfBlockRestart
+              nf <- getStat s NumOfRestart
+              setStat s NumOfBlockRestart $ div nb 2
+              setStat s NumOfRestart $ div nf 2
             nb <- getStat s NumOfBlockRestart
             nf <- getStat s NumOfRestart
             ki <- if blockingRestart
