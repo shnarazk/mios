@@ -288,8 +288,8 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
   as  <- updateEMA emaASlow nas
   void $ updateEMA emaCDLvl cLv
   let filled = next <= count
-      blockingRestart = filled && 1.25 * as < af
-      forcingRestart = filled && 1.25 * ds < df
+      blockingRestart = filled && 1.22 * as < af
+      forcingRestart  = filled && 1.25 * ds < df
       lv' = if forcingRestart then 0 else bLv
   void $ updateEMA emaBDLvl lv'
   case (blockingRestart, forcingRestart) of
@@ -301,7 +301,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
       incrementStat s NumOfBlockRestart 1
       mc <- max 0 . (+ 1) <$> get' restartCount
       let ef = ceiling $ restartStep config * restartExpansion config ** fromIntegral mc
-      set' nextRestart $ count + ef
+      set' nextRestart $ count + 40 + ef
       set' restartCount mc
       when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
       return False
@@ -309,7 +309,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
       incrementStat s NumOfRestart 1
       mc <- min 0 . (subtract 1) <$> get' restartCount
       let ef = ceiling $ restartStep config * restartExpansion config ** fromIntegral mc
-      set' nextRestart $ count + ef
+      set' nextRestart $ count + 40 + ef
       set' restartCount mc
       when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
       return True
@@ -328,13 +328,10 @@ emaLabels = [ ("emaAFast", emaAFast)
 {-# INLINABLE dumpStats #-}
 -- | print statatistic data to stdio. This should be called after each restart.
 dumpStats :: DumpMode -> Solver -> IO ()
-
 dumpStats NoDump _ = return ()
-
 dumpStats DumpCSVHeader s@Solver{..} = do
   sts <- init <$> getStats s
   putStrLn . intercalate "," $ map (show . fst) sts ++ map fst emaLabels
-
 dumpStats DumpCSV s@Solver{..} = do
   -- update the stat data before dump
   va <- get' trailLim
@@ -348,6 +345,5 @@ dumpStats DumpCSV s@Solver{..} = do
                 return $ showFFloat (Just 3) x ""
   vals <- mapM (fs . snd) emaLabels
   putStrLn . intercalate "," $ map (show . snd) sts ++ vals
-
 -- | FIXME: use Util/Stat
 dumpStats DumpJSON _ = return ()                -- mode 2: JSON
