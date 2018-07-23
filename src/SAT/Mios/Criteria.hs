@@ -300,7 +300,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
     (True, False)  -> do        -- blocking restart
       incrementStat s NumOfBlockRestart 1
       mc <- max 0 . (+ 1) <$> get' restartCount
-      let ef = ceiling $ restartStep config + restartExpansion config ** fromIntegral mc
+      let ef = ceiling $ restartStep config * restartExpansion config ** fromIntegral mc
       set' nextRestart $ count + ef
       set' restartCount mc
       when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
@@ -308,7 +308,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
     (False, True) -> do         -- forcing restart
       incrementStat s NumOfRestart 1
       mc <- min 0 . (subtract 1) <$> get' restartCount
-      let ef = ceiling $ restartStep config + restartExpansion config ** fromIntegral mc
+      let ef = ceiling $ restartStep config * restartExpansion config ** fromIntegral mc
       set' nextRestart $ count + ef
       set' restartCount mc
       when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
