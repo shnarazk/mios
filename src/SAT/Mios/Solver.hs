@@ -146,7 +146,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> fastEma                            -- emaDFast
     <*> slowEma                            -- emaDSlow
     <*> new' 100                           -- nextRestart
-    <*> new' 0                             -- restartCount
+    <*> new' 0.0                           -- restartExp
   where
     fastEma = newEMA False . fst $ emaCoeffs conf
     slowEma = newEMA True . snd $ emaCoeffs conf
