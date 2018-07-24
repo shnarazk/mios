@@ -277,47 +277,6 @@ nddOf Solver{..} stack = do
 
 -- | #62, #74, #91
 checkRestartCondition :: Solver -> Int -> Int -> IO Bool
-{-
-checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) = do
-  next <- get' nextRestart
-  count <- getStat s NumOfBackjump -- it should be > 0
-  nas <- fromIntegral <$> nAssigns s
-  bLv <- fromIntegral <$> decisionLevel s
-  df  <- updateEMA emaDFast lbd
-  ds  <- updateEMA emaDSlow lbd
-  af  <- updateEMA emaAFast nas
-  as  <- updateEMA emaASlow nas
-  void $ updateEMA emaCDLvl cLv
-  let filled = next <= count
-      blockingRestart = filled && 1.22 * as < af
-      forcingRestart  = filled && 1.25 * ds < df
-      lv' = if forcingRestart then 0 else bLv
-  void $ updateEMA emaBDLvl lv'
-  case (blockingRestart, forcingRestart) of
-    (False, False) -> return False
---    (True, True)   -> do        -- I have no idea what this case means.
---      set' restartCount 0
---      return False
-    (True, _)  -> do        -- blocking restart
-      incrementStat s NumOfBlockRestart 1
-      mc <- max 0 . (+ 1) <$> get' restartCount
-      let ef = ceiling $ restartStep config * restartExpansion config ** fromIntegral mc
-      set' nextRestart $ count + ef
-      set' restartCount mc
-      when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
-      print ef
-      return False
-    (False, True) -> do         -- forcing restart
-      incrementStat s NumOfRestart 1
-      -- mc <- min 0 . (subtract 1) <$> get' restartCount
-      let mc = 0
-      let ef = ceiling $ restartStep config * restartExpansion config ** fromIntegral mc
-      set' nextRestart $ count + ef
-      set' restartCount mc
-      print ef
-      when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
-      return True
--}
 checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) = do
   next <- get' nextRestart
   count <- getStat s NumOfBackjump -- it should be > 0
@@ -335,8 +294,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
   void $ updateEMA emaBDLvl lv'
   if (not blockingRestart && not forcingRestart)
     then return False
-    else do -- incrementStat s (if blockingRestart then NumOfBlockRestart else NumOfRestart) 1
-            when (blockingRestart && forcingRestart) $ do
+    else do when (blockingRestart && forcingRestart) $ do
               nb <- getStat s NumOfBlockRestart
               nf <- getStat s NumOfRestart
               setStat s NumOfBlockRestart $ div nb 2
@@ -346,11 +304,10 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
             ki <- if blockingRestart
                   then when (nb <= nf) (incrementStat s NumOfBlockRestart 1) >> return (fromIntegral nf)
                   else when (nf <= nb) (incrementStat s NumOfRestart 1) >> return (fromIntegral nb)
-            -- ki <- fromIntegral <$> getStat s (if blockingRestart then NumOfRestart else NumOfBlockRestart)
-            let gef = if blockingRestart then 1.20 else 1.01
-                step = restartStep config -- restartExpansionS config
-            set' nextRestart $ count + ceiling (step + gef ** ki)
-            -- print (step * gef ** ki, nb, nf)
+            let gef = if blockingRestart then 1.40 else 1.10
+                step1 = 32
+                step2 = 4
+            set' nextRestart $ count + ceiling (step1 + step2 * gef ** ki)
             when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
             return forcingRestart
 
