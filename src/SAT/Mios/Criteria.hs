@@ -294,20 +294,15 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
   void $ updateEMA emaBDLvl lv'
   if (not blockingRestart && not forcingRestart)
     then return False
-    else do when (blockingRestart && forcingRestart) $ do
-              nb <- getStat s NumOfBlockRestart
-              nf <- getStat s NumOfRestart
-              setStat s NumOfBlockRestart $ div nb 2
-              setStat s NumOfRestart $ div nf 2
+    else do when (blockingRestart && forcingRestart) $ modify' restartExp (/ 2.0)
             nb <- getStat s NumOfBlockRestart
             nf <- getStat s NumOfRestart
             ki <- if blockingRestart
-                  then when (nb <= nf) (incrementStat s NumOfBlockRestart 1) >> return (fromIntegral nf)
-                  else when (nf <= nb) (incrementStat s NumOfRestart 1) >> return (fromIntegral nb)
-            let gef = if blockingRestart then 1.40 else 1.10
-                step1 = 32
-                step2 = 4
-            set' nextRestart $ count + ceiling (step1 + step2 * gef ** ki)
+                  then incrementStat s NumOfBlockRestart 1 >> return (if nb <= nf then 0.2 else  0.05)
+                  else incrementStat s NumOfRestart 1      >> return (if nf <= nb then 0.1 else -0.05)
+            gef <- (+ ki) <$> get' restartExp
+            set' nextRestart $ count + ceiling (32 + 4 ** gef)
+            set' restartExp gef
             when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
             return forcingRestart
 
