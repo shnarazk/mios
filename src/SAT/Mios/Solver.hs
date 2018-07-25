@@ -93,7 +93,8 @@ data Solver = Solver
               , emaDFast    :: !EMA              -- ^ (Literal Block) Distance Fast
               , emaDSlow    :: !EMA              -- ^ (Literal Block) Distance Slow
               , nextRestart :: !Int'             -- ^ next restart in number of conflict
-              , restartExp  :: !Double'         -- ^ incremented by blocking
+              , restartExp  :: !Double'          -- ^ incremented by blocking
+              , emaRstBias  :: !EMA              -- ^ average phase of restart
               }
 
 -- | returns an everything-is-initialized solver from the arguments.

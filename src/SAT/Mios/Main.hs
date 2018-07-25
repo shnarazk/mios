@@ -615,6 +615,7 @@ simplifyDB s@Solver{..} = do
 search :: Solver -> IO Bool
 search s@Solver{..} = do
   -- clear model
+  let delta = (sqrt . fromIntegral) nVars
   let loop :: Bool -> IO Bool
       loop restart = do
         confl <- propagate s
@@ -640,8 +641,7 @@ search s@Solver{..} = do
                               t' <- (* 1.5) <$> get' learntSAdj
                               set' learntSAdj t'
                               set' learntSCnt $ floor t'
-                              -- modify' maxLearnts (* 1.1)
-                              modify' maxLearnts (+ 300)
+                              modify' maxLearnts (+ delta)
                             loop =<< checkRestartCondition s lbd' d
           else do when (d == 0) . void $ simplifyDB s -- Simplify the set of problem clauses
                   k1 <- get' learnts
