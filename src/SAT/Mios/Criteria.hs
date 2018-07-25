@@ -290,7 +290,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
   nb <- getStat s NumOfBlockRestart
   nf <- getStat s NumOfRestart
   bias <- if 5 < nb && 5 < nf
-          then (0.03 *) <$> getEMA emaRstBias
+          then (0.10 *) <$> getEMA emaRstBias
           else return 0
   let filled = next <= count
       blockingRestart = filled && (1.25 - bias) * as < af
@@ -301,10 +301,10 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
     then return False
     else do when (blockingRestart && forcingRestart) $ modify' restartExp (* 0.5)
             ki <- if blockingRestart
-                  then incrementStat s NumOfBlockRestart 1 >> return (if nb <= nf then  0.40 else  0.01)
-                  else incrementStat s NumOfRestart      1 >> return (if nf <= nb then  0.01 else -0.02)
+                  then incrementStat s NumOfBlockRestart 1 >> return (if nb <= nf then  0.34 else  0.01)
+                  else incrementStat s NumOfRestart      1 >> return (if nf <= nb then  0.01 else -0.03)
             gef <- (max 0.5) . (+ ki) <$> get' restartExp
-            set' nextRestart $ count + ceiling (32 + 10 ** gef)
+            set' nextRestart $ count + ceiling (24 + 10 ** gef)
             set' restartExp gef
             updateEMA emaRstBias (if blockingRestart then -1 else 1)
             -- print (nb, nf, ceiling (20 + 10 ** gef), gef)
