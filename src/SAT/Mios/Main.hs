@@ -514,7 +514,7 @@ sortClauses s cm limit' = do
                   rNDD <- fromIntegral <$> nddOf s (lits c)    -- under the level
                   let r = if rNDD == 1                         -- this implies rLBD == 1.
                           then 1
-                          else ceiling $ 8 * (rLBD ** surface * rNDD ** (1 - surface))
+                          else ceiling $ 1.45 * sqrt (rLBD ** surface * rNDD ** (1 - surface))
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax
