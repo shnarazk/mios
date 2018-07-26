@@ -287,29 +287,50 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
   af  <- updateEMA emaAFast nas
   as  <- updateEMA emaASlow nas
   void $ updateEMA emaCDLvl cLv
-  nb <- getStat s NumOfBlockRestart
-  nf <- getStat s NumOfRestart
-  bias <- if 5 < nb && 5 < nf
-          then (0.10 *) <$> getEMA emaRstBias
-          else return 0
-  let filled = next <= count
-      blockingRestart = filled && (1.25 - bias) * as < af
-      forcingRestart  = filled && (1.25 + bias) * ds < df
-      lv' = if forcingRestart then 0 else bLv
-  void $ updateEMA emaBDLvl lv'
-  if (not blockingRestart && not forcingRestart)
-    then return False
-    else do when (blockingRestart && forcingRestart) $ modify' restartExp (* 0.5)
-            ki <- if blockingRestart
-                  then incrementStat s NumOfBlockRestart 1 >> return (if nb <= nf then  0.34 else  0.01)
-                  else incrementStat s NumOfRestart      1 >> return (if nf <= nb then  0.01 else -0.03)
-            gef <- (max 0.5) . (+ ki) <$> get' restartExp
-            set' nextRestart $ count + ceiling (24 + 10 ** gef)
-            set' restartExp gef
-            updateEMA emaRstBias (if blockingRestart then -1 else 1)
-            -- print (nb, nf, ceiling (20 + 10 ** gef), gef)
-            when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
-            return forcingRestart
+  re <- get' restartExp
+  bias <- getEMA emaRstBias
+  let baseS = 24
+      baseE = 16
+      toUpdate = mod count 40 == 0      -- 24 + 16
+      toRestart = next <= count
+      block = (1.25 - 0.1 * bias) * as < af
+      force = (1.25 + 0.1 * bias) * ds < df
+  if | toRestart -> do
+         incrementStat s NumOfRestart 1
+         let step = ceiling (baseS + baseE ** re)
+         set' nextRestart $ count + step
+         set' lastRestart count
+         updateEMA emaRstBias 1
+         -- putStrLn $ "Restart: " ++ show (bias, re, step)
+         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
+         void $ updateEMA emaBDLvl 0
+         return True
+     | not toUpdate -> do
+         void $ updateEMA emaBDLvl bLv
+         return False
+     | force -> do
+         -- incrementStat s NumOfForceRestart 1
+         let re' = max 0 $ re - 0.1
+             step = ceiling (baseS + baseE ** re')
+         prev <- get' lastRestart
+         set' nextRestart $ prev + step
+         set' restartExp $ if re' == 0 then 0.5 else re'
+         updateEMA emaRstBias 1
+         void $ updateEMA emaBDLvl bLv
+         return False
+     | block -> do
+         -- incrementStat s NumOfBlockRestart 1
+         let re' = min 10 $ re + 0.1
+             step = ceiling (baseS + baseE ** re')
+         prev <- get' lastRestart
+         set' nextRestart $ prev + step
+         set' restartExp $ if re == 10 then 0.5 else re'
+         updateEMA emaRstBias (-1)
+         void $ updateEMA emaBDLvl bLv
+         return False
+     | otherwise -> do
+         void $ updateEMA emaBDLvl bLv
+         return False
 
 -------------------------------------------------------------------------------- dump
 

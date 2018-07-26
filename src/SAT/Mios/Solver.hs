@@ -92,7 +92,8 @@ data Solver = Solver
               , emaCDLvl    :: !EMA              -- ^ Conflicting Level
               , emaDFast    :: !EMA              -- ^ (Literal Block) Distance Fast
               , emaDSlow    :: !EMA              -- ^ (Literal Block) Distance Slow
-              , nextRestart :: !Int'             -- ^ next restart in number of conflict
+              , lastRestart :: !Int'             -- ^ the number of conflict of the last restart
+              , nextRestart :: !Int'             -- ^ the number of confilct for the next restart
               , restartExp  :: !Double'          -- ^ incremented by blocking
               , emaRstBias  :: !EMA              -- ^ average phase of restart
               }
@@ -146,9 +147,10 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> newEMA True 2                      -- emaCDLvl
     <*> newEMA False ef                    -- emaDFast
     <*> newEMA True es                     -- emaDSlow
+    <*> new' 0                             -- lastRestart
     <*> new' 100                           -- nextRestart
     <*> new' 0.0                           -- restartExp
-    <*> newEMA False 100                   -- emaRstBias
+    <*> newEMA False 256                   -- emaRstBias
   where
     (ef, es) = emaCoeffs conf
 
