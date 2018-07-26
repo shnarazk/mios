@@ -290,11 +290,12 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
   re <- get' restartExp
   bias <- getEMA emaRstBias
   let baseS = 24
-      baseE = 16
+      baseE = 18 -- 16 >> 24
+      delta = 0.19
       toUpdate = mod count 40 == 0      -- 24 + 16
       toRestart = next <= count
-      block = (1.25 - 0.1 * bias) * as < af
-      force = (1.25 + 0.1 * bias) * ds < df
+      block = (1.25 - 0.04 * bias) * as < af
+      force = (1.25 + 0.04 * bias) * ds < df
   if | toRestart -> do
          incrementStat s NumOfRestart 1
          let step = ceiling (baseS + baseE ** re)
@@ -308,24 +309,22 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
      | not toUpdate -> do
          void $ updateEMA emaBDLvl bLv
          return False
-     | force -> do
-         -- incrementStat s NumOfForceRestart 1
-         let re' = max 0 $ re - 0.1
-             step = ceiling (baseS + baseE ** re')
-         prev <- get' lastRestart
-         set' nextRestart $ prev + step
-         set' restartExp $ if re' == 0 then 0.5 else re'
-         updateEMA emaRstBias 1
-         void $ updateEMA emaBDLvl bLv
-         return False
      | block -> do
          -- incrementStat s NumOfBlockRestart 1
-         let re' = min 10 $ re + 0.1
+         let re' = min 10 $ re + if force then 0.01 else delta
              step = ceiling (baseS + baseE ** re')
-         prev <- get' lastRestart
-         set' nextRestart $ prev + step
-         set' restartExp $ if re == 10 then 0.5 else re'
+         set' nextRestart . (+ step) =<< get' lastRestart
+         set' restartExp re' -- $ if re == 10 then 0.5 else re'
          updateEMA emaRstBias (-1)
+         void $ updateEMA emaBDLvl bLv
+         return False
+     | force -> do
+         -- incrementStat s NumOfForceRestart 1
+         let re' = max 0 $ re - delta
+             step = ceiling (baseS + baseE ** re')
+         set' nextRestart . (+ step) =<< get' lastRestart
+         set' restartExp $ if re' == 0 then 0.5 else re'
+         updateEMA emaRstBias 1
          void $ updateEMA emaBDLvl bLv
          return False
      | otherwise -> do
