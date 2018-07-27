@@ -342,8 +342,6 @@ defaultConfiguration = MiosConfiguration 0.95 0.999 0 (ef, es) 1.15 100
 data StatIndex =
     NumOfBackjump               -- ^ the number of backjump
   | NumOfRestart                -- ^ the number of restart
-  | NumOfBlockRestart           -- ^ the number of blacking start
-  | NumOfGeometricRestart       -- ^ the number of classic restart
   | NumOfPropagation            -- ^ the number of propagation
   | NumOfReduction              -- ^ the number of reduction
   | NumOfClause                 -- ^ the number of 'alive' given clauses

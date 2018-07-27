@@ -95,7 +95,7 @@ data Solver = Solver
               , lastRestart :: !Int'             -- ^ the number of conflict of the last restart
               , nextRestart :: !Int'             -- ^ the number of confilct for the next restart
               , restartExp  :: !Double'          -- ^ incremented by blocking
-              , emaRstBias  :: !EMA              -- ^ average phase of restart
+              , emaRBias    :: !EMA              -- ^ phase of restart (-1:force - 1:block)
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
@@ -150,7 +150,7 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> new' 0                             -- lastRestart
     <*> new' 100                           -- nextRestart
     <*> new' 0.0                           -- restartExp
-    <*> newEMA False 256                   -- emaRstBias
+    <*> newEMA False 256                   -- emaRBias
   where
     (ef, es) = emaCoeffs conf
 

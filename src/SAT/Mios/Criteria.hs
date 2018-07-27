@@ -288,7 +288,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
   as  <- updateEMA emaASlow nas
   void $ updateEMA emaCDLvl cLv
   re <- get' restartExp
-  bias <- getEMA emaRstBias
+  bias <- getEMA emaRBias
   let baseS = 24
       baseE = 18 -- 16 >> 24
       delta = 0.19
@@ -301,7 +301,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
          let step = ceiling (baseS + baseE ** re)
          set' nextRestart $ count + step
          set' lastRestart count
-         updateEMA emaRstBias 1
+         updateEMA emaRBias 1
          -- putStrLn $ "Restart: " ++ show (bias, re, step)
          when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
          void $ updateEMA emaBDLvl 0
@@ -315,7 +315,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
              step = ceiling (baseS + baseE ** re')
          set' nextRestart . (+ step) =<< get' lastRestart
          set' restartExp re' -- $ if re == 10 then 0.5 else re'
-         updateEMA emaRstBias (-1)
+         updateEMA emaRBias (-1)
          void $ updateEMA emaBDLvl bLv
          return False
      | force -> do
@@ -324,7 +324,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
              step = ceiling (baseS + baseE ** re')
          set' nextRestart . (+ step) =<< get' lastRestart
          set' restartExp $ if re' == 0 then 0.5 else re'
-         updateEMA emaRstBias 1
+         updateEMA emaRBias 1
          void $ updateEMA emaBDLvl bLv
          return False
      | otherwise -> do
@@ -340,6 +340,7 @@ emaLabels = [ ("emaAFast", emaAFast)
             , ("emaCDLvl", emaCDLvl)
             , ("emaDFast", emaDFast)
             , ("emaDSlow", emaDSlow)
+            , ("emaRBias", emaRBias)
             ]
 
 {-# INLINABLE dumpStats #-}
