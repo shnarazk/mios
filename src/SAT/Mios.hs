@@ -34,8 +34,8 @@ module SAT.Mios
        )
        where
 
-import Control.Concurrent (forkIO, killThread, myThreadId, threadDelay
-                          , newEmptyMVar, putMVar, readMVar)
+import Control.Concurrent ( newEmptyMVar, putMVar, readMVar, takeMVar
+                          , ThreadId, forkIO, killThread, myThreadId, threadDelay)
 import Control.Exception
 import Control.Monad ((<=<), unless, void, when)
 import Data.Char
@@ -72,13 +72,30 @@ buildOption target = (miosDefaultOption { _targetFile = target })
 -- | returns a new solver injected a problem
 buildSolver :: MiosProgramOption -> IO Solver
 buildSolver opts = do
+  token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
   (desc, cls) <- parseCNF (_targetFile opts)
-  when (_numberOfVariables desc == 0) . error $ "couldn't load " ++ (take 100 . show . _targetFile) opts
   t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
-  s <- newSolver (toMiosConf opts) desc
-  injectClausesFromCNF s desc cls
+  readerId <- forkIO $ do
+    s <- newSolver (toMiosConf opts) desc
+    when (_numberOfVariables desc == 0) . error $ "couldn't load " ++ (take 100 . show . _targetFile) opts
+    injectClausesFromCNF s desc cls
+    putMVar token s
+  when (0 < _confBenchmark opts) $
+    void $ forkIO $ do let -- getCPUTime returns a pico sec. :: Integer, 1000 * 1000 * 1000 * 1000
+                           -- threadDelay requires a micro sec. :: Int,  1000 * 1000
+                           req = 1000000000000 * fromIntegral (_confBenchmark opts) :: Integer
+                           waiting = do
+                             elp <- getCPUTime
+                             when (elp < req) $ do
+                               threadDelay . max 1000000 $ fromIntegral (req - elp) `div` 1000000
+                               waiting
+                       waiting
+                       killThread readerId
+                       s' <- newSolver defaultConfiguration (CNFDescription 0 0 "")
+                       set' (ok s') LiftedF
+                       putMVar token s'
   void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPathFixed opts ++ "] Parse: ") t0
-  return s
+  takeMVar token
 
 -- | returns the data on a given CNF file. Only solver knows it.
 buildDescription :: FilePath -> Solver -> IO CNFDescription
