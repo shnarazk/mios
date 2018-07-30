@@ -293,23 +293,37 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
           then (0.10 *) <$> getEMA emaRstBias
           else return 0
   let filled = next <= count
-      blockingRestart = filled && (1.25 - bias) * as < af
-      forcingRestart  = filled && (1.25 + bias) * ds < df
-      lv' = if forcingRestart then 0 else bLv
-  void $ updateEMA emaBDLvl lv'
-  if (not blockingRestart && not forcingRestart)
-    then return False
-    else do when (blockingRestart && forcingRestart) $ modify' restartExp (* 0.5)
-            ki <- if blockingRestart
-                  then incrementStat s NumOfBlockRestart 1 >> return (if nb <= nf then  0.34 else  0.01)
-                  else incrementStat s NumOfRestart      1 >> return (if nf <= nb then  0.01 else -0.03)
-            gef <- (max 0.5) . (+ ki) <$> get' restartExp
-            set' nextRestart $ count + ceiling (24 + 10 ** gef)
-            set' restartExp gef
-            updateEMA emaRstBias (if blockingRestart then -1 else 1)
-            -- print (nb, nf, ceiling (20 + 10 ** gef), gef)
-            when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
-            return forcingRestart
+      blockingRestart = (1.25 - bias) * as < af
+      forcingRestart  = (1.25 + bias) * ds < df
+  if | not filled -> do
+         updateEMA emaBDLvl bLv
+         return False
+     | blockingRestart -> do
+         when (forcingRestart) $ modify' restartExp (* 0.5)
+         incrementStat s NumOfBlockRestart 1
+         let ki = if nb <= nf then  0.34 else  0.01
+         gef <- (max 0.5) . (+ ki) <$> get' restartExp
+         set' nextRestart $ count + ceiling (24 + 10 ** gef)
+         set' restartExp gef
+         updateEMA emaRstBias (-1)
+         -- print (nb, nf, ceiling (24 + 10 ** gef), gef)
+         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
+         updateEMA emaBDLvl bLv
+         return False
+     | forcingRestart -> do
+         incrementStat s NumOfRestart 1
+         let ki = if nf <= nb then  0.01 else -0.03
+         gef <- (max 0.5) . (+ ki) <$> get' restartExp
+         set' nextRestart $ count + ceiling (24 + 10 ** gef)
+         set' restartExp gef
+         updateEMA emaRstBias 1
+         -- print (nb, nf, ceiling (24 + 10 ** gef), gef)
+         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
+         updateEMA emaBDLvl 0
+         return True
+     | otherwise -> do
+         updateEMA emaBDLvl bLv
+         return False
 
 -------------------------------------------------------------------------------- dump
 
