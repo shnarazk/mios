@@ -314,7 +314,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
          let re' = min 10 $ re + if force then 0.01 else delta
              step = ceiling (baseS + baseE ** re')
          set' nextRestart . (+ step) =<< get' lastRestart
-         set' restartExp re' -- $ if re == 10 then 0.5 else re'
+         set' restartExp re'     -- if re == 10 then 0.5 else re'
          updateEMA emaRBias (-1)
          void $ updateEMA emaBDLvl bLv
          return False
