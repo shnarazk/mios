@@ -322,8 +322,17 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
          updateEMA emaBDLvl 0
          return True
      | otherwise -> do
-         updateEMA emaBDLvl bLv
-         return False
+         incrementStat s NumOfRestart 1
+         gef <- max 0.5 <$> get' restartExp
+         set' nextRestart $ count + ceiling (24 + 10 ** gef)
+         set' restartExp gef
+         updateEMA emaRstBias 1
+         -- print (nb, nf, ceiling (24 + 10 ** gef), gef)
+         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
+         updateEMA emaBDLvl 0
+         return True
+--         updateEMA emaBDLvl bLv
+--         return False
 
 -------------------------------------------------------------------------------- dump
 
