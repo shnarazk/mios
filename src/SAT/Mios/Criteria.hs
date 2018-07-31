@@ -277,7 +277,7 @@ nddOf Solver{..} stack = do
 
 -- | #62, #74, #91
 checkRestartCondition :: Solver -> Int -> Int -> IO Bool
-checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) = do
+checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv') = do
   next <- get' nextRestart
   count <- getStat s NumOfBackjump -- it should be > 0
   nas <- fromIntegral <$> nAssigns s
@@ -286,7 +286,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
   ds  <- updateEMA emaDSlow lbd
   af  <- updateEMA emaAFast nas
   as  <- updateEMA emaASlow nas
-  void $ updateEMA emaCDLvl cLv
+  cLv <- updateEMA emaCDLvl cLv'
   nb <- getStat s NumOfBlockRestart
   nf <- getStat s NumOfRestart
   let bias = if | nb <= 10  -> 0
@@ -294,25 +294,22 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
                 | otherwise -> 0.1 * negate ((fromIntegral nb / fromIntegral nf) ** 2)
       block = 1.25 * as < af
       force = (1.25 + bias) * ds < df
-      updateParams ki = do
-        gef <- (max 0) . (+ ki) <$> get' restartExp
-        set' nextRestart $ count + 100 + ceiling (50 * gef)
-        set' restartExp gef
+      updateParams ki = set' nextRestart $ count + ceiling ki
       updateBDL = updateEMA emaBDLvl bLv >> return False
       restartBDL = do
         updateEMA emaBDLvl 0
-        -- do z <- get' restartExp; when (0.4 < z) $ print (nb, nf, bias, z)
+        -- when (mod nf 30 == 0) $ print (nb, nf, bias)
         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
         return True
   if | count < next -> updateBDL
      | block        -> do
          incrementStat s NumOfBlockRestart 1
-         updateParams 1.0   >> updateBDL
+         updateParams (1.5 * cLv) >> updateBDL
      | force        -> do
          incrementStat s NumOfRestart 1
-         updateParams (-0.1) >> restartBDL
+         updateParams bLv >> restartBDL
      | otherwise    -> do
-         updateParams (-0.9) >> updateBDL
+         updateParams bLv >> updateBDL
 
 -------------------------------------------------------------------------------- dump
 
