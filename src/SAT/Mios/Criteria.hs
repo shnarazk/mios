@@ -289,27 +289,19 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv') 
   cLv <- updateEMA emaCDLvl cLv'
   nb <- getStat s NumOfBlockRestart
   nf <- getStat s NumOfRestart
-  let bias = if | nb <= 10  -> 0
-                | nb <= nf  -> 0.1 * (fromIntegral nf / fromIntegral nb) ** 2
-                | otherwise -> 0.1 * negate ((fromIntegral nb / fromIntegral nf) ** 2)
-      block = 1.25 * as < af
-      force = (1.25 + bias) * ds < df
-      updateParams ki = set' nextRestart $ count + ceiling ki
-      updateBDL = updateEMA emaBDLvl bLv >> return False
-      restartBDL = do
+  let bias = 1.25 + if | min nb nf < 4 -> 0
+                       | nb <= nf  -> 0.1 * (fromIntegral nf / fromIntegral nb) ** 2
+                       | otherwise -> 0.1 * negate ((fromIntegral nb / fromIntegral nf) ** 2)
+      skip ki = set' nextRestart (count + ceiling ki) >> updateEMA emaBDLvl bLv >> return False
+      restart ki = do
+        set' nextRestart (count + ceiling ki)
         updateEMA emaBDLvl 0
-        -- when (mod nf 30 == 0) $ print (nb, nf, bias, cLv, bLv)
         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
         return True
-  if | count < next -> updateBDL
-     | block        -> do
-         incrementStat s NumOfBlockRestart 1
-         updateParams (cLv ** 1.8) >> updateBDL
-     | force        -> do
-         incrementStat s NumOfRestart 1
-         updateParams (1.5 * cLv) >> restartBDL
-     | otherwise    -> do
-         updateParams (1.5 * cLv) >> updateBDL
+  if | count < next   -> updateEMA emaBDLvl bLv >> return False
+     | 1.25 * as < af -> setStat s NumOfBlockRestart (nb + 1) >> skip (cLv ** 2.0)
+     | bias * ds < df -> setStat s NumOfRestart (nf + 1)      >> restart (1.5 * cLv)
+     | otherwise      ->                                         skip (1.5 * cLv)
 
 -------------------------------------------------------------------------------- dump
 
