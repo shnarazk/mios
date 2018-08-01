@@ -298,18 +298,18 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv') 
       updateBDL = updateEMA emaBDLvl bLv >> return False
       restartBDL = do
         updateEMA emaBDLvl 0
-        -- when (mod nf 30 == 0) $ print (nb, nf, bias)
+        -- when (mod nf 30 == 0) $ print (nb, nf, bias, cLv, bLv)
         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
         return True
   if | count < next -> updateBDL
      | block        -> do
          incrementStat s NumOfBlockRestart 1
-         updateParams (1.5 * cLv) >> updateBDL
+         updateParams (cLv ** 1.8) >> updateBDL
      | force        -> do
          incrementStat s NumOfRestart 1
-         updateParams bLv >> restartBDL
+         updateParams (1.5 * cLv) >> restartBDL
      | otherwise    -> do
-         updateParams bLv >> updateBDL
+         updateParams (1.5 * cLv) >> updateBDL
 
 -------------------------------------------------------------------------------- dump
 
