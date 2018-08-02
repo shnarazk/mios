@@ -492,9 +492,9 @@ sortClauses s cm limit' = do
   kvec <- getKeyVector cm
   at <- (0.1 *) . (/ fromIntegral n) <$> get' (claInc s) -- activity threshold
   -- 1: assign keys
-  updateNDD s
+  -- updateNDD s
   cl <- getEMA (emaCDLvl s)
-  surface <- if cl == 0 then return 0 else (/ cl) <$> getEMA (emaBDLvl s)  -- 0 <=backjumped level / coflict level < 1.0
+  -- surface <- if cl == 0 then return 0 else (/ cl) <$> getEMA (emaBDLvl s)  -- 0 <=backjumped level / coflict level < 1.0
   let shiftLBD = activityWidth
       am = fromIntegral activityMax :: Double
       scaleAct :: Double -> Int
@@ -514,7 +514,7 @@ sortClauses s cm limit' = do
                   rNDD <- fromIntegral <$> nddOf s (lits c)    -- under the level
                   let r = if rNDD == 1                         -- this implies rLBD == 1.
                           then 1
-                          else ceiling $ 1.45 * sqrt (rLBD ** surface * rNDD ** (1 - surface))
+                          else ceiling rLBD -- $ 1.45 * sqrt (rLBD ** surface * rNDD ** (1 - surface))
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax
