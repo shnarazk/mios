@@ -279,7 +279,7 @@ type EMA = (Double', Maybe Double', Double)
 {-# INLINE newEMA #-}
 newEMA :: Bool -> Int -> IO EMA
 newEMA True s = do v <- new' 0.0
-                   c <- new' 1.0
+                   c <- new' 0.0
                    return (v, Just c, 1 / fromIntegral s)
 newEMA False s = do v <- new' 0.0; return (v, Nothing, 1 / fromIntegral s)
 
