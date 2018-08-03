@@ -299,7 +299,7 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv') 
         when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
         return True
   if | count < next   -> updateEMA emaBDLvl bLv >> return False
-     | 1.25 * as < af -> setStat s NumOfBlockRestart (nb + 1) >> skip (cLv ** 2.0)
+     | 1.25 * as < af -> setStat s NumOfBlockRestart (nb + 1) >> skip (cLv ** 1.8)
      | bias * ds < df -> setStat s NumOfRestart (nf + 1)      >> restart (1.5 * cLv)
      | otherwise      ->                                         skip (1.5 * cLv)
 
