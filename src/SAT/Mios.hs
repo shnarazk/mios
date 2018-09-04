@@ -332,7 +332,8 @@ injectClausesFromCNF s (CNFDescription nv nc _) bs = do
             loop !j !b = case parseInt $ skipWhitespace b of
                            (k, b') -> if k == 0
                                       then do setNth buffer 0 $ j - 1
-                                              void $ addClause s buffer
+                                              res <- addClause s buffer
+                                              when (res == False) $ set' (ok s) LiftedF
                                               readClause (i + 1) b'
                                       else do setNth buffer j (int2lit k)
                                               loop (j + 1) b'

@@ -701,8 +701,9 @@ solve s@Solver{..} assumps = do
                             cancelUntil s 0
                             return False
                     else return True
+  check_given <- get' ok
   good <- simplifyDB s
-  x <- if good then foldrM inject True assumps else return False
+  x <- if check_given /= LiftedF && good then foldrM inject True assumps else return False
   if x
     then do set' rootLevel =<< decisionLevel s
             status <- search s
