@@ -140,14 +140,13 @@ reportResult opts t0 (Left TimeOut) = do
 -- solver terminated normally
 reportResult opts t0 (Right result) = do
   t2 <- reportElapsedTime (_confVerbose opts) ("## [" ++ showPathFixed opts ++ "] Total: ") t0
-  case result of
+  dumpName <- if _confNoAnswer opts then return Nothing else (Just <$> dumpAssigmentAsCNF opts result)
+  case (result, dumpName) of
     _ | 0 <= _confBenchmark opts -> return ()
-    SAT _   | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "SATISFIABLE"
-    UNSAT _ | _confNoAnswer opts -> when (_confVerbose opts) $ hPutStrLn stderr "UNSATISFIABLE"
-    SAT asg -> print asg
-    UNSAT t -> do when (_confVerbose opts) $ hPutStrLn stderr "UNSAT" -- contradiction
-                  print t
-  dumpAssigmentAsCNF (_outputFile opts) result
+    (SAT _, Just o)    -> hPutStrLn stderr $ "SATISFIABLE, saved to " ++ o ++ " for " ++ showPathBaseName opts
+    (SAT _, Nothing)   -> hPutStrLn stderr $ "SATISFIABLE, " ++ showPathBaseName opts
+    (UNSAT _, Just o)  -> hPutStrLn stderr $ "UNSATISFIABLE, saved to " ++ o ++ " for " ++ showPathBaseName opts
+    (UNSAT _, Nothing) -> hPutStrLn stderr $ "UNSATISFIABLE, " ++ showPathBaseName opts
   valid <- if _confCheckAnswer opts                     -- or 0 <= _confBenchmark opts
            then case result of
                   SAT asg -> do (desc, cls) <- parseCNF (_targetFile opts)
@@ -255,17 +254,32 @@ validateAssignment desc cls asg = do
 --
 -- >>> do y <- solve s ... ; dumpAssigmentAsCNF (Just "result.cnf") y <$> model s
 --
-dumpAssigmentAsCNF :: Maybe FilePath -> Certificate -> IO ()
-dumpAssigmentAsCNF Nothing _ = return ()
+dumpAssigmentAsCNF :: MiosProgramOption -> Certificate -> IO String
 -- | FIXME: swtich to DRAT
-dumpAssigmentAsCNF (Just fname) (UNSAT _) =
+dumpAssigmentAsCNF opt (UNSAT _) = do
+  let fname = case _outputFile opt of
+                Just x -> x
+                Nothing -> case _targetFile opt of
+                             Left f -> ".ans_" ++ (reverse . takeWhile (/= '/') . reverse) f
+                             Right _ -> ".ans_mios"
   writeFile fname "s UNSAT\n0\n"
-dumpAssigmentAsCNF (Just fname) (SAT l) =
+  return fname
+dumpAssigmentAsCNF opt (SAT l) = do
+  let fname = case _outputFile opt of
+                Just x -> x
+                Nothing -> case _targetFile opt of
+                             Left f -> ".ans_" ++ (reverse . takeWhile (/= '/') . reverse) f
+                             Right _ -> ".ans_mios"
   withFile fname WriteMode $ \h -> do hPutStrLn h "s SAT"; hPutStrLn h . (++ " 0") . unwords $ map show l
+  return fname
 
 showPath :: MiosProgramOption -> String
 showPath (_targetFile -> Left str) = str
 showPath _ = "{a cnf embedded}"
+
+showPathBaseName :: MiosProgramOption -> String
+showPathBaseName (_targetFile -> Left str) = (reverse . takeWhile (/= '/') . reverse) str
+showPathBaseName _ = "aCNF"
 
 showPathFixed :: MiosProgramOption -> String
 showPathFixed (_targetFile -> Left str) = replicate (len - length basename) ' ' ++ if elem '/' str then basename else basename'
