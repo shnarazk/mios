@@ -275,7 +275,7 @@ nddOf Solver{..} stack = do
 
 -------------------------------------------------------------------------------- restart
 
--- | #62, #74
+-- | #62, #74, #91
 checkRestartCondition :: Solver -> Int -> Int -> IO Bool
 checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) = do
   next <- get' nextRestart
@@ -287,20 +287,32 @@ checkRestartCondition s@Solver{..} (fromIntegral -> lbd) (fromIntegral -> cLv) =
   af  <- updateEMA emaAFast nas
   as  <- updateEMA emaASlow nas
   void $ updateEMA emaCDLvl cLv
-  let filled = next <= count
-      blockingRestart = filled && 1.25 * as < af
-      forcingRestart = filled && 1.25 * ds < df
-      lv' = if forcingRestart then 0 else bLv
-  void $ updateEMA emaBDLvl lv'
-  if (not blockingRestart && not forcingRestart)
-    then return False
-    else do incrementStat s (if blockingRestart then NumOfBlockRestart else NumOfRestart) 1
-            ki <- fromIntegral <$> getStat s (if blockingRestart then NumOfRestart else NumOfBlockRestart)
-            let gef = (if blockingRestart then restartExpansionB else restartExpansionF) config
-                step = restartExpansionS config
-            set' nextRestart $ count + ceiling (step + gef ** ki)
-            when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
-            return forcingRestart
+  nb <- getStat s NumOfBlockRestart
+  nf <- getStat s NumOfRestart
+  let bias = if | nb <= 10  -> 0
+                | nb <= nf  -> 0.1 * (fromIntegral nf / fromIntegral nb) ** 2
+                | otherwise -> 0.1 * negate ((fromIntegral nb / fromIntegral nf) ** 2)
+      block = 1.25 * as < af
+      force = (1.25 + bias) * ds < df
+      updateParams ki = do
+        gef <- (max 0) . (+ ki) <$> get' restartExp
+        set' nextRestart $ count + 100 + ceiling (50 * gef)
+        set' restartExp gef
+      updateBDL = updateEMA emaBDLvl bLv >> return False
+      restartBDL = do
+        updateEMA emaBDLvl 0
+        -- do z <- get' restartExp; when (0.4 < z) $ print (nb, nf, bias, z)
+        when (3 == dumpSolverStatMode config) $ dumpStats DumpCSV s
+        return True
+  if | count < next -> updateBDL
+     | block        -> do
+         incrementStat s NumOfBlockRestart 1
+         updateParams 1.0   >> updateBDL
+     | force        -> do
+         incrementStat s NumOfRestart 1
+         updateParams (-0.1) >> restartBDL
+     | otherwise    -> do
+         updateParams (-0.9) >> updateBDL
 
 -------------------------------------------------------------------------------- dump
 
@@ -316,13 +328,10 @@ emaLabels = [ ("emaAFast", emaAFast)
 {-# INLINABLE dumpStats #-}
 -- | print statatistic data to stdio. This should be called after each restart.
 dumpStats :: DumpMode -> Solver -> IO ()
-
 dumpStats NoDump _ = return ()
-
 dumpStats DumpCSVHeader s@Solver{..} = do
   sts <- init <$> getStats s
   putStrLn . intercalate "," $ map (show . fst) sts ++ map fst emaLabels
-
 dumpStats DumpCSV s@Solver{..} = do
   -- update the stat data before dump
   va <- get' trailLim
@@ -336,6 +345,5 @@ dumpStats DumpCSV s@Solver{..} = do
                 return $ showFFloat (Just 3) x ""
   vals <- mapM (fs . snd) emaLabels
   putStrLn . intercalate "," $ map (show . snd) sts ++ vals
-
 -- | FIXME: use Util/Stat
 dumpStats DumpJSON _ = return ()                -- mode 2: JSON
