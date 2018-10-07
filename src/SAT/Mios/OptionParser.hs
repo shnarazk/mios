@@ -92,7 +92,7 @@ miosOptions =
     "[solver] self-check (satisfiable) assignment"
   , Option ['o'] ["output"]
     (ReqArg (\v c -> c { _outputFile = Just v }) "file")
-    "[option] filename to store result"
+    "[option] filename to store result, '--' for stdout"
 {-
   , Option [] ["stdin"]
     (NoArg (\c -> c { _targetFile = Nothing }))
