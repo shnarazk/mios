@@ -93,6 +93,8 @@ data Solver = Solver
               , emaDFast    :: !EMA              -- ^ (Literal Block) Distance Fast
               , emaDSlow    :: !EMA              -- ^ (Literal Block) Distance Slow
               , nextRestart :: !Int'             -- ^ next restart in number of conflict
+              , restartExp  :: !Double'          -- ^ incremented by blocking
+              , emaRstBias  :: !EMA              -- ^ average phase of restart
               }
 
 -- | returns an everything-is-initialized solver from the arguments.
@@ -138,16 +140,17 @@ newSolver conf (CNFDescription nv dummy_nc _) =
     <*> newVec nv 0                        -- lbd'seen
     <*> new' 0                             -- lbd'key
     -- restart heuristics #62
-    <*> fastEma                            -- emaAFast
-    <*> slowEma                            -- emaASlow
-    <*> newEMA True (2 ^ 10)               -- emaBDLvl
-    <*> newEMA True (2 ^ 10)               -- emaCDLvl
-    <*> fastEma                            -- emaDFast
-    <*> slowEma                            -- emaDSlow
+    <*> newEMA False ef                    -- emaAFast
+    <*> newEMA True es                     -- emaASlow
+    <*> newEMA True 2                      -- emaBDLvl
+    <*> newEMA True 2                      -- emaCDLvl
+    <*> newEMA False ef                    -- emaDFast
+    <*> newEMA True es                     -- emaDSlow
     <*> new' 100                           -- nextRestart
+    <*> new' 0.0                           -- restartExp
+    <*> newEMA False 100                   -- emaRstBias
   where
-    fastEma = newEMA False . fst $ emaCoeffs conf
-    slowEma = newEMA True . snd $ emaCoeffs conf
+    (ef, es) = emaCoeffs conf
 
 --------------------------------------------------------------------------------
 -- Accessors

@@ -13,30 +13,29 @@ module SAT.Mios
          versionId
        , CNFDescription (..)
        , module SAT.Mios.OptionParser
+        -- * Main Interace
+       , SolverResult
+       , Certificate (..)
+       , buildOption
+       , buildSolver
+       , buildDescription
+       , executeSolver
+       , executeValidator
+         -- * Simple Interface
        , runSolver
        , solveSAT
        , solveSATWithConfiguration
-       , solve
-       , SolverResult
-       , Certificate (..)
-         -- * Assignment Validator
-       , validateAssignment
-       , validate
-         -- * For standalone programs
-       , executeSolverOn
-       , executeSolver
-       , executeValidatorOn
-       , executeValidator
        , showAnswerFromString
+         -- * Assignment Validator
+       , validate
+       , validateAssignment
          -- * File IO
-       , parseCNF
-       , injectClausesFromCNF
        , dumpAssigmentAsCNF
        )
        where
 
-import Control.Concurrent (forkIO, killThread, myThreadId, threadDelay
-                          , newEmptyMVar, putMVar, readMVar)
+import Control.Concurrent ( newEmptyMVar, putMVar, readMVar, takeMVar
+                          , ThreadId, forkIO, killThread, myThreadId, threadDelay)
 import Control.Exception
 import Control.Monad ((<=<), unless, void, when)
 import Data.Char
@@ -47,13 +46,14 @@ import System.Exit
 import System.IO
 
 import SAT.Mios.Types
+import SAT.Mios.Solver
 import SAT.Mios.Main
 import SAT.Mios.OptionParser
 import SAT.Mios.Validator
 
 -- | version name
 versionId :: String
-versionId = "1.6.2WIP https://gitlab.com/satisfiability01/mios"
+versionId = "161restart-fix1 https://gitlab.com/satisfiability01/mios"
 
 reportElapsedTime :: Bool -> String -> Integer -> IO Integer
 reportElapsedTime False _ 0 = return 0
@@ -65,17 +65,47 @@ reportElapsedTime True mes t = do
   hPutStrLn stderr $ showFFloat (Just 3) (fromIntegral (now - t) / toSecond) " sec"
   return now
 
--- | executes a solver on the given CNF file.
--- This is the simplest entry to standalone programs; not for Haskell programs.
-executeSolverOn :: FilePath -> IO ()
-executeSolverOn path = executeSolver (miosDefaultOption { _targetFile = Left path })
+-- | returns a MiosProgramOption for the target
+buildOption :: Either FilePath String -> MiosProgramOption
+buildOption target = (miosDefaultOption { _targetFile = target })
+
+-- | returns a new solver injected a problem
+buildSolver :: MiosProgramOption -> IO Solver
+buildSolver opts = do
+  token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
+  (desc, cls) <- parseCNF (_targetFile opts)
+  t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
+  readerId <- forkIO $ do
+    s <- newSolver (toMiosConf opts) desc
+    when (_numberOfVariables desc == 0) . error $ "couldn't load " ++ (take 100 . show . _targetFile) opts
+    injectClausesFromCNF s desc cls
+    putMVar token s
+  when (0 < _confBenchmark opts) $
+    void $ forkIO $ do let -- getCPUTime returns a pico sec. :: Integer, 1000 * 1000 * 1000 * 1000
+                           -- threadDelay requires a micro sec. :: Int,  1000 * 1000
+                           req = 1000000000000 * fromIntegral (_confBenchmark opts) :: Integer
+                           waiting = do
+                             elp <- getCPUTime
+                             when (elp < req) $ do
+                               threadDelay . max 1000000 $ fromIntegral (req - elp) `div` 1000000
+                               waiting
+                       waiting
+                       killThread readerId
+                       s' <- newSolver defaultConfiguration (CNFDescription 0 0 "")
+                       set' (ok s') LiftedF
+                       putMVar token s'
+  void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPathFixed opts ++ "] Parse: ") t0
+  takeMVar token
+
+-- | returns the data on a given CNF file. Only solver knows it.
+buildDescription :: FilePath -> Solver -> IO CNFDescription
+buildDescription target s = CNFDescription (nVars s) <$> nClauses s <*> return target
 
 -- | executes a solver on the given 'arg :: MiosConfiguration'.
 -- This is another entry point for standalone programs.
-executeSolver :: MiosProgramOption -> IO ()
-executeSolver opts = do
+executeSolver :: MiosProgramOption -> Solver -> IO ()
+executeSolver opts s = do
   solverId <- myThreadId
-  (desc, cls) <- parseCNF (_targetFile opts)
   token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
   t0 <- reportElapsedTime False "" $ if _confVerbose opts || 0 <= _confBenchmark opts then -1 else 0
   handle (\case
@@ -99,11 +129,6 @@ executeSolver opts = do
                          waiting
                          putMVar token (Left TimeOut)
                          killThread solverId
-    s <- newSolver (toMiosConf opts) desc
-    injectClausesFromCNF s desc cls
-    void $ reportElapsedTime (_confVerbose opts) ("## [" ++ showPathFixed opts ++ "] Parse: ") t0
-    -- putMVar token (Left TimeOut)
-    -- killThread solverId
     when (0 < _confDumpStat opts) $ dumpStats DumpCSVHeader s
     result <- solve s []
     putMVar token result
@@ -114,6 +139,7 @@ executeSolver opts = do
 --   * 0 if UNSAT
 --   * 1 if satisfiable (by finding an assignment)
 --   * other bigger values are used for aborted cases.
+-- TODO: this function shuld return @IO String@ in someday.
 reportResult :: MiosProgramOption -> Integer -> SolverResult -> IO ()
 -- abnormal cases, catching 'too large CNF', 'timeout' for now.
 reportResult opts t0 (Left OutOfMemory) = do
@@ -150,10 +176,7 @@ reportResult opts t0 (Right result) = do
   dumpAssigmentAsCNF (_outputFile opts) result
   valid <- if _confCheckAnswer opts                     -- or 0 <= _confBenchmark opts
            then case result of
-                  SAT asg -> do (desc, cls) <- parseCNF (_targetFile opts)
-                                s' <- newSolver (toMiosConf opts) desc
-                                injectClausesFromCNF s' desc cls
-                                validate s' asg
+                  SAT asg -> flip validate asg =<< buildSolver opts
                   UNSAT _ -> return True
            else return True
   when (_confCheckAnswer opts) $ do
@@ -164,16 +187,17 @@ reportResult opts t0 (Right result) = do
   when (0 <= _confBenchmark opts) $ do
     let fromPico = 1000000000000 :: Double
         phase = case result of { SAT _   -> 1; UNSAT _ -> 0::Int }
-    putStrLn $ "\"" ++ takeWhile (' ' /=) versionId ++ "\","
-      ++ show (_confBenchSeq opts) ++ ","
-      ++ "\"" ++ showPath opts ++ "\","
-      ++ if valid
-         then showFFloat (Just 3) (fromIntegral t2 / fromPico) "," ++ show phase
-         else show (_confBenchmark opts) ++ "," ++ show (fromEnum InternalInconsistent)
+    putStrLn ("\"" ++ takeWhile (' ' /=) versionId ++ "\","
+              ++ show (_confBenchSeq opts) ++ ","
+              ++ "\"" ++ showPath opts ++ "\","
+              ++ if valid
+               then showFFloat (Just 3) (fromIntegral t2 / fromPico) "," ++ show phase
+               else show (_confBenchmark opts) ++ "," ++ show (fromEnum InternalInconsistent))
 
 reportResult _ _ _ = return ()
 
--- | new top-level interface that returns:
+-- | NOT MAINTAINED NOW
+-- new top-level interface that returns:
 --
 -- * conflicting literal set :: Left [Int]
 -- * satisfiable assignment :: Right [Int]
@@ -213,21 +237,10 @@ solveSATWithConfiguration conf desc cls = do
               _             -> return []
     else return []
 
--- | validates a given assignment from STDIN for the CNF file (2nd arg).
--- this is the entry point for standalone programs.
-executeValidatorOn :: FilePath -> IO ()
-executeValidatorOn path = executeValidator (miosDefaultOption { _targetFile = Left path })
-
 -- | validates a given assignment for the problem (2nd arg).
 -- This is another entry point for standalone programs; see app/mios.hs.
-executeValidator :: MiosProgramOption -> IO ()
-executeValidator opts@(_targetFile -> target@(Left cnfFile)) = do
-  (desc, cls) <- parseCNF target
-  when (_numberOfVariables desc == 0) . error $ "couldn't load " ++ show cnfFile
-  s <- newSolver (toMiosConf opts) desc
-  injectClausesFromCNF s desc cls
-  when (_confVerbose opts) $
-    hPutStrLn stderr $ cnfFile ++ " was loaded: #v = " ++ show (_numberOfVariables desc) ++ " #c = " ++ show (_numberOfClauses desc)
+executeValidator :: MiosProgramOption -> Solver -> IO ()
+executeValidator opts@(_targetFile -> target@(Left cnfFile)) s = do
   asg <- read <$> getContents
   unless (_confNoAnswer opts) $ print asg
   result <- s `validate` (asg :: [Int])
@@ -235,7 +248,7 @@ executeValidator opts@(_targetFile -> target@(Left cnfFile)) = do
     then putStrLn ("It's a valid assignment for " ++ cnfFile ++ ".") >> exitSuccess
     else putStrLn ("It's an invalid assignment for " ++ cnfFile ++ ".") >> exitFailure
 
-executeValidator _  = return ()
+executeValidator _  _ = return ()
 
 -- | returns True if a given assignment (2nd arg) satisfies the problem (1st arg).
 -- if you want to check the @answer@ which a @slover@ returned, run @solver `validate` answer@,
@@ -319,7 +332,8 @@ injectClausesFromCNF s (CNFDescription nv nc _) bs = do
             loop !j !b = case parseInt $ skipWhitespace b of
                            (k, b') -> if k == 0
                                       then do setNth buffer 0 $ j - 1
-                                              void $ addClause s buffer
+                                              res <- addClause s buffer
+                                              unless res $ set' (ok s) LiftedF
                                               readClause (i + 1) b'
                                       else do setNth buffer j (int2lit k)
                                               loop (j + 1) b'
@@ -349,11 +363,12 @@ parseInt !st = do
 -- This is another entry point for standalone programs.
 showAnswerFromString :: String -> IO String
 showAnswerFromString str = do
-  let  opts = miosDefaultOption { _targetFile = Right str }
+  let opts = miosDefaultOption { _targetFile = Right str }
   solverId <- myThreadId
-  (desc, cls) <- parseCNF (_targetFile opts)
+  desc <- fst <$> parseCNF (_targetFile opts)
   token <- newEmptyMVar --  :: IO (MVar (Maybe Solver))
   t0 <- reportElapsedTime False "" 0
+  s <- buildSolver opts
   handle (\case
              UserInterrupt -> return "User interrupt recieved."
              ThreadKilled  -> makeReport opts t0 =<< readMVar token
@@ -371,8 +386,6 @@ showAnswerFromString str = do
                          waiting
                          putMVar token (Left TimeOut)
                          killThread solverId
-    s <- newSolver (toMiosConf opts) desc
-    injectClausesFromCNF s desc cls
     result <- solve s []
     putMVar token result
     killThread solverId
