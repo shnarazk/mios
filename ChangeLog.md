@@ -1,5 +1,11 @@
 ## Release Note
 
+##### 1.6.2
+
+- Mios saves the assignment to a file automatically.
+- A bug on a CNF file containing conflicting unit clauses was fixed.
+- Restart heuristics was modified slightly (not evaluated well).
+
 ##### 1.6.1
 
 - Use CPU clock time in benchmark mode correctly
