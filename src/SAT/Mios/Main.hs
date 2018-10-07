@@ -514,7 +514,7 @@ sortClauses s cm limit' = do
                   rNDD <- fromIntegral <$> nddOf s (lits c)    -- under the level
                   let r = if rNDD == 1                         -- this implies rLBD == 1.
                           then 1
-                          else ceiling . logBase 2 $ rLBD ** surface * rNDD ** (1 - surface)
+                          else ceiling $ rLBD ** surface * rNDD ** (1 - surface)
                   l <- locked s c
                   let d =if | l -> 0
                             | a < at -> rankMax
@@ -615,6 +615,7 @@ simplifyDB s@Solver{..} = do
 search :: Solver -> IO Bool
 search s@Solver{..} = do
   -- clear model
+  let delta = (sqrt . fromIntegral) nVars
   let loop :: Bool -> IO Bool
       loop restart = do
         confl <- propagate s
@@ -640,8 +641,7 @@ search s@Solver{..} = do
                               t' <- (* 1.5) <$> get' learntSAdj
                               set' learntSAdj t'
                               set' learntSCnt $ floor t'
-                              -- modify' maxLearnts (* 1.1)
-                              modify' maxLearnts (+ 300)
+                              modify' maxLearnts (+ delta)
                             loop =<< checkRestartCondition s lbd' d
           else do when (d == 0) . void $ simplifyDB s -- Simplify the set of problem clauses
                   k1 <- get' learnts
@@ -701,8 +701,9 @@ solve s@Solver{..} assumps = do
                             cancelUntil s 0
                             return False
                     else return True
+  check_given <- get' ok
   good <- simplifyDB s
-  x <- if good then foldrM inject True assumps else return False
+  x <- if check_given /= LiftedF && good then foldrM inject True assumps else return False
   if x
     then do set' rootLevel =<< decisionLevel s
             status <- search s

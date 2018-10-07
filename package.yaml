@@ -1,5 +1,5 @@
 name:                mios
-version:             1.6.1
+version:             1.6.2
 synopsis:            A Minisat-based CDCL SAT solver in Haskell
 description:
   A modern and very fast SAT solver written in Haskell, using CDCL, watch literals, VSIDS,
@@ -45,7 +45,7 @@ library:
   source-dirs:       src
 
 executables:
-  mios-1.6.1:
+  mios162:
     source-dirs:     app
     main:            mios.hs
     dependencies:
@@ -73,13 +73,15 @@ executables:
           buildable: true
         else:
           buildable: false
-  cnf-stat:
-    source-dirs:     utils
-    main:            cnf-stat.hs
-    dependencies:    mios
-    when:
-      - condition:   flag(utils)
-        then:
-          buildable: true
-        else:
-          buildable: false
+
+tests:
+  mios-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - mios
+      - hspec
