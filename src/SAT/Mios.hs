@@ -169,6 +169,7 @@ reportResult opts t0 (Right result) = do
   dumpName <- if _confNoAnswer opts then return Nothing else (Just <$> dumpAssigmentAsCNF opts result)
   case (result, dumpName) of
     _ | 0 <= _confBenchmark opts -> return ()
+    (_, Just "")    -> return ()
     (SAT _, Just o)    -> hPutStrLn stderr $ "SATISFIABLE, saved to " ++ o ++ " for " ++ showPathBaseName opts
     (SAT _, Nothing)   -> hPutStrLn stderr $ "SATISFIABLE, " ++ showPathBaseName opts
     (UNSAT _, Just o)  -> hPutStrLn stderr $ "UNSATISFIABLE, saved to " ++ o ++ " for " ++ showPathBaseName opts
@@ -270,21 +271,27 @@ validateAssignment desc cls asg = do
 dumpAssigmentAsCNF :: MiosProgramOption -> Certificate -> IO String
 -- | FIXME: swtich to DRAT
 dumpAssigmentAsCNF opt (UNSAT _) = do
-  let fname = case _outputFile opt of
-                Just x -> x
-                Nothing -> case _targetFile opt of
-                             Left f -> ".ans_" ++ (reverse . takeWhile (/= '/') . reverse) f
-                             Right _ -> ".ans_mios"
-  writeFile fname "s UNSAT\n0\n"
-  return fname
+  if _outputFile opt == Just "--"
+    then print "[]" >> return ""
+    else do let fname = case _outputFile opt of
+                  Just x -> x
+                  Nothing -> case _targetFile opt of
+                               Left f -> ".ans_" ++ (reverse . takeWhile (/= '/') . reverse) f
+                               Right _ -> ".ans_mios"
+            writeFile fname "s UNSAT\n0\n"
+            return fname
 dumpAssigmentAsCNF opt (SAT l) = do
-  let fname = case _outputFile opt of
-                Just x -> x
-                Nothing -> case _targetFile opt of
-                             Left f -> ".ans_" ++ (reverse . takeWhile (/= '/') . reverse) f
-                             Right _ -> ".ans_mios"
-  withFile fname WriteMode $ \h -> do hPutStrLn h "s SAT"; hPutStrLn h . (++ " 0") . unwords $ map show l
-  return fname
+  if _outputFile opt == Just "--"
+    then print l >> return ""
+    else do let fname = case _outputFile opt of
+                  Just x -> x
+                  Nothing -> case _targetFile opt of
+                               Left f -> ".ans_" ++ (reverse . takeWhile (/= '/') . reverse) f
+                               Right _ -> ".ans_mios"
+            withFile fname WriteMode $ \h -> do
+              hPutStrLn h "s SAT"
+              hPutStrLn h . (++ " 0") . unwords $ map show l
+            return fname
 
 showPath :: MiosProgramOption -> String
 showPath (_targetFile -> Left str) = str
